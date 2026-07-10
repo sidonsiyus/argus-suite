@@ -370,6 +370,8 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
         <div class="seg" id="segShift"><button data-v="180">3 min</button><button class="on" data-v="300">5 min</button><button data-v="600">10 min</button><button data-v="0">Endless</button></div></div>
       <div class="setrow"><div class="lb">Emergencies<small>Random MAYDAY / low-fuel events</small></div>
         <div class="seg" id="segEmg"><button data-v="0">Off</button><button class="on" data-v="1">On</button></div></div>
+      <div class="setrow"><div class="lb">Scope<small>Radar display — modern, or CRT phosphor</small></div>
+        <div class="seg" id="segScope"><button class="on" data-v="modern">Modern</button><button data-v="green">Green CRT</button><button data-v="amber">Amber CRT</button></div></div>
       <div class="setrow"><div class="lb">Weather<small>Low-vis widens required spacing; watch crosswind</small></div>
         <div class="seg" id="segWx"><button class="on" data-v="CAVOK">CAVOK</button><button data-v="RAIN">Rain</button><button data-v="LOWVIS">Low-vis</button></div></div>
       <div class="setrow"><div class="lb">Night mode<small>Runway &amp; approach lighting</small></div>
@@ -590,7 +592,7 @@ const TYPE_KEYS=Object.keys(TYPES), AIR_KEYS=Object.keys(AIRLINES);
 
 /* ---- runtime state ---- */
 let CFG={traffic:1, arrRate:1, shift:300, emg:1, night:0, voice:1, silent:0, tempo:1, wx:"CAVOK",
-  approach:"seq", diff:"standard", spacing:1, cb:0, uiScale:1};
+  approach:"seq", diff:"standard", spacing:1, cb:0, uiScale:1, scope:"modern"};
 function loadCareer(){ try{ return JSON.parse(localStorage.getItem("pyrgos_career"))||null; }catch(_){ return null; } }
 function saveCareer(c){ try{ localStorage.setItem("pyrgos_career", JSON.stringify(c)); }catch(_){} }
 let CAREER = loadCareer() || {shifts:0, bestScore:0, bestSafety:0, rating:0, streak:0, hours:0, lastGrade:"—"};
@@ -900,6 +902,12 @@ function stepGame(dt){
   if(G.depT<=0){ if(GATES.some(g=>!g.occ)&&G.aircraft.filter(a=>a.kind==="dep").length<maxDep) spawnDeparture(); G.depT=8+Math.random()*6; }
 
   for(const a of G.aircraft){ updateAircraft(a,dt); if(a.flash>0)a.flash-=dt; }
+  // radar history trails (sample airborne target positions ~ every 0.55s)
+  G.trailT=(G.trailT||0)+dt;
+  if(G.trailT>=0.55){ G.trailT=0;
+    for(const a of G.aircraft){ const air=a.alt>3||["HOLD","INTERCEPT","FINAL","GOAROUND","TKOF","CLIMB"].includes(a.state);
+      if(air){ (a.hist=a.hist||[]).push({x:a.x,y:a.y}); if(a.hist.length>7)a.hist.shift(); } }
+  }
   // remove finished
   for(let i=G.aircraft.length-1;i>=0;i--){ if(G.aircraft[i].dead){ const a=G.aircraft[i]; if(a.gate)a.gate.occ=null; G.aircraft.splice(i,1); } }
 
@@ -1174,18 +1182,51 @@ function S2W(x,y){ return {x:(x-VIEW.ox)/VIEW.scale, y:(y-VIEW.oy)/VIEW.scale}; 
 function render(){
   const dpr=VIEW.dpr||1; ctx.setTransform(dpr,0,0,dpr,0,0);
   const r=cvs.getBoundingClientRect();
-  const night=CFG.night;
-  ctx.fillStyle=night?"#05100e":"#081512"; ctx.fillRect(0,0,r.width,r.height);
+  const night=CFG.night; const pal=scopePal();
+  ctx.fillStyle= pal.phos? pal.bg : (night?"#05100e":"#081512"); ctx.fillRect(0,0,r.width,r.height);
   ctx.save(); ctx.translate(VIEW.ox,VIEW.oy); ctx.scale(VIEW.scale,VIEW.scale);
 
   drawField(night);
+  drawScopeRings(pal);
+  drawSweep(pal);
   if(G && G.pos==="APP") drawApproachOverlay();
+  if(pal.phos){ ctx.save(); ctx.globalCompositeOperation="color"; ctx.fillStyle="rgb("+pal.rgb+")";
+    ctx.fillRect(-300,-300,WORLD.w+600,WORLD.h+600); ctx.restore(); }   // monochrome the field layer to phosphor
   if(G) drawAircraftAll(night);
   if(RT.on) drawRealTraffic(night);
   if(CFG.wx==="RAIN"||CFG.wx==="LOWVIS") drawWeatherFX(night);
 
   ctx.restore();
   drawScopeTint();
+}
+/* ---- radar-scope skin ---- */
+function scopePal(){
+  const s=CFG.scope||"modern";
+  if(s==="green") return {phos:true, name:"green", rgb:"70,222,152", bg:"#03110b", tint:"rgba(70,222,152,.05)"};
+  if(s==="amber") return {phos:true, name:"amber", rgb:"255,176,64", bg:"#120c02", tint:"rgba(255,176,64,.05)"};
+  return {phos:false, name:"modern", rgb:"30,203,184", bg:null, tint:null};
+}
+function fieldCentroid(){ let cx=0,cy=0; RUNWAYS.forEach(r=>{cx+=(r.ax+r.bx)/2;cy+=(r.ay+r.by)/2;}); return {x:cx/RUNWAYS.length, y:cy/RUNWAYS.length}; }
+function drawScopeRings(pal){
+  const c=fieldCentroid(); const strong=pal.phos; const step=180;
+  ctx.lineWidth=1;
+  for(let k=1;k<=6;k++){ ctx.strokeStyle= strong?"rgba(160,200,190,.14)":"rgba(120,180,165,.055)";
+    ctx.beginPath(); ctx.arc(c.x,c.y,k*step,0,7); ctx.stroke(); }
+  const R=6*step;
+  ctx.strokeStyle= strong?"rgba(160,200,190,.22)":"rgba(120,180,165,.09)";
+  for(let d=0;d<360;d+=15){ const a=(d-90)*D2R, maj=d%90===0, r1=R-(maj?18:9);
+    ctx.beginPath(); ctx.moveTo(c.x+Math.cos(a)*R,c.y+Math.sin(a)*R); ctx.lineTo(c.x+Math.cos(a)*r1,c.y+Math.sin(a)*r1); ctx.stroke(); }
+  if(strong){ ctx.fillStyle="rgba(200,225,215,.5)"; ctx.font="11px "+mono(); ctx.textAlign="center";
+    [["N",0],["E",90],["S",180],["W",270]].forEach(([t,d])=>{const a=(d-90)*D2R; ctx.fillText(t,c.x+Math.cos(a)*(R+16),c.y+Math.sin(a)*(R+16)+4);}); }
+}
+function drawSweep(pal){
+  if(!G) return; const c=fieldCentroid(); const R=1120; const ang=(G.t*0.6)%(Math.PI*2);
+  const base = pal.phos?"200,230,220":"30,203,184"; const a0= pal.phos?0.16:0.05;
+  if(ctx.createConicGradient){ const grad=ctx.createConicGradient(ang,c.x,c.y);
+    grad.addColorStop(0,"rgba("+base+","+a0+")"); grad.addColorStop(0.11,"rgba("+base+",0)"); grad.addColorStop(1,"rgba("+base+",0)");
+    ctx.save(); ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(c.x,c.y,R,0,7); ctx.fill(); ctx.restore(); }
+  ctx.strokeStyle="rgba("+base+","+(pal.phos?0.4:0.12)+")"; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(c.x+Math.cos(ang)*R,c.y+Math.sin(ang)*R); ctx.stroke();
 }
 function drawField(night){
   // river (decorative, e.g. Adyar at MAA)
@@ -1249,51 +1290,73 @@ function drawApproachOverlay(){
   ctx.fillStyle="rgba(30,203,184,.05)"; ctx.fill(); ctx.restore();
 }
 function drawAircraftAll(night){
+  const pal=scopePal();
   for(const a of G.aircraft){
     const sel=a.id===selected;
     const airborne=a.alt>3 || ["HOLD","INTERCEPT","FINAL","GOAROUND","TKOF","CLIMB"].includes(a.state);
-    // trail on final/approach
-    if(a.state==="FINAL"||a.state==="GOAROUND"){ ctx.strokeStyle=a.emg?"rgba(255,91,110,.4)":"rgba(30,203,184,.32)"; ctx.lineWidth=1.5;
+    // radar history trail (fading comet dots behind airborne targets)
+    if(a.hist && a.hist.length){
+      for(let i=0;i<a.hist.length;i++){ const h=a.hist[i], f=(i+1)/(a.hist.length+1);
+        const rad=1.3+2.1*f, al=0.06+0.30*f;
+        ctx.fillStyle = pal.phos? "rgba("+pal.rgb+","+al+")"
+          : (a.emg?"rgba(255,91,110,"+al+")": a.kind==="dep"?"rgba(240,182,74,"+al+")":"rgba(30,203,184,"+al+")");
+        ctx.beginPath(); ctx.arc(h.x,h.y,rad,0,7); ctx.fill(); }
+    }
+    // approach centreline stub
+    if(a.state==="FINAL"||a.state==="GOAROUND"){ ctx.strokeStyle= pal.phos?"rgba("+pal.rgb+",.3)":(a.emg?"rgba(255,91,110,.4)":"rgba(30,203,184,.32)"); ctx.lineWidth=1.5;
       const act=rActive(a.rwy); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(a.x-act.ux*46, a.y-act.uy*46); ctx.stroke(); }
-    // trend/velocity vector for airborne traffic (10-sec projection)
+    // trend/velocity vector (1-min projection)
     if(airborne && a.spd>40){ const act=a.rwy?rActive(a.rwy):null; const ux=act?act.ux:Math.sin((a.hdg)*D2R), uy=act?act.uy:-Math.cos((a.hdg)*D2R);
-      ctx.strokeStyle=a.emg?"rgba(255,91,110,.6)":"rgba(107,183,255,.55)"; ctx.lineWidth=1.4;
+      ctx.strokeStyle= pal.phos?"rgba("+pal.rgb+",.55)":(a.emg?"rgba(255,91,110,.6)":"rgba(107,183,255,.55)"); ctx.lineWidth=1.4;
       const ln=Math.min(60,a.spd*0.28); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(a.x+ux*ln,a.y+uy*ln); ctx.stroke();
-      ctx.fillStyle=a.emg?"rgba(255,91,110,.6)":"rgba(107,183,255,.55)"; ctx.beginPath(); ctx.arc(a.x+ux*ln,a.y+uy*ln,2,0,7); ctx.fill(); }
+      ctx.fillStyle= pal.phos?"rgba("+pal.rgb+",.55)":(a.emg?"rgba(255,91,110,.6)":"rgba(107,183,255,.55)"); ctx.beginPath(); ctx.arc(a.x+ux*ln,a.y+uy*ln,2,0,7); ctx.fill(); }
     // conflict ring
     if(a.flash>0){ ctx.strokeStyle="rgba(255,91,110,"+(0.5+0.5*Math.sin(G.t*20))+")"; ctx.lineWidth=2;
       ctx.beginPath(); ctx.arc(a.x,a.y,20,0,7); ctx.stroke(); }
-    // body — scaled by wake category (J/H larger, L smaller)
+    // body — scaled by wake category
     ctx.save(); ctx.translate(a.x,a.y); ctx.rotate((a.hdg||0)*Math.PI/180);
-    let col = a.emg?"#ff5b6e" : a.kind==="dep"?"#f0b64a" : "#1ecbb8";
-    if(a.state==="LAND"||a.state==="TKOF") col="#eaf5f1";
-    ctx.fillStyle=col; ctx.strokeStyle="rgba(4,10,8,.9)"; ctx.lineWidth=1.4;
+    let col;
+    if(pal.phos){ col = a.emg?"#ff6b74" : (a.state==="LAND"||a.state==="TKOF")?"#ffffff" : sel?"#ffffff":"rgb("+pal.rgb+")"; }
+    else { col = a.emg?"#ff5b6e" : a.kind==="dep"?"#f0b64a" : "#1ecbb8"; if(a.state==="LAND"||a.state==="TKOF") col="#eaf5f1"; }
+    ctx.fillStyle=col; ctx.strokeStyle= pal.phos?"rgba(0,0,0,.6)":"rgba(4,10,8,.9)"; ctx.lineWidth=1.4;
     const wk=a.wake==="J"?1.4:a.wake==="H"?1.22:a.wake==="L"?0.82:1; const s=(airborne?1.15:1)*wk;
     ctx.beginPath(); ctx.moveTo(0,-9*s); ctx.lineTo(6*s,7*s); ctx.lineTo(0,4*s); ctx.lineTo(-6*s,7*s); ctx.closePath();
     ctx.fill(); ctx.stroke();
-    if(sel){ ctx.strokeStyle="#f0b64a"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,15,0,7); ctx.stroke(); }
+    if(sel){ ctx.strokeStyle= pal.phos?"#ffffff":"#f0b64a"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,15,0,7); ctx.stroke(); }
     ctx.restore();
-    // datablock
-    drawDatablock(a,sel,night);
+    drawDatablock(a,sel,night,pal);
   }
 }
-function drawDatablock(a,sel,night){
+function drawDatablock(a,sel,night,pal){
+  pal=pal||scopePal();
   const l3 = a.kind==="dep"&&a.sid ? (a.sid.name) : (a.live?"◆LIVE":"");
   const lines=[ a.cs+"  "+a.wake+(l3?"  "+l3:""), a.type+(a.squawk?"  "+a.squawk:""),
     (a.alt>60?Math.round(a.alt/100)*100+"ft":stateLabel(a))+"  "+Math.round(a.spd)+"kt" ];
   ctx.font="10px "+mono(); ctx.textAlign="left";
   const w=Math.max(...lines.map(t=>ctx.measureText(t).width))+8;
   const ox=12, oy=-8;
-  ctx.strokeStyle=sel?"rgba(240,182,74,.7)":"rgba(30,203,184,.35)"; ctx.lineWidth=1;
+  const line= pal.phos? "rgba("+pal.rgb+",.5)" : (sel?"rgba(240,182,74,.7)":"rgba(30,203,184,.35)");
+  ctx.strokeStyle=line; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(a.x+3,a.y-3); ctx.lineTo(a.x+ox,a.y+oy); ctx.stroke();
-  ctx.fillStyle="rgba(6,16,14,.82)"; roundRectP(a.x+ox,a.y+oy-11,w,lines.length*11+6,4); ctx.fill();
-  ctx.strokeStyle=sel?"rgba(240,182,74,.5)":"rgba(120,180,165,.2)"; roundRectP(a.x+ox,a.y+oy-11,w,lines.length*11+6,4); ctx.stroke();
-  lines.forEach((t,i)=>{ ctx.fillStyle=i===0?(a.emg?"#ff5b6e":sel?"#f0b64a":"#eaf5f1"):"#8fb4ac"; ctx.fillText(t,a.x+ox+4,a.y+oy+i*11); });
-  if(a.emg){ ctx.fillStyle="#ff5b6e"; ctx.fillText("⚠ "+a.emgType, a.x+ox+4, a.y+oy+lines.length*11+2); }
+  ctx.fillStyle= pal.phos? "rgba(0,0,0,.55)":"rgba(6,16,14,.82)"; roundRectP(a.x+ox,a.y+oy-11,w,lines.length*11+6,4); ctx.fill();
+  ctx.strokeStyle= pal.phos? "rgba("+pal.rgb+",.35)":(sel?"rgba(240,182,74,.5)":"rgba(120,180,165,.2)"); roundRectP(a.x+ox,a.y+oy-11,w,lines.length*11+6,4); ctx.stroke();
+  lines.forEach((t,i)=>{
+    ctx.fillStyle= pal.phos ? (a.emg?"#ff6b74": i===0? (sel?"#ffffff":"rgb("+pal.rgb+")") : "rgba("+pal.rgb+",.7)")
+      : (i===0?(a.emg?"#ff5b6e":sel?"#f0b64a":"#eaf5f1"):"#8fb4ac");
+    ctx.fillText(t,a.x+ox+4,a.y+oy+i*11); });
+  if(a.emg){ ctx.fillStyle="#ff6b74"; ctx.fillText("⚠ "+a.emgType, a.x+ox+4, a.y+oy+lines.length*11+2); }
 }
 function stateLabel(a){ return ({HOLD:"HOLD",INTERCEPT:"INTCPT",FINAL:"FINAL",LAND:"LAND",EXIT:"EXIT",TAXI_IN:"TAXI",GATE:"GATE",PUSH:"PUSH",WAITTAXI:"HOLD",
   TAXI_OUT:"TAXI",HOLD_SHORT:"HLD SHT",HOLD_TAXI:"HOLD",LINEUP:"LINEUP",READY:"READY",TKOF:"DEP",CLIMB:"CLIMB",GOAROUND:"GO-ARND"})[a.state]||a.state; }
-function drawScopeTint(){ const r=cvs.getBoundingClientRect();
+function drawScopeTint(){ const r=cvs.getBoundingClientRect(); const pal=scopePal();
+  if(pal.phos){
+    ctx.fillStyle=pal.tint; ctx.fillRect(0,0,r.width,r.height);
+    ctx.fillStyle="rgba(0,0,0,.16)"; for(let y=0;y<r.height;y+=3){ ctx.fillRect(0,y,r.width,1); }
+    const g=ctx.createRadialGradient(r.width/2,r.height*0.48,r.height*0.22, r.width/2,r.height*0.5,r.height*0.9);
+    g.addColorStop(0,"rgba(0,0,0,0)"); g.addColorStop(1,"rgba(0,0,0,.55)"); ctx.fillStyle=g; ctx.fillRect(0,0,r.width,r.height);
+    ctx.fillStyle="rgba("+pal.rgb+","+(0.012+0.014*Math.random())+")"; ctx.fillRect(0,0,r.width,r.height);
+    return;
+  }
   if(G && G.pos==="APP"){ ctx.fillStyle="rgba(30,203,184,.03)"; ctx.fillRect(0,0,r.width,r.height); }
   if(G && G.pos==="GND"){ ctx.fillStyle="rgba(58,217,160,.02)"; ctx.fillRect(0,0,r.width,r.height); }
 }
@@ -1456,6 +1519,9 @@ wireSeg("segArr","arrRate");
 wireSeg("segShift","shift",()=>{ if(G){G.shift=CFG.shift;} });
 wireSeg("segEmg","emg");
 wireSeg("segNight","night",()=>{ setWind(G.wind.dir,G.wind.spd); });
+(function(){ const seg=document.getElementById("segScope"); if(!seg)return;
+  seg.querySelectorAll("button").forEach(b=>b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    CFG.scope=b.dataset.v; toast("Scope: "+(CFG.scope==="modern"?"modern":CFG.scope+" CRT")); }); })();
 (function(){ const seg=document.getElementById("segWx"); if(!seg)return;
   seg.querySelectorAll("button").forEach(b=>b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
     CFG.wx=b.dataset.v; if(G)setWind(G.wind.dir,G.wind.spd); toast("Weather: "+CFG.wx); }); })();
