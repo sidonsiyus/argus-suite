@@ -1,319 +1,315 @@
-<!DOCTYPE html>
+\<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ARGUS Suite · Aviation Engineering Interactive Lab Suite</title>
+<title>ARGUS Suite</title>
 <style>
   :root{
-    --bg:#070a10; --bg2:#0b1018; --panel:#0e141d; --panel2:#121a25;
-    --line:#1e2836; --ink:#eaf1fb; --muted:#93a3b8; --faint:#5b6b80;
-    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:#090c0f; --panel:#0e1216; --panel2:#12171c;
+    --line:#1c2228; --line2:#272f37;
+    --ink:#e9edf0; --muted:#858e96; --faint:#4c555c;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%}
-  body{
-    font-family:var(--sans); color:var(--ink); background:var(--bg);
-    min-height:100vh; overflow-x:hidden; position:relative;
-    display:flex; flex-direction:column;
-  }
-  body::before{
-    content:""; position:fixed; inset:-20%; z-index:0; pointer-events:none;
-    background:
-      radial-gradient(60% 50% at 15% 10%, rgba(34,211,238,.10), transparent 60%),
-      radial-gradient(55% 45% at 85% 15%, rgba(255,59,71,.09), transparent 60%),
-      radial-gradient(60% 55% at 80% 90%, rgba(34,197,94,.08), transparent 60%),
-      radial-gradient(50% 45% at 10% 90%, rgba(240,182,74,.09), transparent 60%);
-    animation:drift 22s ease-in-out infinite alternate;
-  }
-  body::after{
-    content:""; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.45;
-    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
-    background-size:44px 44px; mask-image:radial-gradient(circle at 50% 42%,#000 0%,transparent 74%);
-    -webkit-mask-image:radial-gradient(circle at 50% 42%,#000 0%,transparent 74%);
-  }
-  @keyframes drift{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(0,-18px,0) scale(1.04)}}
+  body{background:var(--bg); color:var(--ink); font-family:var(--sans);
+    min-height:100vh; overflow-x:hidden; display:flex; flex-direction:column;
+    -webkit-font-smoothing:antialiased; position:relative}
+  /* faint fixed vignette — no motion, no colour */
+  body::before{content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 8%, rgba(255,255,255,.03), transparent 55%),
+               radial-gradient(100% 100% at 50% 120%, rgba(0,0,0,.5), transparent 60%)}
 
-  .wrap{position:relative; z-index:1; width:100%; max-width:1160px; margin:0 auto; padding:34px 22px 20px; flex:1}
-  header{text-align:center; margin-bottom:6px}
-  .eyebrow{
-    font-family:var(--mono); font-size:11.5px; letter-spacing:.34em; text-transform:uppercase;
-    color:var(--faint); display:inline-flex; align-items:center; gap:10px; margin-bottom:6px;
-  }
-  .eyebrow::before,.eyebrow::after{content:"";width:34px;height:1px;background:linear-gradient(90deg,transparent,var(--line))}
-  .eyebrow::after{background:linear-gradient(90deg,var(--line),transparent)}
+  .wrap{position:relative; z-index:1; width:100%; max-width:1080px; margin:0 auto;
+    padding:30px 24px 18px; flex:1; display:flex; flex-direction:column}
 
-  /* ---------------- radial stage ---------------- */
-  .stage{position:relative; width:min(80vw,640px); aspect-ratio:1/1; margin:6px auto 0}
-  .spokes{position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; overflow:visible}
-  .spokes line{stroke:var(--line); stroke-width:1; stroke-dasharray:3 6; opacity:.7}
+  .top{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:8px}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.36em; text-transform:uppercase; color:var(--faint)}
+  .top .rt{font-family:var(--mono); font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint)}
+  .top .rt b{color:var(--muted); font-weight:500}
 
-  /* central hub */
-  .hub{
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    width:min(38%,232px); aspect-ratio:1/1; border-radius:50%; z-index:3;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
-    background:radial-gradient(circle at 50% 35%, #111a26, #0b1119 70%);
-    border:1px solid var(--line); padding:6% 8%;
-    box-shadow:0 0 0 6px rgba(15,22,32,.5), inset 0 0 40px rgba(0,0,0,.5);
-  }
-  .hub::before{
-    content:""; position:absolute; inset:-14%; border-radius:50%; z-index:-1;
-    background:conic-gradient(from 0deg,#1ecbb8,#f0b64a,#22d3ee,#ff3b47,#3b82f6,#f59e0b,#22c55e,#1ecbb8);
-    filter:blur(26px); opacity:.28; animation:spin 26s linear infinite;
-  }
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .hub .eye{width:clamp(38px,7vw,60px); height:clamp(38px,7vw,60px); color:#eaf1fb; margin-bottom:6px}
-  .hub .eye svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-  .hub h1{margin:0; font-size:clamp(15px,2.6vw,22px); font-weight:800; letter-spacing:.14em;
-    background:linear-gradient(180deg,#fff,#a9bace); -webkit-background-clip:text; background-clip:text; color:transparent}
-  .hub .htag{font-family:var(--mono); font-size:clamp(7px,1.3vw,9px); letter-spacing:.22em; text-transform:uppercase; color:var(--faint); margin-top:3px}
-  .hub .hinfo{margin-top:7px; font-size:clamp(9px,1.5vw,11px); line-height:1.5; color:var(--muted); max-width:22ch}
-  .hub .hcount{margin-top:8px; font-family:var(--mono); font-size:clamp(8px,1.4vw,10px); color:var(--ink);
-    padding:3px 10px; border-radius:999px; border:1px solid var(--line); background:rgba(20,28,40,.6)}
+  /* ---------------- instrument ---------------- */
+  .stage{position:relative; width:min(74vw,560px); aspect-ratio:1/1; margin:8px auto 0}
+  .bezel{position:absolute; inset:0; width:100%; height:100%; z-index:0; overflow:visible}
+  .bezel .ring{fill:none; stroke:var(--line2); stroke-width:1}
+  .bezel .tick{stroke:var(--line2)}
+  .bezel .tick.maj{stroke:#39424a}
+  .bezel .ptr{stroke-width:1; stroke-dasharray:2 4; opacity:0; transition:opacity .35s}
 
-  /* domain nodes */
-  .node{
-    --accent:#1ecbb8;
-    position:absolute; z-index:2; width:clamp(84px,15vw,120px); text-decoration:none; color:inherit;
-    display:flex; flex-direction:column; align-items:center; text-align:center; gap:7px;
-    transition:transform .25s cubic-bezier(.2,.7,.2,1);
-  }
-  .node .disc{
-    position:relative; width:clamp(58px,10vw,80px); aspect-ratio:1/1; border-radius:50%;
-    display:grid; place-items:center; color:var(--accent);
-    background:radial-gradient(circle at 50% 35%, color-mix(in srgb,var(--accent) 22%,#0e141d), #0c121b 72%);
-    border:1px solid color-mix(in srgb,var(--accent) 46%,var(--line));
-    transition:box-shadow .3s, transform .3s, border-color .3s;
-    box-shadow:0 0 18px -6px color-mix(in srgb,var(--accent) 60%,transparent);
-  }
-  /* colour halo — always subtly lit, intensifies on hover */
-  .node .disc::before{
-    content:""; position:absolute; inset:-46%; border-radius:50%; z-index:-1;
-    background:radial-gradient(closest-side, color-mix(in srgb,var(--accent) 70%,transparent), transparent 72%);
-    filter:blur(16px); opacity:.32; transition:opacity .35s, transform .35s;
-  }
-  .node .disc svg{width:46%;height:46%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-  .node .nlabel{font-size:clamp(10px,1.5vw,12.5px); font-weight:700; letter-spacing:-.01em; line-height:1.15; color:var(--ink)}
-  .node .ntag{font-family:var(--mono); font-size:8.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); opacity:.85}
-  .node:hover, .node:focus-visible{transform:translate(-50%,-50%) scale(1.09); outline:none}
-  .node:hover .disc, .node:focus-visible .disc{
-    transform:scale(1.06);
-    border-color:color-mix(in srgb,var(--accent) 80%,transparent);
-    box-shadow:0 0 34px -4px color-mix(in srgb,var(--accent) 85%,transparent);
-  }
-  .node:hover .disc::before, .node:focus-visible .disc::before{opacity:.85; transform:scale(1.1)}
+  /* central nav readout */
+  .hub{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:min(46%,244px); aspect-ratio:1/1; border-radius:50%; z-index:2;
+    display:grid; place-items:center; text-align:center; padding:8%;
+    background:radial-gradient(circle at 50% 42%, #10151a, #0b0f13 72%);
+    border:1px solid var(--line)}
+  .hub-face{grid-area:1/1; width:100%; transition:opacity .3s; display:flex; flex-direction:column; align-items:center; justify-content:center}
+  .hub-read{opacity:0; pointer-events:none}
+  .hub.active .hub-home{opacity:0}
+  .hub.active .hub-read{opacity:1}
 
-  /* ---------------- how-to row ---------------- */
-  .howto{margin:20px auto 0; max-width:1000px; text-align:center}
-  .howto .ht-h{font-family:var(--mono); font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--faint);
-    display:inline-flex; align-items:center; gap:10px; margin-bottom:14px}
-  .howto .ht-h::before,.howto .ht-h::after{content:"";width:30px;height:1px;background:linear-gradient(90deg,transparent,var(--line))}
-  .ht-row{display:flex; flex-wrap:wrap; justify-content:center; gap:10px}
-  .ht-btn{
-    --accent:#1ecbb8;
-    display:inline-flex; align-items:center; gap:9px; cursor:pointer;
-    font-family:var(--mono); font-size:11.5px; letter-spacing:.02em;
-    color:color-mix(in srgb,var(--accent) 86%,#fff); background:color-mix(in srgb,var(--accent) 10%,var(--panel));
-    border:1px solid color-mix(in srgb,var(--accent) 38%,var(--line)); border-radius:11px; padding:9px 13px;
-    transition:transform .2s, box-shadow .25s, background .25s;
-  }
-  .ht-btn .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px var(--accent);flex:none}
-  .ht-btn:hover{transform:translateY(-2px); background:color-mix(in srgb,var(--accent) 18%,var(--panel));
-    box-shadow:0 12px 26px -14px color-mix(in srgb,var(--accent) 80%,transparent)}
+  .mark{width:clamp(26px,4.6vw,34px); height:clamp(26px,4.6vw,34px); color:var(--muted); margin-bottom:9px}
+  .mark svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+  .word{font-size:clamp(22px,4.2vw,34px); font-weight:800; letter-spacing:.14em; line-height:.98}
+  .word-sub{font-family:var(--mono); font-size:clamp(9px,1.7vw,12px); letter-spacing:.5em; color:var(--faint); margin:5px 0 0; padding-left:.5em}
+  .home-tag{margin-top:12px; font-size:clamp(10px,1.7vw,12px); color:var(--muted); line-height:1.5; max-width:20ch}
+  .home-hint{margin-top:10px; font-family:var(--mono); font-size:9.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint)}
 
-  footer{position:relative; z-index:1; text-align:center; color:var(--faint); font-size:12px; padding:22px 24px 30px; font-family:var(--mono); letter-spacing:.04em}
-  footer b{color:var(--muted); font-weight:600}
+  .read-brg{font-family:var(--mono); font-size:10px; letter-spacing:.22em; color:var(--accent,#8a939b)}
+  .read-name{font-size:clamp(15px,2.8vw,21px); font-weight:750; line-height:1.12; margin:7px 0 3px; max-width:15ch}
+  .read-tag{font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint)}
+  .read-desc{margin-top:9px; font-size:clamp(10px,1.6vw,12px); line-height:1.55; color:var(--muted); max-width:22ch}
+  .read-cta{margin-top:11px; font-family:var(--mono); font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent,#8a939b)}
+
+  /* waypoints */
+  .wp{--accent:#8a939b; position:absolute; z-index:3; text-decoration:none; color:inherit;
+    display:flex; flex-direction:column; align-items:center; gap:8px; width:104px;
+    transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+  .disc{position:relative; width:clamp(46px,8.4vw,58px); aspect-ratio:1/1; border-radius:50%;
+    display:grid; place-items:center; color:var(--muted); background:var(--panel);
+    border:1px solid var(--line2); transition:border-color .25s, color .25s, box-shadow .3s, background .25s}
+  .disc svg{width:44%;height:44%;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .led{position:absolute; top:8%; right:8%; width:6px; height:6px; border-radius:50%;
+    background:var(--accent); opacity:.85}
+  .wp-name{font-family:var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); transition:color .25s; white-space:nowrap}
+  .wp:hover, .wp:focus-visible{transform:translate(-50%,-50%) scale(1.06); outline:none}
+  .wp:hover .disc, .wp:focus-visible .disc{border-color:var(--accent); color:var(--ink);
+    background:var(--panel2); box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 12%,transparent)}
+  .wp:hover .wp-name, .wp:focus-visible .wp-name{color:var(--ink)}
+
+  /* ---------------- how-to ---------------- */
+  .guide{margin:26px auto 0; width:100%; max-width:760px}
+  .guide-h{display:flex; align-items:center; gap:12px; margin-bottom:14px;
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--faint)}
+  .guide-h::after{content:""; flex:1; height:1px; background:var(--line)}
+  .guide-row{display:flex; flex-wrap:wrap; gap:8px}
+  .gbtn{--accent:#8a939b; display:inline-flex; align-items:center; gap:9px; cursor:pointer;
+    background:transparent; border:1px solid var(--line2); border-radius:10px; padding:8px 12px;
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; color:var(--muted);
+    transition:border-color .2s, color .2s, background .2s}
+  .gbtn .led{position:static; width:6px; height:6px; opacity:.9}
+  .gbtn:hover{border-color:var(--accent); color:var(--ink); background:color-mix(in srgb,var(--accent) 7%,transparent)}
+  .gbtn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  footer{position:relative; z-index:1; text-align:center; color:var(--faint); font-family:var(--mono);
+    font-size:10.5px; letter-spacing:.1em; padding:22px 24px 26px}
+  footer b{color:var(--muted); font-weight:500}
 
   /* ---------------- modal ---------------- */
-  .scrim{position:fixed; inset:0; z-index:50; background:rgba(4,8,12,.74);
-    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+  .scrim{position:fixed; inset:0; z-index:50; background:rgba(5,7,9,.78);
+    backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
     display:none; align-items:center; justify-content:center; padding:22px}
   .scrim.show{display:flex}
-  .modal{
-    --accent:#1ecbb8; position:relative; width:min(94vw,540px); max-height:88vh; overflow:auto;
-    background:linear-gradient(180deg,var(--panel2),var(--panel)); border-radius:18px;
-    border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line));
-    box-shadow:0 40px 90px -30px color-mix(in srgb,var(--accent) 55%,transparent), inset 0 0 0 1px color-mix(in srgb,var(--accent) 16%,transparent);
-    padding:24px 24px 22px;
-  }
-  .modal .m-top{display:flex; align-items:center; gap:13px; margin-bottom:6px}
-  .modal .m-ic{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;color:var(--accent);flex:none;
-    background:color-mix(in srgb,var(--accent) 16%,var(--panel)); border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line))}
-  .modal .m-ic svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-  .modal h3{margin:0; font-size:19px; font-weight:750}
-  .modal .m-tag{font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent)}
-  .modal .m-desc{color:var(--muted); font-size:13.5px; line-height:1.6; margin:12px 0 14px}
-  .modal ol{margin:0; padding:0; list-style:none; counter-reset:s}
-  .modal li{counter-increment:s; position:relative; padding:9px 0 9px 38px; font-size:13.5px; line-height:1.55; color:var(--ink); border-top:1px solid var(--line)}
-  .modal li::before{content:counter(s); position:absolute; left:0; top:8px; width:24px; height:24px; border-radius:7px;
-    display:grid; place-items:center; font-family:var(--mono); font-size:11px; font-weight:700; color:var(--accent);
-    background:color-mix(in srgb,var(--accent) 14%,transparent); border:1px solid color-mix(in srgb,var(--accent) 34%,var(--line))}
-  .modal .m-launch{display:inline-flex; align-items:center; gap:9px; margin-top:18px; text-decoration:none;
-    font-family:var(--mono); font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:#04140f;
-    background:var(--accent); border-radius:10px; padding:11px 16px; font-weight:700}
-  .modal .m-launch svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-  .modal .m-close{position:absolute; top:14px; right:14px; width:32px;height:32px;border-radius:9px; cursor:pointer;
-    background:rgba(20,28,40,.7); border:1px solid var(--line); color:var(--muted); font-size:16px; line-height:1; display:grid; place-items:center}
-  .modal .m-close:hover{color:var(--ink)}
+  .sheet{--accent:#8a939b; position:relative; width:min(94vw,500px); max-height:86vh; overflow:auto;
+    background:var(--panel); border:1px solid var(--line2); border-radius:16px; padding:0}
+  .sheet::before{content:""; position:absolute; top:0; left:0; right:0; height:2px; border-radius:16px 16px 0 0;
+    background:var(--accent); opacity:.9}
+  .sheet-in{padding:24px 24px 22px}
+  .s-top{display:flex; align-items:center; gap:12px}
+  .s-ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;color:var(--accent);flex:none;
+    background:var(--panel2); border:1px solid var(--line2)}
+  .s-ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .s-brg{font-family:var(--mono); font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent)}
+  .sheet h3{margin:2px 0 0; font-size:18px; font-weight:750}
+  .s-desc{color:var(--muted); font-size:13px; line-height:1.6; margin:14px 0 4px}
+  .sheet ol{margin:8px 0 0; padding:0; list-style:none; counter-reset:s}
+  .sheet li{counter-increment:s; position:relative; padding:10px 0 10px 34px; font-size:13px; line-height:1.55;
+    color:var(--ink); border-top:1px solid var(--line)}
+  .sheet li::before{content:counter(s,decimal-leading-zero); position:absolute; left:0; top:11px;
+    font-family:var(--mono); font-size:10px; letter-spacing:.05em; color:var(--accent)}
+  .s-launch{display:inline-flex; align-items:center; gap:9px; margin-top:18px; text-decoration:none;
+    font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--bg);
+    background:var(--accent); border-radius:9px; padding:11px 15px; font-weight:700}
+  .s-launch svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  .s-close{position:absolute; top:12px; right:12px; width:30px;height:30px;border-radius:8px; cursor:pointer;
+    background:transparent; border:1px solid var(--line2); color:var(--muted); font-size:14px; display:grid; place-items:center}
+  .s-close:hover{color:var(--ink); border-color:var(--line2)}
 
-  /* ---------------- responsive: linearise the circle on small screens ---------------- */
+  /* ---------------- mobile: linear list ---------------- */
   @media(max-width:600px){
-    .stage.linear{aspect-ratio:auto; height:auto; display:flex; flex-wrap:wrap; justify-content:center; gap:16px; padding-top:6px}
-    .stage.linear .spokes{display:none}
-    .stage.linear .hub{position:static; transform:none; order:-1; width:100%; max-width:300px; margin:0 auto 6px; aspect-ratio:auto; border-radius:20px; padding:20px}
-    .stage.linear .node{position:static!important; transform:none!important; left:auto; top:auto; width:88px}
-    .stage.linear .node:hover{transform:scale(1.06)!important}
+    .stage.linear{aspect-ratio:auto; height:auto; display:block; width:100%}
+    .stage.linear .bezel{display:none}
+    .stage.linear .hub{position:static; transform:none; width:100%; max-width:none; aspect-ratio:auto;
+      border-radius:14px; padding:22px 18px; margin-bottom:14px}
+    .stage.linear .hub-read{display:none}
+    .stage.linear .wp{position:static!important; transform:none!important; left:auto!important; top:auto!important;
+      flex-direction:row; width:100%; gap:13px; padding:12px 14px; margin-bottom:8px;
+      border:1px solid var(--line2); border-radius:12px; text-align:left}
+    .stage.linear .wp .wp-name{color:var(--ink); font-size:12px; letter-spacing:.06em}
+    .stage.linear .wp:hover{transform:none!important}
   }
-  @media(prefers-reduced-motion:reduce){ body::before,.hub::before{animation:none} .node,.ht-btn{transition:none} }
+  @media(prefers-reduced-motion:reduce){ .wp,.disc,.bezel .ptr,.hub-face{transition:none} }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <div class="eyebrow">Aviation &amp; Aerospace Engineering</div>
-    </header>
-
-    <div class="stage" id="stage">
-      <svg class="spokes" id="spokes" preserveAspectRatio="none"></svg>
-      <div class="hub">
-        <div class="eye"><svg viewBox="0 0 24 24">
-          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/>
-          <circle cx="12" cy="12" r="3.4"/><circle cx="12" cy="12" r=".6" fill="currentColor" stroke="none"/>
-        </svg></div>
-        <h1>ARGUS SUITE</h1>
-        <div class="htag">The all-seeing lab</div>
-        <div class="hinfo">Seven aviation environments — labs, 3-D simulation, tower control, assessment &amp; a live global tracker.</div>
-        <div class="hcount">7 modules</div>
-      </div>
-      <!-- nodes injected by JS -->
+    <div class="top">
+      <div class="eyebrow">Aviation Lab Suite</div>
+      <div class="rt"><b>7</b> modules · <b>offline-ready</b></div>
     </div>
 
-    <div class="howto">
-      <div class="ht-h">How to use each module</div>
-      <div class="ht-row" id="htRow"><!-- buttons injected --></div>
+    <div class="stage" id="stage">
+      <svg class="bezel" id="bezel" preserveAspectRatio="none"></svg>
+
+      <div class="hub" id="hub">
+        <div class="hub-face hub-home">
+          <div class="mark"><svg viewBox="0 0 24 24">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3.2"/>
+          </svg></div>
+          <div class="word">ARGUS</div>
+          <div class="word-sub">SUITE</div>
+          <div class="home-tag">Interactive aviation engineering — labs, simulation, tower control &amp; a live tracker.</div>
+          <div class="home-hint">Select a module</div>
+        </div>
+        <div class="hub-face hub-read" id="hubRead">
+          <div class="read-brg">BRG <span id="rBrg">—</span>°</div>
+          <div class="read-name" id="rName"></div>
+          <div class="read-tag" id="rTag"></div>
+          <div class="read-desc" id="rDesc"></div>
+          <div class="read-cta">Click to launch →</div>
+        </div>
+      </div>
+      <!-- waypoints injected -->
+    </div>
+
+    <div class="guide">
+      <div class="guide-h">How to use</div>
+      <div class="guide-row" id="guideRow"></div>
     </div>
   </div>
 
-  <footer>Seven modules &middot; <b>offline-ready labs + live tracker &amp; tower control</b> &middot; runs in any modern browser &middot; made by sid</footer>
+  <footer>Argus Suite · <b>seven browser-based modules</b> · made by sid</footer>
 
-  <!-- how-to modal -->
   <div class="scrim" id="scrim">
-    <div class="modal" id="modal">
-      <button class="m-close" id="mClose" aria-label="Close">✕</button>
-      <div class="m-top"><div class="m-ic" id="mIc"></div><div><div class="m-tag" id="mTag"></div><h3 id="mTitle"></h3></div></div>
-      <p class="m-desc" id="mDesc"></p>
-      <ol id="mSteps"></ol>
-      <a class="m-launch" id="mLaunch" href="#">Launch module <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <div class="sheet" id="sheet">
+      <button class="s-close" id="sClose" aria-label="Close">✕</button>
+      <div class="sheet-in">
+        <div class="s-top"><div class="s-ic" id="sIc"></div><div><div class="s-brg" id="sBrg"></div><h3 id="sTitle"></h3></div></div>
+        <p class="s-desc" id="sDesc"></p>
+        <ol id="sSteps"></ol>
+        <a class="s-launch" id="sLaunch" href="#">Launch <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
     </div>
   </div>
 
   <script>
-  /* ============ domain registry ============ */
-  const ICON = {
-    argus:  '<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
-    pyrgos: '<path d="M7 21h10"/><path d="M9 21V9h6v12"/><path d="M8.4 9 12 5l3.6 4"/><path d="M12 5V2.6"/><path d="M12 21v-6"/>',
+  const ICON={
+    argus:'<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    pyrgos:'<path d="M7 21h10"/><path d="M9 21V9h6v12"/><path d="M8.4 9 12 5l3.6 4"/><path d="M12 5V2.6"/><path d="M12 21v-6"/>',
     cutaway:'<path d="M21 16v-2l-8-5V3.6a1.6 1.6 0 0 0-3.2 0V9l-8 5v2l8-2.4V19l-2.2 1.5V22l3.8-1.1L15 22v-1.5L12.8 19v-4.6z"/>',
-    tunnel: '<path d="M3 8h11a2.4 2.4 0 1 0-2.4-2.4"/><path d="M3 12h16a2.4 2.4 0 1 1-2.4 2.4"/><path d="M3 16h8.5a2 2 0 1 1-2 2"/>',
-    catia:  '<circle cx="12" cy="4" r="1.6"/><path d="M12 5.6 6.5 19"/><path d="M12 5.6 17.5 19"/><path d="M8.5 15h7"/>',
-    ndt:    '<circle cx="11" cy="11" r="6.2"/><path d="M20 20l-3.6-3.6"/><path d="M8 11h1.6l1-2.4 1.6 4.4 1-2H15"/>',
-    hangar: '<path d="M14.8 6.2a4 4 0 0 0-5.4 5.4L3 18l3 3 6.4-6.4a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.1-2.1z"/>'
+    tunnel:'<path d="M3 8h11a2.4 2.4 0 1 0-2.4-2.4"/><path d="M3 12h16a2.4 2.4 0 1 1-2.4 2.4"/><path d="M3 16h8.5a2 2 0 1 1-2 2"/>',
+    catia:'<circle cx="12" cy="4" r="1.6"/><path d="M12 5.6 6.5 19"/><path d="M12 5.6 17.5 19"/><path d="M8.5 15h7"/>',
+    ndt:'<circle cx="11" cy="11" r="6.2"/><path d="M20 20l-3.6-3.6"/><path d="M8 11h1.6l1-2.4 1.6 4.4 1-2H15"/>',
+    hangar:'<path d="M14.8 6.2a4 4 0 0 0-5.4 5.4L3 18l3 3 6.4-6.4a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.1-2.1z"/>'
   };
-  const DOMAINS = [
-    { key:"argus", file:"argus.html", accent:"#1ecbb8", name:"Argus Flight Tracker", tag:"Live · Radar", icon:ICON.argus,
-      desc:"The all-seeing live radar — real-time aircraft worldwide with routes, ETAs, live ATC audio, weather radar, filters, watchlists and replay.",
-      steps:["Pan and zoom the map; the globe streams live traffic through the Cloudflare worker.",
-             "Click any aircraft for its route, altitude, speed and ETA.",
-             "Use search and the filter panel to isolate airlines, types or altitudes.",
-             "Toggle weather radar, live ATC audio and watchlists; enable Lite mode on low-end devices."] },
-    { key:"pyrgos", file:"pyrgos.html", accent:"#f0b64a", name:"PYRGOS Tower Control", tag:"Live · ATC Sim", icon:ICON.pyrgos,
-      desc:"A full air-traffic-control tower simulator — sequence real and simulated traffic across four airports, with holding stacks, wake spacing, SIDs and live ADS-B.",
-      steps:["Press &ldquo;Assume the watch&rdquo; to begin the shift.",
-             "Click an aircraft (or its flight strip), then clear it &mdash; use the buttons, type real phraseology, or hold the mic and speak: &ldquo;Air India 401, cleared to land&rdquo;.",
-             "Release arrivals from the holding stack in order (Clear Approach); mind wake spacing and runway assignment.",
-             "Settings &rarr; Airport switches fields: Chennai, Delhi, Heathrow, Metro. Use LIVE IN + &#8635; live METAR for real traffic and weather.",
-             "Slow the pace with the 1&times; tempo button; press ? for keyboard callouts."] },
-    { key:"cutaway", file:"aircraft-cutaway-explorer.html", accent:"#22d3ee", name:"Aircraft Cutaway Explorer", tag:"3D · Flight Sim", icon:ICON.cutaway,
-      desc:"Peel back a 3-D interactive aircraft cutaway, explore every system, then fly a fully-lit flight simulator with a live moving map.",
-      steps:["Drag to orbit the 3-D aircraft; scroll to zoom.",
-             "Click a highlighted system to open its explainer and cutaway detail.",
-             "Switch to the flight simulator and take off with the live moving-map view."] },
-    { key:"tunnel", file:"wind-tunnel-simulator.html", accent:"#ff3b47", name:"Wind Tunnel Simulator", tag:"Aerodynamics", icon:ICON.tunnel,
-      desc:"Subsonic, transonic and supersonic flow over airfoils — with live pressure, velocity and flow-direction fields, shock waves and a 3-D test section.",
-      steps:["Choose a flow regime (subsonic / transonic / supersonic) and an airfoil.",
-             "Adjust angle of attack and Mach number and watch the fields update live.",
-             "Switch visualisation modes (pressure, velocity, streamlines) and probe the flow; orbit the 3-D test section."] },
-    { key:"catia", file:"technical-drawing-lab.html", accent:"#3b82f6", name:"CATIA V5 Drawing Lab", tag:"CAD · Drafting", icon:ICON.catia,
-      desc:"Ten guided drawing experiments with step-by-step walkthroughs, checkpoint quizzes, a CATIA-style CAD workbench and per-student certification.",
-      steps:["Pick an experiment and follow the step-by-step SVG walkthrough.",
-             "Practise in the CATIA-style workbench; use the orbit camera to inspect your work.",
-             "Pass the checkpoint quizzes, then download your personalised certificate."] },
-    { key:"ndt", file:"ndt-inspection-bay.html", accent:"#f59e0b", name:"NDT Inspection Bay", tag:"Inspection", icon:ICON.ndt,
-      desc:"Five units of non-destructive-testing methods across dozens of interactive visualiser scenes, with lessons, an admin panel and certificates.",
-      steps:["Sign in / register at the gate to start tracking progress.",
-             "Work through each unit&rsquo;s lessons and interactive visualiser scenes.",
-             "Take the quizzes to unlock the completion certificate; instructors use the passcode-protected admin panel."] },
-    { key:"hangar", file:"aircraft-maintenance-hangar.html", accent:"#22c55e", name:"Maintenance Hangar", tag:"Maintenance", icon:ICON.hangar,
-      desc:"A virtual hangar floor for hands-on servicing — work through a 100-hour inspection work pack at the task bench, step by step.",
-      steps:["Enter the hangar and open the 100-hour inspection work pack.",
-             "Complete each task at the bench in order, following the on-screen procedure.",
-             "Track completion across the work pack until the inspection is signed off."] }
+  const DOMAINS=[
+    {file:"argus.html", accent:"#2ec4b6", short:"Argus", name:"Argus Flight Tracker", tag:"Live · Radar", icon:ICON.argus,
+     desc:"Real-time aircraft worldwide with routes, ETAs, ATC audio, weather radar, filters and replay.",
+     steps:["Pan and zoom the map — live traffic streams through the Cloudflare worker.","Click any aircraft for its route, altitude, speed and ETA.","Filter by airline, type or altitude; add flights to a watchlist.","Toggle weather radar and live ATC audio; enable Lite mode on slower devices."]},
+    {file:"pyrgos.html", accent:"#f0b64a", short:"PYRGOS", name:"PYRGOS Tower Control", tag:"Live · ATC Sim", icon:ICON.pyrgos,
+     desc:"An air-traffic-control tower sim across four airports — holding stacks, wake spacing, SIDs and live ADS-B.",
+     steps:["Press “Assume the watch” to start the shift.","Click an aircraft or its strip, then clear it — buttons, typed phraseology, or hold the mic: “Air India 401, cleared to land”.","Release arrivals from the holding stack in order; watch wake spacing and runway assignment.","Settings → Airport switches fields (Chennai, Delhi, Heathrow, Metro). Use LIVE IN and ⟳ live METAR for real traffic and weather."]},
+    {file:"aircraft-cutaway-explorer.html", accent:"#22d3ee", short:"Cutaway", name:"Aircraft Cutaway Explorer", tag:"3D · Flight Sim", icon:ICON.cutaway,
+     desc:"A 3-D interactive aircraft cutaway plus a fully-lit flight simulator with a live moving map.",
+     steps:["Drag to orbit the aircraft; scroll to zoom.","Click a highlighted system to open its cutaway detail.","Switch to the simulator and fly with the moving-map view."]},
+    {file:"wind-tunnel-simulator.html", accent:"#ff5a63", short:"Wind Tunnel", name:"Wind Tunnel Simulator", tag:"Aerodynamics", icon:ICON.tunnel,
+     desc:"Subsonic, transonic and supersonic flow over airfoils, with live pressure, velocity and shock fields.",
+     steps:["Choose a flow regime and an airfoil.","Adjust angle of attack and Mach; the fields update live.","Switch visualisation modes and orbit the 3-D test section."]},
+    {file:"technical-drawing-lab.html", accent:"#5b8def", short:"CATIA V5", name:"CATIA V5 Drawing Lab", tag:"CAD · Drafting", icon:ICON.catia,
+     desc:"Ten guided drawing experiments with walkthroughs, checkpoint quizzes and a CATIA-style workbench.",
+     steps:["Pick an experiment and follow the step-by-step walkthrough.","Practise in the workbench; use the orbit camera to inspect your work.","Pass the checkpoints, then download your certificate."]},
+    {file:"ndt-inspection-bay.html", accent:"#f59e0b", short:"NDT Bay", name:"NDT Inspection Bay", tag:"Inspection", icon:ICON.ndt,
+     desc:"Five non-destructive-testing units across interactive visualiser scenes, with lessons and certificates.",
+     steps:["Register at the gate to track progress.","Work each unit’s lessons and visualiser scenes.","Pass the quizzes for the certificate; instructors use the admin panel."]},
+    {file:"aircraft-maintenance-hangar.html", accent:"#31c56a", short:"Hangar", name:"Aircraft Maintenance Hangar", tag:"Maintenance", icon:ICON.hangar,
+     desc:"A virtual hangar floor — work a 100-hour inspection work pack at the task bench, step by step.",
+     steps:["Open the 100-hour inspection work pack.","Complete each task at the bench in order.","Track completion until the inspection is signed off."]}
   ];
 
-  /* ============ build circle nodes + how-to buttons ============ */
-  const stage=document.getElementById('stage'), spokes=document.getElementById('spokes'), htRow=document.getElementById('htRow');
-  const N=DOMAINS.length;
-  const nodeEls=[];
+  const stage=document.getElementById('stage'), bezel=document.getElementById('bezel'),
+        guideRow=document.getElementById('guideRow'), hub=document.getElementById('hub');
+  const N=DOMAINS.length, SVGNS="http://www.w3.org/2000/svg";
+  const wps=[]; let angs=[];
+
   DOMAINS.forEach((d,i)=>{
     const a=document.createElement('a');
-    a.className='node'; a.href=d.file; a.style.setProperty('--accent',d.accent);
-    a.innerHTML='<div class="disc"><svg viewBox="0 0 24 24">'+d.icon+'</svg></div>'+
-      '<div class="nlabel">'+d.name+'</div><div class="ntag">'+d.tag+'</div>';
-    stage.appendChild(a); nodeEls.push(a);
+    a.className='wp'; a.href=d.file; a.style.setProperty('--accent',d.accent);
+    a.innerHTML='<span class="disc"><svg viewBox="0 0 24 24">'+d.icon+'</svg><i class="led"></i></span>'+
+                '<span class="wp-name">'+d.short+'</span>';
+    const brg=Math.round(i*360/N);
+    const show=()=>activate(i); const hide=()=>deactivate();
+    a.addEventListener('mouseenter',show); a.addEventListener('mouseleave',hide);
+    a.addEventListener('focus',show); a.addEventListener('blur',hide);
+    stage.appendChild(a); wps.push(a);
 
     const b=document.createElement('button');
-    b.className='ht-btn'; b.style.setProperty('--accent',d.accent);
-    b.innerHTML='<span class="dot"></span>How to use · '+d.name;
-    b.onclick=()=>openModal(i);
-    htRow.appendChild(b);
+    b.className='gbtn'; b.style.setProperty('--accent',d.accent);
+    b.innerHTML='<i class="led"></i>'+d.short;
+    b.onclick=()=>openSheet(i);
+    guideRow.appendChild(b);
   });
 
   function layout(){
     const W=stage.clientWidth;
-    if(W<560){ stage.classList.add('linear'); spokes.innerHTML=''; return; }
+    if(W<560){ stage.classList.add('linear'); bezel.innerHTML=''; return; }
     stage.classList.remove('linear');
-    const H=stage.clientHeight, cx=W/2, cy=H/2, r=Math.min(W,H)/2 - Math.min(W,H)*0.115;
-    spokes.setAttribute('viewBox','0 0 '+W+' '+H);
-    let lines='';
-    nodeEls.forEach((el,i)=>{
-      const ang=(-90 + i*(360/N))*Math.PI/180;
-      const x=cx+r*Math.cos(ang), y=cy+r*Math.sin(ang);
+    const H=stage.clientHeight, cx=W/2, cy=H/2, r=Math.min(W,H)*0.40;
+    bezel.setAttribute('viewBox','0 0 '+W+' '+H);
+    // bezel ring + tick marks
+    let svg='<circle class="ring" cx="'+cx+'" cy="'+cy+'" r="'+r+'"/>';
+    const majSet=new Set();
+    angs=[];
+    for(let i=0;i<N;i++){ const deg=i*360/N; majSet.add(Math.round(deg)); angs.push((-90+deg)*Math.PI/180); }
+    for(let deg=0;deg<360;deg+=10){
+      const rad=(-90+deg)*Math.PI/180, maj=majSet.has(deg);
+      const rr=r+(maj?11:6), r0=r+2;
+      const x1=cx+r0*Math.cos(rad), y1=cy+r0*Math.sin(rad), x2=cx+rr*Math.cos(rad), y2=cy+rr*Math.sin(rad);
+      svg+='<line class="tick'+(maj?' maj':'')+'" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'"/>';
+    }
+    svg+='<line class="ptr" id="ptr" x1="'+cx+'" y1="'+cy+'" x2="'+cx+'" y2="'+cy+'"/>';
+    bezel.innerHTML=svg;
+    // place waypoints on the ring
+    wps.forEach((el,i)=>{ const x=cx+r*Math.cos(angs[i]), y=cy+r*Math.sin(angs[i]);
       el.style.left=x+'px'; el.style.top=y+'px'; el.style.transform='translate(-50%,-50%)';
-      lines+='<line x1="'+cx+'" y1="'+cy+'" x2="'+x+'" y2="'+y+'"/>';
-    });
-    spokes.innerHTML=lines;
+      el.dataset.x=x; el.dataset.y=y; });
   }
   window.addEventListener('resize',layout); layout();
   setTimeout(layout,60); window.addEventListener('load',layout);
 
-  /* ============ how-to modal ============ */
-  const scrim=document.getElementById('scrim'), modal=document.getElementById('modal');
-  function openModal(i){
+  function activate(i){
+    const d=DOMAINS[i], el=wps[i];
+    hub.style.setProperty('--accent',d.accent); hub.classList.add('active');
+    document.getElementById('rBrg').textContent=String(Math.round(i*360/N)).padStart(3,'0');
+    document.getElementById('rName').textContent=d.name;
+    document.getElementById('rTag').textContent=d.tag;
+    document.getElementById('rDesc').textContent=d.desc;
+    const ptr=document.getElementById('ptr');
+    if(ptr && el.dataset.x){ const cx=+bezel.getAttribute('viewBox').split(' ')[2]/2, cy=+bezel.getAttribute('viewBox').split(' ')[3]/2;
+      const dx=+el.dataset.x-cx, dy=+el.dataset.y-cy, L=Math.hypot(dx,dy)||1, hubR=Math.min(cx,cy)*0.46;
+      ptr.setAttribute('x1', cx+dx/L*hubR); ptr.setAttribute('y1', cy+dy/L*hubR);
+      ptr.setAttribute('x2', +el.dataset.x-dx/L*30); ptr.setAttribute('y2', +el.dataset.y-dy/L*30);
+      ptr.setAttribute('stroke', d.accent); ptr.style.opacity='.6'; }
+  }
+  function deactivate(){ hub.classList.remove('active'); const ptr=document.getElementById('ptr'); if(ptr) ptr.style.opacity='0'; }
+
+  /* how-to sheet */
+  const scrim=document.getElementById('scrim'), sheet=document.getElementById('sheet');
+  function openSheet(i){
     const d=DOMAINS[i];
-    modal.style.setProperty('--accent',d.accent);
-    document.getElementById('mIc').innerHTML='<svg viewBox="0 0 24 24">'+d.icon+'</svg>';
-    document.getElementById('mTag').textContent=d.tag;
-    document.getElementById('mTitle').textContent=d.name;
-    document.getElementById('mDesc').textContent=d.desc;
-    document.getElementById('mSteps').innerHTML=d.steps.map(s=>'<li>'+s+'</li>').join('');
-    document.getElementById('mLaunch').href=d.file;
+    sheet.style.setProperty('--accent',d.accent);
+    document.getElementById('sIc').innerHTML='<svg viewBox="0 0 24 24">'+d.icon+'</svg>';
+    document.getElementById('sBrg').textContent=d.tag;
+    document.getElementById('sTitle').textContent=d.name;
+    document.getElementById('sDesc').textContent=d.desc;
+    document.getElementById('sSteps').innerHTML=d.steps.map(s=>'<li>'+s+'</li>').join('');
+    document.getElementById('sLaunch').href=d.file;
     scrim.classList.add('show');
   }
-  function closeModal(){ scrim.classList.remove('show'); }
-  document.getElementById('mClose').onclick=closeModal;
-  scrim.addEventListener('click',e=>{ if(e.target===scrim) closeModal(); });
-  window.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+  function closeSheet(){ scrim.classList.remove('show'); }
+  document.getElementById('sClose').onclick=closeSheet;
+  scrim.addEventListener('click',e=>{ if(e.target===scrim) closeSheet(); });
+  window.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
   </script>
 </body>
 </html>
