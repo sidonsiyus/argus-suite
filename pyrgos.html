@@ -4,7 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>PYRGOS · Tower Control Simulator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308070a'/%3E%3Cpath d='M9 28h14' stroke='%23f0b64a' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M12.5 28V13h7v15' fill='none' stroke='%23f0b64a' stroke-width='2'/%3E%3Cpath d='M11.4 13 16 7.2 20.6 13' fill='none' stroke='%23f0b64a' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M16 7.2V4' stroke='%23f0b64a' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
+  /* dark UI: stops the browser painting a white canvas, white scrollbar,
+     or a white overscroll/rubber-band area when the OS is in light mode */
+  :root{ color-scheme: dark; }
+  html{ background:#060d0c; }
+  html,body{ overscroll-behavior:none; background-color:#060d0c; }
+
 :root{
   --bg:#060d0c; --bg2:#0a1614; --panel:rgba(11,22,20,.88); --panel2:rgba(16,30,28,.94);
   --line:rgba(120,180,165,.16); --ink:#eaf5f1; --muted:#8fb4ac; --faint:#5a7d76;
@@ -124,6 +131,11 @@ button{font-family:inherit;cursor:pointer}
 .strip .st.hot{background:rgba(255,91,110,.16);color:var(--red)}
 .strip .wk{position:absolute;right:8px;bottom:7px;font-family:var(--mono);font-size:9px;color:var(--faint)}
 .livetag{color:var(--gold);font-weight:700;font-size:8px}
+.odytag{color:#ffd98a;font-weight:700;font-size:8px;text-shadow:0 0 6px rgba(240,182,74,.7)}
+.strip.ody{border-left:3px solid var(--gold);box-shadow:inset 0 0 22px -8px rgba(240,182,74,.5)}
+.strip.ody .cs{color:#ffd98a}
+.odyrow{opacity:.72;font-size:8.5px;letter-spacing:.02em;border-top:1px dashed rgba(240,182,74,.28);
+  margin-top:3px;padding-top:3px}
 .emptybay{padding:12px;text-align:center;color:var(--faint);font-size:11px;opacity:.7}
 
 /* ---------- command bar ---------- */
@@ -274,6 +286,10 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
       <div class="stat"><b id="hClock">5:00</b><span>Shift</span></div>
       <div class="pmeter"><span>Pressure</span><div class="bar"><i id="pBar"></i></div></div>
       <button class="tbtn tempo" id="btnTempo" title="Game speed — slow the traffic to a manageable pace">1×</button>
+      <button class="tbtn" id="btnView" title="Switch view — aerodrome chart / radar scope  (V)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <rect x="3" y="3" width="8" height="8" rx="1"/><circle cx="17" cy="17" r="4"/>
+          <path d="M17 17l3-2M3 17h8M7 13v8"/></svg></button>
       <button class="tbtn" id="btnReal" title="Real traffic — overlay live ADS-B over the field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 12h4l2-6 4 14 3-9 2 4h5"/></svg></button>
       <button class="tbtn liveinbtn" id="btnLiveIn" title="Live inbounds — real ADS-B aircraft become controllable arrivals">LIVE IN</button>
       <button class="tbtn" id="btnLive" title="Live radar — real ADS-B for any airport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 12l6-3"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg></button>
@@ -370,8 +386,8 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
         <div class="seg" id="segShift"><button data-v="180">3 min</button><button class="on" data-v="300">5 min</button><button data-v="600">10 min</button><button data-v="0">Endless</button></div></div>
       <div class="setrow"><div class="lb">Emergencies<small>Random MAYDAY / low-fuel events</small></div>
         <div class="seg" id="segEmg"><button data-v="0">Off</button><button class="on" data-v="1">On</button></div></div>
-      <div class="setrow"><div class="lb">Scope<small>Radar display — modern, or CRT phosphor</small></div>
-        <div class="seg" id="segScope"><button class="on" data-v="modern">Modern</button><button data-v="green">Green CRT</button><button data-v="amber">Amber CRT</button></div></div>
+      <div class="setrow"><div class="lb">◆ ODYSSEY flights<small>Put flights you dispatched in ODYSSEY on the board — real callsign, type, runway, SID and V-speeds</small></div>
+        <div class="seg" id="segOdy"><button data-v="0">Off</button><button class="on" data-v="1">On</button></div></div>
       <div class="setrow"><div class="lb">Weather<small>Low-vis widens required spacing; watch crosswind</small></div>
         <div class="seg" id="segWx"><button class="on" data-v="CAVOK">CAVOK</button><button data-v="RAIN">Rain</button><button data-v="LOWVIS">Low-vis</button></div></div>
       <div class="setrow"><div class="lb">Night mode<small>Runway &amp; approach lighting</small></div>
@@ -580,7 +596,8 @@ const AIRLINES={
   UAL:["United"],AAL:["American"],DAL:["Delta"],SWA:["Southwest"],JBU:["JetBlue"],ASA:["Alaska"],
   BAW:["Speedbird","British"],DLH:["Lufthansa"],AFR:["Air France"],KLM:["KLM"],UAE:["Emirates"],
   QTR:["Qatari","Qatar"],SIA:["Singapore"],ACA:["Air Canada"],RYR:["Ryanair"],EZY:["Easy"],AIC:["Air India"],
-  FDX:["FedEx"],UPS:["UPS"],QFA:["Qantas"],THY:["Turkish"],ANA:["All Nippon"],JAL:["Japan Air"]
+  FDX:["FedEx"],UPS:["UPS"],QFA:["Qantas"],THY:["Turkish"],ANA:["All Nippon"],JAL:["Japan Air"],
+  RNA:["Nepal"],IGO:["IndiGo"],SEJ:["SpiceJet"],VTI:["Vistara"],ETD:["Etihad"],ODY:["Odyssey"]
 };
 const TYPES={
   A320:{name:"A320",wake:"M"},A321:{name:"A321",wake:"M"},A20N:{name:"A320neo",wake:"M"},
@@ -592,7 +609,8 @@ const TYPE_KEYS=Object.keys(TYPES), AIR_KEYS=Object.keys(AIRLINES);
 
 /* ---- runtime state ---- */
 let CFG={traffic:1, arrRate:1, shift:300, emg:1, night:0, voice:1, silent:0, tempo:1, wx:"CAVOK",
-  approach:"seq", diff:"standard", spacing:1, cb:0, uiScale:1, scope:"modern"};
+  approach:"seq", diff:"standard", spacing:1, cb:0, uiScale:1, ody:1,
+  view:"chart"};      // "chart" = aerodrome chart · "scope" = radar scope
 function loadCareer(){ try{ return JSON.parse(localStorage.getItem("pyrgos_career"))||null; }catch(_){ return null; } }
 function saveCareer(c){ try{ localStorage.setItem("pyrgos_career", JSON.stringify(c)); }catch(_){} }
 let CAREER = loadCareer() || {shifts:0, bestScore:0, bestSafety:0, rating:0, streak:0, hours:0, lastGrade:"—"};
@@ -600,7 +618,8 @@ let G=null;               // game state
 let selected=null;        // aircraft id
 let audioCtx=null, soundOn=true, ambience=null;
 let recog=null, listening=false;
-const cvs=document.getElementById("scope"), ctx=cvs.getContext("2d");
+const cvs=document.getElementById("scope");
+let ctx=cvs.getContext("2d");   // `let`: fieldLayer swaps it to bake the static layer
 let VIEW={scale:1,ox:0,oy:0};
 
 /* ============================================================ SETUP / RESET ============================================================ */
@@ -620,10 +639,85 @@ function resetGame(startRun){
   // seed a couple of departures at gates + one arrival
   for(let i=0;i<2;i++) spawnDeparture(true);
   spawnArrival();
+  injectOdyssey();                        // your own dispatched flights come first
   renderRwyPanel(); setWind(270+Math.round((Math.random()-.5)*40), 6+Math.round(Math.random()*8));
   updateHUD(); renderStrips(); renderActions(); setConflict("");
   document.getElementById("replayBtn").classList.remove("show");
   if(startRun){ G.running=true; G.paused=false; }
+}
+
+/* ============================================================ ODYSSEY BRIDGE ============================================================
+   ODYSSEY writes each dispatched flight to localStorage. If the flight
+   touches THIS tower, it comes onto the board as a real strip — same
+   callsign, type, runway, SID and V-speeds the dispatcher actually filed.
+   Same-origin localStorage, so it works offline with no server.
+   ===================================================================================================================================== */
+const HANDOFF_KEY="argus_flights_v1";
+function readOdyssey(){
+  try{ const a=JSON.parse(localStorage.getItem(HANDOFF_KEY)); return Array.isArray(a)?a:[]; }
+  catch(_){ return []; }
+}
+/* flights this field would actually work */
+function odysseyForField(){
+  if(!LZ||!LZ.icao) return [];
+  return readOdyssey()
+    .filter(r=>r&&r.cs&&(r.from===LZ.icao||r.to===LZ.icao))
+    .map(r=>({...r, role: r.from===LZ.icao ? "dep" : "arr"}))
+    .slice(0,4);                                   // don't drown the shift
+}
+function odyRunway(name,wantDep){
+  if(!name) return null;
+  const pool=wantDep?depRunways():arrRunways();
+  return pool.find(r=>rName(r)===name) || RUNWAYS.find(r=>rName(r)===name) || null;
+}
+function odySid(name,rwyName){
+  const list=LZ.sids||[];
+  const hit=list.find(x=>x.name===name);
+  if(hit) return {...hit};
+  const ok=list.filter(x=>x.rwys.includes(rwyName));
+  return ok.length?{...ok[0]}:(list.length?{...list[0]}:null);
+}
+function applyOdyIdentity(a,rec){
+  a.cs=rec.cs; a.pre=rec.pre||rec.cs.slice(0,3); a.num=rec.num||rec.cs.slice(3);
+  const tk=(rec.type&&TYPES[rec.type])?rec.type:a.type;
+  a.type=tk; a.wake=TYPES[tk].wake;
+  a.ody=rec;                                       // the whole dispatch package rides along
+}
+function makeOdyDeparture(rec){
+  const a=spawnDeparture(true);
+  if(!a) return null;
+  applyOdyIdentity(a,rec);
+  const r=odyRunway(rec.rwy,true);
+  if(r) a.rwy=r;
+  a.sid=odySid(rec.sid, rName(a.rwy));
+  log("strip","◆ ODYSSEY "+a.cs+" ready at "+(a.gate?a.gate.id:"stand")+" for "+rName(a.rwy));
+  return a;
+}
+function makeOdyArrival(rec){
+  const a=spawnArrival();
+  if(!a) return null;
+  applyOdyIdentity(a,rec);
+  // rec.rwy is the DEPARTURE runway at the origin — an arrival wants the landing runway here
+  const r=odyRunway(rec.arrRwy,false);
+  if(r){ a.rwy=r;
+    if(a.state==="HOLD"){ const fix=holdFixFor(r); a.holdFix=fix; a.holdAlt=stackAlt(r); a.alt=a.holdAlt;
+      a.x=fix.x+Math.cos(a.holdAng)*72; a.y=fix.y+Math.sin(a.holdAng)*72; }
+    else { const act=rActive(r); const dist=560+Math.random()*400;
+      a.x=act.thr.x-act.ux*dist; a.y=act.thr.y-act.uy*dist; a.alt=Math.min(4200,dist*6); a.hdg=act.hdg; }
+  }
+  pilot(a, spoken(a)+", "+(a.state==="HOLD"?"holding, ready for approach.":"with you on final."));
+  return a;
+}
+function injectOdyssey(){
+  if(!CFG.ody) return 0;
+  const recs=odysseyForField();
+  let n=0;
+  recs.forEach(r=>{
+    const a = r.role==="dep" ? makeOdyDeparture(r) : makeOdyArrival(r);
+    if(a) n++;
+  });
+  if(n) setTimeout(()=>toast("◆ "+n+" ODYSSEY flight"+(n>1?"s":"")+" on the board at "+LZ.icao),400);
+  return n;
 }
 
 /* ============================================================ AIRCRAFT ============================================================ */
@@ -743,7 +837,69 @@ const CMDS={
   hold:(a)=>{ a.holding=true; you(a,"hold position"); pilot(a,"Holding, "+spoken(a)); if(a.state==="TAXI_OUT")a.state="HOLD_TAXI"; }
 };
 function lineupPt(a){ const act=rActive(a.rwy); return {x:act.thr.x+act.ux*70, y:act.thr.y+act.uy*70}; }  // just inside the threshold, on centreline
-function runCommand(a, name){ if(!a){return warn("Select an aircraft first.");} const f=CMDS[name]; if(f){ f(a); updateHUD(); renderStrips(); renderActions(); } }
+
+/* ============================================================ ATC RETURN CHANNEL → ODYSSEY ============================================================
+   The bridge used to be one-way: ODYSSEY filed a flight, PYRGOS put a strip on
+   the board, and that was that. Now the tower talks BACK. Every clearance issued
+   to an ODYSSEY aircraft is written to localStorage, and the ODYSSEY flight deck
+   reads it live — so the runway the tower assigns, the sequence number and the
+   hold are things the pilot is actually made to obey.
+
+   Two students, two tabs, one flight: the `storage` event fires cross-tab, so
+   ODYSSEY sees a clearance the instant PYRGOS issues it. Offline, no server.
+   ==================================================================================================================================================== */
+const ATC_KEY="argus_atc_v1";
+/* Where is this arrival in the landing queue? The number the tower would give it. */
+function landingSeq(a){
+  if(a.kind!=="arr") return null;
+  const q=G.aircraft.filter(x=>x.kind==="arr" && x.rwy===a.rwy &&
+    ["HOLD","INTERCEPT","FINAL"].includes(x.state));
+  // ordered by distance to the threshold — the aeroplane closest in is number 1
+  const act=rActive(a.rwy);
+  const dTo=x=>Math.hypot(x.x-act.thr.x, x.y-act.thr.y);
+  q.sort((p,r)=>dTo(p)-dTo(r));
+  const i=q.indexOf(a);
+  return i<0?null:i+1;
+}
+function pushATC(a, clearance, msg){
+  if(!a || !a.ody || !a.ody.id) return;                 // only ODYSSEY-filed flights
+  let all=[]; try{ all=JSON.parse(localStorage.getItem(ATC_KEY))||[]; }catch(_){ all=[]; }
+  if(!Array.isArray(all)) all=[];
+  const prev=all.find(r=>r.id===a.ody.id)||{};
+  const rec={
+    id:a.ody.id, cs:a.cs, tower:LZ.icao||"", ts:Date.now(),
+    role:a.kind==="arr"?"arr":"dep",
+    rwy:rName(a.rwy),                                    // the runway the TOWER assigned — may not be the one filed
+    seq:landingSeq(a),
+    holding:!!(a.state==="HOLD"),
+    clearance, msg,
+    cleared:{...(prev.cleared||{}), ...(a.cleared||{})},
+    wind:{dir:G.wind.dir, spd:G.wind.spd},
+    // the tower's log, so the flight deck can read the RT it was actually given
+    log: msg ? [...((prev.log)||[]), {t:Date.now(), msg}].slice(-8) : ((prev.log)||[])
+  };
+  all=all.filter(r=>r.id!==rec.id); all.unshift(rec); all=all.slice(0,12);
+  try{ localStorage.setItem(ATC_KEY, JSON.stringify(all)); }catch(_){}
+}
+/* the phrase the tower actually transmitted, per command */
+const ATC_MSG={
+  approach:a=>"cleared approach runway "+rName(a.rwy)+(landingSeq(a)?", number "+landingSeq(a):""),
+  land:    a=>"cleared to land runway "+rName(a.rwy)+(landingSeq(a)?", number "+landingSeq(a):""),
+  goaround:a=>"go around",
+  slow:    a=>"reduce speed 135 knots",
+  resume:  a=>"resume normal speed",
+  push:    a=>"pushback approved",
+  taxiout: a=>"taxi to runway "+rName(a.rwy),
+  lineup:  a=>"line up and wait runway "+rName(a.rwy),
+  clearance:a=>"cleared "+(a.sid?a.sid.name:"")+" departure",
+  takeoff: a=>"cleared for takeoff runway "+rName(a.rwy),
+  taxigate:a=>"taxi to the gate",
+  hold:    a=>"hold position"
+};
+function runCommand(a, name){ if(!a){return warn("Select an aircraft first.");} const f=CMDS[name];
+  if(f){ f(a);
+    if(a.ody && ATC_MSG[name]) pushATC(a, name, ATC_MSG[name](a));   // ← tell ODYSSEY what it was just told
+    updateHUD(); renderStrips(); renderActions(); } }
 
 /* contextual action buttons for the selected aircraft */
 function actionsFor(a){
@@ -891,6 +1047,11 @@ function stepGame(dt){
   if(G.replayActive){ stepReplay(dt); return; }
   dt*=CFG.tempo;                              // game-tempo (slow-down) scaling
   G.t+=dt;
+  /* keep ODYSSEY's flight deck in step: the sequence number and the hold state
+     change with the traffic, not only when a clearance is spoken */
+  G._atcSync=(G._atcSync||0)+dt;
+  if(G._atcSync>2){ G._atcSync=0;
+    G.aircraft.forEach(a=>{ if(a.ody) pushATC(a, "state", null); }); }
   // shift clock
   if(G.shift>0 && G.t>=G.shift){ endShift(); return; }
   // spawns (rush waves: rate grows with time; arrival rate independently adjustable)
@@ -902,12 +1063,6 @@ function stepGame(dt){
   if(G.depT<=0){ if(GATES.some(g=>!g.occ)&&G.aircraft.filter(a=>a.kind==="dep").length<maxDep) spawnDeparture(); G.depT=8+Math.random()*6; }
 
   for(const a of G.aircraft){ updateAircraft(a,dt); if(a.flash>0)a.flash-=dt; }
-  // radar history trails (sample airborne target positions ~ every 0.55s)
-  G.trailT=(G.trailT||0)+dt;
-  if(G.trailT>=0.55){ G.trailT=0;
-    for(const a of G.aircraft){ const air=a.alt>3||["HOLD","INTERCEPT","FINAL","GOAROUND","TKOF","CLIMB"].includes(a.state);
-      if(air){ (a.hist=a.hist||[]).push({x:a.x,y:a.y}); if(a.hist.length>7)a.hist.shift(); } }
-  }
   // remove finished
   for(let i=G.aircraft.length-1;i>=0;i--){ if(G.aircraft[i].dead){ const a=G.aircraft[i]; if(a.gate)a.gate.occ=null; G.aircraft.splice(i,1); } }
 
@@ -1170,198 +1325,722 @@ function startReplay(){ if(!G.lastIncidentBuf||!G.lastIncidentBuf.length)return;
 function stepReplay(dt){ G._rt=(G._rt||0)+dt; if(G._rt>=0.12){ G._rt=0; G.replayIdx++; }
   if(G.replayIdx>=G.lastIncidentBuf.length){ G.replayActive=false; document.getElementById("replayTag").classList.remove("show"); } }
 
-/* ============================================================ RENDER ============================================================ */
+/* ============================================================ RENDER
+   Two views, toggled with V (or the toolbar button):
+     CHART  — a real aerodrome chart: asphalt, piano keys, TDZ bars, aiming
+              points, hold-short ladders, stand lead-ins, PAPI, ALS, and a
+              full night lighting scheme.
+     SCOPE  — a radar display: phosphor sweep, decaying history dots, range
+              rings, compass rose, CRT scanlines.
+   All static geometry is baked into an offscreen layer and blitted once per
+   frame, so the extra detail costs nothing to animate.
+   ============================================================ */
+/* The view was always fitted to WORLD (1680x1060). But holdFixFor() puts the
+   holding fix 860 units back along the approach, which for Chennai's 25 lands
+   at x≈2230 — outside the world. So holding aircraft were drawn OFF-SCREEN:
+   you could not see the traffic you were meant to be sequencing.
+   Fit to what actually has to be visible instead. */
+function viewBounds(){
+  const pos = G ? G.pos : "TWR";
+  const pts=[];
+  // the field itself: runway ends, taxi nodes, stands
+  RUNWAYS.forEach(r=>{ const m=r.w;
+    pts.push({x:r.ax-m,y:r.ay-m},{x:r.bx+m,y:r.by+m},{x:r.ax+m,y:r.ay+m},{x:r.bx-m,y:r.by-m}); });
+  Object.values(LZ.nodes).forEach(n=>pts.push({x:n.x,y:n.y}));
+  GATES.forEach(g=>pts.push({x:g.x,y:g.y+24}));
+  if(LZ.river) LZ.river.forEach(p=>pts.push({x:p[0],y:p[1]}));
+
+  if(pos!=="GND"){
+    /* PYRGOS spawns holding traffic whichever position tab you're on, so if the
+       view doesn't reach the holding fix, aircraft you still control simply
+       vanish off the edge. Visibility beats zoom. */
+    for(const r of arrRunways()){
+      const act=rActive(r);
+      pts.push({x:act.thr.x-act.ux*1020, y:act.thr.y-act.uy*1020});
+      const f=holdFixFor(r);
+      pts.push({x:f.x+150,y:f.y+150},{x:f.x-150,y:f.y-150});
+    }
+  }
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  pts.forEach(p=>{ x0=Math.min(x0,p.x); y0=Math.min(y0,p.y);
+                   x1=Math.max(x1,p.x); y1=Math.max(y1,p.y); });
+  const m=70;
+  return {x0:x0-m, y0:y0-m, x1:x1+m, y1:y1+m};
+}
+
 function fit(){ const r=cvs.getBoundingClientRect(); const dpr=Math.min(2,window.devicePixelRatio||1);
   cvs.width=r.width*dpr; cvs.height=r.height*dpr;
-  const sx=r.width/WORLD.w, sy=r.height/WORLD.h; VIEW.scale=Math.min(sx,sy)*(G&&G.pos==="APP"?0.86:0.98);
-  VIEW.ox=(r.width-WORLD.w*VIEW.scale)/2; VIEW.oy=(r.height-WORLD.h*VIEW.scale)/2; VIEW.dpr=dpr; }
+  const B=viewBounds();
+  const bw=Math.max(1,B.x1-B.x0), bh=Math.max(1,B.y1-B.y0);
+  VIEW.scale=Math.min(r.width/bw, r.height/bh)*0.97;
+  VIEW.ox=(r.width - bw*VIEW.scale)/2 - B.x0*VIEW.scale;
+  VIEW.oy=(r.height - bh*VIEW.scale)/2 - B.y0*VIEW.scale;
+  VIEW.dpr=dpr;
+  FIELD.key=""; }
 window.addEventListener("resize",fit);
 function W2S(x,y){ return {x:VIEW.ox+x*VIEW.scale, y:VIEW.oy+y*VIEW.scale}; }
 function S2W(x,y){ return {x:(x-VIEW.ox)/VIEW.scale, y:(y-VIEW.oy)/VIEW.scale}; }
 
+function toggleView(){
+  CFG.view = CFG.view==="chart" ? "scope" : "chart";
+  document.getElementById("btnView").classList.toggle("on", CFG.view==="scope");
+  FIELD.key="";
+  toast(CFG.view==="scope" ? "RADAR SCOPE" : "AERODROME CHART");
+}
+
+/* Light sizes are specified in SCREEN pixels and converted back to world units,
+   so they stay legible at any zoom. Runway lights are point features; they must
+   not shrink into nothing when the view pulls back to show the holding fixes. */
+function lr(px){ return px/Math.max(0.15,VIEW.scale); }
+
+/* ---------- cached static field layer ---------- */
+let FIELD={cv:null, key:""};
+function fieldKey(rw,rh,night){
+  return [rw|0,rh|0,VIEW.scale.toFixed(3),VIEW.ox.toFixed(1),VIEW.oy.toFixed(1),
+    night,CFG.view,LZ.icao,(G?G.pos:""),RUNWAYS.map(r=>r.dir+r.role).join(",")].join("|");
+}
+function fieldLayer(rw,rh,night){
+  const key=fieldKey(rw,rh,night);
+  if(FIELD.cv && FIELD.key===key) return FIELD.cv;
+  FIELD.key=key;
+  const dpr=VIEW.dpr||1;
+  const o=document.createElement("canvas");
+  o.width=Math.max(1,rw*dpr); o.height=Math.max(1,rh*dpr);
+  const c=o.getContext("2d");
+  c.setTransform(dpr,0,0,dpr,0,0);
+  const save=ctx; ctx=c;                       // the draw helpers all use `ctx`
+  ctx.save(); ctx.translate(VIEW.ox,VIEW.oy); ctx.scale(VIEW.scale,VIEW.scale);
+  if(CFG.view==="scope") drawFieldScope(night); else drawFieldChart(night);
+  ctx.restore();
+  if(CFG.view==="scope") drawScopeFurniture(rw,rh);
+  ctx=save;
+  FIELD.cv=o;
+  return o;
+}
+
+let lastFitSig="";
 function render(){
+  const sig=RUNWAYS.map(r=>r.dir+r.role).join(",")+"|"+(G?G.pos:"");
+  if(sig!==lastFitSig){ lastFitSig=sig; fit(); }     // wind change moves the approach
   const dpr=VIEW.dpr||1; ctx.setTransform(dpr,0,0,dpr,0,0);
   const r=cvs.getBoundingClientRect();
-  const night=CFG.night; const pal=scopePal();
-  ctx.fillStyle= pal.phos? pal.bg : (night?"#05100e":"#081512"); ctx.fillRect(0,0,r.width,r.height);
-  ctx.save(); ctx.translate(VIEW.ox,VIEW.oy); ctx.scale(VIEW.scale,VIEW.scale);
+  const night=CFG.night;
+  const scope = CFG.view==="scope";
 
-  drawField(night);
-  drawScopeRings(pal);
-  drawSweep(pal);
+  ctx.fillStyle = scope ? "#03080a" : (night?"#05100e":"#081512");
+  ctx.fillRect(0,0,r.width,r.height);
+
+  ctx.drawImage(fieldLayer(r.width,r.height,night), 0,0, r.width, r.height);
+
+  ctx.save(); ctx.translate(VIEW.ox,VIEW.oy); ctx.scale(VIEW.scale,VIEW.scale);
+  drawGateState(night);
+  if(night && !scope) drawSequencedFlashers();
   if(G && G.pos==="APP") drawApproachOverlay();
-  if(pal.phos){ ctx.save(); ctx.globalCompositeOperation="color"; ctx.fillStyle="rgb("+pal.rgb+")";
-    ctx.fillRect(-300,-300,WORLD.w+600,WORLD.h+600); ctx.restore(); }   // monochrome the field layer to phosphor
-  if(G) drawAircraftAll(night);
+  if(G) drawAircraftAll(night,scope);
   if(RT.on) drawRealTraffic(night);
   if(CFG.wx==="RAIN"||CFG.wx==="LOWVIS") drawWeatherFX(night);
-
   ctx.restore();
+
+  if(scope) drawSweep(r);
   drawScopeTint();
 }
-/* ---- radar-scope skin ---- */
-function scopePal(){
-  const s=CFG.scope||"modern";
-  if(s==="green") return {phos:true, name:"green", rgb:"70,222,152", bg:"#03110b", tint:"rgba(70,222,152,.05)"};
-  if(s==="amber") return {phos:true, name:"amber", rgb:"255,176,64", bg:"#120c02", tint:"rgba(255,176,64,.05)"};
-  return {phos:false, name:"modern", rgb:"30,203,184", bg:null, tint:null};
-}
-function fieldCentroid(){ let cx=0,cy=0; RUNWAYS.forEach(r=>{cx+=(r.ax+r.bx)/2;cy+=(r.ay+r.by)/2;}); return {x:cx/RUNWAYS.length, y:cy/RUNWAYS.length}; }
-function drawScopeRings(pal){
-  const c=fieldCentroid(); const strong=pal.phos; const step=180;
-  ctx.lineWidth=1;
-  for(let k=1;k<=6;k++){ ctx.strokeStyle= strong?"rgba(160,200,190,.14)":"rgba(120,180,165,.055)";
-    ctx.beginPath(); ctx.arc(c.x,c.y,k*step,0,7); ctx.stroke(); }
-  const R=6*step;
-  ctx.strokeStyle= strong?"rgba(160,200,190,.22)":"rgba(120,180,165,.09)";
-  for(let d=0;d<360;d+=15){ const a=(d-90)*D2R, maj=d%90===0, r1=R-(maj?18:9);
-    ctx.beginPath(); ctx.moveTo(c.x+Math.cos(a)*R,c.y+Math.sin(a)*R); ctx.lineTo(c.x+Math.cos(a)*r1,c.y+Math.sin(a)*r1); ctx.stroke(); }
-  if(strong){ ctx.fillStyle="rgba(200,225,215,.5)"; ctx.font="11px "+mono(); ctx.textAlign="center";
-    [["N",0],["E",90],["S",180],["W",270]].forEach(([t,d])=>{const a=(d-90)*D2R; ctx.fillText(t,c.x+Math.cos(a)*(R+16),c.y+Math.sin(a)*(R+16)+4);}); }
-}
-function drawSweep(pal){
-  if(!G) return; const c=fieldCentroid(); const R=1120; const ang=(G.t*0.6)%(Math.PI*2);
-  const base = pal.phos?"200,230,220":"30,203,184"; const a0= pal.phos?0.16:0.05;
-  if(ctx.createConicGradient){ const grad=ctx.createConicGradient(ang,c.x,c.y);
-    grad.addColorStop(0,"rgba("+base+","+a0+")"); grad.addColorStop(0.11,"rgba("+base+",0)"); grad.addColorStop(1,"rgba("+base+",0)");
-    ctx.save(); ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(c.x,c.y,R,0,7); ctx.fill(); ctx.restore(); }
-  ctx.strokeStyle="rgba("+base+","+(pal.phos?0.4:0.12)+")"; ctx.lineWidth=1.4;
-  ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(c.x+Math.cos(ang)*R,c.y+Math.sin(ang)*R); ctx.stroke();
-}
-function drawField(night){
-  // river (decorative, e.g. Adyar at MAA)
-  if(LZ.river){ ctx.strokeStyle=night?"rgba(70,120,170,.5)":"rgba(90,150,200,.5)"; ctx.lineWidth=16; ctx.lineCap="round"; ctx.lineJoin="round";
+
+/* ══════════════════════════════════════════════════════════════════
+   CHART VIEW — a real aerodrome
+   ══════════════════════════════════════════════════════════════════ */
+function drawFieldChart(night){
+  const B=viewBounds();
+  const bw=B.x1-B.x0, bh=B.y1-B.y0;
+  const g=ctx.createLinearGradient(0,B.y0,0,B.y1);
+  g.addColorStop(0, night?"#071a15":"#0b2019");
+  g.addColorStop(1, night?"#041210":"#071711");
+  ctx.fillStyle=g; ctx.fillRect(B.x0,B.y0,bw,bh);
+  // grass texture — sparse, cheap, baked once
+  ctx.fillStyle = night?"rgba(30,80,60,.05)":"rgba(40,110,80,.05)";
+  for(let i=0;i<420;i++){
+    const x=B.x0+((i*613)%bw), y=B.y0+((i*971)%bh);
+    ctx.fillRect(x,y,2,2);
+  }
+  if(LZ.river){
+    ctx.strokeStyle=night?"rgba(40,90,140,.55)":"rgba(70,130,185,.5)";
+    ctx.lineWidth=18; ctx.lineCap="round"; ctx.lineJoin="round";
     ctx.beginPath(); LZ.river.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke();
-    ctx.strokeStyle="rgba(150,200,240,.25)"; ctx.lineWidth=2; ctx.stroke(); }
-  // taxiways (graph edges)
-  ctx.strokeStyle=night?"#123a30":"#164b3d"; ctx.lineWidth=15; ctx.lineCap="round";
-  for(const [p,q] of LZ.edges){ const n1=LZ.nodes[p],n2=LZ.nodes[q]; ctx.beginPath(); ctx.moveTo(n1.x,n1.y); ctx.lineTo(n2.x,n2.y); ctx.stroke(); }
-  ctx.strokeStyle=night?"rgba(240,182,74,.4)":"rgba(240,182,74,.28)"; ctx.lineWidth=1.2; ctx.setLineDash([8,9]);
-  for(const [p,q] of LZ.edges){ const n1=LZ.nodes[p],n2=LZ.nodes[q]; ctx.beginPath(); ctx.moveTo(n1.x,n1.y); ctx.lineTo(n2.x,n2.y); ctx.stroke(); }
-  ctx.setLineDash([]);
-  // gates
-  GATES.forEach(g=>{ ctx.fillStyle=g.occ?"rgba(240,182,74,.16)":"rgba(120,180,165,.10)"; roundRectP(g.x-18,g.y-16,36,20,5); ctx.fill();
-    ctx.fillStyle=night?"#5a7d76":"#4a6a63"; ctx.font="8.5px "+mono(); ctx.textAlign="center"; ctx.fillText(g.id,g.x,g.y-20); });
-  // runways
-  for(const r of RUNWAYS) drawRunway(r,night);
+    ctx.strokeStyle="rgba(150,200,240,.18)"; ctx.lineWidth=3; ctx.stroke();
+  }
+
+  drawApronsChart(night);
+  drawTaxiwaysChart(night);
+  for(const r of RUNWAYS) drawRunwayChart(r,night);
+  drawHoldShortBars(night);
+  if(night) drawTaxiLights();
 }
-function drawRunway(r,night){
-  const off=(r.role==="OFF"); const g=rwyGeom(r); const px=-g.uy, py=g.ux; const hw=r.w/2;
+
+function drawTaxiwaysChart(night){
+  // asphalt body
+  ctx.strokeStyle=night?"#16302a":"#1b3a32"; ctx.lineWidth=17; ctx.lineCap="round"; ctx.lineJoin="round";
+  for(const [p,q] of LZ.edges){ const a=LZ.nodes[p],b=LZ.nodes[q];
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  // shoulder
+  ctx.strokeStyle=night?"rgba(90,140,125,.14)":"rgba(120,170,150,.16)"; ctx.lineWidth=19;
+  for(const [p,q] of LZ.edges){ const a=LZ.nodes[p],b=LZ.nodes[q];
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  ctx.strokeStyle=night?"#16302a":"#1b3a32"; ctx.lineWidth=17;
+  for(const [p,q] of LZ.edges){ const a=LZ.nodes[p],b=LZ.nodes[q];
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  // yellow centreline — solid, as painted
+  ctx.strokeStyle=night?"rgba(240,196,80,.75)":"rgba(232,186,66,.7)"; ctx.lineWidth=1.8;
+  for(const [p,q] of LZ.edges){ const a=LZ.nodes[p],b=LZ.nodes[q];
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  // node designators
+  ctx.font="8px "+mono(); ctx.textAlign="center";
+  Object.entries(LZ.nodes).forEach(([id,n])=>{
+    if(/^G\d/.test(id)) return;                 // gates get their own labels
+    const hold=/^H/.test(id);
+    ctx.fillStyle= hold ? "rgba(255,120,110,.75)" : (night?"rgba(150,200,180,.42)":"rgba(120,175,150,.45)");
+    ctx.beginPath(); ctx.arc(n.x,n.y,hold?3:2.2,0,7); ctx.fill();
+    ctx.fillStyle= hold ? "rgba(255,120,110,.85)" : "rgba(150,200,180,.5)";
+    ctx.fillText(id, n.x, n.y-7);
+  });
+}
+
+/* hold-short ladders where taxiways meet a runway — the mandatory markings */
+function drawHoldShortBars(night){
+  Object.entries(LZ.holds||{}).forEach(([rwy,node])=>{
+    const n=LZ.nodes[node]; if(!n) return;
+    const r=RUNWAYS.find(x=>x.nameA===rwy||x.nameB===rwy); if(!r) return;
+    const g=rwyGeom(r);
+    // bar runs perpendicular to the taxiway's approach, i.e. along the runway axis
+    const px=g.ux, py=g.uy;
+    ctx.strokeStyle="rgba(255,196,60,.9)"; ctx.lineWidth=2;
+    for(let k=-1;k<=1;k+=2){
+      for(let j=0;j<2;j++){
+        const off=k*(3+j*3.2);
+        ctx.setLineDash(j?[5,4]:[]);
+        ctx.beginPath();
+        ctx.moveTo(n.x+px*10 - py*0 + (-py*0), n.y+py*10);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+    // two solid + two dashed bars across the hold position
+    const w=13;
+    for(let j=0;j<4;j++){
+      const d=(j-1.5)*3.4;
+      ctx.setLineDash(j<2?[]:[4,3]);
+      ctx.strokeStyle="rgba(255,196,60,.85)"; ctx.lineWidth=1.6;
+      ctx.beginPath();
+      ctx.moveTo(n.x + px*d - py*w, n.y + py*d + px*w);
+      ctx.lineTo(n.x + px*d + py*w, n.y + py*d - px*w);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.fillStyle="rgba(255,196,60,.55)"; ctx.font="bold 7px "+mono(); ctx.textAlign="center";
+    ctx.fillText(rwy, n.x - py*(w+8), n.y + px*(w+8));
+  });
+}
+
+function drawApronsChart(night){
+  // apron slab behind the stands
+  const gs=GATES.map(g=>g);
+  if(!gs.length) return;
+  const xs=gs.map(g=>g.x), ys=gs.map(g=>g.y);
+  const x0=Math.min(...xs)-40, x1=Math.max(...xs)+40;
+  const y0=Math.min(...ys)-34, y1=Math.max(...ys)+30;
+  ctx.fillStyle=night?"rgba(22,48,42,.85)":"rgba(26,58,48,.85)";
+  roundRectP(x0,y0,x1-x0,y1-y0,10); ctx.fill();
+  ctx.strokeStyle=night?"rgba(110,170,150,.18)":"rgba(130,185,160,.2)"; ctx.lineWidth=1;
+  roundRectP(x0,y0,x1-x0,y1-y0,10); ctx.stroke();
+}
+
+function drawGateState(night){
+  // stands: box, lead-in line, number. Occupancy is dynamic so it lives here.
+  ctx.textAlign="center";
+  GATES.forEach(g=>{
+    ctx.strokeStyle= g.occ ? "rgba(240,182,74,.75)" : "rgba(130,190,170,.35)";
+    ctx.lineWidth=1.2;
+    roundRectP(g.x-17,g.y-15,34,19,4); ctx.stroke();
+    ctx.fillStyle= g.occ ? "rgba(240,182,74,.16)" : "rgba(120,180,165,.06)";
+    roundRectP(g.x-17,g.y-15,34,19,4); ctx.fill();
+    // lead-in line
+    ctx.strokeStyle= g.occ ? "rgba(240,182,74,.5)" : "rgba(232,186,66,.28)";
+    ctx.lineWidth=1.4; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(g.x,g.y+4); ctx.lineTo(g.x,g.y+17); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle= g.occ ? "#f0b64a" : (night?"#6b9188":"#5a7d76");
+    ctx.font="bold 8.5px "+mono();
+    ctx.fillText(g.id, g.x, g.y-19);
+  });
+}
+
+function drawRunwayChart(r,night){
+  const off=(r.role==="OFF"); const g=rwyGeom(r);
+  const px=-g.uy, py=g.ux; const hw=r.w/2;
   const A={x:r.ax,y:r.ay}, B={x:r.bx,y:r.by};
-  // body (as a filled quad along the segment)
+
+  // shoulder
+  ctx.beginPath();
+  ctx.moveTo(A.x+px*(hw+5), A.y+py*(hw+5)); ctx.lineTo(B.x+px*(hw+5), B.y+py*(hw+5));
+  ctx.lineTo(B.x-px*(hw+5), B.y-py*(hw+5)); ctx.lineTo(A.x-px*(hw+5), A.y-py*(hw+5));
+  ctx.closePath();
+  ctx.fillStyle=night?"rgba(60,90,80,.30)":"rgba(70,105,92,.32)"; ctx.fill();
+
+  // asphalt
   ctx.beginPath();
   ctx.moveTo(A.x+px*hw, A.y+py*hw); ctx.lineTo(B.x+px*hw, B.y+py*hw);
   ctx.lineTo(B.x-px*hw, B.y-py*hw); ctx.lineTo(A.x-px*hw, A.y-py*hw); ctx.closePath();
-  ctx.fillStyle=night?"#0b1512":"#0d1a16"; ctx.fill();
-  ctx.strokeStyle=off?"rgba(90,125,118,.3)":(night?"#1e3a33":"#20463c"); ctx.lineWidth=2; ctx.stroke();
-  // centreline
-  ctx.strokeStyle=night?"rgba(255,255,255,.5)":"rgba(230,245,240,.45)"; ctx.lineWidth=2; ctx.setLineDash([18,15]);
-  ctx.beginPath(); ctx.moveTo(A.x+g.ux*16,A.y+g.uy*16); ctx.lineTo(B.x-g.ux*16,B.y-g.uy*16); ctx.stroke(); ctx.setLineDash([]);
-  // designators at each end (rotated to runway heading)
-  const label=(pt,dirx,diry,txt)=>{ const ang=Math.atan2(diry,dirx)+Math.PI/2; ctx.save(); ctx.translate(pt.x+dirx*30,pt.y+diry*30); ctx.rotate(ang);
-    ctx.fillStyle=off?"#5a7d76":"#eaf5f1"; ctx.font="bold 13px "+mono(); ctx.textAlign="center"; ctx.fillText(txt,0,4); ctx.restore(); };
-  label(A,g.ux,g.uy,r.nameA); label(B,-g.ux,-g.uy,r.nameB);
-  // role tag near A end, offset perpendicular
-  ctx.fillStyle=r.role==="ARR"?"rgba(30,203,184,.9)":r.role==="DEP"?"rgba(240,182,74,.9)":r.role==="BOTH"?"rgba(107,183,255,.9)":"rgba(90,125,118,.7)";
-  ctx.font="bold 10px "+mono(); ctx.textAlign="center"; ctx.fillText(r.id+" "+r.role, (A.x+B.x)/2+px*(hw+12), (A.y+B.y)/2+py*(hw+12));
-  if(off) return;
+  const grd=ctx.createLinearGradient(A.x,A.y,B.x,B.y);
+  grd.addColorStop(0, night?"#14181a":"#1b2124");
+  grd.addColorStop(.5, night?"#181d20":"#232a2d");
+  grd.addColorStop(1, night?"#14181a":"#1b2124");
+  ctx.fillStyle=off ? (night?"#0a1412":"#0d1a16") : grd; ctx.fill();
+  ctx.strokeStyle=off?"rgba(90,125,118,.28)":(night?"rgba(150,200,185,.30)":"rgba(170,215,195,.32)");
+  ctx.lineWidth=1.5; ctx.stroke();
+
+  if(off){
+    // closed runway: painted crosses
+    ctx.strokeStyle="rgba(255,120,110,.55)"; ctx.lineWidth=3;
+    [0.25,0.75].forEach(t=>{
+      const cx=A.x+(B.x-A.x)*t, cy=A.y+(B.y-A.y)*t, s=hw*0.7;
+      ctx.beginPath();
+      ctx.moveTo(cx-g.ux*s-px*s, cy-g.uy*s-py*s); ctx.lineTo(cx+g.ux*s+px*s, cy+g.uy*s+py*s);
+      ctx.moveTo(cx-g.ux*s+px*s, cy-g.uy*s+py*s); ctx.lineTo(cx+g.ux*s-px*s, cy+g.uy*s-py*s);
+      ctx.stroke();
+    });
+    ctx.fillStyle="rgba(140,175,168,.6)"; ctx.font="bold 11px "+mono(); ctx.textAlign="center";
+    ctx.fillText("CLOSED", (A.x+B.x)/2+px*(hw+14), (A.y+B.y)/2+py*(hw+14));
+    return;
+  }
+
+  // centreline dashes
+  ctx.strokeStyle="rgba(255,255,255,.92)"; ctx.lineWidth=2.4; ctx.setLineDash([20,16]);
+  ctx.beginPath();
+  ctx.moveTo(A.x+g.ux*40, A.y+g.uy*40); ctx.lineTo(B.x-g.ux*40, B.y-g.uy*40);
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // edge stripes
+  ctx.strokeStyle="rgba(255,255,255,.55)"; ctx.lineWidth=1.6;
+  [1,-1].forEach(sgn=>{
+    ctx.beginPath();
+    ctx.moveTo(A.x+px*hw*sgn*0.92, A.y+py*hw*sgn*0.92);
+    ctx.lineTo(B.x+px*hw*sgn*0.92, B.y+py*hw*sgn*0.92);
+    ctx.stroke();
+  });
+
+  // both ends get real threshold markings
+  markRunwayEnd(A, g.ux, g.uy, px,py, hw, r.nameA, r);
+  markRunwayEnd(B, -g.ux, -g.uy, px,py, hw, r.nameB, r);
+
+  // role tag
+  ctx.fillStyle=r.role==="ARR"?"rgba(30,203,184,.9)":r.role==="DEP"?"rgba(240,182,74,.9)":"rgba(107,183,255,.9)";
+  ctx.font="bold 10px "+mono(); ctx.textAlign="center";
+  ctx.fillText(r.id+" "+r.role, (A.x+B.x)/2+px*(hw+16), (A.y+B.y)/2+py*(hw+16));
+
+  if(night) drawRunwayLights(r,g,px,py,hw);
+}
+
+/* piano keys, aiming point, TDZ bars, painted designator, PAPI, approach lights */
+function markRunwayEnd(thr, ux,uy, px,py, hw, name, r){
   const act=rActive(r);
-  // active threshold bar
-  ctx.strokeStyle="rgba(240,182,74,.9)"; ctx.lineWidth=5;
-  ctx.beginPath(); ctx.moveTo(act.thr.x+px*hw,act.thr.y+py*hw); ctx.lineTo(act.thr.x-px*hw,act.thr.y-py*hw); ctx.stroke();
-  // approach lead-in lights
-  if(r.role==="ARR"||r.role==="BOTH"){ for(let k=1;k<=12;k++){ const lx=act.thr.x-act.ux*k*30, ly=act.thr.y-act.uy*k*30;
-    ctx.fillStyle= night?"rgba(255,255,255,"+(0.2+0.5*(1-k/12))+")":"rgba(240,182,74,.3)"; ctx.fillRect(lx-2,ly-2,4,4); } }
-  if(night){ for(let t=0;t<=1;t+=0.06){ const x=A.x+(B.x-A.x)*t, y=A.y+(B.y-A.y)*t;
-    ctx.fillStyle="rgba(240,182,74,.6)"; ctx.fillRect(x+px*hw-1,y+py*hw-1,2,2); ctx.fillRect(x-px*hw-1,y-py*hw-1,2,2); } }
+  const isActive = Math.abs(act.thr.x-thr.x)<1 && Math.abs(act.thr.y-thr.y)<1;
+
+  // threshold bar
+  ctx.strokeStyle= isActive ? "rgba(255,214,92,1)" : "rgba(255,255,255,.9)";
+  ctx.lineWidth= isActive ? 4 : 2.5;
+  ctx.beginPath();
+  ctx.moveTo(thr.x+px*hw, thr.y+py*hw); ctx.lineTo(thr.x-px*hw, thr.y-py*hw); ctx.stroke();
+
+  // piano keys — 8 stripes running down the runway from the threshold
+  ctx.fillStyle="rgba(255,255,255,.95)";
+  for(let k=-3.5;k<=3.5;k++){
+    const o=k*(hw/4.4);
+    ctx.save();
+    ctx.translate(thr.x+px*o+ux*13, thr.y+py*o+uy*13);
+    ctx.rotate(Math.atan2(uy,ux));
+    ctx.fillRect(-9, -1.6, 18, 3.2);
+    ctx.restore();
+  }
+
+  // painted designator on the surface
+  ctx.save();
+  ctx.translate(thr.x+ux*36, thr.y+uy*36);
+  ctx.rotate(Math.atan2(uy,ux)+Math.PI/2);
+  ctx.fillStyle="rgba(255,255,255,.98)";
+  ctx.font="bold 16px "+mono(); ctx.textAlign="center";
+  ctx.fillText(name, 0, 5);
+  ctx.restore();
+
+  // aiming point — two fat blocks
+  [1,-1].forEach(sgn=>{
+    ctx.save();
+    ctx.translate(thr.x+ux*72+px*sgn*(hw*0.42), thr.y+uy*72+py*sgn*(hw*0.42));
+    ctx.rotate(Math.atan2(uy,ux));
+    ctx.fillStyle="rgba(255,255,255,.95)";
+    ctx.fillRect(-12,-3.4,24,6.8);
+    ctx.restore();
+  });
+
+  // touchdown-zone bars
+  [52,92].forEach(d=>{
+    [1,-1].forEach(sgn=>{
+      ctx.save();
+      ctx.translate(thr.x+ux*d+px*sgn*(hw*0.66), thr.y+uy*d+py*sgn*(hw*0.66));
+      ctx.rotate(Math.atan2(uy,ux));
+      ctx.fillStyle="rgba(255,255,255,.85)";
+      ctx.fillRect(-7,-1.8,14,3.6);
+      ctx.restore();
+    });
+  });
+
+  if(!isActive) return;
+
+  // PAPI — four boxes abeam the threshold, left side
+  for(let k=0;k<4;k++){
+    const o=-(hw+9) - 0;
+    const along=26+k*7;
+    const x=thr.x+px*o+ux*along, y=thr.y+py*o+uy*along;
+    const pR=lr(2.4);
+    ctx.fillStyle = k<2 ? "rgba(255,90,99,.95)" : "rgba(255,255,255,.95)";
+    ctx.fillRect(x-pR,y-pR,pR*2,pR*2);
+  }
+
+  // approach lighting system, out from the threshold
+  const rows=14;
+  for(let k=1;k<=rows;k++){
+    const d=-k*26;
+    const bx=thr.x+ux*d, by=thr.y+uy*d;
+    const bar=(k%5===0)?hw*0.75:hw*0.30;
+    ctx.strokeStyle=`rgba(255,240,190,${0.10+0.42*(1-k/rows)})`;
+    ctx.lineWidth=2.2;
+    ctx.beginPath();
+    ctx.moveTo(bx+px*bar, by+py*bar); ctx.lineTo(bx-px*bar, by-py*bar);
+    ctx.stroke();
+  }
 }
+
+function drawRunwayLights(r,g,px,py,hw){
+  const A={x:r.ax,y:r.ay}, B={x:r.bx,y:r.by};
+  const act=rActive(r);
+  // edge lights
+  const eR=lr(1.7);
+  for(let t=0;t<=1;t+=0.035){
+    const x=A.x+(B.x-A.x)*t, y=A.y+(B.y-A.y)*t;
+    ctx.fillStyle="rgba(255,238,190,.95)";
+    ctx.beginPath(); ctx.arc(x+px*hw, y+py*hw, eR,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(x-px*hw, y-py*hw, eR,0,7); ctx.fill();
+  }
+  // centreline lights
+  const cR=lr(1.2);
+  for(let t=0.04;t<=0.96;t+=0.045){
+    const x=A.x+(B.x-A.x)*t, y=A.y+(B.y-A.y)*t;
+    ctx.fillStyle="rgba(255,255,255,.75)";
+    ctx.beginPath(); ctx.arc(x,y,cR,0,7); ctx.fill();
+  }
+  // threshold green / rollout red
+  const ends=[{p:act.thr,col:"rgba(60,255,150,.95)"},
+              {p:{x:act.thr.x+act.ux*g.L, y:act.thr.y+act.uy*g.L}, col:"rgba(255,70,70,.9)"}];
+  const tR=lr(2.3);
+  ends.forEach(e=>{
+    ctx.shadowColor=e.col; ctx.shadowBlur=7;
+    for(let k=-4;k<=4;k++){
+      const o=k*(hw/4.5);
+      ctx.fillStyle=e.col;
+      ctx.beginPath(); ctx.arc(e.p.x+px*o, e.p.y+py*o, tR,0,7); ctx.fill();
+    }
+    ctx.shadowBlur=0;
+  });
+}
+
+function drawTaxiLights(){
+  // blue taxiway edge lights
+  for(const [p,q] of LZ.edges){
+    const a=LZ.nodes[p], b=LZ.nodes[q];
+    const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy)||1;
+    const ux=dx/L, uy=dy/L, nx=-uy, ny=ux;
+    const bR=lr(1.5);
+    for(let d=10; d<L-10; d+=34){
+      const x=a.x+ux*d, y=a.y+uy*d;
+      ctx.fillStyle="rgba(105,175,255,.9)";
+      ctx.beginPath(); ctx.arc(x+nx*10, y+ny*10, bR,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(x-nx*10, y-ny*10, bR,0,7); ctx.fill();
+    }
+  }
+  // apron floods
+  GATES.forEach(g=>{
+    const gr=ctx.createRadialGradient(g.x,g.y+6,2,g.x,g.y+6,34);
+    gr.addColorStop(0,"rgba(255,225,160,.16)"); gr.addColorStop(1,"rgba(255,225,160,0)");
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(g.x,g.y+6,34,0,7); ctx.fill();
+  });
+}
+
+/* sequenced flashers running in toward the active threshold ("the rabbit") */
+function drawSequencedFlashers(){
+  if(CFG.view==="scope") return;
+  const t=(G?G.t:0);
+  for(const r of arrRunways()){
+    const act=rActive(r);
+    const n=14;
+    const head=Math.floor((t*7)%n);
+    for(let k=0;k<3;k++){
+      const idx=(head-k+n)%n;
+      const d=-(idx+1)*26;
+      const x=act.thr.x+act.ux*d, y=act.thr.y+act.uy*d;
+      ctx.fillStyle=`rgba(255,255,255,${0.9-k*0.28})`;
+      ctx.shadowColor="rgba(255,255,255,.8)"; ctx.shadowBlur=8;
+      ctx.beginPath(); ctx.arc(x,y,lr(3.2-k*0.7),0,7); ctx.fill();
+      ctx.shadowBlur=0;
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SCOPE VIEW — a radar display
+   ══════════════════════════════════════════════════════════════════ */
+function fieldCentre(){
+  let cx=0,cy=0; RUNWAYS.forEach(r=>{cx+=(r.ax+r.bx)/2; cy+=(r.ay+r.by)/2;});
+  return {x:cx/RUNWAYS.length, y:cy/RUNWAYS.length};
+}
+function drawFieldScope(night){
+  const C=fieldCentre();
+  // faint taxi structure — present but recessive
+  ctx.strokeStyle="rgba(40,120,105,.20)"; ctx.lineWidth=1.2;
+  for(const [p,q] of LZ.edges){ const a=LZ.nodes[p],b=LZ.nodes[q];
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  // stands as ticks
+  GATES.forEach(g=>{ ctx.fillStyle="rgba(40,140,120,.35)"; ctx.fillRect(g.x-2,g.y-2,4,4); });
+
+  // runways as bright bars
+  for(const r of RUNWAYS){
+    const off=(r.role==="OFF"); const g=rwyGeom(r);
+    const px=-g.uy, py=g.ux, hw=Math.max(4,r.w*0.30);
+    ctx.beginPath();
+    ctx.moveTo(r.ax+px*hw, r.ay+py*hw); ctx.lineTo(r.bx+px*hw, r.by+py*hw);
+    ctx.lineTo(r.bx-px*hw, r.by-py*hw); ctx.lineTo(r.ax-px*hw, r.ay-py*hw); ctx.closePath();
+    ctx.fillStyle= off ? "rgba(90,130,120,.25)" : "rgba(215,255,240,.97)";
+    ctx.fill();
+    if(!off){ ctx.shadowColor="rgba(120,255,220,.5)"; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0; }
+    if(off) continue;
+    // extended centreline out from the active threshold
+    const act=rActive(r);
+    ctx.strokeStyle="rgba(30,203,184,.42)"; ctx.lineWidth=1.2; ctx.setLineDash([9,7]);
+    ctx.beginPath(); ctx.moveTo(act.thr.x,act.thr.y);
+    ctx.lineTo(act.thr.x-act.ux*860, act.thr.y-act.uy*860); ctx.stroke(); ctx.setLineDash([]);
+    // range gates along it
+    for(let k=1;k<=5;k++){
+      const d=k*170;
+      const x=act.thr.x-act.ux*d, y=act.thr.y-act.uy*d;
+      ctx.fillStyle="rgba(30,203,184,.5)"; ctx.fillRect(x-2.5,y-2.5,5,5);
+    }
+    ctx.fillStyle="rgba(200,255,235,.9)"; ctx.font="bold 11px "+mono(); ctx.textAlign="center";
+    ctx.fillText(rName(r), act.thr.x+act.ux*22, act.thr.y+act.uy*22+4);
+  }
+
+  // range rings around the field
+  ctx.strokeStyle="rgba(30,203,184,.20)"; ctx.lineWidth=1;
+  ctx.font="9px "+mono(); ctx.textAlign="left";
+  for(let rr=170,n=1;rr<=850;rr+=170,n++){
+    ctx.beginPath(); ctx.arc(C.x,C.y,rr,0,7); ctx.stroke();
+    ctx.fillStyle="rgba(30,203,184,.4)";
+    ctx.fillText((n*3)+"nm", C.x+6, C.y-rr+13);
+  }
+  // radials
+  ctx.strokeStyle="rgba(30,203,184,.07)";
+  for(let a=0;a<360;a+=30){
+    const rad=(a-90)*Math.PI/180;
+    ctx.beginPath(); ctx.moveTo(C.x,C.y);
+    ctx.lineTo(C.x+Math.cos(rad)*850, C.y+Math.sin(rad)*850); ctx.stroke();
+  }
+  // cardinal marks
+  ctx.fillStyle="rgba(30,203,184,.55)"; ctx.font="bold 11px "+mono(); ctx.textAlign="center";
+  [["N",0],["E",90],["S",180],["W",270]].forEach(([l,a])=>{
+    const rad=(a-90)*Math.PI/180;
+    ctx.fillText(l, C.x+Math.cos(rad)*880, C.y+Math.sin(rad)*880+4);
+  });
+  ctx.fillStyle="#f0b64a"; ctx.beginPath(); ctx.arc(C.x,C.y,3.5,0,7); ctx.fill();
+}
+
+/* CRT furniture drawn in SCREEN space so it doesn't scale with the field */
+function drawScopeFurniture(rw,rh){
+  ctx.globalAlpha=0.055; ctx.fillStyle="#000";
+  for(let y=0;y<rh;y+=3) ctx.fillRect(0,y,rw,1);
+  ctx.globalAlpha=1;
+  const vg=ctx.createRadialGradient(rw/2,rh/2,Math.min(rw,rh)*0.32,rw/2,rh/2,Math.max(rw,rh)*0.72);
+  vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(0,0,0,.48)");
+  ctx.fillStyle=vg; ctx.fillRect(0,0,rw,rh);
+}
+
+let SWEEP=0;
+function drawSweep(r){
+  SWEEP=(SWEEP+0.012)%(Math.PI*2);
+  const C=W2S(fieldCentre().x, fieldCentre().y);
+  const R=Math.max(r.width,r.height);
+  const g=ctx.createLinearGradient(C.x,C.y, C.x+Math.cos(SWEEP)*R, C.y+Math.sin(SWEEP)*R);
+  g.addColorStop(0,"rgba(30,203,184,.22)"); g.addColorStop(1,"rgba(30,203,184,0)");
+  ctx.strokeStyle=g; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(C.x,C.y); ctx.lineTo(C.x+Math.cos(SWEEP)*R, C.y+Math.sin(SWEEP)*R); ctx.stroke();
+  // trailing wedge
+  ctx.beginPath(); ctx.moveTo(C.x,C.y);
+  ctx.arc(C.x,C.y,R, SWEEP-0.30, SWEEP);
+  ctx.closePath();
+  ctx.fillStyle="rgba(30,203,184,.035)"; ctx.fill();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   APPROACH OVERLAY (APP position)
+   ══════════════════════════════════════════════════════════════════ */
 function drawApproachOverlay(){
-  let cx=0,cy=0; RUNWAYS.forEach(r=>{ cx+=(r.ax+r.bx)/2; cy+=(r.ay+r.by)/2; }); cx/=RUNWAYS.length; cy/=RUNWAYS.length;
-  ctx.strokeStyle="rgba(30,203,184,.14)"; ctx.lineWidth=1;
-  for(let rr=160;rr<=760;rr+=160){ ctx.beginPath(); ctx.arc(cx,cy,rr,0,7); ctx.stroke(); }
-  for(const r of arrRunways()){ const act=rActive(r);
-    ctx.strokeStyle="rgba(30,203,184,.28)"; ctx.setLineDash([10,8]); ctx.beginPath();
-    ctx.moveTo(act.thr.x,act.thr.y); ctx.lineTo(act.thr.x-act.ux*820, act.thr.y-act.uy*820); ctx.stroke(); ctx.setLineDash([]);
-    if(CFG.approach==="seq"){ const f=holdFixFor(r); ctx.strokeStyle="rgba(240,182,74,.35)"; ctx.setLineDash([5,5]);
+  const C=fieldCentre();
+  if(CFG.view!=="scope"){
+    ctx.strokeStyle="rgba(30,203,184,.13)"; ctx.lineWidth=1;
+    for(let rr=160;rr<=760;rr+=160){ ctx.beginPath(); ctx.arc(C.x,C.y,rr,0,7); ctx.stroke(); }
+    for(const r of arrRunways()){ const act=rActive(r);
+      ctx.strokeStyle="rgba(30,203,184,.26)"; ctx.setLineDash([10,8]);
+      ctx.beginPath(); ctx.moveTo(act.thr.x,act.thr.y);
+      ctx.lineTo(act.thr.x-act.ux*820, act.thr.y-act.uy*820); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  if(CFG.approach==="seq"){
+    for(const r of arrRunways()){
+      const f=holdFixFor(r);
+      ctx.strokeStyle="rgba(240,182,74,.38)"; ctx.setLineDash([5,5]);
       ctx.beginPath(); ctx.arc(f.x,f.y,74,0,7); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle="rgba(240,182,74,.6)"; ctx.font="9px "+mono(); ctx.textAlign="center"; ctx.fillText("HOLD "+rName(r),f.x,f.y-80); } }
-  const ang=(G.t*0.9)%(Math.PI*2);
-  ctx.save(); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,760,ang,ang+0.5); ctx.closePath();
-  ctx.fillStyle="rgba(30,203,184,.05)"; ctx.fill(); ctx.restore();
+      ctx.fillStyle="rgba(240,182,74,.65)"; ctx.font="9px "+mono(); ctx.textAlign="center";
+      ctx.fillText("HOLD "+rName(r), f.x, f.y-80);
+    }
+  }
 }
-function drawAircraftAll(night){
-  const pal=scopePal();
+
+/* ══════════════════════════════════════════════════════════════════
+   AIRCRAFT — history trails, non-colliding datablocks
+   ══════════════════════════════════════════════════════════════════ */
+const TRAIL={};                       // id -> [{x,y}]
+let trailT=0;
+function pushTrails(){
+  if(!G) return;
+  const now=G.t;
+  if(now-trailT < 0.55) return;       // a "sweep" worth of history
+  trailT=now;
+  for(const a of G.aircraft){
+    const t=TRAIL[a.id]||(TRAIL[a.id]=[]);
+    t.push({x:a.x,y:a.y});
+    if(t.length>9) t.shift();
+  }
+  Object.keys(TRAIL).forEach(id=>{ if(!G.aircraft.some(a=>String(a.id)===id)) delete TRAIL[id]; });
+}
+
+function drawAircraftAll(night,scope){
+  pushTrails();
+  const blocks=[];                     // for datablock collision avoidance
+
   for(const a of G.aircraft){
     const sel=a.id===selected;
     const airborne=a.alt>3 || ["HOLD","INTERCEPT","FINAL","GOAROUND","TKOF","CLIMB"].includes(a.state);
-    // radar history trail (fading comet dots behind airborne targets)
-    if(a.hist && a.hist.length){
-      for(let i=0;i<a.hist.length;i++){ const h=a.hist[i], f=(i+1)/(a.hist.length+1);
-        const rad=1.3+2.1*f, al=0.06+0.30*f;
-        ctx.fillStyle = pal.phos? "rgba("+pal.rgb+","+al+")"
-          : (a.emg?"rgba(255,91,110,"+al+")": a.kind==="dep"?"rgba(240,182,74,"+al+")":"rgba(30,203,184,"+al+")");
-        ctx.beginPath(); ctx.arc(h.x,h.y,rad,0,7); ctx.fill(); }
+
+    // phosphor history dots — what actually makes a scope look like a scope
+    const t=TRAIL[a.id];
+    if(t && t.length>1){
+      t.forEach((p,i)=>{
+        const age=i/(t.length-1);                 // 0 oldest → 1 newest
+        const al=0.05+0.30*age;
+        ctx.fillStyle= a.emg?`rgba(255,91,110,${al})`
+                     : a.live?`rgba(240,182,74,${al})` : `rgba(30,203,184,${al})`;
+        ctx.beginPath(); ctx.arc(p.x,p.y, 1.4+2.2*age, 0, 7); ctx.fill();
+      });
     }
-    // approach centreline stub
-    if(a.state==="FINAL"||a.state==="GOAROUND"){ ctx.strokeStyle= pal.phos?"rgba("+pal.rgb+",.3)":(a.emg?"rgba(255,91,110,.4)":"rgba(30,203,184,.32)"); ctx.lineWidth=1.5;
-      const act=rActive(a.rwy); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(a.x-act.ux*46, a.y-act.uy*46); ctx.stroke(); }
-    // trend/velocity vector (1-min projection)
-    if(airborne && a.spd>40){ const act=a.rwy?rActive(a.rwy):null; const ux=act?act.ux:Math.sin((a.hdg)*D2R), uy=act?act.uy:-Math.cos((a.hdg)*D2R);
-      ctx.strokeStyle= pal.phos?"rgba("+pal.rgb+",.55)":(a.emg?"rgba(255,91,110,.6)":"rgba(107,183,255,.55)"); ctx.lineWidth=1.4;
-      const ln=Math.min(60,a.spd*0.28); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(a.x+ux*ln,a.y+uy*ln); ctx.stroke();
-      ctx.fillStyle= pal.phos?"rgba("+pal.rgb+",.55)":(a.emg?"rgba(255,91,110,.6)":"rgba(107,183,255,.55)"); ctx.beginPath(); ctx.arc(a.x+ux*ln,a.y+uy*ln,2,0,7); ctx.fill(); }
-    // conflict ring
-    if(a.flash>0){ ctx.strokeStyle="rgba(255,91,110,"+(0.5+0.5*Math.sin(G.t*20))+")"; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(a.x,a.y,20,0,7); ctx.stroke(); }
-    // body — scaled by wake category
+
+    // trend vector — 60s projection
+    if(airborne && a.spd>40){
+      const act=a.rwy?rActive(a.rwy):null;
+      const ux=act?act.ux:Math.sin(a.hdg*D2R), uy=act?act.uy:-Math.cos(a.hdg*D2R);
+      ctx.strokeStyle=a.emg?"rgba(255,91,110,.6)":"rgba(107,183,255,.5)"; ctx.lineWidth=1.4;
+      const ln=Math.min(64,a.spd*0.3);
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(a.x+ux*ln,a.y+uy*ln); ctx.stroke();
+      for(let k=1;k<=3;k++){
+        ctx.fillStyle=a.emg?"rgba(255,91,110,.5)":"rgba(107,183,255,.45)";
+        ctx.beginPath(); ctx.arc(a.x+ux*ln*k/3, a.y+uy*ln*k/3, 1.3,0,7); ctx.fill();
+      }
+    }
+
+    if(a.flash>0){
+      ctx.strokeStyle="rgba(255,91,110,"+(0.5+0.5*Math.sin(G.t*20))+")"; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(a.x,a.y,22,0,7); ctx.stroke();
+    }
+
+    // symbol
     ctx.save(); ctx.translate(a.x,a.y); ctx.rotate((a.hdg||0)*Math.PI/180);
-    let col;
-    if(pal.phos){ col = a.emg?"#ff6b74" : (a.state==="LAND"||a.state==="TKOF")?"#ffffff" : sel?"#ffffff":"rgb("+pal.rgb+")"; }
-    else { col = a.emg?"#ff5b6e" : a.kind==="dep"?"#f0b64a" : "#1ecbb8"; if(a.state==="LAND"||a.state==="TKOF") col="#eaf5f1"; }
-    ctx.fillStyle=col; ctx.strokeStyle= pal.phos?"rgba(0,0,0,.6)":"rgba(4,10,8,.9)"; ctx.lineWidth=1.4;
-    const wk=a.wake==="J"?1.4:a.wake==="H"?1.22:a.wake==="L"?0.82:1; const s=(airborne?1.15:1)*wk;
-    ctx.beginPath(); ctx.moveTo(0,-9*s); ctx.lineTo(6*s,7*s); ctx.lineTo(0,4*s); ctx.lineTo(-6*s,7*s); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-    if(sel){ ctx.strokeStyle= pal.phos?"#ffffff":"#f0b64a"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,15,0,7); ctx.stroke(); }
+    let col = a.emg?"#ff5b6e" : a.kind==="dep"?"#f0b64a" : "#1ecbb8";
+    if(a.state==="LAND"||a.state==="TKOF") col="#eaf5f1";
+    const wk=a.wake==="J"?1.4:a.wake==="H"?1.22:a.wake==="L"?0.82:1;
+    const s=(airborne?1.15:1)*wk;
+    if(scope){ ctx.shadowColor=col; ctx.shadowBlur=8; }
+    ctx.fillStyle=col; ctx.strokeStyle="rgba(4,10,8,.9)"; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.moveTo(0,-9*s); ctx.lineTo(6*s,7*s); ctx.lineTo(0,4*s); ctx.lineTo(-6*s,7*s);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0;
+    // a live-sourced aircraft carries a ring so it is never confused with a sim target
+    if(a.live){
+      ctx.strokeStyle="rgba(240,182,74,.85)"; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.arc(0,0,12*wk,0,7); ctx.stroke();
+    }
+    if(sel){ ctx.strokeStyle="#f0b64a"; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.arc(0,0,16,0,7); ctx.stroke(); }
     ctx.restore();
-    drawDatablock(a,sel,night,pal);
+
+    blocks.push(a);
   }
+
+  // datablocks last, so they sit above every symbol
+  const placed=[];
+  for(const a of blocks) drawDatablock(a, a.id===selected, night, placed);
 }
-function drawDatablock(a,sel,night,pal){
-  pal=pal||scopePal();
-  const l3 = a.kind==="dep"&&a.sid ? (a.sid.name) : (a.live?"◆LIVE":"");
-  const lines=[ a.cs+"  "+a.wake+(l3?"  "+l3:""), a.type+(a.squawk?"  "+a.squawk:""),
-    (a.alt>60?Math.round(a.alt/100)*100+"ft":stateLabel(a))+"  "+Math.round(a.spd)+"kt" ];
+
+/* Datablocks used a fixed offset, so close targets produced overlapping,
+   unreadable blocks. Try a ring of offsets and take the first that's clear —
+   which is what a real display does with its leader lines. */
+const DB_OFFSETS=[[14,-10],[14,14],[-14,-10],[-14,14],[0,-30],[0,26],[26,0],[-26,0]];
+function drawDatablock(a,sel,night,placed){
+  const l3 = a.ody ? "◆ODY"+(a.kind==="dep"&&a.sid?" "+a.sid.name:"")
+           : (a.kind==="dep"&&a.sid ? a.sid.name : (a.live?"◆LIVE":""));
+  const lines=[ a.cs+"  "+a.wake+(l3?"  "+l3:""),
+                a.type+(a.squawk?"  "+a.squawk:""),
+                (a.alt>60?Math.round(a.alt/100)*100+"ft":stateLabel(a))+"  "+Math.round(a.spd)+"kt" ];
   ctx.font="10px "+mono(); ctx.textAlign="left";
   const w=Math.max(...lines.map(t=>ctx.measureText(t).width))+8;
-  const ox=12, oy=-8;
-  const line= pal.phos? "rgba("+pal.rgb+",.5)" : (sel?"rgba(240,182,74,.7)":"rgba(30,203,184,.35)");
-  ctx.strokeStyle=line; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(a.x+3,a.y-3); ctx.lineTo(a.x+ox,a.y+oy); ctx.stroke();
-  ctx.fillStyle= pal.phos? "rgba(0,0,0,.55)":"rgba(6,16,14,.82)"; roundRectP(a.x+ox,a.y+oy-11,w,lines.length*11+6,4); ctx.fill();
-  ctx.strokeStyle= pal.phos? "rgba("+pal.rgb+",.35)":(sel?"rgba(240,182,74,.5)":"rgba(120,180,165,.2)"); roundRectP(a.x+ox,a.y+oy-11,w,lines.length*11+6,4); ctx.stroke();
+  const h=lines.length*11+6;
+
+  let ox=DB_OFFSETS[0][0], oy=DB_OFFSETS[0][1];
+  for(const [dx,dy] of DB_OFFSETS){
+    const bx=a.x+dx, by=a.y+dy-11;
+    const clash=placed.some(p=> bx < p.x+p.w+4 && bx+w+4 > p.x && by < p.y+p.h+4 && by+h+4 > p.y);
+    if(!clash){ ox=dx; oy=dy; break; }
+  }
+  const bx=a.x+ox, by=a.y+oy-11;
+  placed.push({x:bx,y:by,w,h});
+
+  ctx.strokeStyle=sel?"rgba(240,182,74,.75)":(a.live?"rgba(240,182,74,.4)":"rgba(30,203,184,.35)");
+  ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(a.x+(ox>0?4:-4), a.y+(oy>0?4:-4)); ctx.lineTo(bx+(ox<0?w:0), by+8); ctx.stroke();
+
+  ctx.fillStyle="rgba(6,16,14,.86)"; roundRectP(bx,by,w,h,4); ctx.fill();
+  ctx.strokeStyle=sel?"rgba(240,182,74,.55)":(a.live?"rgba(240,182,74,.3)":"rgba(120,180,165,.2)");
+  roundRectP(bx,by,w,h,4); ctx.stroke();
   lines.forEach((t,i)=>{
-    ctx.fillStyle= pal.phos ? (a.emg?"#ff6b74": i===0? (sel?"#ffffff":"rgb("+pal.rgb+")") : "rgba("+pal.rgb+",.7)")
-      : (i===0?(a.emg?"#ff5b6e":sel?"#f0b64a":"#eaf5f1"):"#8fb4ac");
-    ctx.fillText(t,a.x+ox+4,a.y+oy+i*11); });
-  if(a.emg){ ctx.fillStyle="#ff6b74"; ctx.fillText("⚠ "+a.emgType, a.x+ox+4, a.y+oy+lines.length*11+2); }
+    ctx.fillStyle = i===0 ? (a.emg?"#ff5b6e":sel?"#f0b64a":"#eaf5f1") : "#8fb4ac";
+    ctx.fillText(t, bx+4, by+11+i*11);
+  });
+  if(a.emg){ ctx.fillStyle="#ff5b6e"; ctx.fillText("⚠ "+a.emgType, bx+4, by+11+lines.length*11); }
 }
+
 function stateLabel(a){ return ({HOLD:"HOLD",INTERCEPT:"INTCPT",FINAL:"FINAL",LAND:"LAND",EXIT:"EXIT",TAXI_IN:"TAXI",GATE:"GATE",PUSH:"PUSH",WAITTAXI:"HOLD",
   TAXI_OUT:"TAXI",HOLD_SHORT:"HLD SHT",HOLD_TAXI:"HOLD",LINEUP:"LINEUP",READY:"READY",TKOF:"DEP",CLIMB:"CLIMB",GOAROUND:"GO-ARND"})[a.state]||a.state; }
-function drawScopeTint(){ const r=cvs.getBoundingClientRect(); const pal=scopePal();
-  if(pal.phos){
-    ctx.fillStyle=pal.tint; ctx.fillRect(0,0,r.width,r.height);
-    ctx.fillStyle="rgba(0,0,0,.16)"; for(let y=0;y<r.height;y+=3){ ctx.fillRect(0,y,r.width,1); }
-    const g=ctx.createRadialGradient(r.width/2,r.height*0.48,r.height*0.22, r.width/2,r.height*0.5,r.height*0.9);
-    g.addColorStop(0,"rgba(0,0,0,0)"); g.addColorStop(1,"rgba(0,0,0,.55)"); ctx.fillStyle=g; ctx.fillRect(0,0,r.width,r.height);
-    ctx.fillStyle="rgba("+pal.rgb+","+(0.012+0.014*Math.random())+")"; ctx.fillRect(0,0,r.width,r.height);
-    return;
-  }
+
+function drawScopeTint(){ const r=cvs.getBoundingClientRect();
+  if(CFG.view==="scope") return;
   if(G && G.pos==="APP"){ ctx.fillStyle="rgba(30,203,184,.03)"; ctx.fillRect(0,0,r.width,r.height); }
   if(G && G.pos==="GND"){ ctx.fillStyle="rgba(58,217,160,.02)"; ctx.fillRect(0,0,r.width,r.height); }
 }
 function roundRectP(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 function mono(){ return 'ui-monospace,Menlo,Consolas,monospace'; }
+
 
 /* ============================================================ STRIPS ============================================================ */
 function stripBay(a){
@@ -1421,13 +2100,19 @@ function stripHTML(a){
   if(a.flash>0||a.emg){cls+=" hot";}
   const clr = a.kind==="arr" ? (a.cleared.land?"CLR LAND":a.cleared.appr?"CLR APPR":"—")
     : (a.cleared.takeoff?"CLR T/O":a.cleared.taxi?"TAXI":a.cleared.sid?"CLRD "+(a.sid?a.sid.name:""):a.cleared.push?"PUSH":"—");
+  const tag = a.ody?'<span class="odytag">◆ODY</span> ':(a.live?'<span class="livetag">◆LIVE</span> ':"");
   const line2 = a.kind==="arr"
-    ? (a.live?'<span class="livetag">◆LIVE</span> ':"")+"◂ ARR "+rName(a.rwy)
-    : "▸ DEP "+rName(a.rwy)+(a.sid?" · "+a.sid.name:"")+" · "+(a.gate?a.gate.id:"");
-  return `<div class="strip${sel}${kind}${emg}" data-id="${a.id}">
+    ? tag+"◂ ARR "+rName(a.rwy)
+    : tag+"▸ DEP "+rName(a.rwy)+(a.sid?" · "+a.sid.name:"")+" · "+(a.gate?a.gate.id:"");
+  // an ODYSSEY flight carries the dispatcher's own numbers — show them
+  const o=a.ody;
+  const odyRow = o ? `<div class="r2 odyrow"><span>${o.from}→${o.to}${o.tow?" · "+(o.tow/1000).toFixed(1)+"t":""}${o.mac?" · "+o.mac+"%MAC":""}</span>
+      <span>${a.kind==="arr" ? (o.vref?"VREF "+o.vref:"") : (o.v1?"V1 "+o.v1+"/V2 "+o.v2:"")}</span></div>` : "";
+  return `<div class="strip${sel}${kind}${emg}${a.ody?' ody':''}" data-id="${a.id}">
     <div class="r1"><span class="cs">${a.cs}</span><span class="ty">${a.type}</span></div>
     <div class="r2"><span>${line2}</span><span class="${cls}">${stt}</span></div>
     <div class="r2"><span>${clr}</span><span>${a.alt>60?Math.round(a.alt/100)*100+"ft":Math.round(a.spd)+"kt"}</span></div>
+    ${odyRow}
     <span class="wk">${a.wake}</span></div>`;
 }
 /* drag strips onto bays to issue the primary clearance */
@@ -1497,6 +2182,7 @@ document.getElementById("btnSilent").onclick=()=>{ CFG.silent=CFG.silent?0:1; co
   document.getElementById("kbdHint").style.display=CFG.silent?"block":"none";
   toast(CFG.silent?"Silent mode — keyboard callouts (press ?)":"Silent mode off"); };
 /* real-traffic overlay */
+document.getElementById("btnView").onclick=()=>toggleView();
 document.getElementById("btnReal").onclick=()=>toggleRealTraffic();
 /* controllable live inbounds */
 document.getElementById("btnLiveIn").onclick=()=>toggleLiveInbounds();
@@ -1518,10 +2204,8 @@ wireSeg("segArr","arrRate");
 })();
 wireSeg("segShift","shift",()=>{ if(G){G.shift=CFG.shift;} });
 wireSeg("segEmg","emg");
+wireSeg("segOdy","ody");
 wireSeg("segNight","night",()=>{ setWind(G.wind.dir,G.wind.spd); });
-(function(){ const seg=document.getElementById("segScope"); if(!seg)return;
-  seg.querySelectorAll("button").forEach(b=>b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
-    CFG.scope=b.dataset.v; toast("Scope: "+(CFG.scope==="modern"?"modern":CFG.scope+" CRT")); }); })();
 (function(){ const seg=document.getElementById("segWx"); if(!seg)return;
   seg.querySelectorAll("button").forEach(b=>b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
     CFG.wx=b.dataset.v; if(G)setWind(G.wind.dir,G.wind.spd); toast("Weather: "+CFG.wx); }); })();
@@ -1863,22 +2547,52 @@ async function fetchMETAR(manual){
 
 function drawRealTraffic(night){
   if(!LZ.geo) return;
-  let cx=0,cy=0; RUNWAYS.forEach(r=>{cx+=(r.ax+r.bx)/2;cy+=(r.ay+r.by)/2;}); cx/=RUNWAYS.length; cy/=RUNWAYS.length;
+  const C=fieldCentre();
   const scopeR=Math.min(WORLD.w,WORLD.h)*0.46;
+
+  /* HONESTY: this overlay is a POLAR ADVISORY RING, not a georeferenced
+     picture. Real aircraft are plotted by bearing and range from the field,
+     scaled to a ring — the simulated aircraft live in the layout's own world
+     coordinates. A real aircraft at 5nm and a sim aircraft at 5nm are NOT in
+     the same place on this canvas. So the ring is drawn explicitly, and the
+     targets use a distinct symbol, so the two can never be confused. */
+  ctx.strokeStyle="rgba(240,182,74,.20)"; ctx.lineWidth=1.2; ctx.setLineDash([7,6]);
+  ctx.beginPath(); ctx.arc(C.x,C.y,scopeR,0,7); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle="rgba(240,182,74,.10)";
+  [0.33,0.66].forEach(f=>{ ctx.beginPath(); ctx.arc(C.x,C.y,scopeR*f,0,7); ctx.stroke(); });
+
   for(const a of RT.ac){
-    const dist=geoDistNm(LZ.geo.lat,LZ.geo.lon,a.lat,a.lon); if(dist>RT.rangeNm) continue;
-    const brg=geoBearing(LZ.geo.lat,LZ.geo.lon,a.lat,a.lon)*D2R; const px=dist/RT.rangeNm*scopeR;
-    const x=cx+px*Math.sin(brg), y=cy-px*Math.cos(brg);
-    ctx.strokeStyle=a.ground?"rgba(240,182,74,.45)":"rgba(240,182,74,.9)"; ctx.lineWidth=1.6;
-    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.strokeRect(-4,-4,8,8); ctx.restore();
-    if(a.gs){ const tr=(a.track-90)*D2R, ln=Math.min(34,a.gs/9);
-      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(tr)*ln,y+Math.sin(tr)*ln); ctx.stroke(); }
-    ctx.fillStyle="rgba(240,182,74,.9)"; ctx.font="9px "+mono(); ctx.textAlign="left";
-    ctx.fillText((a.cs||a.hex||"").toUpperCase(), x+7, y-3);
-    ctx.fillStyle="rgba(240,182,74,.6)"; ctx.fillText(a.ground?"GND":(a.alt!=null?("FL"+String(Math.round(a.alt/100)).padStart(3,"0")):""), x+7, y+7);
+    const dist=geoDistNm(LZ.geo.lat,LZ.geo.lon,a.lat,a.lon);
+    if(dist>RT.rangeNm) continue;
+    const brg=geoBearing(LZ.geo.lat,LZ.geo.lon,a.lat,a.lon)*D2R;
+    const px=dist/RT.rangeNm*scopeR;
+    const x=C.x+px*Math.sin(brg), y=C.y-px*Math.cos(brg);
+
+    // diamond — deliberately unlike the sim's arrowhead
+    ctx.strokeStyle=a.ground?"rgba(240,182,74,.45)":"rgba(240,182,74,.95)";
+    ctx.lineWidth=1.6;
+    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4);
+    ctx.strokeRect(-4.5,-4.5,9,9);
+    ctx.restore();
+
+    if(a.gs){
+      const tr=(a.track-90)*D2R, ln=Math.min(40,a.gs/8);
+      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(tr)*ln,y+Math.sin(tr)*ln); ctx.stroke();
+    }
+    ctx.fillStyle="rgba(240,182,74,.95)"; ctx.font="9px "+mono(); ctx.textAlign="left";
+    ctx.fillText((a.cs||a.hex||"").toUpperCase(), x+8, y-3);
+    ctx.fillStyle="rgba(240,182,74,.6)";
+    ctx.fillText(a.ground?"GND":(a.alt!=null?("FL"+String(Math.round(a.alt/100)).padStart(3,"0")):""), x+8, y+7);
   }
-  ctx.fillStyle="rgba(240,182,74,.55)"; ctx.font="10px "+mono(); ctx.textAlign="left";
-  ctx.fillText("◆ LIVE "+(LZ.icao||"")+" · "+RT.ac.length+" tracks · "+RT.rangeNm+"nm"+(RT.err?" · "+RT.err:""), cx-scopeR+10, cy-scopeR+16);
+
+  // legend, stated plainly
+  ctx.textAlign="left";
+  ctx.fillStyle="rgba(240,182,74,.9)"; ctx.font="bold 10px "+mono();
+  ctx.fillText("◇ LIVE ADS-B · "+(LZ.icao||"")+" · "+RT.ac.length+" tracks · "+RT.rangeNm+"nm ring",
+    C.x-scopeR+8, C.y-scopeR-14);
+  ctx.fillStyle="rgba(240,182,74,.5)"; ctx.font="9px "+mono();
+  ctx.fillText("advisory — bearing/range ring, NOT to field scale"+(RT.err?" · "+RT.err:""),
+    C.x-scopeR+8, C.y-scopeR-2);
 }
 function drawWeatherFX(night){
   ctx.save();
@@ -1912,6 +2626,7 @@ window.addEventListener("keydown",(e)=>{
   if(e.key==="?"){ const h=document.getElementById("kbdHint"); h.style.display=h.style.display==="block"?"none":"block"; return; }
   if((e.key==="m"||e.key==="M") && !typing){ if(G){ G.showMetrics=!G.showMetrics; renderMetrics(); toast("Metrics "+(G.showMetrics?"on":"off")); } return; }
   if((e.key==="i"||e.key==="I") && !typing){ seedFromLive(); return; }
+  if((e.key==="v"||e.key==="V") && !typing){ toggleView(); return; }
   if(typing) return;
   if(e.key==="Tab"){ e.preventDefault(); cycleSelected(); return; }
   const k=e.key.toLowerCase(); const cmd=KEYMAP[k];
