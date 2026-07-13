@@ -3,9 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="preconnect" href="https://d.liveatc.net" crossorigin>
+<link rel="dns-prefetch" href="https://d.liveatc.net">
 <title>ARGUS · The All-Seeing Flight Tracker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308070a'/%3E%3Cpath d='M3 16s4.6-8.5 13-8.5S29 16 29 16s-4.6 8.5-13 8.5S3 16 3 16z' fill='none' stroke='%232ec4b6' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%232ec4b6'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
+  /* dark UI: stops the browser painting a white canvas, white scrollbar,
+     or a white overscroll/rubber-band area when the OS is in light mode */
+  :root{ color-scheme: dark; }
+  html{ background:#05100f; }
+  html,body{ overscroll-behavior:none; background-color:#05100f; }
+
 :root{
   --bg:#05100f; --panel:rgba(11,24,24,.82); --panel2:rgba(15,30,30,.9);
   --line:rgba(110,170,160,.16); --ink:#eaf5f1; --muted:#8fb4ac; --faint:#5a7d76;
@@ -189,6 +198,231 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
 .ficon.amber .cnt{background:var(--amber);color:#241400}
 .ficon.redcnt .cnt{background:var(--red);color:#fff}
 
+/* ---------- OPS DASHBOARD ---------- */
+#opsTab{position:fixed;inset:0;z-index:1200;display:none;flex-direction:column;
+  background:linear-gradient(180deg,#071013,#050b0e);color:var(--ink)}
+#opsTab.open{display:flex}
+.op-hd{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);
+  background:rgba(7,16,19,.92);backdrop-filter:blur(10px)}
+.op-hd h2{font-family:var(--mono);font-size:13px;letter-spacing:.22em;font-weight:700;margin:0}
+.op-hd select{background:#0b1418;border:1px solid var(--line2);border-radius:8px;padding:8px 11px;
+  color:var(--ink);font-family:var(--mono);font-size:12px;outline:none;cursor:pointer}
+.op-hd select:focus{border-color:var(--cyan)}
+.op-x{margin-left:auto;width:32px;height:32px;border-radius:8px;background:transparent;
+  border:1px solid var(--line2);color:var(--muted);cursor:pointer;font-size:15px}
+.op-x:hover{color:var(--ink);border-color:var(--cyan)}
+.op-body{flex:1;overflow:auto;padding:18px 20px 40px;display:grid;
+  grid-template-columns:repeat(12,1fr);gap:14px;align-content:start}
+.op-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 16px}
+.op-card h3{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--faint);
+  margin:0 0 12px;font-weight:700;display:flex;align-items:center;gap:7px}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}
+.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+@media(max-width:1100px){.c3,.c4,.c5{grid-column:span 6}.c7,.c8{grid-column:span 12}}
+@media(max-width:700px){.op-body>*{grid-column:span 12!important}}
+.op-big{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.op-sub{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--faint);margin-top:6px}
+.op-row{display:flex;gap:20px;flex-wrap:wrap}
+.op-kv{font-family:var(--mono);font-size:8px;letter-spacing:.13em;color:var(--faint)}
+.op-kv b{display:block;font-size:16px;color:var(--ink);letter-spacing:0;margin-bottom:3px;font-weight:700}
+.op-cat{display:inline-block;padding:4px 11px;border-radius:20px;font-family:var(--mono);
+  font-size:10px;font-weight:700;letter-spacing:.1em}
+.cat-VFR{background:rgba(58,217,160,.15);color:#3ad9a0;border:1px solid #3ad9a0}
+.cat-MVFR{background:rgba(91,141,239,.15);color:#7ba6ff;border:1px solid #7ba6ff}
+.cat-IFR{background:rgba(255,91,110,.15);color:#ff5b6e;border:1px solid #ff5b6e}
+.cat-LIFR{background:rgba(255,93,177,.15);color:#ff5db1;border:1px solid #ff5db1}
+.cat-NA{background:rgba(140,140,140,.12);color:var(--faint);border:1px solid var(--line2)}
+#opWind,#opFinal,#opScope,#opSpark,#opVert{width:100%;display:block}
+#opWind{height:150px}
+#opFinal{height:250px}
+#opScope{height:520px;border-radius:10px;background:
+  radial-gradient(circle at 50% 50%, rgba(30,203,184,.06), transparent 70%), #050d0c;
+  border:1px solid var(--line);cursor:crosshair}
+@media(max-width:1100px){#opScope{height:400px}}
+#opVert{height:360px;border-radius:10px;background:
+  linear-gradient(180deg,rgba(30,203,184,.04),transparent 55%), #050d0c;
+  border:1px solid var(--line);cursor:crosshair}
+@media(max-width:1100px){#opVert{height:280px}}
+#opSpark{height:44px;margin-top:10px}
+.scopewrap{position:relative}
+.op-tip{position:absolute;pointer-events:none;opacity:0;transition:opacity .1s;
+  background:rgba(5,13,12,.96);border:1px solid var(--cyan);border-radius:7px;
+  padding:7px 10px;font-family:var(--mono);font-size:10px;line-height:1.5;
+  color:var(--ink);white-space:nowrap;z-index:5;box-shadow:0 6px 22px rgba(0,0,0,.6)}
+.op-tip.on{opacity:1}
+.op-tip b{color:var(--cyan)}
+.op-tip span{color:var(--faint)}
+.op-range{margin-left:auto;display:flex;align-items:center;gap:3px}
+.op-range button{background:transparent;border:1px solid var(--line2);color:var(--faint);
+  font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:5px;cursor:pointer;
+  transition:.12s;font-weight:700}
+.op-range button:hover{color:var(--ink);border-color:var(--cyan)}
+.op-range button.on{background:var(--cyan);border-color:var(--cyan);color:#04110f}
+.op-range i{font-style:normal;font-size:8px;color:var(--faint);margin-left:3px}
+.seqrow{cursor:pointer;transition:background .12s}
+.seqrow:hover{background:rgba(30,203,184,.07)}
+.seqrow.on{background:rgba(30,203,184,.14)}
+.seqrow.on .cs{color:var(--cyan)}
+.op-seq{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+.op-seq th{text-align:left;font-size:8px;letter-spacing:.12em;color:var(--faint);
+  padding:0 8px 7px;font-weight:700;border-bottom:1px solid var(--line)}
+.op-seq td{padding:7px 8px;border-bottom:1px solid rgba(110,170,160,.07)}
+.op-seq tr:last-child td{border-bottom:none}
+.op-seq .cs{color:var(--ink);font-weight:700}
+.op-seq .ty{color:var(--muted)}
+.wk{padding:1px 6px;border-radius:4px;font-size:8.5px;font-weight:700}
+.wk-S{background:rgba(255,93,177,.18);color:#ff5db1}
+.wk-H{background:rgba(255,91,110,.18);color:#ff5b6e}
+.wk-B757{background:rgba(240,182,74,.18);color:#f0b64a}
+.wk-M{background:rgba(30,203,184,.16);color:#1ecbb8}
+.wk-L{background:rgba(140,160,160,.15);color:var(--muted)}
+.sp-ok{color:#3ad9a0}.sp-tight{color:#ff5b6e;font-weight:700}
+.op-note{font-size:11px;line-height:1.55;color:var(--faint);margin-top:10px}
+.op-note b{color:var(--muted)}
+.op-empty{color:var(--faint);font-size:12px;padding:14px 0;text-align:center}
+.op-live{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:8.5px;
+  letter-spacing:.12em;color:var(--green);margin-left:auto}
+.op-live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 7px var(--green);animation:opbl 1.6s ease-in-out infinite}
+@keyframes opbl{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ---------- ATC now-playing pill on the map ---------- */
+#atPill{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:900;display:none;
+  align-items:center;gap:10px;padding:9px 12px 9px 14px;border-radius:30px;cursor:pointer;
+  background:rgba(8,11,16,.94);backdrop-filter:blur(12px);border:1px solid var(--green);
+  box-shadow:0 10px 34px -14px rgba(62,224,143,.6);font-family:var(--mono);font-size:11.5px;
+  color:var(--ink);letter-spacing:.05em;max-width:78vw}
+#atPill.show{display:flex}
+#atPill:hover{border-color:var(--ink)}
+#atPill button{width:22px;height:22px;border-radius:50%;border:1px solid var(--red);
+  background:transparent;color:var(--red);cursor:pointer;font-size:9px;line-height:1;flex:none}
+#atPill button:hover{background:var(--red);color:#fff}
+#atPill .eq{display:flex;align-items:flex-end;gap:2px;height:13px;flex:none}
+#atPill .eq i{width:2.5px;background:var(--green);border-radius:1px;animation:ateq .9s ease-in-out infinite}
+#atPill .eq i:nth-child(1){height:5px;animation-delay:0s}
+#atPill .eq i:nth-child(2){height:12px;animation-delay:.15s}
+#atPill .eq i:nth-child(3){height:8px;animation-delay:.3s}
+@keyframes ateq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+
+/* ---------- LIVE ATC TAB ---------- */
+#atcTab{position:fixed;inset:0;z-index:1200;display:none;flex-direction:column;
+  background:linear-gradient(180deg,#0a0d12,#070910);color:var(--ink)}
+#atcTab.open{display:flex}
+.at-hd{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);
+  background:rgba(10,13,18,.9);backdrop-filter:blur(10px)}
+.at-hd h2{font-family:var(--mono);font-size:13px;letter-spacing:.22em;font-weight:700;margin:0}
+.at-hd .sub{font-size:11px;color:var(--faint);margin-left:2px}
+.at-x{margin-left:auto;width:32px;height:32px;border-radius:8px;background:transparent;
+  border:1px solid var(--line2);color:var(--muted);cursor:pointer;font-size:15px}
+.at-x:hover{color:var(--ink);border-color:var(--cyan)}
+.at-body{flex:1;overflow:auto;padding:18px 20px 120px;display:grid;
+  grid-template-columns:330px 1fr;gap:20px;align-items:start}
+@media(max-width:860px){.at-body{grid-template-columns:1fr}}
+.at-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.at-card h3{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--faint);
+  margin:0 0 12px;font-weight:700}
+/* ICAO search */
+.at-srch{display:flex;gap:8px}
+.at-srch input{flex:1;background:#0b0e14;border:1px solid var(--line2);border-radius:9px;
+  padding:11px 12px;color:var(--ink);font-family:var(--mono);font-size:15px;letter-spacing:.16em;
+  text-transform:uppercase;outline:none;transition:.2s}
+.at-srch input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(46,196,182,.12)}
+.at-srch button{padding:0 15px;border-radius:9px;border:1px solid var(--cyan);cursor:pointer;
+  background:var(--cyan);color:#04120f;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em}
+.at-srch button:disabled{opacity:.5;cursor:wait}
+.at-hint{font-size:11px;color:var(--faint);margin-top:9px;line-height:1.5}
+.at-res{margin-top:14px}
+.at-probe{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;
+  border:1px solid var(--line);margin-bottom:6px;font-family:var(--mono);font-size:11px}
+.at-probe .dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+.at-probe.chk .dot{background:var(--amber);animation:atbl .8s ease-in-out infinite}
+.at-probe.live .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+.at-probe.off{opacity:.4}
+.at-probe.off .dot{background:#3a4250}
+@keyframes atbl{0%,100%{opacity:1}50%{opacity:.25}}
+.at-probe .mnt{color:var(--muted);flex:1}
+.at-probe .go{padding:4px 9px;border-radius:6px;border:1px solid var(--green);background:transparent;
+  color:var(--green);cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:700}
+.at-probe .go:hover{background:var(--green);color:#04120f}
+/* directory */
+.at-filter{display:flex;gap:8px;margin-bottom:12px}
+.at-filter input{flex:1;background:#0b0e14;border:1px solid var(--line2);border-radius:8px;
+  padding:9px 11px;color:var(--ink);font-size:12px;outline:none}
+.at-filter input:focus{border-color:var(--cyan)}
+.at-seg{display:flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.at-seg button{padding:9px 12px;background:transparent;border:none;color:var(--muted);cursor:pointer;
+  font-family:var(--mono);font-size:10px;letter-spacing:.08em}
+.at-seg button.on{background:var(--cyan);color:#04120f;font-weight:700}
+.at-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.at-ap{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px 13px;
+  transition:.2s;cursor:default}
+.at-ap:hover{border-color:var(--cyan)}
+.at-ap.playing{border-color:var(--green);box-shadow:0 0 0 1px var(--green),0 0 24px -12px var(--green)}
+.at-ap .r1{display:flex;align-items:center;gap:7px;margin-bottom:3px}
+.at-ap .st{width:7px;height:7px;border-radius:50%;background:#3a4250;flex:none}
+.at-ap .st.live{background:var(--green);box-shadow:0 0 7px var(--green)}
+.at-ap .st.chk{background:var(--amber);animation:atbl .8s ease-in-out infinite}
+.at-ap .st.off{background:#39404d}
+.at-ap b{font-family:var(--mono);font-size:12px;letter-spacing:.05em}
+.at-ap .nm{font-size:10.5px;color:var(--faint);margin-bottom:9px}
+.at-ap .chs{display:flex;flex-wrap:wrap;gap:5px}
+.at-ch{padding:4px 8px;border-radius:6px;border:1px solid var(--line2);background:transparent;
+  color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:9.5px;transition:.15s}
+.at-ch:hover{border-color:var(--cyan);color:var(--ink)}
+.at-ch.on{background:var(--green);border-color:var(--green);color:#04120f;font-weight:700}
+.at-ch.loading{border-color:var(--amber);color:var(--amber)}
+/* full-width signal analyser */
+.at-viz{grid-column:1 / -1; margin-top:2px; position:relative; overflow:hidden}
+.at-viz::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 80% at 50% 0%,rgba(62,224,143,.05),transparent 60%)}
+.at-viz h3{display:flex;align-items:center;gap:8px}
+.at-viz .rx{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+  padding:3px 10px;border-radius:20px;border:1px solid var(--line2);color:var(--faint);
+  transition:background .1s,color .1s,box-shadow .1s;position:relative}
+.at-viz .rx.on{background:var(--red);border-color:var(--red);color:#fff;
+  box-shadow:0 0 20px -2px var(--red),inset 0 0 8px rgba(255,255,255,.25);
+  animation:rxpulse .55s ease-in-out infinite}
+@keyframes rxpulse{0%,100%{box-shadow:0 0 20px -2px var(--red)}50%{box-shadow:0 0 30px 1px var(--red)}}
+.vizwrap{position:relative;border-radius:11px;overflow:hidden;
+  border:1px solid var(--line2);background:#05070c;
+  box-shadow:inset 0 0 30px rgba(0,0,0,.85), 0 0 0 1px rgba(62,224,143,.06)}
+.vizwrap::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:11px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.vizwrap .corner{position:absolute;width:9px;height:9px;pointer-events:none;
+  border-color:rgba(62,224,143,.45);border-style:solid;border-width:0}
+.vizwrap .c1{top:5px;left:5px;border-top-width:1px;border-left-width:1px}
+.vizwrap .c2{top:5px;right:5px;border-top-width:1px;border-right-width:1px}
+.vizwrap .c3{bottom:5px;left:5px;border-bottom-width:1px;border-left-width:1px}
+.vizwrap .c4{bottom:5px;right:5px;border-bottom-width:1px;border-right-width:1px}
+#atViz{width:100%;height:280px;display:block;background:transparent}
+@media(max-width:860px){#atViz{height:200px}}
+.at-vrow{display:flex;align-items:center;gap:22px;margin-top:12px;flex-wrap:wrap}
+.at-stat{font-family:var(--mono);font-size:8px;letter-spacing:.14em;color:var(--faint)}
+.at-stat b{display:block;font-size:17px;color:var(--ink);letter-spacing:0;margin-bottom:3px;font-weight:700}
+.at-legend{display:flex;gap:12px;font-family:var(--mono);font-size:8.5px;color:var(--faint)}
+.at-legend span{display:flex;align-items:center;gap:5px}
+.at-legend i{width:8px;height:8px;border-radius:2px;display:block}
+
+/* now playing bar */
+.at-now{position:fixed;left:0;right:0;bottom:0;z-index:1250;display:none;align-items:center;gap:15px;
+  padding:13px 20px;background:rgba(8,11,16,.96);backdrop-filter:blur(14px);
+  border-top:1px solid var(--line2)}
+.at-now.show{display:flex}
+.at-now .bars{width:132px;height:38px;flex:none}
+.at-now .meta{min-width:0;flex:1}
+.at-now .t1{font-family:var(--mono);font-size:12.5px;font-weight:700;letter-spacing:.06em}
+.at-now .t2{font-size:11px;color:var(--faint);margin-top:2px}
+.at-now .live{display:inline-flex;align-items:center;gap:5px;color:var(--green);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em}
+.at-now .live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 7px var(--green);animation:atbl 1.4s ease-in-out infinite}
+.at-now input[type=range]{width:110px;accent-color:var(--green)}
+.at-now .stop{padding:9px 15px;border-radius:9px;border:1px solid var(--red);background:transparent;
+  color:var(--red);cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:700}
+.at-now .stop:hover{background:var(--red);color:#fff}
+.at-now a.ext{color:var(--cyan);font-family:var(--mono);font-size:10px;text-decoration:none}
+.at-now a.ext:hover{text-decoration:underline}
+
 /* ---------- generic floating list panel (ATC dir, HUD, watchlist) ---------- */
 .lpanel{position:absolute;top:116px;left:14px;width:322px;max-height:calc(100% - 140px);z-index:588;
   background:var(--panel);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(18px);
@@ -364,7 +598,12 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
     <button class="fbtn" id="fTrails" title="Show trails for all aircraft">TRAILS</button>
   </div>
   <div style="flex:1"></div>
-  <div class="ficon" id="btnAtc" title="Airports with live ATC" onclick="toggleList('atcPanel')">
+  <div class="ficon" id="btnOps" title="Ops dashboard — runway in use, wake spacing, weather (D)" onclick="openOpsTab()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+      stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 20h18"/><path d="M5 20V9l7-5 7 5v11"/><path d="M9 20v-6h6v6"/></svg>
+  </div>
+  <div class="ficon" id="btnAtc" title="Live ATC — listen to real controllers (A)" onclick="openAtcTab()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11a9 9 0 0 1 18 0"/><path d="M7 14a5 5 0 0 1 10 0"/><circle cx="12" cy="18" r="2" fill="currentColor" stroke="none"/></svg>
     <span class="cnt" id="atcCnt">0</span>
   </div>
@@ -416,6 +655,235 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
     <h3>▤ Live Statistics</h3><p id="hudSub">Aircraft currently in view</p>
   </div>
   <div class="lbody" id="hudBody"></div>
+</div>
+
+<!-- ══════════════ OPS DASHBOARD ══════════════ -->
+<div id="opsTab">
+  <div class="op-hd">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.7">
+      <path d="M3 20h18"/><path d="M5 20V9l7-5 7 5v11"/><path d="M9 20v-6h6v6"/></svg>
+    <h2>OPS DASHBOARD</h2>
+    <select id="opAirport" onchange="opsSelect(this.value)"></select>
+    <span class="op-live" id="opLive">LIVE</span>
+    <button class="op-x" onclick="closeOpsTab()">✕</button>
+  </div>
+  <div class="op-body">
+    <div class="op-card c3">
+      <h3>WEATHER</h3>
+      <div id="opCat"><span class="op-cat cat-NA">—</span></div>
+      <div class="op-row" style="margin-top:13px">
+        <div class="op-kv"><b id="opWind1">—</b>WIND</div>
+        <div class="op-kv"><b id="opVis">—</b>VISIBILITY</div>
+        <div class="op-kv"><b id="opCeil">—</b>CEILING</div>
+      </div>
+      <div class="op-note" id="opMetar" style="font-family:var(--mono);font-size:9.5px;
+        word-break:break-all;color:var(--faint)">—</div>
+    </div>
+
+    <div class="op-card c4">
+      <h3>RUNWAY IN USE <span style="color:var(--faint);font-weight:400;letter-spacing:0">· inferred from live tracks</span></h3>
+      <div style="display:flex;gap:18px;align-items:center">
+        <div>
+          <div class="op-big" id="opRwy">—</div>
+          <div class="op-sub" id="opRwySrc">no arrivals observed yet</div>
+        </div>
+        <canvas id="opWind" style="flex:1;max-width:150px"></canvas>
+      </div>
+      <div class="op-row" style="margin-top:10px">
+        <div class="op-kv"><b id="opHead">—</b>HEADWIND</div>
+        <div class="op-kv"><b id="opCross">—</b>CROSSWIND</div>
+      </div>
+    </div>
+
+    <div class="op-card c5">
+      <h3>TRAFFIC</h3>
+      <div class="op-row">
+        <div class="op-kv"><b id="opArr">0</b>ARRIVALS SEEN</div>
+        <div class="op-kv"><b id="opDep">0</b>DEPARTURES SEEN</div>
+        <div class="op-kv"><b id="opRate">—</b>MOVEMENTS/HR</div>
+        <div class="op-kv"><b id="opInb">0</b>INBOUND</div>
+        <div class="op-kv"><b id="opHold">0</b>HOLDING</div>
+      </div>
+      <canvas id="opSpark"></canvas>
+      <div class="op-note" id="opPress">Counting movements since you opened this panel —
+        the hourly rate is an extrapolation and firms up the longer it runs.</div>
+    </div>
+
+    <div class="op-card c8">
+      <h3>TERMINAL AREA
+        <span style="color:var(--faint);font-weight:400;letter-spacing:0">· click a target to lock it</span>
+        <span class="op-range" id="opRange">
+          <button onclick="opsSetRange(10)">10</button>
+          <button onclick="opsSetRange(20)">20</button>
+          <button class="on" onclick="opsSetRange(40)">40</button>
+          <button onclick="opsSetRange(80)">80</button>
+          <i>nm</i>
+        </span>
+      </h3>
+      <div class="scopewrap">
+        <canvas id="opScope"></canvas>
+        <div class="op-tip" id="opTip"></div>
+      </div>
+      <div class="op-note" style="margin-top:8px">Positions are advanced between fixes from each
+        aircraft's own track and groundspeed, so the picture moves continuously instead of jumping
+        every poll. Gold dashes are the extended centreline of the runway in use.</div>
+    </div>
+
+    <div class="op-card c4">
+      <h3>ARRIVAL SEQUENCE</h3>
+      <div id="opSeqBox"><div class="op-empty">No aircraft on final right now.</div></div>
+    </div>
+
+    <div class="op-card c6">
+      <h3>VERTICAL PROFILE <span style="color:var(--faint);font-weight:400;letter-spacing:0">· against the 3° glidepath</span>
+        <span class="op-live" id="opVertLive" style="margin-left:auto">LIVE</span></h3>
+      <canvas id="opVert"></canvas>
+      <div class="op-row" style="margin-top:10px">
+        <div class="op-kv"><b id="opHigh">0</b>HIGH</div>
+        <div class="op-kv"><b id="opOn">0</b>ON PATH</div>
+        <div class="op-kv"><b id="opLow">0</b>LOW INSIDE 10NM</div>
+      </div>
+      <div class="op-note">A standard ILS glidepath is 3° — about 318&nbsp;ft per nautical mile
+        from the threshold. Aircraft are plotted at their real altitude against that line.
+        <br><br>
+        <b>Being below the path far out is normal</b>, not an error: aircraft level off at an
+        intercept altitude and join the glidepath <i>from underneath</i>. What matters is being
+        <b>high and close in</b> — that's the one that ends in a go-around. Read the deviations
+        near the threshold, not at 12&nbsp;nm.
+        <br><br>
+        Field elevation isn't carried in this feed, so the path is drawn from sea level. At an
+        airport like Denver the whole picture shifts up, and the <i>deviations</i> rather than
+        the absolute heights are what to read.</div>
+    </div>
+
+    <div class="op-card c6">
+      <h3>FINAL APPROACH — WAKE SPACING <span class="op-live" style="margin-left:auto">LIVE</span></h3>
+      <canvas id="opFinal"></canvas>
+      <div class="op-note">In-trail spacing between consecutive aircraft <b>in the same
+        approach stream</b>. Airports like LAX land two parallels at once, so aircraft are
+        grouped by their offset from the centreline first (streams A, B…) — otherwise two jets
+        side by side on parallel runways read as a 0.6&nbsp;nm violation, which is nonsense.
+        Minima come from the <b>ADS-B wake category</b> of the pair (leader → follower).
+        Red is below the applicable minimum. Note we still can't resolve L from R within a
+        pair of closely-spaced parallels.</div>
+    </div>
+
+    <div class="op-card c12">
+      <h3>WHAT THIS IS AND ISN'T</h3>
+      <div class="op-note">
+        Everything here is computed live from the ADS-B feed and the METAR — nothing is scheduled data.
+        <br><br>
+        <b>Runway in use</b> is inferred by averaging the ground tracks of aircraft established on final
+        (3–12&nbsp;nm out, where the track really is the localizer). ADS-B track is <i>true</i> north while
+        runway numbers are <i>magnetic</i>, so a variation correction is applied — without it JFK reads
+        "RWY 21" while it's actually landing 22. It's still an inference from a handful of aircraft, so it
+        can land one number either side of the published designator, and <b>L/C/R cannot be resolved from
+        track alone</b>. Treat it as "roughly which way they're landing", not as an ATIS.
+        <br><br>
+        <b>Movements</b> are counted from the moment you open this panel, so the hourly figure is an
+        extrapolation that firms up the longer it runs. There is deliberately <b>no delay estimate</b>:
+        real delay needs scheduled times, which this feed doesn't carry. Inbound count and holding
+        aircraft are shown instead — measured facts rather than a guess dressed up as a number.
+        <br><br>
+        <b>Wake spacing</b> uses the ADS-B emitter category (plus a type list for Super/Heavy), and applies
+        leader→follower radar minima. Aircraft not transmitting a category default to Medium.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ LIVE ATC TAB ══════════════ -->
+<div id="atcTab">
+  <div class="at-hd">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.8">
+      <path d="M3 11a9 9 0 0 1 18 0"/><path d="M7 14a5 5 0 0 1 10 0"/>
+      <circle cx="12" cy="18" r="2" fill="var(--amber)" stroke="none"/></svg>
+    <h2>LIVE ATC</h2>
+    <span class="sub">Real controller audio, streamed from LiveATC.net</span>
+    <button class="at-x" onclick="closeAtcTab()">✕</button>
+  </div>
+  <div class="at-body">
+    <div>
+      <div class="at-card">
+        <h3>LOOK UP AN AIRPORT</h3>
+        <div class="at-srch">
+          <input id="atIcao" maxlength="4" placeholder="ICAO" spellcheck="false"
+                 autocomplete="off" onkeydown="if(event.key==='Enter')atSearch()">
+          <button id="atGo" onclick="atSearch()">FIND</button>
+        </div>
+        <div class="at-hint">Type any 4-letter ICAO — <b>KSEA</b>, <b>EGLL</b>, <b>EDDF</b>.
+          I'll probe the usual LiveATC channel names for that field and tell you which are
+          actually on air right now.</div>
+        <div class="at-res" id="atRes"></div>
+      </div>
+    </div>
+    <div class="at-card">
+      <h3>FEEDS I KNOW ABOUT <span id="atDirCnt" style="color:var(--cyan)"></span></h3>
+      <div class="at-filter">
+        <input id="atFilter" placeholder="Filter by name, ICAO or IATA…" oninput="renderAtcDir()">
+        <div class="at-seg" id="atSeg">
+          <button class="on" data-f="all">ALL</button>
+          <button data-f="live">ON AIR</button>
+        </div>
+        <button class="at-ch" style="padding:9px 12px" onclick="atReverify()" title="Re-check every feed">⟳ VERIFY</button>
+      </div>
+      <div class="at-hint" style="margin:-4px 0 12px">
+        <b>Just click a channel — it plays.</b> If that mount is off air I'll automatically
+        walk the other channels at that airport until one works.
+        Feeds take <b>5–10 seconds</b> to start — that's LiveATC's buffer, not a hang.
+        <br><span style="color:var(--faint)">⟳ VERIFY is <i>best-effort only</i>. LiveATC answers
+        inconsistently — a feed can report "dead" and still play perfectly — so trust the Play
+        button over the dot. <b>⚡ VIA WORKER</b> is on by default: the worker retries LiveATC's dead
+        servers (measured 2/3 → 3/3 success) and adds the CORS headers the spectrum meter
+        needs. Turn it off to go direct — faster to start, less reliable, no meter.</span>
+      </div>
+      <div class="at-grid" id="atGrid"></div>
+    </div>
+
+    <!-- ══ full-width signal analyser, under the airports ══ -->
+    <div class="at-card at-viz">
+      <h3>SIGNAL ANALYSER
+        <span id="atVizCh" style="color:var(--faint);letter-spacing:0;font-weight:400"> · no channel</span>
+        <span class="rx" id="atRx">RX</span>
+      </h3>
+      <div class="vizwrap">
+        <canvas id="atViz"></canvas>
+        <span class="corner c1"></span><span class="corner c2"></span>
+        <span class="corner c3"></span><span class="corner c4"></span>
+      </div>
+      <div class="at-vrow">
+        <div class="at-stat"><b id="atLvl">—</b>PEAK dBFS</div>
+        <div class="at-stat"><b id="atTx">0</b>TRANSMISSIONS</div>
+        <div class="at-stat"><b id="atAir">0%</b>CHANNEL BUSY</div>
+        <div class="at-stat"><b id="atUp">0:00</b>LISTENING</div>
+        <div style="flex:1"></div>
+        <div class="at-legend">
+          <span><i style="background:#3ee08f"></i>quiet</span>
+          <span><i style="background:#ffd98a"></i>speech</span>
+          <span><i style="background:#ff5a63"></i>peak</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- persists on the map while audio plays -->
+<div id="atPill" onclick="openAtcTab()">
+  <span class="eq"><i></i><i></i><i></i></span>
+  <span id="atPillT">—</span>
+  <button onclick="event.stopPropagation();atStop()" title="Stop">■</button>
+</div>
+
+<div class="at-now" id="atNow">
+  <canvas class="bars" id="atBars" width="264" height="76"></canvas>
+  <div class="meta">
+    <div class="t1" id="atNowT1">—</div>
+    <div class="t2"><span class="live">ON AIR</span> · <span id="atNowT2"></span></div>
+  </div>
+  <button class="at-ch on" id="atProxyBtn" onclick="atToggleProxy()"
+    title="Route via the ARGUS worker: retries dead LiveATC servers, enables the spectrum meter">⚡ VIA WORKER</button>
+  <a class="ext" id="atExt" target="_blank" rel="noopener">Open on LiveATC ↗</a>
+  <input type="range" id="atVol" min="0" max="100" value="85" title="Volume">
+  <button class="stop" onclick="atStop()">■ STOP</button>
 </div>
 
 <!-- watchlist panel -->
@@ -566,40 +1034,40 @@ let liteAuto = (litePref===null);                    // whether current state ca
    server and includes CORS headers — far more reliable than hardcoding
    a specific server subdomain (the old bug). */
 const AIRPORTS = [
-  {icao:"KJFK",iata:"JFK",name:"New York · JFK",lat:40.6413,lon:-73.7781,atc:[{t:"Tower",m:"kjfk_twr"},{t:"Ground",m:"kjfk_gnd"}]},
-  {icao:"KEWR",iata:"EWR",name:"Newark · Liberty",lat:40.6895,lon:-74.1745,atc:[{t:"Tower",m:"kewr_twr"}]},
-  {icao:"KLGA",iata:"LGA",name:"New York · LaGuardia",lat:40.7769,lon:-73.8740,atc:[{t:"Tower",m:"klga_twr"}]},
-  {icao:"KLAX",iata:"LAX",name:"Los Angeles · LAX",lat:33.9416,lon:-118.4085,atc:[{t:"Tower",m:"klax_twr"},{t:"Approach",m:"klax_app_zla"}]},
-  {icao:"KATL",iata:"ATL",name:"Atlanta · Hartsfield",lat:33.6407,lon:-84.4277,atc:[{t:"Twr/Gnd",m:"katl5"}]},
-  {icao:"KSFO",iata:"SFO",name:"San Francisco · SFO",lat:37.6213,lon:-122.3790,atc:[{t:"Tower",m:"ksfo_twr"},{t:"Ground",m:"ksfo_gnd"}]},
-  {icao:"KORD",iata:"ORD",name:"Chicago · O'Hare",lat:41.9742,lon:-87.9073,atc:[{t:"Tower",m:"kord_twr"}]},
-  {icao:"KBOS",iata:"BOS",name:"Boston · Logan",lat:42.3656,lon:-71.0096,atc:[{t:"Tower",m:"kbos_twr"},{t:"Ground",m:"kbos_gnd"}]},
-  {icao:"KLAS",iata:"LAS",name:"Las Vegas · Harry Reid",lat:36.0840,lon:-115.1537,atc:[{t:"Tower",m:"klas_twr"}]},
-  {icao:"KSEA",iata:"SEA",name:"Seattle · Tacoma",lat:47.4502,lon:-122.3088,atc:[{t:"Tower",m:"ksea_twr"}]},
-  {icao:"KMIA",iata:"MIA",name:"Miami · Intl",lat:25.7959,lon:-80.2870,atc:[{t:"Tower",m:"kmia_twr"}]},
-  {icao:"KDFW",iata:"DFW",name:"Dallas · Fort Worth",lat:32.8998,lon:-97.0403,atc:[{t:"Tower",m:"kdfw_twr"}]},
-  {icao:"KPHX",iata:"PHX",name:"Phoenix · Sky Harbor",lat:33.4373,lon:-112.0078,atc:[{t:"Tower",m:"kphx_twr"}]},
-  {icao:"KDEN",iata:"DEN",name:"Denver · Intl",lat:39.8561,lon:-104.6737,atc:[{t:"Tower",m:"kden_twr"}]},
-  {icao:"EGLL",iata:"LHR",name:"London · Heathrow",lat:51.4700,lon:-0.4543,atc:[{t:"Tower",m:"egll_twr"}]},
-  {icao:"EGKK",iata:"LGW",name:"London · Gatwick",lat:51.1537,lon:-0.1821,atc:[{t:"Tower",m:"egkk_twr"}]},
-  {icao:"EHAM",iata:"AMS",name:"Amsterdam · Schiphol",lat:52.3105,lon:4.7683,atc:[{t:"Tower",m:"eham_twr"},{t:"Approach",m:"eham_appr"}]},
-  {icao:"CYYZ",iata:"YYZ",name:"Toronto · Pearson",lat:43.6777,lon:-79.6248,atc:[{t:"Tower",m:"cyyz_twr"}]},
-  {icao:"YSSY",iata:"SYD",name:"Sydney · Kingsford Smith",lat:-33.9399,lon:151.1753,atc:[{t:"Tower",m:"yssy_twr"}]},
-  {icao:"EIDW",iata:"DUB",name:"Dublin · Intl",lat:53.4213,lon:-6.2701,atc:[{t:"Tower",m:"eidw_twr"}]},
-  {icao:"KSAN",iata:"SAN",name:"San Diego · Intl",lat:32.7336,lon:-117.1897,atc:[{t:"Tower",m:"ksan_twr"}]},
-  {icao:"KSLC",iata:"SLC",name:"Salt Lake City",lat:40.7899,lon:-111.9791,atc:[{t:"Tower",m:"kslc_twr"}]},
-  {icao:"KDCA",iata:"DCA",name:"Washington · National",lat:38.8512,lon:-77.0402,atc:[{t:"Tower",m:"kdca_twr"}]},
-  {icao:"KIAD",iata:"IAD",name:"Washington · Dulles",lat:38.9531,lon:-77.4565,atc:[{t:"Tower",m:"kiad_twr"}]},
-  {icao:"KPHL",iata:"PHL",name:"Philadelphia · Intl",lat:39.8719,lon:-75.2411,atc:[{t:"Tower",m:"kphl_twr"}]},
-  {icao:"KMCO",iata:"MCO",name:"Orlando · Intl",lat:28.4312,lon:-81.3081,atc:[{t:"Tower",m:"kmco_twr"}]},
-  {icao:"KMDW",iata:"MDW",name:"Chicago · Midway",lat:41.7868,lon:-87.7522,atc:[{t:"Tower",m:"kmdw_twr"}]},
-  {icao:"KPDX",iata:"PDX",name:"Portland · Intl",lat:45.5898,lon:-122.5951,atc:[{t:"Tower",m:"kpdx_twr"}]},
-  {icao:"KTEB",iata:"TEB",name:"Teterboro",lat:40.8501,lon:-74.0608,atc:[{t:"Tower",m:"kteb_twr"}]},
-  {icao:"KBWI",iata:"BWI",name:"Baltimore · Washington",lat:39.1754,lon:-76.6683,atc:[{t:"Tower",m:"kbwi_twr"}]},
-  {icao:"KHOU",iata:"HOU",name:"Houston · Hobby",lat:29.6454,lon:-95.2789,atc:[{t:"Tower",m:"khou_twr"}]},
-  {icao:"CYVR",iata:"YVR",name:"Vancouver · Intl",lat:49.1967,lon:-123.1815,atc:[{t:"Tower",m:"cyvr_twr"}]},
-  {icao:"EGCC",iata:"MAN",name:"Manchester",lat:53.3537,lon:-2.2750,atc:[{t:"Tower",m:"egcc_twr"}]},
-  {icao:"LOWW",iata:"VIE",name:"Vienna · Schwechat",lat:48.1103,lon:16.5697,atc:[{t:"Tower",m:"loww_twr"}]},
+  {icao:"KJFK",iata:"JFK",name:"New York · JFK",lat:40.6413,lon:-73.7781,atc:[{t:"Tower",m:"kjfk_twr"},{t:"Ground",m:"kjfk_gnd"},{t:"Departure",m:"kjfk_dep"},{t:"ATIS",m:"kjfk_atis"},{t:"Feed 1",m:"kjfk1"},{t:"Feed 2",m:"kjfk2"},{t:"Feed 3",m:"kjfk3"},{t:"Feed 4",m:"kjfk4"},{t:"Feed 5",m:"kjfk5"},{t:"Feed 6",m:"kjfk6"}]},
+  {icao:"KEWR",iata:"EWR",name:"Newark · Liberty",lat:40.6895,lon:-74.1745,atc:[{t:"Tower",m:"kewr_twr"},{t:"Departure",m:"kewr_dep"},{t:"Clearance",m:"kewr_del"},{t:"ATIS",m:"kewr_atis"}]},
+  {icao:"KLGA",iata:"LGA",name:"New York · LaGuardia",lat:40.7769,lon:-73.8740,atc:[{t:"Tower",m:"klga_twr"},{t:"Ground",m:"klga_gnd"},{t:"Clearance",m:"klga_del"}]},
+  {icao:"KLAX",iata:"LAX",name:"Los Angeles · LAX",lat:33.9416,lon:-118.4085,atc:[{t:"Tower",m:"klax_twr"},{t:"Ground",m:"klax_gnd"},{t:"Feed 1",m:"klax1"},{t:"Feed 3",m:"klax3"},{t:"Feed 4",m:"klax4"},{t:"Feed 5",m:"klax5"},{t:"Feed 6",m:"klax6"}]},
+  {icao:"KATL",iata:"ATL",name:"Atlanta · Hartsfield",lat:33.6407,lon:-84.4277,atc:[{t:"Tower",m:"katl_twr"},{t:"Ground",m:"katl_gnd"},{t:"Clearance",m:"katl_del"}]},
+  {icao:"KSFO",iata:"SFO",name:"San Francisco · SFO",lat:37.6213,lon:-122.3790,atc:[{t:"Tower",m:"ksfo_twr"},{t:"Ground",m:"ksfo_gnd"},{t:"ATIS",m:"ksfo_atis"}]},
+  {icao:"KORD",iata:"ORD",name:"Chicago · O'Hare",lat:41.9742,lon:-87.9073,atc:[]},
+  {icao:"KBOS",iata:"BOS",name:"Boston · Logan",lat:42.3656,lon:-71.0096,atc:[]},
+  {icao:"KLAS",iata:"LAS",name:"Las Vegas · Harry Reid",lat:36.0840,lon:-115.1537,atc:[]},
+  {icao:"KSEA",iata:"SEA",name:"Seattle · Tacoma",lat:47.4502,lon:-122.3088,atc:[]},
+  {icao:"KMIA",iata:"MIA",name:"Miami · Intl",lat:25.7959,lon:-80.2870,atc:[]},
+  {icao:"KDFW",iata:"DFW",name:"Dallas · Fort Worth",lat:32.8998,lon:-97.0403,atc:[]},
+  {icao:"KPHX",iata:"PHX",name:"Phoenix · Sky Harbor",lat:33.4373,lon:-112.0078,atc:[{t:"Departure",m:"kphx_dep"}]},
+  {icao:"KDEN",iata:"DEN",name:"Denver · Intl",lat:39.8561,lon:-104.6737,atc:[]},
+  {icao:"EGLL",iata:"LHR",name:"London · Heathrow",lat:51.4700,lon:-0.4543,atc:[]},
+  {icao:"EGKK",iata:"LGW",name:"London · Gatwick",lat:51.1537,lon:-0.1821,atc:[]},
+  {icao:"EHAM",iata:"AMS",name:"Amsterdam · Schiphol",lat:52.3105,lon:4.7683,atc:[{t:"Clearance",m:"eham_del"}]},
+  {icao:"CYYZ",iata:"YYZ",name:"Toronto · Pearson",lat:43.6777,lon:-79.6248,atc:[]},
+  {icao:"YSSY",iata:"SYD",name:"Sydney · Kingsford Smith",lat:-33.9399,lon:151.1753,atc:[]},
+  {icao:"EIDW",iata:"DUB",name:"Dublin · Intl",lat:53.4213,lon:-6.2701,atc:[]},
+  {icao:"KSAN",iata:"SAN",name:"San Diego · Intl",lat:32.7336,lon:-117.1897,atc:[{t:"ATIS",m:"ksan_atis"}]},
+  {icao:"KSLC",iata:"SLC",name:"Salt Lake City",lat:40.7899,lon:-111.9791,atc:[]},
+  {icao:"KDCA",iata:"DCA",name:"Washington · National",lat:38.8512,lon:-77.0402,atc:[]},
+  {icao:"KIAD",iata:"IAD",name:"Washington · Dulles",lat:38.9531,lon:-77.4565,atc:[]},
+  {icao:"KPHL",iata:"PHL",name:"Philadelphia · Intl",lat:39.8719,lon:-75.2411,atc:[{t:"Ground",m:"kphl_gnd"},{t:"Departure",m:"kphl_dep"}]},
+  {icao:"KMCO",iata:"MCO",name:"Orlando · Intl",lat:28.4312,lon:-81.3081,atc:[]},
+  {icao:"KMDW",iata:"MDW",name:"Chicago · Midway",lat:41.7868,lon:-87.7522,atc:[]},
+  {icao:"KPDX",iata:"PDX",name:"Portland · Intl",lat:45.5898,lon:-122.5951,atc:[]},
+  {icao:"KTEB",iata:"TEB",name:"Teterboro",lat:40.8501,lon:-74.0608,atc:[{t:"Feed 1",m:"kteb1"}]},
+  {icao:"KBWI",iata:"BWI",name:"Baltimore · Washington",lat:39.1754,lon:-76.6683,atc:[{t:"Clearance",m:"kbwi_del"}]},
+  {icao:"KHOU",iata:"HOU",name:"Houston · Hobby",lat:29.6454,lon:-95.2789,atc:[]},
+  {icao:"CYVR",iata:"YVR",name:"Vancouver · Intl",lat:49.1967,lon:-123.1815,atc:[{t:"Feed 1",m:"cyvr1"},{t:"Feed 2",m:"cyvr2"}]},
+  {icao:"EGCC",iata:"MAN",name:"Manchester",lat:53.3537,lon:-2.2750,atc:[]},
+  {icao:"LOWW",iata:"VIE",name:"Vienna · Schwechat",lat:48.1103,lon:16.5697,atc:[]},
   // markers without a public LiveATC feed — still selectable, positions still live
   {icao:"OMDB",iata:"DXB",name:"Dubai · Intl",lat:25.2532,lon:55.3657,atc:null},
   {icao:"WSSS",iata:"SIN",name:"Singapore · Changi",lat:1.3644,lon:103.9915,atc:null},
@@ -1132,7 +1600,24 @@ function stopAudio(){ const a=document.getElementById("atcAudio"); try{a.pause()
 /* ---------- panels ---------- */
 function openPanel(id){ ["fPanel","aPanel"].forEach(p=>document.getElementById(p).classList.toggle("open",p===id)); }
 function closePanels(){ document.getElementById("fPanel").classList.remove("open"); document.getElementById("aPanel").classList.remove("open"); stopAudio(); selected=null; follow=false; pathShown=false; flowAirport=null; document.getElementById("followBtn").classList.remove("on"); syncURL(); }
-document.addEventListener("keydown",e=>{ if(e.key==="Escape")closePanels(); });
+document.addEventListener("keydown",e=>{
+  if(document.getElementById("atcTab").classList.contains("open")){
+    if(e.key==="Escape"){ closeAtcTab(); return; }
+    if(e.target.tagName==="INPUT") return;     // let the ICAO box take keys
+  }
+  if(document.getElementById("opsTab").classList.contains("open")){
+    if(e.key==="Escape"){ closeOpsTab(); return; }
+  }
+  if((e.key==="d"||e.key==="D") && e.target.tagName!=="INPUT" && e.target.tagName!=="SELECT"){
+    const t=document.getElementById("opsTab");
+    t.classList.contains("open")?closeOpsTab():openOpsTab();
+    return;
+  }
+  if((e.key==="a"||e.key==="A") && e.target.tagName!=="INPUT"){
+    const t=document.getElementById("atcTab");
+    t.classList.contains("open")?closeAtcTab():openAtcTab();
+    return;
+  } if(e.key==="Escape")closePanels(); });
 
 /* ---------- stats ---------- */
 function updateStats(){
@@ -1168,7 +1653,13 @@ function setMode(m){ mode=m; const b=document.getElementById("liveBadge"),t=docu
 
 let failStreak=0, polling=false;
 async function pollLive(){
-  if(polling) return; polling=true;
+  if(polling) return;
+  // A full-screen tab is covering the map — don't spend a request (and an
+  // upstream rate-limit slot) refreshing something nobody can see. This was
+  // causing the ops dashboard's feed to 502.
+  const ops=document.getElementById("opsTab");
+  if(ops && ops.classList.contains("open")) return;
+  polling=true;
   const b=map.getBounds();
   const bs=[b.getSouth(),b.getWest(),b.getNorth(),b.getEast()].map(v=>v.toFixed(3)).join(",");
   const url=`${CONFIG.PROXY}/flights?bounds=${bs}&z=${map.getZoom()}`;
@@ -1367,15 +1858,1861 @@ function renderAtcList(){
 function flyAirport(icao){ const a=AIRPORTS.find(x=>x.icao===icao); if(a)openAirport(a); }
 function quickListen(icao,e){ e&&e.stopPropagation(); const a=AIRPORTS.find(x=>x.icao===icao); if(!a)return; openAirport(a);
   setTimeout(()=>{ const f=document.querySelector("#aAtc .freq"); if(f)f.click(); },350); }
+/* Verify the directory — throttled, so we never stampede LiveATC. */
 function probeAtc(){
-  const q=ATC_AIRPORTS.slice(); let active=0; const CONC=3;
-  const step=()=>{ while(active<CONC && q.length){ const a=q.shift(); active++; atcStatus[a.icao]="chk"; if(listOpen("atcPanel"))renderAtcList();
-    const au=new Audio(); au.muted=true; au.preload="auto"; au.src=`${CONFIG.ATC_HOST}/${a.atc[0].m}?probe=${Date.now()}`;
-    let done=false; const fin=(ok)=>{ if(done)return; done=true; try{au.pause();au.removeAttribute("src");au.load();}catch(_){}
-      atcStatus[a.icao]=ok?"live":"off"; active--; if(listOpen("atcPanel"))renderAtcList(); step(); };
-    au.onplaying=()=>fin(true); au.onerror=()=>fin(false); setTimeout(()=>fin(false),6500);
-    (au.play&&au.play().catch(()=>{})); } };
-  step();
+  ATC_AIRPORTS.forEach(a=>{
+    atcStatus[a.icao]="chk";
+    atProbeMountQ(a.atc[0].m,(ok)=>{
+      atcStatus[a.icao]=ok?"live":"off";
+      if(listOpen("atcPanel")) renderAtcList();
+      const tab=document.getElementById("atcTab");
+      if(tab && tab.classList.contains("open")) renderAtcDir();
+    });
+  });
+  if(listOpen("atcPanel")) renderAtcList();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   OPS DASHBOARD
+   Everything here is derived from the live ADS-B feed + METAR. No
+   scheduled data exists in this feed, so there is deliberately NO
+   delay estimate — inbound count and holds are shown instead, because
+   those are measured rather than invented.
+   ══════════════════════════════════════════════════════════════════ */
+let opsIcao=null, opsTimer=null, opsPrev={}, opsSeen={arr:{},dep:{}}, opsT0=0;
+let opsMetar=null, opsFinal=[], opsRwy=null, opsHolds=0, opsInbound=0, opsStreams=1;
+let opsLastCount=0, opsFeedDown=false, opsGen=0;
+let opsAC=[], opsStamp=0, opsMetarAt=0;         // raw feed + when it arrived
+let opsRAF=null, opsSel=null, opsHover=null;    // animation + selection
+let opsTrails={};                                // hex -> recent projected points
+let opsHist=[];                                  // movement history for the sparkline
+let opsCounters={arr:0,dep:0,inb:0,hold:0};      // tweened display values
+
+const SUPER_TYPES=["A388","A124","AN22","B748"];
+const HEAVY_TYPES=["B744","B77W","B772","B773","B788","B789","B78X","A332","A333","A339",
+                   "A342","A343","A345","A346","A359","A35K","B762","B763","B764","MD11","IL96"];
+function wakeOf(ac){
+  const t=(ac.t||"").toUpperCase();
+  if(SUPER_TYPES.includes(t)) return "S";
+  if(t==="B752"||t==="B753") return "B757";
+  if(HEAVY_TYPES.includes(t)) return "H";
+  switch(ac.category){
+    case "A5": return "H";
+    case "A4": return "B757";
+    case "A3": return "M";
+    case "A2": case "A1": case "A7": return "L";
+  }
+  return "M";
+}
+const WAKE_LABEL={S:"SUPER",H:"HEAVY",B757:"B757",M:"MEDIUM",L:"LIGHT"};
+const WAKE_COL={S:"#ff5db1",H:"#ff5b6e",B757:"#f0b64a",M:"#1ecbb8",L:"#8fb4ac"};
+
+/* ADS-B track is TRUE; runway numbers are MAGNETIC. Without this JFK reads
+   "RWY 21" while it's landing 22. East-positive, approx 2025. */
+const MAGVAR={
+  KJFK:-13, KLGA:-13, KEWR:-13, KTEB:-13, KBOS:-14.5, KPHL:-12, KBWI:-11,
+  KDCA:-11, KIAD:-11, KATL:-6, KMCO:-7, KMIA:-7.5, KORD:-3.5, KMDW:-3.5,
+  KDFW:2.5, KHOU:2, KDEN:8, KPHX:11, KLAS:12, KLAX:11.5, KSAN:11.5,
+  KSFO:13, KSEA:15.5, KPDX:15, KSLC:11.5, CYYZ:-10, CYVR:15.5,
+  EGLL:0.5, EGKK:0.5, EGCC:0.5, EHAM:2.5, EIDW:-2, LOWW:4.5, YSSY:12.5
+};
+function trueToMag(t,icao){
+  const d=MAGVAR[icao];
+  if(d==null) return {deg:t,known:false};
+  return {deg:((t-d)%360+360)%360, known:true};
+}
+
+const WAKE_MIN={
+  S:{S:4,H:6,B757:7,M:7,L:8}, H:{S:3,H:4,B757:5,M:5,L:6},
+  B757:{S:3,H:4,B757:4,M:4,L:5}, M:{S:3,H:3,B757:3,M:3,L:5},
+  L:{S:3,H:3,B757:3,M:3,L:3}
+};
+const wakeMin=(l,f)=>(WAKE_MIN[l]&&WAKE_MIN[l][f])||3;
+
+const NM=1852;
+function haversineNM(a,b,c,d){
+  const R=6371000,p=Math.PI/180;
+  const x=Math.sin((c-a)*p/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin((d-b)*p/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x))/NM;
+}
+function bearingTo(a,b,c,d){
+  const p=Math.PI/180;
+  const y=Math.sin((d-b)*p)*Math.cos(c*p);
+  const x=Math.cos(a*p)*Math.sin(c*p)-Math.sin(a*p)*Math.cos(c*p)*Math.cos((d-b)*p);
+  return (Math.atan2(y,x)/p+360)%360;
+}
+const angDiff=(a,b)=>{const d=Math.abs(a-b)%360;return d>180?360-d:d;};
+
+/* ══ dead reckoning ══════════════════════════════════════════════════
+   The feed only lands every ~10s. Redrawing solely on poll made everything
+   jump. Between polls we advance each aircraft along its own track at its
+   own groundspeed, so the picture moves continuously and the next poll just
+   corrects it. This is what a radar display actually does. */
+function projectAC(a,dtSec){
+  const nm=(a.gs||0)*(dtSec/3600);              // distance flown since the fix
+  const r=(a.trk||0)*Math.PI/180;
+  const dLat=nm*Math.cos(r)/60;
+  const dLon=nm*Math.sin(r)/(60*Math.max(0.15,Math.cos(a.lat*Math.PI/180)));
+  return {lat:a.lat+dLat, lon:a.lon+dLon};
+}
+
+function opsSelect(icao){
+  if(!icao) return;
+  opsGen++; clearTimeout(opsTimer);
+  opsIcao=icao;
+  opsPrev={}; opsSeen={arr:{},dep:{}}; opsT0=Date.now();
+  opsFinal=[]; opsRwy=null; opsMetar=null; opsMetarAt=0;
+  opsAC=[]; opsTrails={}; opsHist=[]; opsSel=null; opsLastCount=0;
+  opsPoll();
+}
+
+/* retrying fetch — the worker 502s when its upstream hiccups, and swallowing
+   that as "no traffic" made a working dashboard look dead */
+/* The upstream rate-limits by IP. Retrying a rejected request immediately just
+   DOUBLES the request rate against the thing that's already throttling us — it
+   makes the problem worse, which is exactly what was happening.
+   Dead reckoning means a missed fix costs us almost nothing: the aircraft keep
+   moving on their last known track. So: one attempt, no retry, and let the next
+   scheduled poll (10s later) pick it up. Be honest about the data's age instead. */
+async function opsGet(url){
+  try{
+    const r=await fetch(url,{cache:"no-store"});
+    return r.ok ? await r.json() : null;
+  }catch(_){ return null; }
+}
+
+async function opsPoll(){
+  if(!opsIcao) return;
+  const ap=AIRPORTS.find(a=>a.icao===opsIcao);
+  if(!ap) return;
+  const gen=opsGen, now=Date.now();
+
+  /* METAR changes hourly — refetching it every 10s was pure waste and extra
+     load on the worker (which is what was provoking the 502s). Every 5 min. */
+  const wantMetar = !opsMetar || (now-opsMetarAt>300000);
+
+  /* METAR is fetched at most every 5 min (it only changes hourly); the traffic
+     fetch is a single attempt. Sequential, not parallel — two simultaneous
+     requests to the same rate-limited upstream is what was tripping it. */
+  if(wantMetar){
+    const metar=await opsGet(`${CONFIG.PROXY}/metar?ids=${ap.icao}`);
+    if(gen!==opsGen) return;
+    if(metar){ opsMetar=(metar.metar&&metar.metar[0])||opsMetar; opsMetarAt=Date.now(); }
+  }
+  const flights=await opsGet(`${CONFIG.PROXY}/flights?lat=${ap.lat}&lon=${ap.lon}&dist=60`);
+  if(gen!==opsGen) return;
+
+  if(flights){
+    opsMisses=0;
+    const ac=flights.ac||flights.aircraft||[];
+    opsLastCount=ac.length;
+    opsStamp=Date.now();
+    opsCompute(ap,ac);
+    opsRenderStatic(ap);
+  } else {
+    opsMisses++;                       // keep the last picture; dead reckoning carries it
+  }
+
+  clearTimeout(opsTimer);
+  opsTimer=setTimeout(()=>{ if(gen===opsGen) opsPoll(); },10000);
+}
+let opsMisses=0;
+
+function opsCompute(ap,list){
+  const now=Date.now();
+  opsHolds=0; opsInbound=0;
+  const usable=[];
+
+  list.forEach(a=>{
+    if(a.lat==null||a.lon==null) return;
+    const alt=+a.alt_baro;                       // may be the string "ground"
+    if(!isFinite(alt)) return;
+    const d=haversineNM(ap.lat,ap.lon,a.lat,a.lon);
+    const rate=+a.baro_rate||0;
+    const trk=+a.track;
+    const prev=opsPrev[a.hex];
+
+    if(d<60 && alt<12000 && rate<-200) opsInbound++;
+    if(prev && d<40 && alt<15000 && Math.abs(rate)<400 && isFinite(trk)
+       && angDiff(trk,prev.trk)>12) opsHolds++;
+    if(prev){
+      if(prev.alt>500 && alt<=400 && d<6 && !opsSeen.arr[a.hex]){
+        opsSeen.arr[a.hex]=now; opsHist.push({t:now,k:"a"});
+      }
+      if(prev.alt<=800 && alt>1500 && prev.d<8 && rate>500 && !opsSeen.dep[a.hex]){
+        opsSeen.dep[a.hex]=now; opsHist.push({t:now,k:"d"});
+      }
+    }
+    opsPrev[a.hex]={alt,d,trk:isFinite(trk)?trk:0,t:now};
+
+    if(isFinite(trk) && alt>150 && alt<10000 && d<40){
+      usable.push({hex:a.hex, cs:(a.flight||a.r||a.hex||"").trim(),
+        type:a.t||"—", wake:wakeOf(a), d, alt, gs:+a.gs||0, trk,
+        lat:a.lat, lon:a.lon, rate});
+    }
+  });
+  Object.keys(opsPrev).forEach(k=>{ if(now-opsPrev[k].t>180000) delete opsPrev[k]; });
+  opsAC=usable;                                  // everything nearby, for the scope
+
+  /* PASS 1 — runway from aircraft solidly on the localizer (3-12nm).
+     Inside 3nm they're flaring and their track stops being the centreline;
+     one such aircraft skewed JFK by 5°, enough to name a runway that
+     doesn't exist. */
+  const core=usable.filter(f=>{
+    if(f.d<3||f.d>12||f.alt>4000||f.rate>=-80) return false;
+    return angDiff(f.trk, bearingTo(f.lat,f.lon,ap.lat,ap.lon))<30;
+  });
+  if(core.length){
+    let sx=0,sy=0;
+    core.forEach(f=>{const r=f.trk*Math.PI/180; sx+=Math.cos(r); sy+=Math.sin(r);});
+    const meanTrue=(Math.atan2(sy,sx)*180/Math.PI+360)%360;
+    const mag=trueToMag(meanTrue,ap.icao);
+    const num=Math.round(mag.deg/10)%36||36;
+    opsRwy={heading:meanTrue,magHeading:mag.deg,magKnown:mag.known,
+            name:String(num).padStart(2,"0"),n:core.length,t:now};
+  }
+  if(opsRwy && now-(opsRwy.t||now)>600000) opsRwy=null;
+
+  /* PASS 2 — everyone established on the extended centreline */
+  let finals=[];
+  if(opsRwy){
+    const H=opsRwy.heading, back=(H+180)%360;
+    finals=usable.filter(f=>{
+      if(f.rate>=-60 || f.alt>6000 || f.d>20) return false;
+      if(angDiff(f.trk,H)>30) return false;
+      const brg=bearingTo(ap.lat,ap.lon,f.lat,f.lon);
+      const diff=((brg-back+540)%360)-180;
+      if(Math.abs(diff)>90) return false;
+      f.cross=f.d*Math.sin(diff*Math.PI/180);    // SIGNED offset from centreline
+      return Math.abs(f.cross)<3;
+    });
+  } else finals=core.map(f=>({...f,cross:0}));
+  finals.sort((x,y)=>x.d-y.d);
+
+  /* streams — LAX lands 24L/R and 25L/R at once, so two jets side by side
+     looked like a 0.6nm in-trail violation. Group by lateral offset first. */
+  const streams=[];
+  finals.forEach(f=>{
+    let st=streams.find(s=>Math.abs(s.cross-f.cross)<0.6);
+    if(!st){ st={cross:f.cross,list:[]}; streams.push(st); }
+    st.cross=(st.cross*st.list.length+f.cross)/(st.list.length+1);
+    st.list.push(f);
+    f.stream=streams.indexOf(st);
+  });
+  opsStreams=Math.max(1,streams.length);
+  streams.forEach(st=>{
+    st.list.sort((a,b)=>a.d-b.d);
+    for(let i=1;i<st.list.length;i++){
+      const L=st.list[i-1], F=st.list[i];
+      F.gap=F.d-L.d; F.min=wakeMin(L.wake,F.wake);
+      F.tight=F.gap<F.min; F.leadCs=L.cs;
+    }
+  });
+  opsFinal=finals;
+  opsHist=opsHist.filter(h=>now-h.t<3600000);
+}
+
+/* ── things that only change on a poll: text, table, METAR ── */
+function opsRenderStatic(ap){
+  const m=opsMetar;
+  let cat="NA", vis=null, ceil=null;
+  if(m){
+    vis=(typeof m.visib==="string")?parseFloat(m.visib):+m.visib;
+    const cl=(m.clouds||[]).filter(c=>["BKN","OVC","OVX"].includes(c.cover));
+    ceil=cl.length?Math.min(...cl.map(c=>c.base)):null;
+    const v=isFinite(vis)?vis:99, c=ceil==null?9999:ceil;
+    cat = (c<500||v<1)?"LIFR" : (c<1000||v<3)?"IFR" : (c<3000||v<5)?"MVFR" : "VFR";
+  }
+  document.getElementById("opCat").innerHTML=
+    `<span class="op-cat cat-${cat}">${cat==="NA"?"NO METAR":cat}</span>`;
+  document.getElementById("opWind1").textContent=
+    m&&m.wdir!=null?`${String(m.wdir).padStart(3,"0")}° ${m.wspd||0}kt`:"—";
+  document.getElementById("opVis").textContent=m&&isFinite(vis)?vis+" sm":"—";
+  document.getElementById("opCeil").textContent=ceil!=null?ceil+" ft":(m?"none":"—");
+  document.getElementById("opMetar").textContent=m?(m.rawOb||"—"):"waiting for METAR…";
+
+  const rEl=document.getElementById("opRwy"), sEl=document.getElementById("opRwySrc");
+  if(opsRwy){
+    rEl.textContent="RWY "+opsRwy.name+(opsRwy.magKnown?"":"?");
+    void opsFeedDown;
+    sEl.innerHTML=`from ${opsRwy.n} on final · ${opsRwy.heading.toFixed(0)}°T`+
+      (opsRwy.magKnown?` → <b style="color:var(--ink)">${opsRwy.magHeading.toFixed(0)}°M</b>`
+        :` · <span style="color:var(--amber)">no mag variation for this field</span>`);
+    if(m&&m.wdir!=null){
+      const rwyMag=opsRwy.magKnown?opsRwy.magHeading:opsRwy.heading;
+      const rel=(m.wdir-rwyMag)*Math.PI/180;
+      const hw=(m.wspd||0)*Math.cos(rel), xw=(m.wspd||0)*Math.sin(rel);
+      const hEl=document.getElementById("opHead");
+      hEl.textContent=(hw>=0?"+":"")+hw.toFixed(0)+" kt"+(hw<0?" TAIL":"");
+      hEl.style.color = hw<0 ? "var(--amber)" : "var(--ink)";
+      const xEl=document.getElementById("opCross");
+      xEl.textContent=Math.abs(xw).toFixed(0)+" kt "+(xw>0?"R":"L");
+      xEl.style.color = Math.abs(xw)>20 ? "var(--red)" : "var(--ink)";
+    }
+  } else {
+    rEl.textContent="—";
+    sEl.textContent="needs aircraft on final to infer";
+    document.getElementById("opHead").textContent="—";
+    document.getElementById("opCross").textContent="—";
+  }
+
+  const na=Object.keys(opsSeen.arr).length, nd=Object.keys(opsSeen.dep).length;
+  const mins=(Date.now()-opsT0)/60000;
+  document.getElementById("opRate").textContent = mins>3?Math.round((na+nd)/mins*60):"…";
+  document.getElementById("opPress").innerHTML = mins<=3
+    ? `Counting movements since you opened this panel (${mins.toFixed(1)} min) — the hourly
+       rate appears once there's enough to extrapolate from.`
+    : `<b>${opsInbound}</b> inbound and descending, <b>${opsHolds}</b> apparently holding.
+       Rate extrapolated from ${mins.toFixed(0)} min of observation.`;
+
+  /* sequence table */
+  const box=document.getElementById("opSeqBox");
+  if(!opsFinal.length){
+    box.innerHTML=`<div class="op-empty">No aircraft established on final.</div>`;
+  } else {
+    box.innerHTML=`<table class="op-seq">
+      <tr><th>#</th><th>CALLSIGN</th><th>TYPE</th><th>WAKE</th><th>DIST</th><th>STR</th><th>IN-TRAIL</th></tr>
+      ${opsFinal.map((f,i)=>`<tr class="seqrow ${opsSel===f.hex?'on':''}"
+          onclick="opsPick('${f.hex}')" onmouseenter="opsHover='${f.hex}'"
+          onmouseleave="opsHover=null">
+        <td style="color:var(--faint)">${i+1}</td>
+        <td class="cs">${f.cs||"—"}</td>
+        <td class="ty">${f.type}</td>
+        <td><span class="wk wk-${f.wake}">${WAKE_LABEL[f.wake]}</span></td>
+        <td class="dcell" data-hex="${f.hex}">${f.d.toFixed(1)} nm</td>
+        <td style="color:var(--faint)">${String.fromCharCode(65+(f.stream||0))}</td>
+        <td class="${f.gap==null?"":(f.tight?"sp-tight":"sp-ok")}">
+          ${f.gap==null?"<span style='color:var(--faint)'>lead</span>"
+            :f.gap.toFixed(1)+" / "+f.min+(f.tight?" ⚠":"")}</td>
+      </tr>`).join("")}
+    </table>`;
+  }
+  opsDrawSpark();
+}
+
+function opsPick(hex){
+  opsSel = (opsSel===hex) ? null : hex;
+  const ap=AIRPORTS.find(a=>a.icao===opsIcao);
+  if(ap) opsRenderStatic(ap);
+}
+
+/* ══ the animation loop — everything that moves ══════════════════════ */
+let opsLastFrame=0, opsWindFrame=0, opsRange=40, opsTipXY=null;
+function opsSetRange(n){
+  opsRange=n; opsScopeBg=null;                    // furniture depends on range
+  document.querySelectorAll("#opRange button").forEach(b=>
+    b.classList.toggle("on", +b.textContent===n));
+}
+function opsTick(){
+  opsRAF=requestAnimationFrame(opsTick);
+  const tab=document.getElementById("opsTab");
+  if(!tab || !tab.classList.contains("open")) return;
+  const ap=AIRPORTS.find(a=>a.icao===opsIcao);
+  if(!ap) return;
+
+  // Aircraft creep at ~0.04nm/s. 30fps is visually identical to 60 here and
+  // costs half as much, which matters because the scope redraws every target.
+  const nowMs=performance.now();
+  if(nowMs-opsLastFrame<33) return;
+  opsLastFrame=nowMs;
+
+  const dt=Math.min(30,(Date.now()-opsStamp)/1000);   // seconds since the last fix
+  const proj=opsAC.map(a=>{
+    const p=projectAC(a,dt);
+    const d=haversineNM(ap.lat,ap.lon,p.lat,p.lon);
+    return {...a, plat:p.lat, plon:p.lon, pd:d};
+  });
+
+  // trails
+  proj.forEach(a=>{
+    const t=opsTrails[a.hex]||(opsTrails[a.hex]=[]);
+    const last=t[t.length-1];
+    if(!last || haversineNM(last.lat,last.lon,a.plat,a.plon)>0.25){
+      t.push({lat:a.plat,lon:a.plon});
+      if(t.length>26) t.shift();
+    }
+  });
+  Object.keys(opsTrails).forEach(h=>{ if(!opsAC.some(a=>a.hex===h)) delete opsTrails[h]; });
+
+  opsDrawScope(ap,proj,dt);
+  opsDrawVert(proj);
+  opsDrawFinal(proj,dt);
+  if(nowMs-opsWindFrame>100){ opsDrawWind(opsMetar,opsRwy); opsWindFrame=nowMs; }
+  opsTweenCounters();
+  opsStatus(dt);
+}
+
+function opsTweenCounters(){
+  const want={arr:Object.keys(opsSeen.arr).length, dep:Object.keys(opsSeen.dep).length,
+              inb:opsInbound, hold:opsHolds};
+  ["arr","dep","inb","hold"].forEach(k=>{
+    opsCounters[k]+=(want[k]-opsCounters[k])*0.18;
+    if(Math.abs(want[k]-opsCounters[k])<0.02) opsCounters[k]=want[k];
+  });
+  const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=Math.round(v);};
+  set("opArr",opsCounters.arr); set("opDep",opsCounters.dep);
+  set("opInb",opsCounters.inb); set("opHold",opsCounters.hold);
+}
+
+function opsStatus(dt){
+  const lc=document.getElementById("opLive");
+  if(!lc) return;
+  if(!opsStamp){
+    lc.textContent="CONNECTING…"; lc.style.color="var(--faint)"; return;
+  }
+  if(dt>28){                            // genuinely stale: several polls missed
+    lc.textContent=`STALE · last fix ${dt.toFixed(0)}s ago · coasting`;
+    lc.style.color="var(--red)";
+  } else if(dt>14){                     // one poll missed — dead reckoning covers it
+    lc.textContent=`COASTING · fix ${dt.toFixed(0)}s ago`;
+    lc.style.color="var(--amber)";
+  } else if(!opsLastCount){
+    lc.textContent="LIVE · NO TRAFFIC IN RANGE";
+    lc.style.color="var(--green)";
+  } else {
+    lc.textContent=`LIVE · ${opsLastCount} AC · fix ${dt.toFixed(0)}s`;
+    lc.style.color="var(--green)";
+  }
+}
+
+/* ══ terminal radar scope — plan view, aircraft actually moving ══════ */
+let opsScopeBg=null, opsScopeKey="";
+/* rings, cross, centreline, runway and field label never change between
+   frames — bake them once instead of re-stroking them 30 times a second */
+function opsBuildScopeBg(w,h,dpr,ap){
+  const key=[w,h,dpr,ap.icao,opsRange,opsRwy?opsRwy.heading.toFixed(1):"-"].join("|");
+  if(opsScopeBg && opsScopeKey===key) return opsScopeBg;
+  opsScopeKey=key;
+  const o=document.createElement("canvas");
+  o.width=Math.round(w*dpr); o.height=Math.round(h*dpr);
+  const c=o.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);
+  const cx=w/2, cy=h/2, R=Math.min(w,h)/2-16, S=R/opsRange;
+
+  // range rings scaled to the selected range
+  const step = opsRange<=10?2 : opsRange<=20?5 : opsRange<=40?10 : 20;
+  c.strokeStyle="rgba(110,170,160,.13)"; c.lineWidth=1;
+  for(let n=step;n<=opsRange;n+=step){
+    c.beginPath(); c.arc(cx,cy,n*S,0,7); c.stroke();
+    c.fillStyle="rgba(143,180,172,.32)"; c.font="7.5px ui-monospace";
+    c.fillText(n+"nm", cx+3, cy-n*S+10);
+  }
+  // compass rose
+  c.strokeStyle="rgba(110,170,160,.10)";
+  for(let a=0;a<360;a+=30){
+    const rad=(a-90)*Math.PI/180;
+    c.beginPath(); c.moveTo(cx,cy);
+    c.lineTo(cx+Math.cos(rad)*R, cy+Math.sin(rad)*R); c.stroke();
+  }
+  c.strokeStyle="rgba(110,170,160,.22)"; c.lineWidth=1;
+  c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
+  // cardinal marks
+  c.fillStyle="rgba(143,180,172,.5)"; c.font="bold 8px ui-monospace"; c.textAlign="center";
+  [["N",0],["E",90],["S",180],["W",270]].forEach(([l,a])=>{
+    const rad=(a-90)*Math.PI/180;
+    c.fillText(l, cx+Math.cos(rad)*(R+9), cy+Math.sin(rad)*(R+9)+3);
+  });
+  c.textAlign="left";
+
+  if(opsRwy){
+    const back=(opsRwy.heading+180)*Math.PI/180;
+    const L=Math.min(opsRange*0.55,16);
+    c.strokeStyle="rgba(240,182,74,.55)"; c.lineWidth=1.4; c.setLineDash([6,4]);
+    c.beginPath(); c.moveTo(cx,cy);
+    c.lineTo(cx+Math.sin(back)*L*S, cy-Math.cos(back)*L*S); c.stroke();
+    c.setLineDash([]);
+    for(let n=4;n<=L;n+=4){
+      c.fillStyle="rgba(240,182,74,.6)";
+      c.fillRect(cx+Math.sin(back)*n*S-2, cy-Math.cos(back)*n*S-2, 4,4);
+      c.fillStyle="rgba(240,182,74,.4)"; c.font="6.5px ui-monospace";
+      c.fillText(n+"", cx+Math.sin(back)*n*S+4, cy-Math.cos(back)*n*S-4);
+    }
+    const rr=opsRwy.heading*Math.PI/180;
+    const rl=Math.max(3,S*1.1);
+    c.strokeStyle="rgba(234,245,241,.9)"; c.lineWidth=4; c.lineCap="round";
+    c.beginPath();
+    c.moveTo(cx-Math.sin(rr)*rl, cy+Math.cos(rr)*rl);
+    c.lineTo(cx+Math.sin(rr)*rl, cy-Math.cos(rr)*rl);
+    c.stroke(); c.lineCap="butt";
+  }
+  c.fillStyle="#f0b64a"; c.beginPath(); c.arc(cx,cy,3.5,0,7); c.fill();
+  c.fillStyle="rgba(234,245,241,.85)"; c.font="bold 9px ui-monospace";
+  c.fillText(ap.icao, cx+7, cy-7);
+  opsScopeBg=o;
+  return o;
+}
+
+function opsDrawScope(ap,proj,dt){
+  const cv=document.getElementById("opScope"); if(!cv) return;
+  const r=cv.getBoundingClientRect(); if(!r.width) return;
+  const dpr=Math.min(1.5,devicePixelRatio||1);
+  const W=Math.round(r.width*dpr),H=Math.round(r.height*dpr);
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;opsScopeBg=null;}
+  const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);
+  const w=r.width,h=r.height,cx=w/2,cy=h/2;
+  const RANGE=opsRange, R=Math.min(w,h)/2-16, S=R/RANGE;
+  c.clearRect(0,0,w,h);
+
+  const XY=(lat,lon)=>{
+    const dLat=(lat-ap.lat)*60;
+    const dLon=(lon-ap.lon)*60*Math.cos(ap.lat*Math.PI/180);
+    return [cx+dLon*S, cy-dLat*S];
+  };
+
+  c.drawImage(opsBuildScopeBg(w,h,dpr,ap),0,0,w,h);   // one blit, not ~40 strokes
+
+  // aircraft
+  proj.forEach(a=>{
+    if(a.pd>RANGE) return;
+    const [x,y]=XY(a.plat,a.plon);
+    const onFinal=opsFinal.some(f=>f.hex===a.hex);
+    const sel=opsSel===a.hex, hov=opsHover===a.hex;
+    const col=WAKE_COL[a.wake]||"#1ecbb8";
+
+    // trail
+    const t=opsTrails[a.hex];
+    if(t&&t.length>1){
+      c.strokeStyle=onFinal?"rgba(240,182,74,.30)":"rgba(110,170,160,.16)";
+      c.lineWidth=1; c.beginPath();
+      t.forEach((p,i)=>{const [px,py]=XY(p.lat,p.lon); i?c.lineTo(px,py):c.moveTo(px,py);});
+      c.stroke();
+    }
+    // symbol
+    c.save(); c.translate(x,y); c.rotate((a.trk||0)*Math.PI/180);
+    c.fillStyle=col;
+    if(sel||hov){ c.shadowColor=col; c.shadowBlur=10; }
+    c.beginPath();
+    const sz=onFinal?5:3.6;
+    c.moveTo(0,-sz); c.lineTo(sz*0.72,sz*0.62); c.lineTo(0,sz*0.22);
+    c.lineTo(-sz*0.72,sz*0.62); c.closePath(); c.fill();
+    c.shadowBlur=0; c.restore();
+
+    if(sel||hov||onFinal){
+      c.fillStyle=sel?"#eaf5f1":"rgba(234,245,241,.62)";
+      c.font=(sel?"bold ":"")+"7.5px ui-monospace";
+      c.fillText(a.cs||"", x+7, y-5);
+      c.fillStyle="rgba(143,180,172,.5)"; c.font="7px ui-monospace";
+      c.fillText(Math.round(a.alt/100)*100+"ft", x+7, y+4);
+    }
+    if(sel){
+      c.strokeStyle="#eaf5f1"; c.lineWidth=1;
+      c.beginPath(); c.arc(x,y,11,0,7); c.stroke();
+    }
+  });
+
+  // sweep
+  const sweep=(Date.now()/28)%360;
+  const sr=(sweep-90)*Math.PI/180;
+  const g=c.createLinearGradient(cx,cy,cx+Math.cos(sr)*R,cy+Math.sin(sr)*R);
+  g.addColorStop(0,"rgba(30,203,184,.16)"); g.addColorStop(1,"rgba(30,203,184,0)");
+  c.strokeStyle=g; c.lineWidth=2;
+  c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx+Math.cos(sr)*R,cy+Math.sin(sr)*R); c.stroke();
+
+  /* hover tooltip — find the nearest target to the cursor */
+  const tip=document.getElementById("opTip");
+  if(tip){
+    let best=null,bd=15;
+    if(opsTipXY){
+      proj.forEach(a=>{
+        if(a.pd>RANGE) return;
+        const [x,y]=XY(a.plat,a.plon);
+        const d=Math.hypot(x-opsTipXY.x,y-opsTipXY.y);
+        if(d<bd){ bd=d; best=a; }
+      });
+    }
+    opsHover=best?best.hex:null;
+    if(best){
+      const vs=best.rate>200?"▲ climbing":best.rate<-200?"▼ descending":"— level";
+      tip.innerHTML=`<b>${best.cs||"—"}</b> <span>${best.type}</span><br>`+
+        `${Math.round(best.alt).toLocaleString()} ft · ${Math.round(best.gs)} kt<br>`+
+        `<span>${best.pd.toFixed(1)} nm · ${WAKE_LABEL[best.wake]} · ${vs}</span>`;
+      tip.style.left=Math.min(w-150,opsTipXY.x+14)+"px";
+      tip.style.top=Math.max(0,opsTipXY.y-42)+"px";
+      tip.classList.add("on");
+    } else tip.classList.remove("on");
+  }
+}
+
+/* ══ VERTICAL PROFILE — every arrival against the 3° glidepath ══════════
+   This is the picture approach control actually cares about: a 3° path is
+   roughly 318ft per nautical mile from the threshold, so an aircraft 10nm
+   out should be near 3,200ft. Being high and still descending is normal;
+   being high and close is not. */
+const GS_DEG=3;
+const gsAlt=(nm)=>nm*6076.12*Math.tan(GS_DEG*Math.PI/180);   // ft at that distance
+
+function opsDrawVert(proj){
+  const cv=document.getElementById("opVert"); if(!cv) return;
+  const r=cv.getBoundingClientRect(); if(!r.width) return;
+  const dpr=Math.min(2,devicePixelRatio||1);
+  cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+  const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);
+  const w=r.width,h=r.height;
+  c.clearRect(0,0,w,h);
+
+  const PADL=50, PADB=28, PADT=18, PADR=18;
+  const MAXD=16, MAXA=6000;
+  const GW=w-PADL-PADR, GH=h-PADT-PADB;
+  const X=d=>PADL+(1-Math.min(d,MAXD)/MAXD)*GW;
+  const Y=a=>PADT+(1-Math.min(a,MAXA)/MAXA)*GH;
+
+  /* ground */
+  const gg=c.createLinearGradient(0,Y(0),0,h);
+  gg.addColorStop(0,"rgba(110,170,160,.16)"); gg.addColorStop(1,"rgba(110,170,160,0)");
+  c.fillStyle=gg; c.fillRect(PADL,Y(0),GW,h-Y(0)-6);
+  c.strokeStyle="rgba(110,170,160,.4)"; c.lineWidth=1;
+  c.beginPath(); c.moveTo(PADL,Y(0)); c.lineTo(w-PADR,Y(0)); c.stroke();
+
+  /* altitude grid — finer, now there is room for it */
+  c.font="8px ui-monospace"; c.textAlign="right";
+  for(let a=0;a<=MAXA;a+=1000){
+    const y=Y(a);
+    c.strokeStyle = a%2000===0 ? "rgba(110,170,160,.13)" : "rgba(110,170,160,.06)";
+    c.lineWidth=1;
+    c.beginPath(); c.moveTo(PADL,y); c.lineTo(w-PADR,y); c.stroke();
+    c.fillStyle = a%2000===0 ? "rgba(143,180,172,.55)" : "rgba(143,180,172,.28)";
+    c.fillText(a?(a/1000)+"k":"0", PADL-7, y+3);
+  }
+  c.save(); c.translate(12,PADT+GH/2); c.rotate(-Math.PI/2);
+  c.textAlign="center"; c.fillStyle="rgba(143,180,172,.4)"; c.font="8px ui-monospace";
+  c.fillText("ALTITUDE ft",0,0); c.restore();
+
+  /* distance grid */
+  c.textAlign="center";
+  for(let d=0;d<=MAXD;d+=2){
+    const x=X(d);
+    c.strokeStyle = d%4===0 ? "rgba(110,170,160,.11)" : "rgba(110,170,160,.05)";
+    c.beginPath(); c.moveTo(x,PADT); c.lineTo(x,Y(0)); c.stroke();
+    if(d%4===0){
+      c.fillStyle="rgba(143,180,172,.5)"; c.font="8px ui-monospace";
+      c.fillText(d+" nm", x, h-10);
+    }
+  }
+
+  /* the 3° glidepath + tolerance band */
+  const top=gsAlt(MAXD);
+  c.fillStyle="rgba(240,182,74,.10)";
+  c.beginPath();
+  c.moveTo(X(0),Y(0));
+  c.lineTo(X(MAXD),Y(MAXD*6076.12*Math.tan((GS_DEG+0.5)*Math.PI/180)));
+  c.lineTo(X(MAXD),Y(MAXD*6076.12*Math.tan((GS_DEG-0.5)*Math.PI/180)));
+  c.closePath(); c.fill();
+  c.strokeStyle="rgba(240,182,74,.9)"; c.lineWidth=1.8;
+  c.shadowColor="rgba(240,182,74,.45)"; c.shadowBlur=7;
+  c.beginPath(); c.moveTo(X(0),Y(0)); c.lineTo(X(MAXD),Y(top)); c.stroke();
+  c.shadowBlur=0;
+
+  /* height gates — the numbers a pilot actually cross-checks */
+  for(let d=4;d<=12;d+=4){
+    const ideal=gsAlt(d), x=X(d), y=Y(ideal);
+    c.fillStyle="rgba(240,182,74,.8)";
+    c.beginPath(); c.arc(x,y,2.5,0,7); c.fill();
+    c.fillStyle="rgba(240,182,74,.6)"; c.font="7px ui-monospace"; c.textAlign="center";
+    c.fillText(Math.round(ideal)+"ft", x, y+14);
+  }
+  c.fillStyle="rgba(240,182,74,.9)"; c.font="bold 8.5px ui-monospace"; c.textAlign="left";
+  c.fillText("3° GLIDEPATH · 318 ft/nm", PADL+8, Y(top)-9);
+
+  /* threshold */
+  c.fillStyle="rgba(234,245,241,.95)"; c.fillRect(X(0)-2, Y(0)-16, 4, 16);
+  c.fillStyle="rgba(234,245,241,.8)"; c.font="bold 8px ui-monospace"; c.textAlign="center";
+  c.fillText(opsRwy?("RWY "+opsRwy.name):"THR", X(0), Y(0)-21);
+
+  const dNow={}; (proj||[]).forEach(a=>dNow[a.hex]=a.pd);
+  let hi=0, lo=0, on=0;
+
+  opsFinal.forEach(f=>{
+    const d = dNow[f.hex]!=null?dNow[f.hex]:f.d;
+    if(d>MAXD) return;
+    const ideal=gsAlt(d);
+    const dev=f.alt-ideal;
+    const pct = ideal>0 ? dev/Math.max(300,ideal) : 0;
+    /* Below the path beyond ~10nm is procedure, not error — aircraft intercept
+       the glideslope from underneath. Only flag "low" inside that. */
+    const lowMatters = d<10;
+    const flagHigh = pct>0.18;
+    const flagLow  = pct<-0.18 && lowMatters;
+    if(flagHigh) hi++; else if(flagLow) lo++; else on++;
+
+    const x=X(d), y=Y(Math.min(f.alt,MAXA));
+    const col = flagHigh?"#ff5b6e" : flagLow?"#ff5db1" : "#3ad9a0";
+
+    // deviation stem down to the path
+    c.strokeStyle=col; c.globalAlpha=.4; c.lineWidth=1.2; c.setLineDash([3,3]);
+    c.beginPath(); c.moveTo(x,y); c.lineTo(x,Y(ideal)); c.stroke();
+    c.setLineDash([]); c.globalAlpha=1;
+
+    // descent vector: where it will be in 60s at its current rate and speed
+    if(f.rate<-100 && f.gs>60){
+      const fx=X(Math.max(0,d-(f.gs/60)));
+      const fy=Y(Math.max(0,Math.min(MAXA,f.alt+f.rate)));
+      c.strokeStyle=col; c.globalAlpha=.3; c.lineWidth=1.5;
+      c.beginPath(); c.moveTo(x,y); c.lineTo(fx,fy); c.stroke();
+      c.globalAlpha=1;
+      c.fillStyle=col; c.globalAlpha=.5;
+      c.beginPath(); c.arc(fx,fy,1.8,0,7); c.fill();
+      c.globalAlpha=1;
+    }
+
+    const sel=opsSel===f.hex, hov=opsHover===f.hex;
+    c.fillStyle=col;
+    if(sel||hov){ c.shadowColor=col; c.shadowBlur=14; }
+    c.beginPath(); c.arc(x,y,sel?6.5:5,0,7); c.fill();
+    c.shadowBlur=0;
+    if(sel){
+      c.strokeStyle="#eaf5f1"; c.lineWidth=1.2;
+      c.beginPath(); c.arc(x,y,11,0,7); c.stroke();
+    }
+
+    c.textAlign="center";
+    c.fillStyle=sel?"#eaf5f1":"rgba(234,245,241,.9)";
+    c.font=(sel?"bold ":"")+"8.5px ui-monospace";
+    c.fillText(f.cs||"—", x, y-12);
+    c.fillStyle="rgba(143,180,172,.62)"; c.font="7.5px ui-monospace";
+    c.fillText(Math.round(f.alt).toLocaleString()+"ft", x, y+18);
+    c.fillStyle=col; c.font=((flagHigh||flagLow)?"bold ":"")+"7.5px ui-monospace";
+    c.fillText((dev>0?"+":"")+Math.round(dev)+(flagHigh?"ft HIGH":flagLow?"ft LOW":"ft"), x, y+28);
+  });
+
+  if(!opsFinal.length){
+    c.fillStyle="rgba(143,180,172,.5)"; c.font="10px ui-monospace"; c.textAlign="center";
+    c.fillText("no aircraft established on final", PADL+GW/2, PADT+GH/2);
+  }
+
+  const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
+  set("opHigh",hi); set("opLow",lo); set("opOn",on);
+  c.textAlign="left";
+}
+
+/* ══ movement sparkline ══ */
+function opsDrawSpark(){
+  const cv=document.getElementById("opSpark"); if(!cv) return;
+  const r=cv.getBoundingClientRect(); if(!r.width) return;
+  const dpr=Math.min(2,devicePixelRatio||1);
+  cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+  const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);
+  const w=r.width,h=r.height,now=Date.now();
+  c.clearRect(0,0,w,h);
+  const WIN=1800000;                                // 30 min window
+  const BINS=30, bins=Array.from({length:BINS},()=>({a:0,d:0}));
+  opsHist.forEach(e=>{
+    const age=now-e.t; if(age>WIN) return;
+    const i=BINS-1-Math.floor(age/WIN*BINS);
+    if(i>=0&&i<BINS) bins[i][e.k==="a"?"a":"d"]++;
+  });
+  const max=Math.max(2,...bins.map(b=>b.a+b.d));
+  const bw=w/BINS;
+  bins.forEach((b,i)=>{
+    const x=i*bw;
+    const ah=(b.a/max)*h*0.82, dh=(b.d/max)*h*0.82;
+    c.fillStyle="rgba(30,203,184,.75)"; c.fillRect(x+1,h-ah,bw-2,ah);
+    c.fillStyle="rgba(240,182,74,.65)"; c.fillRect(x+1,h-ah-dh,bw-2,dh);
+  });
+  c.fillStyle="rgba(143,180,172,.4)"; c.font="7px ui-monospace";
+  c.fillText("30 min ago",2,h-2);
+  c.textAlign="right"; c.fillText("now",w-2,h-2); c.textAlign="left";
+}
+
+/* ══ wind rose ══ */
+function opsDrawWind(m,rwy){
+  const cv=document.getElementById("opWind"); if(!cv) return;
+  const r=cv.getBoundingClientRect(); if(!r.width) return;
+  const dpr=Math.min(2,devicePixelRatio||1);
+  cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+  const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);
+  const w=r.width,h=r.height,cx=w/2,cy=h/2,R=Math.min(w,h)*0.40;
+  c.clearRect(0,0,w,h);
+  c.strokeStyle="rgba(110,170,160,.18)"; c.lineWidth=1;
+  c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
+  for(let a=0;a<360;a+=30){
+    const rad=(a-90)*Math.PI/180;
+    c.beginPath();
+    c.moveTo(cx+Math.cos(rad)*R*0.88,cy+Math.sin(rad)*R*0.88);
+    c.lineTo(cx+Math.cos(rad)*R,cy+Math.sin(rad)*R); c.stroke();
+  }
+  c.fillStyle="rgba(143,180,172,.5)"; c.font="7px ui-monospace"; c.textAlign="center";
+  c.fillText("N",cx,cy-R-3);
+  if(rwy){
+    const rad=(rwy.heading-90)*Math.PI/180;
+    c.strokeStyle="rgba(234,245,241,.75)"; c.lineWidth=5; c.lineCap="round";
+    c.beginPath();
+    c.moveTo(cx-Math.cos(rad)*R*0.75,cy-Math.sin(rad)*R*0.75);
+    c.lineTo(cx+Math.cos(rad)*R*0.75,cy+Math.sin(rad)*R*0.75);
+    c.stroke(); c.lineCap="butt";
+  }
+  if(m&&m.wdir!=null&&m.wspd){
+    const rad=(m.wdir+180-90)*Math.PI/180;
+    const len=R*Math.min(1,0.35+(m.wspd/30)*0.55);
+    const pulse=1+Math.sin(Date.now()/500)*0.03;
+    c.strokeStyle="#1ecbb8"; c.lineWidth=2.2;
+    c.beginPath(); c.moveTo(cx,cy);
+    c.lineTo(cx+Math.cos(rad)*len*pulse,cy+Math.sin(rad)*len*pulse); c.stroke();
+    c.save(); c.translate(cx+Math.cos(rad)*len*pulse,cy+Math.sin(rad)*len*pulse);
+    c.rotate(rad+Math.PI/2);
+    c.fillStyle="#1ecbb8"; c.beginPath();
+    c.moveTo(0,-5); c.lineTo(4,4); c.lineTo(-4,4); c.closePath(); c.fill();
+    c.restore();
+  }
+  c.fillStyle="#1ecbb8"; c.beginPath(); c.arc(cx,cy,2.5,0,7); c.fill();
+  c.textAlign="left";
+}
+
+/* ══ approach ladder — one lane per stream, aircraft creeping in ══ */
+function opsDrawFinal(proj,dt){
+  const cv=document.getElementById("opFinal"); if(!cv) return;
+  const r=cv.getBoundingClientRect(); if(!r.width) return;
+  const dpr=Math.min(2,devicePixelRatio||1);
+  cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+  const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);
+  const w=r.width,h=r.height;
+  c.clearRect(0,0,w,h);
+  const PAD=46,MAXD=18;
+  const X=d=>PAD+(1-Math.min(d,MAXD)/MAXD)*(w-PAD-36);
+
+  c.textAlign="center";
+  c.fillStyle="rgba(143,180,172,.45)"; c.font="7.5px ui-monospace";
+  for(let d=0;d<=MAXD;d+=3){
+    const x=X(d);
+    c.strokeStyle="rgba(110,170,160,.09)"; c.lineWidth=1;
+    c.beginPath(); c.moveTo(x,16); c.lineTo(x,h-16); c.stroke();
+    c.fillText(d+"nm",x,h-4);
+  }
+  c.fillStyle="rgba(234,245,241,.9)"; c.fillRect(X(0)-2,14,4,h-32);
+  c.fillStyle="rgba(234,245,241,.75)"; c.font="bold 8px ui-monospace";
+  c.fillText(opsRwy?("RWY "+opsRwy.name):"THR",X(0),10);
+
+  if(!opsFinal.length){
+    c.fillStyle="rgba(143,180,172,.5)"; c.font="10px ui-monospace";
+    c.fillText("no aircraft established on final",w/2,h/2);
+    c.textAlign="left"; return;
+  }
+
+  const lanes=Math.max(1,opsStreams);
+  const laneH=(h-40)/lanes;
+  // live distance from the projected fix, so they actually move
+  const dNow={}; (proj||[]).forEach(a=>dNow[a.hex]=a.pd);
+
+  for(let s=0;s<lanes;s++){
+    const list=opsFinal.filter(f=>(f.stream||0)===s)
+      .map(f=>({...f, dd: dNow[f.hex]!=null?dNow[f.hex]:f.d}))
+      .sort((a,b)=>a.dd-b.dd);
+    const y=22+laneH*s+laneH/2;
+    c.strokeStyle="rgba(110,170,160,.16)"; c.lineWidth=1; c.setLineDash([4,5]);
+    c.beginPath(); c.moveTo(PAD,y); c.lineTo(w-36,y); c.stroke(); c.setLineDash([]);
+    if(lanes>1){
+      c.textAlign="left"; c.fillStyle="rgba(143,180,172,.5)"; c.font="bold 7.5px ui-monospace";
+      c.fillText("STREAM "+String.fromCharCode(65+s),4,y-laneH/2+12);
+      c.textAlign="center";
+    }
+    list.forEach((f,i)=>{
+      const x=X(f.dd);
+      if(i>0&&f.gap!=null){
+        const lx=X(list[i-1].dd);
+        const gapNow=f.dd-list[i-1].dd;
+        const tight=gapNow<f.min;
+        c.strokeStyle=tight?"#ff5b6e":"#3ad9a0"; c.lineWidth=tight?2.2:1.3;
+        c.beginPath(); c.moveTo(x,y-17); c.lineTo(lx,y-17); c.stroke();
+        [x,lx].forEach(px=>{c.beginPath();c.moveTo(px,y-21);c.lineTo(px,y-13);c.stroke();});
+        c.fillStyle=tight?"#ff5b6e":"#3ad9a0";
+        c.font=(tight?"bold ":"")+"8px ui-monospace";
+        c.fillText(gapNow.toFixed(1)+"/"+f.min+(tight?" ⚠":""),(x+lx)/2,y-23);
+      }
+      const sel=opsSel===f.hex, hov=opsHover===f.hex;
+      const col=WAKE_COL[f.wake]||"#1ecbb8";
+      c.save(); c.translate(x,y); c.rotate(Math.PI/2);
+      c.fillStyle=col;
+      if(sel||hov){ c.shadowColor=col; c.shadowBlur=12; }
+      c.beginPath(); c.moveTo(0,-7); c.lineTo(5,4); c.lineTo(0,1.5); c.lineTo(-5,4);
+      c.closePath(); c.fill(); c.shadowBlur=0; c.restore();
+      if(sel){
+        c.strokeStyle="#eaf5f1"; c.lineWidth=1;
+        c.beginPath(); c.arc(x,y,12,0,7); c.stroke();
+      }
+      c.fillStyle=sel?"#eaf5f1":"rgba(234,245,241,.9)";
+      c.font=(sel?"bold ":"")+"8px ui-monospace";
+      c.fillText(f.cs||"—",x,y+18);
+      c.fillStyle="rgba(143,180,172,.6)"; c.font="7px ui-monospace";
+      c.fillText(f.type+" · "+Math.round(f.alt/100)*100+"ft",x,y+27);
+    });
+  }
+  c.textAlign="left";
+}
+
+function openOpsTab(){
+  const sel=document.getElementById("opAirport");
+  if(!sel.options.length){
+    AIRPORTS.slice().sort((a,b)=>a.icao.localeCompare(b.icao)).forEach(a=>{
+      const o=document.createElement("option");
+      o.value=a.icao; o.textContent=`${a.icao} · ${a.name}`;
+      sel.appendChild(o);
+    });
+  }
+  document.getElementById("opsTab").classList.add("open");
+  opsSelect(sel.value);              // single poll — opsSelect bumps the generation
+  if(!opsRAF) opsTick();             // 60fps loop: dead reckoning, scope, ladder
+}
+function closeOpsTab(){
+  document.getElementById("opsTab").classList.remove("open");
+  clearTimeout(opsTimer);
+  if(opsRAF){ cancelAnimationFrame(opsRAF); opsRAF=null; }   // don't burn frames when hidden
+  pollLive();                     // map was paused while covered — catch it up
+}
+
+/* hover the scope → tooltip; move away → clear */
+document.addEventListener("mousemove",e=>{
+  const cv=document.getElementById("opScope");
+  if(!cv) return;
+  const r=cv.getBoundingClientRect();
+  const inside = e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;
+  opsTipXY = inside ? {x:e.clientX-r.left, y:e.clientY-r.top} : null;
+  if(!inside){
+    const t=document.getElementById("opTip");
+    if(t) t.classList.remove("on");
+  }
+});
+
+/* click the scope to lock an aircraft */
+document.addEventListener("click",e=>{
+  const cv=document.getElementById("opScope");
+  if(!cv || e.target!==cv) return;
+  const ap=AIRPORTS.find(a=>a.icao===opsIcao); if(!ap) return;
+  const r=cv.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const cx=r.width/2, cy=r.height/2;
+  const R=Math.min(r.width,r.height)/2-16, S=R/opsRange;
+  const dt=Math.min(30,(Date.now()-opsStamp)/1000);
+  let best=null, bd=16;
+  opsAC.forEach(a=>{
+    const p=projectAC(a,dt);
+    const x=cx+((p.lon-ap.lon)*60*Math.cos(ap.lat*Math.PI/180))*S;
+    const y=cy-((p.lat-ap.lat)*60)*S;
+    const d=Math.hypot(x-mx,y-my);
+    if(d<bd){ bd=d; best=a.hex; }
+  });
+  opsSel = best ? (opsSel===best?null:best) : null;
+  opsRenderStatic(ap);
+});
+
+/* ============================================================
+   LIVE ATC TAB
+   LiveATC mounts follow naming conventions rather than a public
+   index, so for an arbitrary ICAO we guess the usual names and
+   probe each one: a muted <audio> that reaches 'playing' is a
+   real feed, 'error'/timeout means there's nothing there.
+   ============================================================ */
+let atCur=null;                 // {mount,label,icao}
+let atAudio=null, atCtx=null, atAnalyser=null, atSrcNode=null, atRAF=null;
+let atProbes={};                // mount -> 'chk'|'live'|'off'
+let atDirFilter="all";
+/* The worker retries the LiveATC load balancer server-side and adds CORS.
+   Measured: klax_twr succeeds 2/3 direct from a browser, 3/3 through the
+   worker. So the proxy is the DEFAULT path — more reliable, and the only
+   way the spectrum meter can legally work. */
+let atProxyAudio=true;
+
+/* ------------------------------------------------------------------
+   LiveATC rate-limits hard. Opening the tab used to fire 34 requests
+   at once, which got the client throttled — and then EVERY channel
+   reported "down", healthy or not. All probing now goes through one
+   throttle: at most 2 in flight, spaced 600ms apart. Results are
+   cached for the session so we never ask twice.
+   ------------------------------------------------------------------ */
+const AT_MAX_INFLIGHT=2, AT_SPACING=600;
+let atQ=[], atInflight=0, atLastStart=0;
+const atCache={};                        // mount -> true/false, remembered for the session
+
+let atPumpPending=false;
+function atEnqueue(fn){ atQ.push(fn); atPump(); }
+function atPump(){
+  if(atPumpPending) return;                       // one timer at a time, or they all fire together
+  if(atInflight>=AT_MAX_INFLIGHT || !atQ.length) return;
+  const wait=Math.max(0, AT_SPACING-(Date.now()-atLastStart));
+  atPumpPending=true;
+  setTimeout(()=>{
+    atPumpPending=false;
+    if(atInflight>=AT_MAX_INFLIGHT || !atQ.length) return;
+    const fn=atQ.shift(); atInflight++; atLastStart=Date.now();
+    fn(()=>{ atInflight--; atPump(); });
+    atPump();
+  }, wait);
+}
+/* probe a mount — throttled, cached */
+function atProbeMountQ(mount, cb){
+  if(mount in atCache){ cb(atCache[mount]); return; }
+  atEnqueue(done=>{
+    atProbeMount(mount,(ok)=>{ atCache[mount]=ok; done(); cb(ok); });
+  });
+}
+
+/* the channel names LiveATC actually uses */
+function atMountGuesses(icao){
+  const i=icao.toLowerCase();
+  return [
+    {m:i+"_twr",  t:"Tower"},
+    {m:i+"_gnd",  t:"Ground"},
+    {m:i+"_app",  t:"Approach"},
+    {m:i+"_dep",  t:"Departure"},
+    {m:i+"_del",  t:"Clearance"},
+    {m:i+"_atis", t:"ATIS"},
+    {m:i+"_ctr",  t:"Centre"},
+    {m:i+"1",     t:"Feed 1"},
+    {m:i+"2",     t:"Feed 2"},
+    {m:i+"3",     t:"Feed 3"},
+    {m:i+"4",     t:"Feed 4"},
+    {m:i+"5",     t:"Feed 5"},
+    {m:i+"6",     t:"Feed 6"},
+    {m:i+"_twr2", t:"Tower 2"},
+    {m:i+"_app2", t:"Approach 2"}
+  ];
+}
+/* probe one mount: does audio actually start? */
+function atProbeMount(mount, cb){
+  const au=new Audio();
+  au.muted=true; au.preload="auto";
+  au.src=`${CONFIG.ATC_HOST}/${mount}?probe=${Date.now()}`;
+  let done=false;
+  const fin=(ok)=>{ if(done)return; done=true;
+    try{ au.pause(); au.removeAttribute("src"); au.load(); }catch(_){}
+    cb(ok); };
+  au.onplaying=()=>fin(true);
+  au.onerror  =()=>fin(false);
+  setTimeout(()=>fin(false),9000);        // streams buffer slowly; a short timeout = false "dead"
+  const pr=au.play&&au.play(); if(pr&&pr.catch) pr.catch(()=>{});
+}
+
+async function atSearch(){
+  const inp=document.getElementById("atIcao");
+  const icao=(inp.value||"").trim().toUpperCase();
+  const res=document.getElementById("atRes");
+  if(!/^[A-Z]{4}$/.test(icao)){
+    res.innerHTML=`<div class="at-hint" style="color:var(--amber)">That doesn't look like an ICAO code — four letters, like KJFK or KLAX.</div>`;
+    return;
+  }
+  const known=AIRPORTS.find(a=>a.icao===icao);
+  const go=document.getElementById("atGo");
+  go.disabled=true;
+  res.innerHTML=`<div class="at-hint">Asking the worker which channels are on air at <b>${icao}</b>${known?` — ${known.name}`:""}…</div>`;
+
+  /* The worker tests every candidate mount from ITS address and caches the
+     answer, so this is ONE request instead of 15 from your browser — which is
+     what used to get you rate-limited and make everything report "down". */
+  let feeds=null;
+  try{
+    const r=await fetch(`${CONFIG.PROXY}/atc/feeds?icao=${icao}`,{cache:"no-store"});
+    if(r.ok){ const j=await r.json(); feeds=j.feeds||[]; }
+  }catch(_){ /* worker unreachable — fall back to probing from here */ }
+
+  if(feeds===null){
+    res.innerHTML=`<div class="at-hint" style="color:var(--amber)">Worker didn't answer — checking from the browser instead (slower).</div>`;
+    return atSearchLocal(icao, known);
+  }
+
+  go.disabled=false;
+  if(!feeds.length){
+    res.innerHTML=`<div class="at-hint" style="color:var(--amber)">
+      <b>No feed at ${icao}.</b> LiveATC feeds are volunteer-run receivers — most airports
+      simply don't have one. Verified against LiveATC just now, not guessed.</div>`;
+    return;
+  }
+  res.innerHTML=`<div class="at-hint" style="color:var(--green);margin-bottom:8px">
+      <b>${feeds.length}</b> channel${feeds.length>1?"s":""} on air at ${icao} — verified.</div>`
+    + feeds.map(f=>`<div class="at-probe live">
+        <span class="dot"></span><span class="mnt">${f.t} · ${f.m}</span>
+        <button class="go" onclick="atPlay('${f.m}','${icao} ${f.t}','${icao}')">▶ LISTEN</button>
+      </div>`).join("");
+}
+
+/* fallback if the worker is down: probe from the browser, throttled */
+function atSearchLocal(icao, known){
+  const res=document.getElementById("atRes"), go=document.getElementById("atGo");
+  const cands = known && known.atc && known.atc.length
+    ? known.atc.map(c=>({m:c.m,t:c.t})).concat(
+        atMountGuesses(icao).filter(g=>!known.atc.some(c=>c.m===g.m)))
+    : atMountGuesses(icao);
+  go.disabled=true;
+  res.innerHTML += cands.map(c=>`<div class="at-probe chk" id="pb-${c.m}">
+      <span class="dot"></span><span class="mnt">${c.t} · ${c.m}</span>
+      <span style="color:var(--faint);font-size:10px">checking…</span></div>`).join("");
+  let left=cands.length, found=0;
+  cands.forEach(c=>{
+    atProbeMountQ(c.m,(ok)=>{
+      const row=document.getElementById("pb-"+c.m);
+      if(row){
+        row.className="at-probe "+(ok?"live":"off");
+        row.innerHTML=`<span class="dot"></span><span class="mnt">${c.t} · ${c.m}</span>`+
+          (ok?`<button class="go" onclick="atPlay('${c.m}','${icao} ${c.t}','${icao}')">▶ LISTEN</button>`
+             :`<span style="color:var(--faint);font-size:10px">no feed</span>`);
+      }
+      if(ok) found++;
+      if(--left===0) go.disabled=false;
+    });
+  });
+}
+
+/* ---- hover pre-warm ----------------------------------------------------
+   Most of the wait is Icecast filling its buffer — 5-7s on LiveATC's server,
+   which cannot be shortened. What we CAN do is start it earlier: begin
+   buffering the moment the cursor lands on a channel, so a chunk is already
+   done by the time you click. One warm stream at a time only. --------------*/
+let atWarmEl=null, atWarmMount=null, atWarmTimer=null;
+function atWarm(mount){
+  if(atWarmMount===mount || (atCur&&atCur.mount===mount)) return;
+  clearTimeout(atWarmTimer);
+  atWarmTimer=setTimeout(()=>{
+    atCoolWarm();
+    try{
+      const el=new Audio();
+      el.muted=true;                       // muted autoplay is always allowed
+      el.preload="auto";
+      if(atProxyAudio) el.crossOrigin="anonymous";
+      el.src = atProxyAudio
+        ? `${CONFIG.PROXY}/atc?m=${encodeURIComponent(mount)}`
+        : `${CONFIG.ATC_HOST}/${mount}?nocache=${Date.now()}`;
+      el.play().catch(()=>{});
+      atWarmEl=el; atWarmMount=mount;
+    }catch(_){}
+  },180);                                  // ignore cursors sweeping past
+}
+function atCoolWarm(){
+  clearTimeout(atWarmTimer);
+  if(atWarmEl){ try{ atWarmEl.pause(); atWarmEl.removeAttribute("src"); atWarmEl.load(); }catch(_){} }
+  atWarmEl=null; atWarmMount=null;
+}
+function atClaimWarm(mount){
+  if(atWarmMount!==mount || !atWarmEl) return null;
+  const el=atWarmEl; atWarmEl=null; atWarmMount=null;
+  clearTimeout(atWarmTimer);
+  return el;
+}
+
+/* ---- the directory of feeds we ship with ---- */
+function renderAtcDir(){
+  const box=document.getElementById("atGrid");
+  const q=(document.getElementById("atFilter").value||"").trim().toUpperCase();
+  let list=ATC_AIRPORTS;
+  if(atDirFilter==="live") list=list.filter(a=>atcStatus[a.icao]==="live");
+  if(q) list=list.filter(a=>(a.icao+a.iata+a.name).toUpperCase().includes(q));
+  document.getElementById("atDirCnt").textContent="· "+list.length;
+  if(!list.length){
+    box.innerHTML=`<div class="at-hint">${atDirFilter==='live'
+      ? 'Still checking which feeds are on air — give it a moment.'
+      : 'Nothing matches that filter.'}</div>`;
+    return;
+  }
+  box.innerHTML=list.map(a=>{
+    const st=atcStatus[a.icao]||"";
+    const playing=atCur&&atCur.icao===a.icao;
+    return `<div class="at-ap ${playing?'playing':''}">
+      <div class="r1"><span class="st ${st}"></span><b>${a.iata} · ${a.icao}</b></div>
+      <div class="nm">${a.name.replace(/ · /g,' — ')}</div>
+      <div class="chs">${a.atc.map(c=>
+        `<button class="at-ch ${atCur&&atCur.mount===c.m?'on':''}"
+           onclick="atPlay('${c.m}','${a.iata} ${c.t}','${a.icao}')">${c.t}</button>`).join("")}
+      </div></div>`;
+  }).join("");
+}
+
+/* ---- playback ----------------------------------------------------------
+   Two things were making channels feel broken:
+
+   1. crossOrigin="anonymous" is required for the spectrum meter, but
+      d.liveatc.net 302s to a real streaming server that often does NOT
+      send CORS headers. The browser then rejects the audio outright.
+      We were only discovering that after a long timeout, so a perfectly
+      good feed looked dead.
+      → Now we RACE two elements: one with CORS (gets the meter) and one
+        plain (always plays). First to fire 'playing' wins, the other is
+        torn down. Playback is now as reliable as a bare <audio>, and we
+        still get the meter whenever CORS happens to allow it.
+
+   2. Some channel names in the table are simply wrong or retired.
+      → If a channel fails, we don't just shrug: we probe the other
+        channel names for that same airport and play whatever IS on air.
+   ------------------------------------------------------------------------ */
+const AT_CONNECT_MS=15000;     // a timeout means SLOW/flaky, so we move to the next channel
+const AT_SLOW_MS=5000;         // before that we just reassure — we never kill early
+
+function atTeardown(a){
+  if(!a) return;
+  try{ a.onplaying=a.onerror=a.onstalled=null; a.pause(); a.removeAttribute("src"); a.load(); }catch(_){}
+}
+
+/* Does the final stream server allow CORS? Decide with a cheap aborted fetch
+   rather than by opening a second audio stream (which LiveATC would refuse). */
+/* ------------------------------------------------------------------------
+   The spectrum meter needs crossOrigin="anonymous". But LiveATC redirects to
+   a streaming server that does NOT send CORS headers, and a crossOrigin audio
+   element against it doesn't error — it simply HANGS. That was the "channel is
+   down" bug: you'd sit at "connecting…" forever on a perfectly healthy feed.
+
+   So: reliability wins. We attempt CORS exactly ONCE per session with a hard
+   3.5s cap. If it doesn't start by then, we remember that and every subsequent
+   play goes straight to plain audio — instant, reliable, no meter.
+   (Turn on PROXY AUDIO below to get the meter back: the worker re-serves the
+   stream with CORS headers, which makes the analyser legal again.)
+   ------------------------------------------------------------------------ */
+/* Measured against the real service: a crossOrigin element never starts on a
+   direct LiveATC stream — it just hangs. So we don't try. Direct playback is
+   plain and fast; the meter comes from the ⚡ SPECTRUM proxy toggle instead. */
+let atCorsKnown=false;
+const AT_CORS_PROBE_MS=3500;
+function atPlay(mount,label,icao,tried,noCors,force){
+  // clicking the SAME channel again means "stop" — unless this is a deliberate
+  // reconnect (e.g. the VIA WORKER toggle switching transport), which must not
+  // be mistaken for a stop.
+  if(!force && atCur && atCur.mount===mount && atAudio && !noCors){ atStop(); return; }
+  atStop(true);
+  atCur={mount,label,icao};
+  tried = tried || [];
+  // once we know CORS doesn't work, never pay the 3.5s penalty again
+  if(atCorsKnown===false) noCors=true;
+  if(atProxyAudio) noCors=false;          // the proxy DOES send CORS
+
+  const now=document.getElementById("atNow");
+  now.classList.add("show");
+  document.getElementById("atNowT1").textContent=label;
+  if(!noCors) document.getElementById("atNowT2").textContent="connecting…";
+  document.getElementById("atExt").href="https://www.liveatc.net/search/?icao="+encodeURIComponent(icao);
+  renderAtcDir(); atSyncPill();
+
+  // We're inside the click here — the only place the browser will let us
+  // start an AudioContext. If we wait for 'playing', resume() is refused and
+  // the graph stays suspended, which silences the audio completely.
+  atUnlockAudioCtx();
+
+  const warm=null;                             // hover pre-warm removed: measured slower
+  const el=new Audio();
+  if(!noCors) el.crossOrigin="anonymous";
+  el.preload="auto";
+  el.muted=false;
+  el.volume=(document.getElementById("atVol").value||85)/100;
+  // No cache-buster on the worker path: it forced a fresh redirect and a cold
+  // Icecast buffer every time, even when replaying the same channel. The worker
+  // already sends Cache-Control: no-store, so dropping it is safe.
+  if(!warm){
+    el.src = atProxyAudio
+      ? `${CONFIG.PROXY}/atc?m=${encodeURIComponent(mount)}`
+      : `${CONFIG.ATC_HOST}/${mount}?nocache=${Date.now()}`;
+  }
+  atAudio=el;
+  if(warm && !el.paused && el.currentTime>0.2){
+    setTimeout(()=>{ if(!el.paused && el.onplaying) el.onplaying(); },0);
+  }
+
+  let settled=false;
+  const mine=()=>atCur && atCur.mount===mount && atAudio===el;
+
+  el.onplaying=()=>{
+    if(settled||!mine()) return; settled=true;
+    if(!noCors) atCorsKnown=true;              // CORS works here — keep the meter
+    document.getElementById("atNowT2").textContent=mount;
+    renderAtcDir(); atSyncPill();
+    atStartMeter(!noCors);
+  };
+
+  el.onerror=()=>{
+    if(settled||!mine()) return; settled=true;
+    atTeardown(el); atAudio=null;
+    if(atProxyAudio){
+      /* Is the WORKER down, or is this MOUNT simply off air? Both look like an
+         audio error. Ask the worker directly — a dead channel must not switch
+         the worker (and the meter) off for the rest of the session. */
+      atWorkerAlive().then(alive=>{
+        if(alive){
+          atNextCandidate(icao, mount, label, tried);   // worker fine, channel isn't
+        } else {
+          atProxyAudio=false;
+          const pb=document.getElementById("atProxyBtn"); if(pb) pb.classList.remove("on");
+          toast("Worker unreachable — playing direct from LiveATC (no meter).");
+          atPlay(mount,label,icao,tried,true,true);
+        }
+      });
+    } else if(!noCors){
+      atPlay(mount,label,icao,tried,true,true);
+    } else {
+      atNextCandidate(icao, mount, label, tried);
+    }
+  };
+
+  if(!noCors && !atProxyAudio){
+    // A crossOrigin element against a non-CORS server HANGS rather than erroring.
+    // Give it 3.5s, then drop CORS for good and replay plain — this is the whole fix.
+    setTimeout(()=>{
+      if(settled||!mine()) return; settled=true;
+      atCorsKnown=false;
+      atTeardown(el); atAudio=null;
+      atPlay(mount,label,icao,tried,true);
+    }, AT_CORS_PROBE_MS);
+  } else {
+    // Real feedback: a counter, so 6 seconds reads as progress rather than a hang.
+    const _t0=Date.now();
+    const _tick=setInterval(()=>{
+      if(settled||!mine()){ clearInterval(_tick); return; }
+      const secs=((Date.now()-_t0)/1000).toFixed(0);
+      const buf=(el.buffered&&el.buffered.length)?" · "+el.buffered.end(0).toFixed(1)+"s buffered":"";
+      document.getElementById("atNowT2").textContent=`buffering ${secs}s${buf}`;
+    },500);
+    const _op=el.onplaying;
+    el.onplaying=()=>{ clearInterval(_tick); _op&&_op(); };
+    const budget = tried.length ? 12000 : AT_CONNECT_MS;
+    setTimeout(()=>{
+      if(settled||!mine()) return; settled=true;
+      atTeardown(el); atAudio=null;
+      atNextCandidate(icao, mount, label, tried);
+    }, budget);
+  }
+
+  el.play().catch(()=>{});
+}
+
+/* A channel didn't work — try the next one at the same field.
+   We ATTEMPT PLAYBACK on each rather than probing, because probing is not a
+   reliable oracle: mounts that probe "dead" over HTTP play fine in the browser. */
+function atCandidates(icao){
+  const known=AIRPORTS.find(x=>x.icao===icao);
+  const likely=["_twr","_app","_gnd","1","2","3"];
+  return []
+    .concat(known&&known.atc ? known.atc.map(c=>({m:c.m,t:c.t})) : [])
+    .concat(atMountGuesses(icao).filter(g=>likely.some(k=>g.m.endsWith(k))))
+    .filter((c,i,arr)=> arr.findIndex(x=>x.m===c.m)===i);
+}
+function atNextCandidate(icao, failedMount, failedLabel, tried){
+  tried=(tried||[]).concat([failedMount]);
+  const next=atCandidates(icao).find(c=>!tried.includes(c.m));
+  if(!next){
+    toast(`Nothing on air at ${icao} right now — LiveATC feeds are volunteer-run and drop out.`);
+    atStop();
+    return;
+  }
+  document.getElementById("atNowT2").textContent=`${failedMount} didn't answer — trying ${next.m}…`;
+  atPlay(next.m, `${icao} ${next.t}`, icao, tried);
+}
+
+function atStop(quiet){
+  if(atRAF) cancelAnimationFrame(atRAF); atRAF=null;
+  atTeardown(atAudio);
+  const ch=document.getElementById("atVizCh"); if(ch) ch.textContent=" · no channel";
+  const rx=document.getElementById("atRx"); if(rx) rx.classList.remove("on");
+  ["atLvl","atTx","atAir","atUp"].forEach((id,i)=>{
+    const e=document.getElementById(id); if(e) e.textContent=["—","0","0%","0:00"][i]; });
+  vizHist=[];
+  atAudio=null; atSrcNode=null; atAnalyser=null;
+  atCur=null;
+  const now=document.getElementById("atNow");
+  if(now) now.classList.remove("show");
+  atSyncPill();
+  atAnalyser=null;
+  if(document.getElementById("atcTab").classList.contains("open")) atStartIdleViz();
+  if(!quiet){ renderAtcDir();
+    document.querySelectorAll(".at-ch").forEach(b=>b.classList.remove("on")); }
+}
+
+/* Create + resume the AudioContext while we still have the user's gesture. */
+function atUnlockAudioCtx(){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) return;
+    atCtx = atCtx || new AC();
+    if(atCtx.state==="suspended") atCtx.resume().catch(()=>{});
+  }catch(_){ atCtx=null; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SIGNAL ANALYSER — SDR-style receiver display
+   ATC is long silence punctuated by short bursts, so the waterfall is
+   the right instrument: every transmission paints as a bright streak
+   you can read at a glance.
+
+   The waterfall uses an offscreen buffer that SCROLLS (drawImage onto
+   itself, then paint one new column). Redrawing 240×64 cells every
+   frame was ~15k fill calls; this is one blit plus one column.
+   ══════════════════════════════════════════════════════════════════ */
+const VIZ_COLS=300, VIZ_ROWS=96;
+const VIZ_FMAX=5000;   // ATC voice is bandlimited to ~3.5kHz — showing 15kHz wasted the display
+function vizBins(nFreq){                     // how many FFT bins cover VIZ_FMAX
+  const sr=(atCtx&&atCtx.sampleRate)?atCtx.sampleRate:48000;
+  return Math.max(16, Math.min(nFreq, Math.round(nFreq*(VIZ_FMAX/(sr/2)))));
+}
+let vizHist=[], vizPeakDb=-99, vizTx=0, vizWasTx=false, vizBusy=0, vizFrames=0, vizT0=0;
+let vizSpec=null, vizSpecCtx=null, vizEvents=[];
+let vizOverlay=null, vizOverlayKey="";     // static chrome, rebuilt only on resize
+
+/* Everything that never changes between frames — grid, frame, axis labels,
+   scanlines, vignette — baked once. Redrawing these every frame (93 scanline
+   fillRects + a fresh radial gradient) was a large part of a 15fps hot path. */
+function atBuildOverlay(w,h,dpr,sr){
+  const key=w+"x"+h+"@"+dpr+":"+sr;
+  if(vizOverlay && vizOverlayKey===key) return vizOverlay;
+  vizOverlayKey=key;
+  const o=document.createElement("canvas");
+  o.width=Math.round(w*dpr); o.height=Math.round(h*dpr);
+  const c=o.getContext("2d");
+  c.setTransform(dpr,0,0,dpr,0,0);
+
+  const PAD_L=34, PAD_R=30, GW=w-PAD_L-PAD_R;
+  const SPEC_H=Math.round(h*0.54);
+
+  c.fillStyle="rgba(164,154,143,.45)"; c.font="7.5px ui-monospace"; c.textAlign="right";
+  [0,0.25,0.5,0.75,1].forEach(t=>{
+    const kHz=(Math.pow(t,1.25)*VIZ_FMAX/1000);
+    const y=SPEC_H-t*SPEC_H;
+    c.fillText(kHz.toFixed(kHz<2?1:0), PAD_L-5, Math.min(SPEC_H-2,Math.max(8,y+3)));
+    c.strokeStyle="rgba(45,38,57,.5)"; c.lineWidth=1;
+    c.beginPath(); c.moveTo(PAD_L,y); c.lineTo(PAD_L+GW,y); c.stroke();
+  });
+  c.textAlign="left";
+  c.fillStyle="rgba(164,154,143,.35)"; c.font="7px ui-monospace"; c.fillText("kHz",2,9);
+  c.strokeStyle="rgba(45,38,57,.55)";
+  for(let i=1;i<5;i++){ const gx=PAD_L+GW*i/5;
+    c.beginPath(); c.moveTo(gx,0); c.lineTo(gx,SPEC_H); c.stroke(); }
+  c.fillStyle="rgba(164,154,143,.45)"; c.font="7.5px ui-monospace";
+  c.fillText("−30s", PAD_L+2, SPEC_H-4);
+  c.textAlign="right"; c.fillText("NOW", PAD_L+GW-3, SPEC_H-4); c.textAlign="left";
+  c.fillStyle="rgba(164,154,143,.4)"; c.font="7px ui-monospace";
+  ["0","-20","-40","-60"].forEach((lbl,i)=> c.fillText(lbl, PAD_L+GW+4, 9+i*(SPEC_H-12)/3));
+  c.strokeStyle="rgba(45,38,57,.9)"; c.lineWidth=1;
+  c.strokeRect(PAD_L+.5,.5,GW-1,SPEC_H-1);
+
+  // scanlines
+  c.globalAlpha=0.05; c.fillStyle="#000";
+  for(let y=0;y<h;y+=3) c.fillRect(0,y,w,1);
+  c.globalAlpha=1;
+  // vignette
+  const vg=c.createRadialGradient(w/2,h/2,Math.min(w,h)*0.30,w/2,h/2,Math.max(w,h)*0.72);
+  vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(0,0,0,.42)");
+  c.fillStyle=vg; c.fillRect(0,0,w,h);
+
+  vizOverlay=o;
+  return o;
+}
+
+/* perceptual ramp: black → indigo → teal → green → amber → red → white-hot */
+const VIZ_LUT=(()=>{
+  const stops=[[0,5,7,12],[0.10,12,26,64],[0.24,10,74,102],[0.40,14,150,120],
+               [0.56,62,224,143],[0.72,255,217,138],[0.86,255,90,99],[1,255,245,245]];
+  const lut=new Uint8Array(256*3);
+  for(let i=0;i<256;i++){
+    const v=i/255;
+    let a=stops[0],b=stops[stops.length-1];
+    for(let k=0;k<stops.length-1;k++){ if(v>=stops[k][0]&&v<=stops[k+1][0]){ a=stops[k]; b=stops[k+1]; break; } }
+    const t=(v-a[0])/((b[0]-a[0])||1);
+    lut[i*3]  =a[1]+(b[1]-a[1])*t;
+    lut[i*3+1]=a[2]+(b[2]-a[2])*t;
+    lut[i*3+2]=a[3]+(b[3]-a[3])*t;
+  }
+  return lut;
+})();
+
+function atUnlockAudioCtx(){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) return;
+    atCtx = atCtx || new AC();
+    if(atCtx.state==="suspended") atCtx.resume().catch(()=>{});
+  }catch(_){ atCtx=null; }
+}
+
+function atStartMeter(withMeter){
+  const bars=document.getElementById("atBars");
+  const viz=document.getElementById("atViz");
+  atStopIdleViz();
+  atAnalyser=null;
+  vizHist=[]; vizEvents=[]; vizPeakDb=-99; vizTx=0; vizWasTx=false;
+  vizBusy=0; vizFrames=0; vizT0=Date.now(); vizSpec=null;
+
+  const chLbl=document.getElementById("atVizCh");
+  if(chLbl) chLbl.textContent = atCur ? (" · "+atCur.label+"  ["+atCur.mount+"]") : " · no channel";
+
+  /* createMediaElementSource() permanently reroutes audio INTO the graph.
+     If the context isn't running, sound goes in and never comes out — the
+     element "plays", currentTime advances, and you hear nothing. */
+  if(withMeter && atCtx && atCtx.state==="running" && atAudio){
+    try{
+      atSrcNode=atCtx.createMediaElementSource(atAudio);
+      atAnalyser=atCtx.createAnalyser();
+      atAnalyser.fftSize=2048;
+      atAnalyser.smoothingTimeConstant=0.68;
+      atSrcNode.connect(atAnalyser);
+      atAnalyser.connect(atCtx.destination);   // audio must still reach the speakers
+    }catch(e){
+      try{ atSrcNode && atSrcNode.disconnect(); }catch(_){}
+      atSrcNode=null; atAnalyser=null;
+    }
+  }
+  if(!atAnalyser){
+    if(withMeter && atCtx && atCtx.state!=="running" && atAudio && !atAudio.__meterRetried){
+      atAudio.__meterRetried=true;
+      atCtx.resume().then(()=>{ if(atAudio && atCtx.state==="running") atStartMeter(true); }).catch(()=>{});
+    }
+    atDrawNoMeter();
+    return;
+  }
+  atStopIdleViz();
+
+  const nFreq=atAnalyser.frequencyBinCount;
+  const freq=new Uint8Array(nFreq);
+  const wave=new Uint8Array(atAnalyser.fftSize);
+  const BANDS=64;
+  const peak=new Array(BANDS).fill(0);
+  const smooth=new Array(BANDS).fill(0);
+
+  const draw=()=>{
+    atRAF=requestAnimationFrame(draw);
+    atAnalyser.getByteFrequencyData(freq);
+    atAnalyser.getByteTimeDomainData(wave);
+
+    /* squelch */
+    const NBs=vizBins(nFreq);
+    let sum=0, mx=0;
+    for(let i=0;i<NBs;i++){ sum+=freq[i]; if(freq[i]>mx) mx=freq[i]; }
+    const avg=sum/NBs/255;
+    const isTx=avg>0.055;
+    vizFrames++; if(isTx) vizBusy++;
+    if(isTx && !vizWasTx){ vizTx++; vizEvents.push(Date.now()); }
+    vizWasTx=isTx;
+    const db = mx>0 ? 20*Math.log10(mx/255) : -99;
+    if(db>vizPeakDb) vizPeakDb=db; else vizPeakDb-=0.18;
+
+    atDrawSmallBars(bars,freq,peak,nFreq);
+    atDrawViz(viz,freq,wave,nFreq,isTx,BANDS,peak,smooth);
+    atUpdateStats(db,isTx);
+  };
+  draw();
+}
+
+function atUpdateStats(db,isTx){
+  const rx=document.getElementById("atRx"); if(rx) rx.classList.toggle("on",isTx);
+  const L=document.getElementById("atLvl"); if(L) L.textContent = vizPeakDb<-60 ? "—" : vizPeakDb.toFixed(0);
+  const T=document.getElementById("atTx"); if(T) T.textContent=vizTx;
+  const B=document.getElementById("atAir");
+  if(B) B.textContent = vizFrames ? Math.round(vizBusy/vizFrames*100)+"%" : "0%";
+  const U=document.getElementById("atUp");
+  if(U && vizT0){ const s=Math.floor((Date.now()-vizT0)/1000);
+    U.textContent = Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+}
+
+function atDrawSmallBars(cv,freq,peak,nFreq){
+  if(!cv) return;
+  const c=cv.getContext("2d");
+  c.clearRect(0,0,cv.width,cv.height);
+  const N=24, bw=cv.width/N;
+  for(let i=0;i<N;i++){
+    const NB=vizBins(nFreq);
+    const lo=Math.floor(i/N*NB), hi=Math.floor((i+1)/N*NB);
+    let m=0; for(let k=lo;k<hi;k++) if(freq[k]>m) m=freq[k];
+    const v=m/255;
+    peak[i]=Math.max(v,(peak[i]||0)-0.012);
+    const h=Math.max(2,v*cv.height*0.9);
+    const g=c.createLinearGradient(0,cv.height,0,cv.height-h);
+    g.addColorStop(0,"rgba(62,224,143,.3)");
+    g.addColorStop(1, v>0.62?"#ff5a63":(v>0.35?"#ffd98a":"#3ee08f"));
+    c.fillStyle=g; c.fillRect(i*bw+1,cv.height-h,bw-2,h);
+    const py=cv.height-Math.max(2,peak[i]*cv.height*0.9);
+    c.fillStyle="rgba(246,241,232,.45)"; c.fillRect(i*bw+1,py-1,bw-2,1.5);
+  }
+}
+
+const VIZ_DPR=1.25;   // waterfall is a soft image: 2x density costs 4x the blit for no visible gain
+function atDrawViz(cv,freq,wave,nFreq,isTx,BANDS,peak,smooth){
+  if(!cv) return;
+  const r=cv.getBoundingClientRect(); if(!r.width) return;
+  const dpr=Math.min(VIZ_DPR,devicePixelRatio||1);
+  const W=Math.round(r.width*dpr), H=Math.round(r.height*dpr);
+  if(cv.width!==W||cv.height!==H){ cv.width=W; cv.height=H; vizSpec=null; }
+  const c=cv.getContext("2d");
+  c.setTransform(dpr,0,0,dpr,0,0);
+  const w=r.width, h=r.height;
+
+  const PAD_L=34, PAD_R=30;            // gutters for the axes
+  const GW=w-PAD_L-PAD_R;
+  const SPEC_H=Math.round(h*0.54);
+  const EVT_H=9;
+  const BAR_TOP=SPEC_H+EVT_H+8;
+  const BAR_H=h-BAR_TOP-4;
+
+  c.clearRect(0,0,w,h);
+
+  /* ---------- waterfall, in a scrolling offscreen buffer ---------- */
+  if(!vizSpec){
+    vizSpec=document.createElement("canvas");
+    vizSpec.width=VIZ_COLS; vizSpec.height=VIZ_ROWS;
+    vizSpecCtx=vizSpec.getContext("2d");
+    vizSpecCtx.fillStyle="#05070c";
+    vizSpecCtx.fillRect(0,0,VIZ_COLS,VIZ_ROWS);
+  }
+  // scroll one pixel left, then paint the newest column on the right
+  vizSpecCtx.globalCompositeOperation="copy";
+  vizSpecCtx.drawImage(vizSpec,-1,0);
+  vizSpecCtx.globalCompositeOperation="source-over";
+  const img=vizSpecCtx.createImageData(1,VIZ_ROWS);
+  const NB=vizBins(nFreq);
+  for(let y=0;y<VIZ_ROWS;y++){
+    // mild log tilt so the fundamentals aren't crushed at the bottom
+    const f0=Math.pow(y/VIZ_ROWS,1.25), f1=Math.pow((y+1)/VIZ_ROWS,1.25);
+    const lo=Math.floor(f0*NB), hi=Math.max(lo+1,Math.floor(f1*NB));
+    let m=0; for(let k=lo;k<hi;k++) if(freq[k]>m) m=freq[k];
+    const p=(VIZ_ROWS-1-y)*4;                 // low freq at the bottom
+    const L=m*3;
+    img.data[p]=VIZ_LUT[L]; img.data[p+1]=VIZ_LUT[L+1];
+    img.data[p+2]=VIZ_LUT[L+2]; img.data[p+3]=255;
+  }
+  vizSpecCtx.putImageData(img,VIZ_COLS-1,0);
+
+  c.save();
+  c.beginPath(); c.rect(PAD_L,0,GW,SPEC_H); c.clip();
+  c.imageSmoothingEnabled=true;
+  c.drawImage(vizSpec,PAD_L,0,GW,SPEC_H);
+  /* Cheap bloom: re-blit the same buffer slightly scaled with 'lighter'.
+     c.filter="blur()" looks better but costs a full-canvas convolution every
+     frame — it was most of the 15fps. This is one extra drawImage. */
+  c.globalCompositeOperation="lighter"; c.globalAlpha=0.22;
+  c.drawImage(vizSpec, PAD_L-1.5, -1.5, GW+3, SPEC_H+3);
+  c.globalAlpha=1; c.globalCompositeOperation="source-over";
+  c.restore();
+
+  /* ---------- static furniture: one cached blit, not ~100 draw calls ---------- */
+  const sr=(atCtx&&atCtx.sampleRate)?atCtx.sampleRate:48000;
+  const ov=atBuildOverlay(w,h,dpr,sr);
+  c.drawImage(ov,0,0,w,h);
+
+  // live edge (the one bit that has to be per-frame)
+  c.strokeStyle=isTx?"rgba(255,90,99,.9)":"rgba(62,224,143,.55)";
+  c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(PAD_L+GW-0.5,0); c.lineTo(PAD_L+GW-0.5,SPEC_H); c.stroke();
+
+  /* ---------- transmission event ticks ---------- */
+  const now=Date.now();
+  vizEvents=vizEvents.filter(t=>now-t<30000);
+  c.fillStyle="rgba(45,38,57,.35)";
+  c.fillRect(PAD_L,SPEC_H+3,GW,EVT_H-3);
+  vizEvents.forEach(t=>{
+    const x=PAD_L+GW*(1-(now-t)/30000);
+    c.fillStyle="rgba(255,90,99,.85)";
+    c.fillRect(x-1,SPEC_H+3,2,EVT_H-3);
+  });
+
+  /* ---------- spectrum bars ---------- */
+  const midY=BAR_TOP+BAR_H*0.56;
+  const bw=GW/BANDS;
+  for(let i=0;i<BANDS;i++){
+    const NB2=vizBins(nFreq);
+    const f0=Math.pow(i/BANDS,1.25), f1=Math.pow((i+1)/BANDS,1.25);
+    const lo=Math.floor(f0*NB2), hi=Math.max(lo+1,Math.floor(f1*NB2));
+    let m=0; for(let k=lo;k<hi;k++) if(freq[k]>m) m=freq[k];
+    let v=m/255;
+    smooth[i]=smooth[i]*0.55+v*0.45;         // take the jitter out
+    v=smooth[i];
+    peak[i]=Math.max(v,(peak[i]||0)-0.008);
+
+    const bh=Math.max(1.5,v*BAR_H*0.50);
+    const x=PAD_L+i*bw;
+    const L=Math.min(255,Math.floor(v*255))*3;
+    const R=VIZ_LUT[L], G=VIZ_LUT[L+1], B=VIZ_LUT[L+2];
+
+    /* Glow without shadowBlur: draw a wider, translucent bar behind the solid
+       one. shadowBlur on 64 bars per frame was costing ~20ms alone. */
+    if(v>0.25){
+      c.fillStyle=`rgba(${R},${G},${B},.18)`;
+      c.fillRect(x-1.2,midY-bh-2,bw+2.4,bh+3);
+    }
+    c.fillStyle=`rgb(${R},${G},${B})`;
+    c.fillRect(x+0.7,midY-bh,bw-1.4,bh);
+
+    // reflection
+    c.fillStyle=`rgba(${R},${G},${B},.20)`;
+    c.fillRect(x+0.7,midY+1,bw-1.4,bh*0.5);
+
+    // peak cap
+    const ph=Math.max(1.5,peak[i]*BAR_H*0.50);
+    c.fillStyle="rgba(246,241,232,.55)";
+    c.fillRect(x+0.7,midY-ph-1.5,bw-1.4,1.5);
+  }
+  // centre line
+  c.strokeStyle="rgba(45,38,57,.8)"; c.lineWidth=1;
+  c.beginPath(); c.moveTo(PAD_L,midY+.5); c.lineTo(PAD_L+GW,midY+.5); c.stroke();
+
+  /* ---------- oscilloscope over the bars ---------- */
+  c.strokeStyle=isTx?"rgba(255,255,255,.8)":"rgba(246,241,232,.18)";
+  c.lineWidth=1.2;
+  c.beginPath();
+  const step=Math.max(1,Math.floor(wave.length/GW));
+  for(let x=0,i=0;x<GW;x++,i+=step){
+    const y=midY+((wave[i]-128)/128)*BAR_H*0.34;
+    x?c.lineTo(PAD_L+x,y):c.moveTo(PAD_L+x,y);
+  }
+  c.stroke();
+
+  /* ---------- RX flag ---------- */
+  if(isTx){
+    c.fillStyle="rgba(255,90,99,.95)"; c.font="bold 8.5px ui-monospace";
+    c.fillText("● TRANSMITTING", PAD_L+4, SPEC_H+EVT_H+16);
+  }
+
+  /* scanlines + vignette already live in the cached overlay above */
+}
+
+function atDrawNoMeter(){
+  const say=(cv,big)=>{
+    if(!cv) return;
+    const r=cv.getBoundingClientRect(); if(!r.width) return;
+    const dpr=Math.min(2,devicePixelRatio||1);
+    cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+    const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);
+    c.clearRect(0,0,r.width,r.height);
+    c.textAlign="center";
+    c.fillStyle="rgba(164,154,143,.6)"; c.font=(big?"12px":"9px")+" ui-monospace";
+    c.fillText("AUDIO OK — NO METER", r.width/2, r.height/2-(big?6:3));
+    c.fillStyle="rgba(164,154,143,.35)"; c.font=(big?"9.5px":"8px")+" ui-monospace";
+    c.fillText(big?"this stream won't allow analysis — turn on ⚡ VIA WORKER"
+                  :"stream blocks analysis", r.width/2, r.height/2+(big?12:11));
+    c.textAlign="left";
+  };
+  say(document.getElementById("atBars"),false);
+  say(document.getElementById("atViz"),true);
+}
+
+/* idle: no channel selected — a live but squelched receiver, so the panel
+   reads as armed and waiting rather than broken. */
+let atIdleRAF=null, atIdleT=0, atIdleSpec=null, atIdleCtx=null;
+function atIdleViz(){
+  const cv=document.getElementById("atViz");
+  if(!cv || atAnalyser){ atIdleRAF=null; return; }
+  const r=cv.getBoundingClientRect();
+  if(r.width){
+    const dpr=Math.min(VIZ_DPR,devicePixelRatio||1);
+    const W=Math.round(r.width*dpr), H=Math.round(r.height*dpr);
+    if(cv.width!==W||cv.height!==H){ cv.width=W; cv.height=H; atIdleSpec=null; }
+    const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0);
+    const w=r.width, h=r.height;
+    atIdleT+=0.016;
+
+    const PAD_L=34, PAD_R=30, GW=w-PAD_L-PAD_R;
+    const SPEC_H=Math.round(h*0.54), EVT_H=9;
+    const BAR_TOP=SPEC_H+EVT_H+8, BAR_H=h-BAR_TOP-4;
+    c.clearRect(0,0,w,h);
+
+    /* scrolling noise floor, same waterfall machinery */
+    if(!atIdleSpec){
+      atIdleSpec=document.createElement("canvas");
+      atIdleSpec.width=VIZ_COLS; atIdleSpec.height=VIZ_ROWS;
+      atIdleCtx=atIdleSpec.getContext("2d");
+      atIdleCtx.fillStyle="#05070c"; atIdleCtx.fillRect(0,0,VIZ_COLS,VIZ_ROWS);
+    }
+    atIdleCtx.globalCompositeOperation="copy";
+    atIdleCtx.drawImage(atIdleSpec,-1,0);
+    atIdleCtx.globalCompositeOperation="source-over";
+    const img=atIdleCtx.createImageData(1,VIZ_ROWS);
+    for(let y=0;y<VIZ_ROWS;y++){
+      const n=Math.random()*0.05 + Math.abs(Math.sin(y*0.09+atIdleT*0.7))*0.03;
+      const L=Math.min(255,Math.floor(n*255))*3;
+      const p=(VIZ_ROWS-1-y)*4;
+      img.data[p]=VIZ_LUT[L]; img.data[p+1]=VIZ_LUT[L+1];
+      img.data[p+2]=VIZ_LUT[L+2]; img.data[p+3]=255;
+    }
+    atIdleCtx.putImageData(img,VIZ_COLS-1,0);
+    c.save(); c.beginPath(); c.rect(PAD_L,0,GW,SPEC_H); c.clip();
+    c.drawImage(atIdleSpec,PAD_L,0,GW,SPEC_H);
+    c.restore();
+
+    /* sweeping scan */
+    const sx=PAD_L+((atIdleT*0.15)%1)*GW;
+    const g=c.createLinearGradient(sx-48,0,sx,0);
+    g.addColorStop(0,"rgba(62,224,143,0)"); g.addColorStop(1,"rgba(62,224,143,.22)");
+    c.save(); c.beginPath(); c.rect(PAD_L,0,GW,SPEC_H); c.clip();
+    c.fillStyle=g; c.fillRect(sx-48,0,48,SPEC_H);
+    c.strokeStyle="rgba(62,224,143,.55)"; c.lineWidth=1;
+    c.beginPath(); c.moveTo(sx,0); c.lineTo(sx,SPEC_H); c.stroke();
+    c.restore();
+
+    /* squelched trace */
+    const midY=BAR_TOP+BAR_H*0.56;
+    c.strokeStyle="rgba(45,38,57,.8)"; c.lineWidth=1;
+    c.beginPath(); c.moveTo(PAD_L,midY+.5); c.lineTo(PAD_L+GW,midY+.5); c.stroke();
+    c.strokeStyle="rgba(246,241,232,.15)"; c.lineWidth=1.2;
+    c.beginPath();
+    for(let x=0;x<GW;x++){
+      const y=midY+Math.sin(x*0.3+atIdleT*5)*1.2+Math.sin(x*0.09-atIdleT*2)*0.8
+              +(Math.random()-0.5)*0.5;
+      x?c.lineTo(PAD_L+x,y):c.moveTo(PAD_L+x,y);
+    }
+    c.stroke();
+    c.fillStyle="rgba(164,154,143,.42)"; c.font="9px ui-monospace"; c.textAlign="center";
+    c.fillText("SQUELCHED — select a channel to open the receiver", PAD_L+GW/2, midY+BAR_H*0.34);
+    c.textAlign="left";
+
+    /* scanlines + vignette come from the same cached overlay */
+    c.drawImage(atBuildOverlay(w,h,dpr,48000),0,0,w,h);
+  }
+  atIdleRAF=requestAnimationFrame(atIdleViz);
+}
+function atStartIdleViz(){ if(!atIdleRAF && !atAnalyser) atIdleViz(); }
+function atStopIdleViz(){ if(atIdleRAF) cancelAnimationFrame(atIdleRAF); atIdleRAF=null; }
+
+/* the audio keeps running when you go back to the map — show a pill so it's obvious */
+/* cheap liveness check on our own worker (cached briefly) */
+let atWorkerOK=null, atWorkerAt=0;
+async function atWorkerAlive(){
+  if(atWorkerOK!==null && Date.now()-atWorkerAt<30000) return atWorkerOK;
+  try{
+    const ac=new AbortController();
+    const t=setTimeout(()=>ac.abort(),4000);
+    const r=await fetch(`${CONFIG.PROXY}/atc/health`,{signal:ac.signal,cache:"no-store"});
+    clearTimeout(t);
+    atWorkerOK=r.ok;
+  }catch(_){ atWorkerOK=false; }
+  atWorkerAt=Date.now();
+  return atWorkerOK;
+}
+
+function atToggleProxy(){
+  atProxyAudio=!atProxyAudio;
+  const b=document.getElementById("atProxyBtn");
+  b.classList.toggle("on",atProxyAudio);
+  toast(atProxyAudio
+    ? "Via the worker — retrying dead servers, spectrum meter on."
+    : "Direct from LiveATC — less reliable, and no meter.");
+  if(atCur){
+    // force=true: same mount, but this is a transport change, not a stop
+    const {mount,label,icao}=atCur;
+    atPlay(mount,label,icao,[],false,true);
+  }
+}
+function atSyncPill(){
+  const pill=document.getElementById("atPill");
+  if(!pill) return;
+  const tabOpen=document.getElementById("atcTab").classList.contains("open");
+  if(atCur && !tabOpen){
+    pill.classList.add("show");
+    document.getElementById("atPillT").textContent=atCur.label;
+  } else pill.classList.remove("show");
+}
+
+function atReverify(){
+  atcProbed=true;
+  ATC_AIRPORTS.forEach(a=>{ atcStatus[a.icao]=""; });
+  renderAtcDir();
+  probeAtc();
+  toast("Re-checking every feed…");
+}
+/* small handle so the audio path can be inspected/tested from the console */
+window.ATC={ get audio(){return atAudio;}, get analyser(){return atAnalyser;},
+             get current(){return atCur;}, stop:()=>atStop() };
+
+function openAtcTab(){
+  document.getElementById("atcTab").classList.add("open");
+  atSyncPill();
+  renderAtcDir();
+  if(!atAnalyser) atStartIdleViz();
+  /* deliberately NOT probing all 34 feeds here — that burst is what got us
+     rate-limited, and then everything reported "down". Press ⟳ VERIFY. */
+  const iv=setInterval(()=>{
+    if(!document.getElementById("atcTab").classList.contains("open")){ clearInterval(iv); return; }
+    renderAtcDir();
+  },1500);
+  setTimeout(()=>{ const i=document.getElementById("atIcao"); if(i)i.focus(); },120);
+}
+function closeAtcTab(){
+  document.getElementById("atcTab").classList.remove("open");
+  atSyncPill();          // audio keeps running — show the pill over the map
 }
 
 /* ============================================================
@@ -1536,6 +3873,16 @@ function initUI(){
   document.getElementById("airlineFilter").onchange=e=>{FILT.airline=e.target.value;e.target.classList.toggle("on",!!e.target.value);updateStats();if(hudOpen())renderHud();};
   document.getElementById("typeFilter").onchange=e=>{FILT.type=e.target.value;e.target.classList.toggle("on",!!e.target.value);updateStats();};
   document.querySelectorAll("#atcPanel .seg button").forEach(b=>b.onclick=()=>{ document.querySelectorAll("#atcPanel .seg button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); atcFilter=b.dataset.atcfilter; renderAtcList(); });
+
+  /* ---- LiveATC tab wiring ---- */
+  document.querySelectorAll("#atSeg button").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll("#atSeg button").forEach(x=>x.classList.toggle("on",x===b));
+    atDirFilter=b.dataset.f; renderAtcDir();
+  });
+  const av=document.getElementById("atVol");
+  if(av) av.oninput=()=>{ if(atAudio) atAudio.volume=av.value/100; };
+  const ai=document.getElementById("atIcao");
+  if(ai) ai.oninput=()=>{ ai.value=ai.value.toUpperCase().replace(/[^A-Z]/g,"").slice(0,4); };
   document.getElementById("rpRange").oninput=e=>{replayT=+e.target.value;};
   document.getElementById("rpExit").onclick=()=>toggleReplay();
   document.getElementById("rpPlay").onclick=()=>{ replayPlaying=!replayPlaying; document.getElementById("rpPlay").textContent=replayPlaying?"⏸":"▶";
