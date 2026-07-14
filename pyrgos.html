@@ -131,6 +131,14 @@ button{font-family:inherit;cursor:pointer}
 .strip .st.hot{background:rgba(255,91,110,.16);color:var(--red)}
 .strip .wk{position:absolute;right:8px;bottom:7px;font-family:var(--mono);font-size:9px;color:var(--faint)}
 .livetag{color:var(--gold);font-weight:700;font-size:8px}
+.odybtn{position:relative}
+.odybtn svg{width:16px;height:16px}
+.odybtn.hasnew{border-color:var(--gold);color:var(--gold);animation:odyPulse 1.4s infinite}
+.odybtn .odyn{display:none}
+.odybtn.hasnew .odyn{display:block;position:absolute;top:-5px;right:-5px;min-width:14px;height:14px;
+  border-radius:8px;background:var(--gold);color:#141018;font-family:var(--mono);font-size:9px;
+  font-weight:700;line-height:14px;text-align:center;padding:0 3px}
+@keyframes odyPulse{0%,100%{box-shadow:0 0 0 0 rgba(240,182,74,.42)}70%{box-shadow:0 0 0 7px rgba(240,182,74,0)}}
 .odyst{font-family:var(--mono);font-size:8px;letter-spacing:.1em;padding:1px 4px;border-radius:3px;
   background:rgba(120,130,140,.18);color:var(--muted)}
 .odyst.hot{background:rgba(240,182,74,.18);color:var(--gold);animation:pulseSt 1.6s infinite}
@@ -295,6 +303,10 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
           <rect x="3" y="3" width="8" height="8" rx="1"/><circle cx="17" cy="17" r="4"/>
           <path d="M17 17l3-2M3 17h8M7 13v8"/></svg></button>
       <button class="tbtn" id="btnReal" title="Real traffic — overlay live ADS-B over the field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 12h4l2-6 4 14 3-9 2 4h5"/></svg></button>
+      <button class="tbtn odybtn" id="btnOdy" title="Relink ODYSSEY — flush the board and re-read the flights being prepared right now">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M20 11A8 8 0 0 0 6.3 5.7L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 13.7 5.3L20 16"/><path d="M20 20v-4h-4"/></svg>
+        <span class="odyn" id="odyN"></span>
+      </button>
       <button class="tbtn liveinbtn" id="btnLiveIn" title="Live inbounds — real ADS-B aircraft become controllable arrivals">LIVE IN</button>
       <button class="tbtn" id="btnLive" title="Live radar — real ADS-B for any airport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 12l6-3"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg></button>
       <button class="tbtn" id="btnSilent" title="Silent / data-comm mode — no audio, keyboard callouts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M23 9l-6 6M17 9l6 6"/></svg></button>
@@ -662,6 +674,12 @@ function freshState(){
 }
 /* the LIVE button on the wind rose, bound once the DOM exists */
 addEventListener("DOMContentLoaded",()=>{
+  const ob=document.getElementById("btnOdy");
+  if(ob) ob.onclick=()=>relinkOdyssey(true);
+  /* localStorage raises `storage` in OTHER tabs, so filing a flight in ODYSSEY
+     lights this button up at once. Poll as a backstop for same-tab writes. */
+  addEventListener("storage", e=>{ if(!e.key || e.key===HANDOFF_KEY) watchOdyssey(); });
+  ODY.t=setInterval(watchOdyssey, 3000);
   const b=document.getElementById("wxPull");
   if(b) b.onclick=()=>pullMetar(true);
   const t=document.getElementById("wxLive");
@@ -671,13 +689,19 @@ addEventListener("DOMContentLoaded",()=>{
   };
 });
 
+/* declared above resetGame(), which reads it — a `const` further down would sit
+   in the temporal dead zone and kill the script on load. */
+const ODY={ seen:"", pending:0, t:null };   // watches for flights filed mid-shift
+
 function resetGame(startRun){
   G=freshState(); G.shift=CFG.shift; selected=null;
   loadLayout(LKEY);
   // seed a couple of departures at gates + one arrival
   for(let i=0;i<2;i++) spawnDeparture(true);
   spawnArrival();
+  purgeOdyStore();                        // a new shift does not inherit yesterday's ghosts
   injectOdyssey();                        // your own dispatched flights come first
+  ODY.seen = odysseyForField().map(r=>r.id).join("|"); ODY.pending=0; markRelink();
   renderRwyPanel(); setWind(270+Math.round((Math.random()-.5)*40), 6+Math.round(Math.random()*8));
   updateHUD(); renderStrips(); renderActions(); setConflict("");
   document.getElementById("replayBtn").classList.remove("show");
@@ -753,7 +777,88 @@ function makeOdyArrival(rec){
   pilot(a, spoken(a)+", "+(a.state==="HOLD"?"holding, ready for approach.":"with you on final."));
   return a;
 }
-function injectOdyssey(){
+/* ══════════════════════════════════════════════════════════════════════════
+   RELINK — pull the board back into step with ODYSSEY
+
+   injectOdyssey() only ever ran inside resetGame(), so a flight you filed AFTER
+   the shift began never appeared, and a flight you had already flown stayed on
+   the board for ever. Relinking does three things, in order:
+
+     1. flush every ODYSSEY strip off the board (and free the stands they held)
+     2. purge the stores — flights that are FLOWN, or stale, or belong to another
+        aerodrome, are deleted rather than left to accumulate
+     3. re-read what ODYSSEY actually has live right now, and inject only that
+
+   The purge matters. Without it the handoff store is append-only: yesterday's
+   flights, abandoned flights and completed flights pile up and get re-injected
+   every time, and you end up controlling ghosts.
+   ══════════════════════════════════════════════════════════════════════════ */
+const ODY_STALE_MS = 6*60*60*1000;                 // a plan older than a shift is dead
+
+/* delete flown/stale records from ODYSSEY's own store */
+function purgeOdyStore(){
+  const all=readOdyssey(), now=Date.now();
+  const keep=all.filter(r => r && r.cs && r.status!=="flown" && (now-(r.ts||0)) < ODY_STALE_MS);
+  try{ localStorage.setItem(HANDOFF_KEY, JSON.stringify(keep)); }catch(_){}
+  return all.length - keep.length;
+}
+/* and drop ATC records that no longer point at a live flight */
+function purgeATCStore(){
+  const live=readOdyssey().map(r=>r.id);
+  let all=[]; try{ all=JSON.parse(localStorage.getItem(ATC_KEY))||[]; }catch(_){ all=[]; }
+  if(!Array.isArray(all)) all=[];
+  const keep=all.filter(r=>r && live.includes(r.id));
+  try{ localStorage.setItem(ATC_KEY, JSON.stringify(keep)); }catch(_){}
+  return all.length - keep.length;
+}
+function relinkOdyssey(manual){
+  if(!CFG.ody){ if(manual) toast("ODYSSEY flights are switched off in settings."); return 0; }
+  /* 1 — flush the board */
+  let flushed=0;
+  for(let i=G.aircraft.length-1;i>=0;i--){
+    const a=G.aircraft[i];
+    if(!a.ody) continue;
+    if(a.gate) a.gate.occ=null;                    // give the stand back
+    G.aircraft.splice(i,1); flushed++;
+  }
+  if(selected && !findAircraft(selected)) selected=null;
+  /* 2 — purge what is dead */
+  const dropped = purgeOdyStore();
+  /* 3 — re-inject only what is live at THIS field */
+  const n = injectOdyssey(true);
+  purgeATCStore();
+  ODY.seen = odysseyForField().map(r=>r.id).join("|");
+  ODY.pending = 0; markRelink();
+  updateHUD(); renderStrips(); renderActions();
+  if(manual){
+    const bits=[];
+    bits.push(n ? n+" flight"+(n>1?"s":"")+" on the board" : "no live ODYSSEY flights at "+LZ.icao);
+    if(flushed) bits.push(flushed+" strip"+(flushed>1?"s":"")+" flushed");
+    if(dropped) bits.push(dropped+" stale record"+(dropped>1?"s":"")+" purged");
+    toast("◆ Relinked — "+bits.join(" · "));
+  }
+  return n;
+}
+
+function markRelink(){
+  const b=document.getElementById("btnOdy"); if(!b) return;
+  b.classList.toggle("hasnew", ODY.pending>0);
+  const n=document.getElementById("odyN"); if(n) n.textContent = ODY.pending>0 ? ODY.pending : "";
+  b.title = ODY.pending
+    ? ODY.pending+" new ODYSSEY flight"+(ODY.pending>1?"s":"")+" waiting — click to relink"
+    : "Relink ODYSSEY — flush the board and re-read the flights being prepared right now";
+}
+function watchOdyssey(){
+  const live=odysseyForField();
+  const sig=live.map(r=>r.id).join("|");
+  if(sig===ODY.seen) return;
+  const onBoard=G.aircraft.filter(a=>a.ody).map(a=>a.ody.id);
+  ODY.pending = live.filter(r=>!onBoard.includes(r.id)).length;
+  ODY.seen=sig; markRelink();
+  if(ODY.pending) toast("◆ "+ODY.pending+" new ODYSSEY flight"+(ODY.pending>1?"s":"")+" filed — press ↻ to bring "+(ODY.pending>1?"them":"it")+" in");
+}
+
+function injectOdyssey(quiet){
   if(!CFG.ody) return 0;
   const recs=odysseyForField();
   let n=0;
@@ -767,7 +872,7 @@ function injectOdyssey(){
       pushATC(a, "contact", spoken(a)+", "+(LZ.icao||"tower")+" tower, radar contact — hold position, stand by.");
     }
   });
-  if(n) setTimeout(()=>toast("◆ "+n+" ODYSSEY flight"+(n>1?"s":"")+" on the board at "+LZ.icao+" — clearances now required"),400);
+  if(n && !quiet) setTimeout(()=>toast("◆ "+n+" ODYSSEY flight"+(n>1?"s":"")+" on the board at "+LZ.icao+" — clearances now required"),400);
   return n;
 }
 
