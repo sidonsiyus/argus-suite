@@ -305,7 +305,9 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
   <!-- board -->
   <div class="board">
     <canvas id="scope"></canvas>
-    <div class="wind"><div class="rose"><div class="arrow" id="windArrow"></div></div><div class="txt"><b id="windTxt">270/08</b><span>Wind</span></div></div>
+    <div class="wind"><div class="rose"><div class="arrow" id="windArrow"></div></div>
+      <div class="txt"><b id="windTxt">270/08</b><span id="wxLive" style="cursor:help">SIM WX</span></div>
+      <button class="btn" id="wxPull" style="padding:4px 8px;font-size:9px" title="Fetch the real METAR for this field">LIVE</button></div>
     <div class="rwybox" id="rwyPanel"></div>
     <div class="conflict" id="conflictBar">⚠ <span id="conflictTxt">SEPARATION</span></div>
     <div class="replaytag" id="replayTag">◉ GHOST REPLAY</div>
@@ -557,10 +559,16 @@ const LAYOUTS={
   }
 };
 let LKEY="chennai", LZ=null, RUNWAYS=[], GATES=[];
+/* declared here, not down beside the METAR code: loadLayout("chennai") runs during
+   the initial script pass, so anything it touches must already be initialised or it
+   sits in the temporal dead zone and the whole script dies on load. */
+let LIVEWX=null;                      // {…parsed, at, icao}, or null when simulated
 function loadLayout(key){
   LKEY=key; LZ=LAYOUTS[key];
   RUNWAYS=LZ.runways.map(r=>({...r}));
   GATES=LZ.gates.map((nid,i)=>({id:"G"+(i+1), node:nid, x:LZ.nodes[nid].x, y:LZ.nodes[nid].y, occ:null}));
+  LIVEWX=null;                                  // a different aerodrome has different weather
+  setTimeout(()=>pullMetar(false), 60);         // deferred: CFG/G do not exist yet on the first pass
 }
 
 /* ---- runway geometry (any orientation) ---- */
@@ -599,11 +607,26 @@ const AIRLINES={
   FDX:["FedEx"],UPS:["UPS"],QFA:["Qantas"],THY:["Turkish"],ANA:["All Nippon"],JAL:["Japan Air"],
   RNA:["Nepal"],IGO:["IndiGo"],SEJ:["SpiceJet"],VTI:["Vistara"],ETD:["Etihad"],ODY:["Odyssey"]
 };
+/* Published span and length, metres, plus engine count. Until now every target on
+   the scope was the same dart, scaled a little by wake category — so an A380 was
+   a slightly bigger triangle than an A320. Carrying the real dimensions means the
+   planform IS the wake category: you see a 79 m four-engine giant and you know,
+   without reading the datablock, that the aircraft behind it needs six miles. */
 const TYPES={
-  A320:{name:"A320",wake:"M"},A321:{name:"A321",wake:"M"},A20N:{name:"A320neo",wake:"M"},
-  B738:{name:"737-800",wake:"M"},B739:{name:"737-900",wake:"M"},E190:{name:"E190",wake:"M"},CRJ9:{name:"CRJ900",wake:"M"},
-  A359:{name:"A350",wake:"H"},B77W:{name:"777",wake:"H"},B788:{name:"787-8",wake:"H"},B789:{name:"787-9",wake:"H"},
-  A388:{name:"A380",wake:"J"},B744:{name:"747",wake:"H"},A333:{name:"A330",wake:"H"}
+  A320:{name:"A320",    wake:"M", span:35.8, len:37.6, eng:2},
+  A321:{name:"A321",    wake:"M", span:35.8, len:44.5, eng:2},
+  A20N:{name:"A320neo", wake:"M", span:35.8, len:37.6, eng:2},
+  B738:{name:"737-800", wake:"M", span:35.8, len:39.5, eng:2},
+  B739:{name:"737-900", wake:"M", span:35.8, len:42.1, eng:2},
+  E190:{name:"E190",    wake:"M", span:28.7, len:36.2, eng:2},
+  CRJ9:{name:"CRJ900",  wake:"M", span:24.9, len:36.4, eng:2, rear:1},   // tail-mounted engines
+  A333:{name:"A330",    wake:"H", span:60.3, len:63.7, eng:2},
+  A359:{name:"A350",    wake:"H", span:64.8, len:66.8, eng:2},
+  B788:{name:"787-8",   wake:"H", span:60.1, len:56.7, eng:2},
+  B789:{name:"787-9",   wake:"H", span:60.1, len:62.8, eng:2},
+  B77W:{name:"777",     wake:"H", span:64.8, len:73.9, eng:2},
+  B744:{name:"747",     wake:"H", span:64.4, len:70.7, eng:4},
+  A388:{name:"A380",    wake:"J", span:79.8, len:72.7, eng:4}
 };
 const TYPE_KEYS=Object.keys(TYPES), AIR_KEYS=Object.keys(AIRLINES);
 
@@ -633,6 +656,17 @@ function freshState(){
     relT:{}, totalDelay:0, delayN:0, seqNo:0, showMetrics:false
   };
 }
+/* the LIVE button on the wind rose, bound once the DOM exists */
+addEventListener("DOMContentLoaded",()=>{
+  const b=document.getElementById("wxPull");
+  if(b) b.onclick=()=>pullMetar(true);
+  const t=document.getElementById("wxLive");
+  if(t) t.onclick=()=>{
+    if(!LIVEWX){ toast("No live observation held — press LIVE.","warn"); return; }
+    toast(LIVEWX.raw, "ok");
+  };
+});
+
 function resetGame(startRun){
   G=freshState(); G.shift=CFG.shift; selected=null;
   loadLayout(LKEY);
@@ -1262,6 +1296,72 @@ function segIntersect(r1,r2){
   if(t<0||t>1||u<0||u>1) return null;
   return {x:x1+t*(x2-x1), y:y1+t*(y2-y1)};
 }
+/* ---- live weather, shared with ODYSSEY -----------------------------------
+   ODYSSEY already parses a real METAR for the field it is flying into. PYRGOS
+   was inventing its own wind. That meant the tower and the pilot could disagree
+   about the weather at the SAME aerodrome, which is nonsense. Same endpoint,
+   same parser, same numbers — and if the feed is down, both fall back to sim
+   and say so rather than quietly pretending. */
+const WX_PROXY="https://flight-proxy.jhrishi7.workers.dev";
+function parseMetarP(raw){
+  const R=(raw||"").toUpperCase();
+  const o={raw:R, wdir:0, wspd:0, gust:0, vis:9999, ceil:null, cover:"CLR",
+           temp:15, qnh:1013, rain:false, snow:false, ts:false, fog:false};
+  const w=R.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);
+  if(w){ o.wdir = w[1]==="VRB" ? Math.round(Math.random()*36)*10 : +w[1];
+         o.wspd = +w[2]; o.gust = w[3]?+w[3]:0; }
+  if(/\bCAVOK\b/.test(R)) o.vis=9999;
+  else { const m=R.match(/\s(\d{4})\s/); if(m) o.vis=+m[1]; }
+  let ceil=null, cover="CLR";
+  [...R.matchAll(/\b(FEW|SCT|BKN|OVC)(\d{3})\b/g)].forEach(m=>{
+    const ft=+m[2]*100;
+    if((m[1]==="BKN"||m[1]==="OVC") && (ceil===null||ft<ceil)){ ceil=ft; cover=m[1]; }
+  });
+  o.ceil=ceil; o.cover=cover;
+  const t=R.match(/\s(M?\d{2})\/(M?\d{2})\s/);
+  if(t) o.temp = t[1].startsWith("M") ? -(+t[1].slice(1)) : +t[1];
+  const q=R.match(/\bQ(\d{4})\b/); if(q) o.qnh=+q[1];
+  o.rain=/(^|\s)(-|\+)?(SH)?RA/.test(R); o.snow=/(^|\s)(-|\+)?(SH)?SN/.test(R);
+  o.ts=/\bTS/.test(R); o.fog=/\bFG\b/.test(R)||/\bBR\b/.test(R)||o.vis<2000;
+  return o;
+}
+/* the METAR decides the weather category the whole tower runs on */
+function wxClassOf(m){
+  if(m.vis<1500 || (m.ceil!=null && m.ceil<300)) return "LOWVIS";
+  if(m.rain || m.ts || m.vis<5000) return "RAIN";
+  return "CAVOK";
+}
+async function pullMetar(manual){
+  const icao=LZ.icao;
+  if(!icao){ if(manual) toast("This field has no ICAO code.","warn"); return; }
+  try{
+    const r=await fetch(`${WX_PROXY}/metar?ids=${icao}`);
+    const d=await r.json();
+    const rec=(d.metar||[])[0];
+    if(!rec || !rec.rawOb) throw new Error("no observation");
+    const m=parseMetarP(rec.rawOb);
+    LIVEWX={...m, at:Date.now(), icao};
+    G.wind.dir=m.wdir; G.wind.spd=m.wspd;
+    CFG.wx=wxClassOf(m);
+    G.metarRaw=rec.rawOb;
+    updateHUD();
+    if(manual) toast("Live METAR — "+icao+" · "+m.wdir+"/"+String(m.wspd).padStart(2,"0")+"kt · "+CFG.wx,"ok");
+    try{ pushATC(); }catch(_){}       // the pilot in ODYSSEY gets the tower's real wind
+  }catch(e){
+    LIVEWX=null; G.metarRaw=null;
+    if(manual) toast("Live weather unavailable — simulated.","warn");
+  }
+  renderWxBadge();
+}
+function renderWxBadge(){
+  const el=document.getElementById("wxLive"); if(!el) return;
+  if(LIVEWX){
+    const age=Math.round((Date.now()-LIVEWX.at)/60000);
+    el.textContent="◆ LIVE "+LIVEWX.icao+(age?" · "+age+"m":"");
+    el.style.color="var(--gold)"; el.title=LIVEWX.raw;
+  } else { el.textContent="SIM WX"; el.style.color="var(--faint)"; el.title="Simulated weather"; }
+}
+
 function sepMin(){ return CFG.wx==="LOWVIS"?205 : CFG.wx==="RAIN"?170 : 150; }
 function setConflict(txt){ const bar=document.getElementById("conflictBar");
   if(txt){ document.getElementById("conflictTxt").textContent=txt; bar.classList.add("show"); }
@@ -1273,6 +1373,9 @@ function markArrival(a){ G.handled++; G.grades.arr++; G.totalDelay+=(G.t-a.born)
 function markDeparture(a){ G.handled++; G.grades.dep++; }
 function metarString(){
   const info=String.fromCharCode(65+((G.t/60)|0)%26);
+  /* if we hold a real observation, that IS the ATIS. Inventing one over the top
+     of it would be the tower lying to the aircraft it is talking to. */
+  if(LIVEWX && G.metarRaw) return {info, text:G.metarRaw, live:true};
   const wind=(""+G.wind.dir).padStart(3,"0")+(""+G.wind.spd).padStart(2,"0")+"KT";
   const vis = CFG.wx==="LOWVIS"?"0800 FG" : CFG.wx==="RAIN"?"4000 RA" : "CAVOK";
   const cloud = CFG.wx==="LOWVIS"?"BKN002" : CFG.wx==="RAIN"?"BKN012 OVC030" : "";
@@ -1300,6 +1403,7 @@ function updateHUD(){
   document.getElementById("windTxt").textContent=(""+G.wind.dir).padStart(3,"0")+"/"+(""+G.wind.spd).padStart(2,"0");
   document.getElementById("windArrow").style.transform="translate(-50%,-100%) rotate("+(G.wind.dir+180)+"deg)";
   document.getElementById("stripCount").textContent=G.aircraft.length;
+  renderWxBadge();
 }
 function setWind(dir,spd){ G.wind.dir=((dir%360)+360)%360; G.wind.spd=spd; updateHUD();
   const atis=document.getElementById("atisBar"); const m=metarString();
@@ -1927,8 +2031,156 @@ function pushTrails(){
   Object.keys(TRAIL).forEach(id=>{ if(!G.aircraft.some(a=>String(a.id)===id)) delete TRAIL[id]; });
 }
 
+/* ---- wake turbulence, as geometry you can see ----------------------------
+   The rules were already in the game, but only as a number in a table and a
+   penalty after the fact. A vortex is a physical thing trailing behind a real
+   aeroplane, and the required gap is a DISTANCE. Drawing it makes the rule
+   something you fly to rather than something you get told off about.
+
+   ICAO distance minima on final, leader → follower, nautical miles.          */
+const PX_PER_NM = 170/3;                      // the range rings are 170 px = 3 nm
+const WAKE_NM = {
+  J:{J:4, H:6, M:7, L:8},                     // A380 ahead: up to 8 nm behind it
+  H:{J:3, H:4, M:5, L:6},
+  M:{J:3, H:3, M:3, L:5},
+  L:{J:3, H:3, M:3, L:3}                      // 3 nm is the plain radar minimum
+};
+function wakeNm(lead, trail){ return (WAKE_NM[lead]||WAKE_NM.M)[trail||"M"] || 3; }
+
+/* who is following whom down each final */
+function finalOrder(){
+  const by={};
+  for(const a of G.aircraft){
+    if(!a.rwy || !["INTERCEPT","FINAL"].includes(a.state)) continue;
+    const act=rActive(a.rwy);
+    const d=Math.hypot(a.x-act.thr.x, a.y-act.thr.y);
+    (by[a.rwy.id]=by[a.rwy.id]||[]).push({a,d,act});
+  }
+  for(const k in by) by[k].sort((p,q)=>p.d-q.d);      // nearest the threshold first
+  return by;
+}
+function drawWakeAll(scope){
+  const by=finalOrder();
+  G.wakeAlert=0;
+  for(const k in by){
+    const line=by[k];
+    for(let i=0;i<line.length;i++){
+      const {a,d,act}=line[i];
+      /* one non-finite coordinate anywhere would throw inside createLinearGradient
+         and take the WHOLE scope render down with it. Skip, don't die. */
+      if(!Number.isFinite(a.x)||!Number.isFinite(a.y)||!Number.isFinite(act.ux)||!Number.isFinite(act.uy)) continue;
+      const nxt=line[i+1];                             // the one behind, if any
+      const trailWake = nxt ? nxt.a.wake : "M";        // no follower yet? size it for a medium
+      const reqNm = wakeNm(a.wake, trailWake);
+      const reqPx = reqNm*PX_PER_NM;
+      const gapPx = nxt ? (nxt.d - d) : Infinity;
+      const bust  = gapPx < reqPx;
+      if(bust && nxt) G.wakeAlert++;
+
+      /* the corridor trails BEHIND the aircraft, i.e. away from the threshold */
+      const bx=-act.ux, by2=-act.uy;
+      const w0=Math.max(7, acScale(a).span*0.55), w1=w0*2.4;   // it spreads as it sinks
+      const px=-by2, py=bx;                                     // perpendicular
+
+      const g=ctx.createLinearGradient(a.x, a.y, a.x+bx*reqPx, a.y+by2*reqPx);
+      const base = bust ? "255,91,110" : a.wake==="J" ? "240,182,74"
+                 : a.wake==="H" ? "200,160,255" : "107,183,255";
+      g.addColorStop(0,   `rgba(${base},${bust?0.30:0.16})`);
+      g.addColorStop(0.7, `rgba(${base},${bust?0.14:0.06})`);
+      g.addColorStop(1,   `rgba(${base},0)`);
+      ctx.beginPath();
+      ctx.moveTo(a.x+px*w0, a.y+py*w0);
+      ctx.lineTo(a.x+bx*reqPx+px*w1, a.y+by2*reqPx+py*w1);
+      ctx.lineTo(a.x+bx*reqPx-px*w1, a.y+by2*reqPx-py*w1);
+      ctx.lineTo(a.x-px*w0, a.y-py*w0);
+      ctx.closePath(); ctx.fill();
+
+      /* the two counter-rotating vortices, which is what a wake actually is */
+      ctx.strokeStyle=`rgba(${base},${bust?0.55:0.28})`; ctx.lineWidth=1;
+      [-1,1].forEach(sg=>{
+        ctx.beginPath();
+        for(let f=0; f<=1.001; f+=0.05){
+          const wob=Math.sin(f*11 - G.t*2.2 + (sg>0?0:Math.PI))*(2.2+3.4*f);
+          const ww=w0+(w1-w0)*f;
+          const X=a.x+bx*reqPx*f + px*(sg*ww + wob);
+          const Y=a.y+by2*reqPx*f + py*(sg*ww + wob);
+          f===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+        }
+        ctx.stroke();
+      });
+      /* the end of the corridor: the closest the next aircraft may legally be */
+      const ex=a.x+bx*reqPx, ey=a.y+by2*reqPx;
+      ctx.strokeStyle=`rgba(${base},${bust?0.85:0.42})`; ctx.lineWidth=bust?2:1.2;
+      ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(ex+px*w1, ey+py*w1); ctx.lineTo(ex-px*w1, ey-py*w1); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle=`rgba(${base},${bust?0.95:0.6})`;
+      ctx.font="9px "+mono(); ctx.textAlign="center";
+      ctx.fillText(reqNm+" nm"+(bust?"  ⚠ "+(gapPx/PX_PER_NM).toFixed(1):""), ex+px*(w1+13), ey+py*(w1+13));
+      ctx.textAlign="left";
+    }
+  }
+}
+
+/* ---- aircraft to scale ---------------------------------------------------
+   Pixels per metre is exaggerated — at true scale a 737 on this scope would be
+   two pixels across and you could not see it. But the RATIOS are exact, and the
+   ratios are the point: an A380's span is 2.2× an A320's, and it looks it.    */
+const PX_PER_M = 0.40;
+function acScale(a){
+  const T=TYPES[a.type] || {span:35.8, len:37.6, eng:2};
+  const g = (a.alt>3?1.0:0.86);                       // on the ground, a touch smaller
+  return { span:Math.max(9, T.span*PX_PER_M*g), len:Math.max(10, T.len*PX_PER_M*g),
+           eng:T.eng||2, rear:!!T.rear };
+}
+function drawPlanform(c, a, col, scope){
+  const M=acScale(a);
+  const hs=M.span/2, L=M.len, nose=-L*0.55, tail=L*0.45;
+  const fw=Math.max(1.6, M.span*0.055);               // fuselage half-width
+  c.fillStyle=col; c.strokeStyle="rgba(4,10,8,.9)"; c.lineWidth=1;
+
+  /* wings: swept, planted a little aft of the nose */
+  const wRoot=nose+L*0.42, wTipBack=wRoot+L*0.30, wTrail=wRoot+L*0.17;
+  c.beginPath();
+  c.moveTo(-fw, wRoot);  c.lineTo(-hs, wTipBack); c.lineTo(-hs*0.92, wTipBack+L*0.045);
+  c.lineTo(-fw, wTrail); c.lineTo( fw, wTrail);
+  c.lineTo( hs*0.92, wTipBack+L*0.045); c.lineTo( hs, wTipBack); c.lineTo( fw, wRoot);
+  c.closePath(); c.fill(); if(!scope) c.stroke();
+
+  /* tailplane */
+  const ts=hs*0.38, tRoot=tail-L*0.10;
+  c.beginPath();
+  c.moveTo(-fw*0.8, tRoot); c.lineTo(-ts, tail); c.lineTo(-ts*0.9, tail+L*0.035);
+  c.lineTo(-fw*0.8, tail+L*0.02); c.lineTo(fw*0.8, tail+L*0.02);
+  c.lineTo(ts*0.9, tail+L*0.035); c.lineTo(ts, tail); c.lineTo(fw*0.8, tRoot);
+  c.closePath(); c.fill(); if(!scope) c.stroke();
+
+  /* fuselage, nose to tail */
+  c.beginPath();
+  c.moveTo(0, nose);
+  c.lineTo(fw, nose+L*0.16); c.lineTo(fw, tail-L*0.05); c.lineTo(fw*0.45, tail+L*0.05);
+  c.lineTo(-fw*0.45, tail+L*0.05); c.lineTo(-fw, tail-L*0.05); c.lineTo(-fw, nose+L*0.16);
+  c.closePath(); c.fill(); if(!scope) c.stroke();
+
+  /* engines — where they are, and how many, is most of what tells the types apart */
+  const er=Math.max(1.1, M.span*0.032);
+  c.fillStyle = scope ? col : "rgba(255,255,255,.85)";
+  if(M.rear){                                         // regional jets: on the rear fuselage
+    [[-fw*1.9, tail-L*0.20],[fw*1.9, tail-L*0.20]].forEach(([ex,ey])=>{
+      c.beginPath(); c.ellipse(ex,ey,er*0.9,er*1.5,0,0,7); c.fill();
+    });
+  } else {
+    const pods = M.eng===4 ? [0.34,0.60] : [0.42];    // inboard + outboard on a quad
+    pods.forEach(f=>{ [-1,1].forEach(sg=>{
+      const ex=sg*hs*f, ey=wRoot+L*0.06+Math.abs(ex)*0.30;
+      c.beginPath(); c.ellipse(ex,ey,er,er*1.6,0,0,7); c.fill();
+    }); });
+  }
+}
+
 function drawAircraftAll(night,scope){
   pushTrails();
+  drawWakeAll(scope);                  // beneath the symbols, where a wake belongs
   const blocks=[];                     // for datablock collision avoidance
 
   for(const a of G.aircraft){
@@ -1965,24 +2217,21 @@ function drawAircraftAll(night,scope){
       ctx.beginPath(); ctx.arc(a.x,a.y,22,0,7); ctx.stroke();
     }
 
-    // symbol
+    // symbol — a real planform, drawn to scale against every other aircraft
     ctx.save(); ctx.translate(a.x,a.y); ctx.rotate((a.hdg||0)*Math.PI/180);
     let col = a.emg?"#ff5b6e" : a.kind==="dep"?"#f0b64a" : "#1ecbb8";
     if(a.state==="LAND"||a.state==="TKOF") col="#eaf5f1";
-    const wk=a.wake==="J"?1.4:a.wake==="H"?1.22:a.wake==="L"?0.82:1;
-    const s=(airborne?1.15:1)*wk;
     if(scope){ ctx.shadowColor=col; ctx.shadowBlur=8; }
-    ctx.fillStyle=col; ctx.strokeStyle="rgba(4,10,8,.9)"; ctx.lineWidth=1.4;
-    ctx.beginPath(); ctx.moveTo(0,-9*s); ctx.lineTo(6*s,7*s); ctx.lineTo(0,4*s); ctx.lineTo(-6*s,7*s);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    drawPlanform(ctx, a, col, scope);
     ctx.shadowBlur=0;
+    const rr=acScale(a).span/2 + 5;
     // a live-sourced aircraft carries a ring so it is never confused with a sim target
     if(a.live){
       ctx.strokeStyle="rgba(240,182,74,.85)"; ctx.lineWidth=1.2;
-      ctx.beginPath(); ctx.arc(0,0,12*wk,0,7); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,0,rr+2,0,7); ctx.stroke();
     }
     if(sel){ ctx.strokeStyle="#f0b64a"; ctx.lineWidth=1.6;
-      ctx.beginPath(); ctx.arc(0,0,16,0,7); ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(0,0,rr+6,0,7); ctx.stroke(); }
     ctx.restore();
 
     blocks.push(a);
