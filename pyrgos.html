@@ -720,13 +720,26 @@ function readOdyssey(){
   catch(_){ return []; }
 }
 /* flights this field would actually work */
+/* How long a flight may go without a heartbeat before we assume the flight deck
+   has been closed. Generous, because browsers throttle timers in background tabs
+   — and a tower that drops your strip because you looked away is worse than one
+   that holds it a few minutes too long. */
+const ODY_BEAT_MS = 10*60*1000;
+
+/* The flights ODYSSEY is ACTUALLY working — not everything it has ever filed.
+   The store keeps a dozen records as history; exactly one of them is live, and
+   ODYSSEY marks it. Anything else is somebody's finished or abandoned flight. */
 function odysseyForField(){
   if(!LZ||!LZ.icao) return [];
+  const now=Date.now();
   return readOdyssey()
-    .filter(r=>r&&r.cs&&(r.from===LZ.icao||r.to===LZ.icao))
+    .filter(r=>r && r.cs)
+    .filter(r=>r.active===true)                    // ← the one on the desk right now
     .filter(r=>r.status!=="flown")                 // a completed flight is not traffic
+    .filter(r=>(now-(r.ts||0)) < ODY_BEAT_MS)      // the flight deck is still open
+    .filter(r=>r.from===LZ.icao||r.to===LZ.icao)   // and it is ours to work
     .map(r=>({...r, role: r.from===LZ.icao ? "dep" : "arr"}))
-    .slice(0,4);                                   // don't drown the shift
+    .slice(0,4);
 }
 /* has the ODYSSEY pilot actually got the engines running? */
 function odyStatus(a){
@@ -795,10 +808,20 @@ function makeOdyArrival(rec){
    ══════════════════════════════════════════════════════════════════════════ */
 const ODY_STALE_MS = 6*60*60*1000;                 // a plan older than a shift is dead
 
-/* delete flown/stale records from ODYSSEY's own store */
+/* Delete every record that is not the flight ODYSSEY is working right now.
+   The earlier version only dropped FLOWN and 6-hour-stale flights — so a flight
+   you had merely abandoned (prepared, then started another) survived as
+   'planned' with a fresh timestamp, and kept coming back onto the board. That
+   is the bug: an abandoned flight looks exactly like a live one unless somebody
+   says which is which. */
 function purgeOdyStore(){
   const all=readOdyssey(), now=Date.now();
-  const keep=all.filter(r => r && r.cs && r.status!=="flown" && (now-(r.ts||0)) < ODY_STALE_MS);
+  const keep=all.filter(r =>
+    r && r.cs &&
+    r.active===true &&                             // ODYSSEY says it is the live one
+    r.status!=="flown" &&
+    (now-(r.ts||0)) < ODY_STALE_MS
+  );
   try{ localStorage.setItem(HANDOFF_KEY, JSON.stringify(keep)); }catch(_){}
   return all.length - keep.length;
 }
