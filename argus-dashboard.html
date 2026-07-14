@@ -178,6 +178,9 @@ select{appearance:none;cursor:pointer;
 .callstrip a:hover{color:var(--gold)}
 .callstrip i{color:var(--red);font-style:normal;opacity:.7}
 
+.autonote{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint);
+  text-transform:uppercase;line-height:1.6}
+
 /* ── attendance percentage ──────────────────────────────────────────────── */
 .pct{--c:var(--gold)}
 .pct .top{display:flex;align-items:flex-end;gap:12px;margin-bottom:14px}
@@ -316,12 +319,12 @@ select{appearance:none;cursor:pointer;
       <div class="card">
         <h2>Daily strength message</h2>
         <div class="row r3">
-          <div><label>Absent</label><input type="number" id="mAbs" min="0" value="0"></div>
-          <div><label>OD (on duty)</label><input type="number" id="mOD" min="0" value="0"></div>
+          <div><label>Absent (from log)</label><input type="number" id="mAbs" disabled></div>
+          <div><label>OD (on duty)</label><input type="number" id="mOD" min="0" value="0" autocomplete="off"></div>
           <div><label>Present (auto)</label><input type="number" id="mPres" disabled></div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin:-2px 0 2px">
-          <button class="ghost" onclick="syncAbs()">Use log (<span id="mLogN">0</span>)</button>
+          <span class="autonote">Absent is taken from today's log — you only enter OD</span>
           <span style="font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint)">PRESENT = STRENGTH − ABSENT − OD</span>
         </div>
         <div class="msgbox" id="msgBox"></div>
@@ -573,7 +576,6 @@ function boot() {
   lastDay = today();
   P.forEach(k => $(k).addEventListener('input', () => { save(); render(); }));
   $('mOD').addEventListener('input', () => { S.od = +$('mOD').value || 0; save(); renderMsg(); });
-  $('mAbs').addEventListener('input', () => { S.absManual = true; S.abs = +$('mAbs').value || 0; save(); renderMsg(); });
   if (S.od == null) S.od = 0;
   $('mOD').value = S.od;
   $('fReason').addEventListener('keydown', e => {
@@ -748,11 +750,14 @@ function render() {
 
 /* ═══════════════ STRENGTH MESSAGE ═══════════════ */
 const pad2 = n => String(Math.max(0, n | 0)).padStart(2, '0');
-function syncAbs() { S.absManual = false; save(); renderMsg(); }
 function msgText() {
   const strength = +$('pStrength').value || 0;
   const od = +$('mOD').value || 0;
-  const abs = S.absManual ? (+$('mAbs').value || 0) : S.absentees.length;
+  /* the log is the single source of truth for the absent count. It used to be
+     possible to type a number here that disagreed with the names in the log —
+     and the names go into the report, so the two could quietly contradict
+     each other in a document already on its way to the CEO. */
+  const abs = S.absentees.length;
   const present = Math.max(0, strength - od - abs);
   const iso = $('pDate').value || new Date().toISOString().slice(0, 10);
   const [y, m, d] = iso.split('-');
@@ -804,9 +809,8 @@ function renderPct() {
 function renderMsg() {
   renderPct();                     // same numbers, refreshed together
   const m = msgText();
-  if (!S.absManual) $('mAbs').value = m.abs;
+  $('mAbs').value = m.abs;
   $('mPres').value = m.present;
-  $('mLogN').textContent = S.absentees.length;
   $('msgBox').innerHTML = esc(m.text)
     .replace(/^•/gm, '<span class="bul">•</span>')
     .replace(/(Program Name:|Date|Student Strength:|Present:|OD \(On Duty\) :|Absent:)/g, '<span class="k">$1</span>');
