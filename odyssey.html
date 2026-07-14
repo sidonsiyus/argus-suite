@@ -1088,7 +1088,7 @@ $('#btnHelp').onclick=()=>modal(`<h3>How ODYSSEY works</h3>
   <p>The <b>Dispatch Release</b> opens only when crew, dispatch, load, performance, ramp and prep are all green.</p>`);
 $('#btnDocs').onclick=showDocs;
 
-function newFlight(){ F=freshFlight(); resetLoad(); go(null); }
+function newFlight(){ clearActiveHandoff(); F=freshFlight(); resetLoad(); go(null); }
 
 /* ══════════════════════════════════════════════════════════════
    OPS BOARD
@@ -2120,12 +2120,40 @@ function pushHandoff(status){
     block:F.block?Math.round(F.block):null,
     pax:F.pax||0, score:(status==='flown'&&F.score)?F.score.total:null
   };
-  let all=readHandoffs().filter(r=>r.id!==id);
+  /* ODYSSEY can only ever prepare ONE flight at a time — F is a single object.
+     The store keeps a dozen for history, but exactly one of them is the flight
+     on the desk right now. Say so explicitly. Without this, starting a second
+     flight left the first sitting in the store as 'planned' with a fresh
+     timestamp, and PYRGOS quite reasonably put BOTH on the board. */
+  rec.active = (status !== 'flown');                // a completed flight is not being prepared
+  let all=readHandoffs()
+    .filter(r=>r.id!==id)
+    .map(r=>({...r, active:false}));                // nothing else is the current flight
   all.unshift(rec);
-  all=all.slice(0,12);                              // keep the last dozen
+  all=all.slice(0,12);                              // keep the last dozen as history
   try{ localStorage.setItem(HANDOFF_KEY, JSON.stringify(all)); }catch(_){ return null; }
   return rec;
 }
+/* Nothing is on the desk. Called when a flight is abandoned or a new one begun,
+   so the tower stops showing a flight nobody is flying. */
+function clearActiveHandoff(){
+  try{
+    const all=readHandoffs().map(r=>({...r, active:false}));
+    localStorage.setItem(HANDOFF_KEY, JSON.stringify(all));
+  }catch(_){}
+}
+/* A heartbeat, so PYRGOS can tell an open flight deck from a closed tab. */
+function beatHandoff(){
+  if(!F.handoffId) return;
+  try{
+    const all=readHandoffs();
+    const r=all.find(x=>x.id===F.handoffId);
+    if(!r || !r.active) return;
+    r.ts=Date.now();
+    localStorage.setItem(HANDOFF_KEY, JSON.stringify(all));
+  }catch(_){}
+}
+setInterval(beatHandoff, 10000);
 
 /* ══════════════════════════════════════════════════════════════
    ATC LINK — the tower talks back
