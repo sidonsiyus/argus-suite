@@ -150,6 +150,34 @@ select{appearance:none;cursor:pointer;
 
 .acts{display:grid;grid-template-columns:1.5fr 1fr;gap:10px;margin-top:16px}
 
+/* ── contact box: on screen only, never in the report ── */
+.contact{margin:-2px 0 14px;min-height:0}
+.contact .cbox{background:var(--panel2);border:1px solid var(--line2);border-radius:11px;
+  padding:13px 15px;animation:slide .26s ease}
+.contact .chead{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.contact .chead b{font-size:14px}
+.contact .reg{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--gold);
+  background:rgba(240,182,74,.12);padding:3px 7px;border-radius:5px}
+.contact .note{margin-left:auto;font-family:var(--mono);font-size:8px;letter-spacing:.14em;
+  color:var(--faint);text-transform:uppercase}
+.contact .nums{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.num{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.num span{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;
+  color:var(--faint);text-transform:uppercase;margin-bottom:5px}
+.num a{font-family:var(--mono);font-size:14px;color:var(--ink);text-decoration:none;letter-spacing:.04em}
+.num a:hover{color:var(--gold)}
+.num.none a,.num.none em{font-family:var(--mono);font-size:11px;color:var(--red);font-style:normal;opacity:.75}
+.copyn{background:none;border:none;color:var(--faint);cursor:pointer;font-family:var(--mono);
+  font-size:9px;letter-spacing:.12em;padding:0;margin-top:5px;text-transform:uppercase}
+.copyn:hover{color:var(--gold)}
+
+.callstrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:10px;
+  padding-top:9px;border-top:1px dashed var(--line2);font-family:var(--mono);font-size:10.5px}
+.callstrip b{color:var(--gold);letter-spacing:.1em;font-weight:600}
+.callstrip a{color:var(--muted);text-decoration:none;letter-spacing:.04em}
+.callstrip a:hover{color:var(--gold)}
+.callstrip i{color:var(--red);font-style:normal;opacity:.7}
+
 /* strength message */
 .msgbox{background:#0b0910;border:1px solid var(--line2);border-radius:11px;padding:16px 18px;
   font-family:var(--mono);font-size:12.5px;line-height:1.9;color:var(--ink);white-space:pre-wrap;
@@ -224,8 +252,9 @@ select{appearance:none;cursor:pointer;
         <div class="row r-name">
           <div>
             <label>Student name</label>
-            <input type="text" id="fName" list="roster" placeholder="e.g. Gungun Tamboli" autocomplete="off">
-            <datalist id="roster"></datalist>
+            <select id="fName">
+              <option value="">— Select a student —</option>
+            </select>
           </div>
           <div>
             <label>Status</label>
@@ -241,6 +270,7 @@ select{appearance:none;cursor:pointer;
             <textarea id="fReason" placeholder="Could not find flight tickets in time and will return as soon as she finds one."></textarea>
           </div>
         </div>
+        <div id="contact" class="contact"></div>
         <button class="btn" onclick="addAbsentee()">Add to today's log &nbsp;↵</button>
       </div>
 
@@ -429,6 +459,58 @@ function lockNow() {
 
 /* ═══════════════ STATE ═══════════════ */
 const KEY = 'argus_dash_v1';
+/* ═══════════════ CLASS ROSTER ═══════════════
+   43 students. Three have gaps in the contact data (Sai Vishnu A has neither
+   number, Nivin M and Venkatesan S have no parent number). Those are left as
+   gaps and shown as "not on record" — a number you invent is worse than none. */
+const ROSTER=[
+  {n:1, reg:"25153101", name:"ABINAYA S", ph:"8072876279", pa:"8680090096"},
+  {n:2, reg:"25153102", name:"ADHITYA K", ph:"9933265007", pa:"8972266792"},
+  {n:3, reg:"25153103", name:"AKSHAYA G", ph:"7708513049", pa:"9952098145"},
+  {n:4, reg:"25153104", name:"ALBERT JANA J", ph:"6385048665", pa:"9715909230"},
+  {n:5, reg:"25153105", name:"ANJANA M V", ph:"8590581370", pa:"9995301555"},
+  {n:6, reg:"25153107", name:"BHAKTHI G NICHANI", ph:"7498681254", pa:"9884295032"},
+  {n:7, reg:"25153109", name:"DURGA M", ph:"8778483677", pa:"8056553583"},
+  {n:8, reg:"25153110", name:"FAKRUDIN T DHARWAD", ph:"8792664302", pa:"9449964302"},
+  {n:9, reg:"25153111", name:"FASNA .V .SHIHAB", ph:"9778742751", pa:"7736182904"},
+  {n:10, reg:"25153112", name:"GAYATHRI G", ph:"9080700557", pa:"9092235349"},
+  {n:11, reg:"25153113", name:"GOKUL LIWA S", ph:"8903766167", pa:"9444278467"},
+  {n:12, reg:"25153114", name:"GUNGUN TAMBOLI", ph:"7999117247", pa:"9827174212"},
+  {n:13, reg:"25153115", name:"HANA FATHIMA K M", ph:"9037461476", pa:"9847228278"},
+  {n:14, reg:"25153116", name:"JEEVAN NISANTH K", ph:"9790796655", pa:"9952913747"},
+  {n:15, reg:"25153117", name:"JOYEL FELIX H", ph:"9385577978", pa:"8608871978"},
+  {n:16, reg:"25153118", name:"KANISHKA S", ph:"9342796598", pa:"8973454199"},
+  {n:17, reg:"25153119", name:"KEVIN FRANCIS C R", ph:"9500676947", pa:"9962083779"},
+  {n:18, reg:"25153120", name:"MATHUMITHA M", ph:"7200490407", pa:"9840863113"},
+  {n:19, reg:"25153121", name:"MITHUNESH S", ph:"7092670206", pa:"9842133206"},
+  {n:20, reg:"25153122", name:"MOHAMED SAMEE J", ph:"8838407130", pa:"8122855336"},
+  {n:21, reg:"25153123", name:"M ROSHNI", ph:"9025896571", pa:"8903689497"},
+  {n:22, reg:"25153124", name:"MUNAFARSHARIF S", ph:"7358201099", pa:"9487760676"},
+  {n:23, reg:"25153125", name:"NITHIN R", ph:"9342532240", pa:"9750939432"},
+  {n:24, reg:"25153126", name:"NIVIN M", ph:"9344836769", pa:""},
+  {n:25, reg:"25153127", name:"RAKESH S", ph:"9360065409", pa:"9790093016"},
+  {n:26, reg:"25153128", name:"RAKSHA NIVASINI", ph:"7845789191", pa:"7845779192"},
+  {n:27, reg:"25153129", name:"RINO M REJI", ph:"9846723677", pa:"9495114423"},
+  {n:28, reg:"25153130", name:"ROSHAN JERALD", ph:"9902053328", pa:"9884176971"},
+  {n:29, reg:"25153131", name:"SAISARAN S", ph:"7397305143", pa:"9789763664"},
+  {n:30, reg:"25153132", name:"SAI VISHNU A", ph:"", pa:""},
+  {n:31, reg:"25153133", name:"S MANASSEH PAUL", ph:"9390586304", pa:"9676904233"},
+  {n:32, reg:"25153134", name:"SRADHA MANOJ", ph:"8304905130", pa:"8848449418"},
+  {n:33, reg:"25153135", name:"SYED AHAMED M N", ph:"7092525845", pa:"7845540490"},
+  {n:34, reg:"25153136", name:"VENKATESAN S", ph:"7200024383", pa:""},
+  {n:35, reg:"25153137", name:"VIJAY S", ph:"8088622672", pa:"9448009403"},
+  {n:36, reg:"25153138", name:"VUPPU BHAVASRI", ph:"7981936455", pa:"8639544767"},
+  {n:37, reg:"25153139", name:"YESWANTHSIVA R", ph:"8939211275", pa:"9080614843"},
+  {n:38, reg:"25153140", name:"LENA FATAHIMA BASHEER", ph:"7510882066", pa:"8606898494"},
+  {n:39, reg:"25153141", name:"MOHAMMED FAIZUDEEN S", ph:"8838977579", pa:"9940286374"},
+  {n:40, reg:"25153142", name:"NISHAANTH S U", ph:"9345441709", pa:"9841959003"},
+  {n:41, reg:"25153143", name:"SABARINATHAN R", ph:"9025741421", pa:"9445169918"},
+  {n:42, reg:"25153144", name:"DIBYAJYOTHI SUMAN BARMAN", ph:"9832617362", pa:"9832617362"},
+  {n:43, reg:"23153145", name:"MOHANNED", ph:"8589868801", pa:"7356568890"},
+];
+
+const byName = n => ROSTER.find(r => r.name === n) || null;
+
 let S = { absentees: [], params: {}, roster: [], history: [] };
 
 const $ = id => document.getElementById(id);
@@ -463,7 +545,12 @@ function boot() {
   $('fReason').addEventListener('keydown', e => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addAbsentee();
   });
+  /* fill the dropdown from the roster, in roll order */
+  $('fName').innerHTML = '<option value="">— Select a student —</option>' +
+    ROSTER.map(r => `<option value="${esc(r.name)}">${String(r.n).padStart(2,'0')} · ${esc(r.name)}</option>`).join('');
+  $('fName').addEventListener('change', showContact);
   $('fName').addEventListener('keydown', e => { if (e.key === 'Enter') $('fReason').focus(); });
+  showContact();
   tick(); setInterval(tick, 1000);
   render();
   $('fName').focus();
@@ -479,14 +566,63 @@ function tick() {
 /* ═══════════════ ENTRY ═══════════════ */
 const DEF_REMARK = s => s === 'informed' ? 'Prior notification given' : 'No prior notification';
 
+/* ── student & parent contact ──────────────────────────────────────────────
+   This lives on screen so you can pick up the phone. It is deliberately NOT
+   part of data() and therefore never reaches the report — the remarks .docx
+   stays exactly as the department expects it, with no numbers in it. */
+function showContact() {
+  const box = $('contact');
+  const r = byName($('fName').value);
+  if (!r) { box.innerHTML = ''; return; }
+  const num = (label, v) => v
+    ? `<div class="num"><span>${label}</span><a href="tel:+91${v}">${fmtPh(v)}</a>
+         <button class="copyn" onclick="copyNum('${v}')">Copy</button></div>`
+    : `<div class="num none"><span>${label}</span><em>Not on record</em></div>`;
+  box.innerHTML = `
+    <div class="cbox">
+      <div class="chead">
+        <b>${esc(r.name)}</b>
+        <span class="reg">${r.reg}</span>
+        <span class="note">Not included in the report</span>
+      </div>
+      <div class="nums">
+        ${num('Student', r.ph)}
+        ${num('Parent / guardian', r.pa)}
+      </div>
+    </div>`;
+}
+function fmtPh(v) { return v.length === 10 ? v.slice(0,5) + ' ' + v.slice(5) : v; }
+/* the same numbers, on the logged card. Screen only — never in the report. */
+function callStrip(a) {
+  const r = byName(a.name) || {};
+  const ph = a.ph || r.ph, pa = a.pa || r.pa, reg = a.reg || r.reg;
+  if (!reg && !ph && !pa) return '';
+  const bit = (lbl, v) => v
+    ? `<a href="tel:+91${v}" title="${lbl}">${lbl} ${fmtPh(v)}</a>`
+    : `<i>${lbl} — not on record</i>`;
+  return `<div class="callstrip">
+    ${reg ? `<b>${reg}</b>` : ''}
+    ${bit('Student', ph)}
+    ${bit('Parent', pa)}
+  </div>`;
+}
+function copyNum(v) {
+  navigator.clipboard.writeText(v).then(() => toast(v + ' copied'), () => toast('Copy failed'));
+}
+
 function addAbsentee() {
   const name = $('fName').value.trim();
   const status = $('fStatus').value;
   const reason = $('fReason').value.trim();
-  if (!name) { toast('Student name required'); $('fName').focus(); return; }
-  S.absentees.push({ name, status, reason, remark: DEF_REMARK(status) });
-  if (!S.roster.includes(name)) S.roster.push(name);
+  if (!name) { toast('Select a student'); $('fName').focus(); return; }
+  if (S.absentees.some(a => a.name === name)) { toast(name + ' is already logged'); return; }
+  const r = byName(name);
+  /* reg/phones are carried on the record so the log can show them — data() does
+     NOT read them, so they never travel to the .docx */
+  S.absentees.push({ name, status, reason, remark: DEF_REMARK(status),
+                     reg: r ? r.reg : '', ph: r ? r.ph : '', pa: r ? r.pa : '' });
   $('fName').value = ''; $('fReason').value = ''; $('fStatus').value = 'informed';
+  showContact();
   $('fName').focus();
   save(); render();
   toast(name + ' logged');
@@ -500,11 +636,16 @@ function clearDay() {
   S.absentees = []; save(); render(); toast('Log cleared');
 }
 function prefillSample() {
+  const mk = (name, status, reason) => {
+    const r = byName(name) || {};
+    return { name, status, reason, remark: DEF_REMARK(status),
+             reg: r.reg || '', ph: r.ph || '', pa: r.pa || '' };
+  };
   S.absentees = [
-    { name: 'Gungun Tamboli', status: 'informed', reason: 'Gungun Tamboli could not find flight tickets in time and will return as soon as she finds one.', remark: 'Prior notification given' },
-    { name: 'Mohanned', status: 'informed', reason: 'Mohanned was sent away because of his grooming standards, has informed me.', remark: 'Prior notification given' },
-    { name: 'Manasseh Paul', status: 'unauthorized', reason: 'Paul has not informed and his parents was spoken to and informed.', remark: 'No prior notification' },
-    { name: 'Suman', status: 'informed', reason: 'Suman is also struggling to find flight tickets and will return once he finds it.', remark: 'Prior notification given' },
+    mk('GUNGUN TAMBOLI', 'informed', 'Could not find flight tickets in time and will return as soon as she finds one.'),
+    mk('MOHANNED', 'informed', 'Was sent away because of his grooming standards, has informed me.'),
+    mk('S MANASSEH PAUL', 'unauthorized', 'Has not informed and his parents were spoken to and informed.'),
+    mk('DIBYAJYOTHI SUMAN BARMAN', 'informed', 'Also struggling to find flight tickets and will return once he finds one.'),
   ];
   save(); render(); toast('Sample day loaded');
 }
@@ -553,7 +694,6 @@ function render() {
   $('sInf').textContent = inf;
   $('sUna').textContent = abs.length - inf;
   $('logCount').textContent = abs.length ? `· ${abs.length}` : '';
-  $('roster').innerHTML = S.roster.map(n => `<option value="${esc(n)}">`).join('');
 
   $('list').innerHTML = abs.length ? abs.map((a, i) => `
     <div class="ab ${a.status === 'informed' ? 'inf' : ''}">
@@ -563,6 +703,7 @@ function render() {
         <button class="x" onclick="delAbsentee(${i})" title="Remove">✕</button>
       </div>
       ${a.reason ? `<p>${esc(a.reason)}</p>` : ''}
+      ${callStrip(a)}
       <input class="rmk" value="${esc(a.remark)}" oninput="editRemark(${i},this.value)" title="Remarks column in the table">
     </div>`).join('') : `<div class="empty">Nobody absent yet — a full house</div>`;
 
