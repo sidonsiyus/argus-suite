@@ -131,6 +131,10 @@ button{font-family:inherit;cursor:pointer}
 .strip .st.hot{background:rgba(255,91,110,.16);color:var(--red)}
 .strip .wk{position:absolute;right:8px;bottom:7px;font-family:var(--mono);font-size:9px;color:var(--faint)}
 .livetag{color:var(--gold);font-weight:700;font-size:8px}
+.odyst{font-family:var(--mono);font-size:8px;letter-spacing:.1em;padding:1px 4px;border-radius:3px;
+  background:rgba(120,130,140,.18);color:var(--muted)}
+.odyst.hot{background:rgba(240,182,74,.18);color:var(--gold);animation:pulseSt 1.6s infinite}
+@keyframes pulseSt{0%,100%{opacity:1}50%{opacity:.55}}
 .odytag{color:#ffd98a;font-weight:700;font-size:8px;text-shadow:0 0 6px rgba(240,182,74,.7)}
 .strip.ody{border-left:3px solid var(--gold);box-shadow:inset 0 0 22px -8px rgba(240,182,74,.5)}
 .strip.ody .cs{color:#ffd98a}
@@ -696,8 +700,15 @@ function odysseyForField(){
   if(!LZ||!LZ.icao) return [];
   return readOdyssey()
     .filter(r=>r&&r.cs&&(r.from===LZ.icao||r.to===LZ.icao))
+    .filter(r=>r.status!=="flown")                 // a completed flight is not traffic
     .map(r=>({...r, role: r.from===LZ.icao ? "dep" : "arr"}))
     .slice(0,4);                                   // don't drown the shift
+}
+/* has the ODYSSEY pilot actually got the engines running? */
+function odyStatus(a){
+  if(!a || !a.ody || !a.ody.id) return null;
+  const r=readOdyssey().find(x=>x && x.id===a.ody.id);
+  return r ? r.status : null;
 }
 function odyRunway(name,wantDep){
   if(!name) return null;
@@ -748,9 +759,15 @@ function injectOdyssey(){
   let n=0;
   recs.forEach(r=>{
     const a = r.role==="dep" ? makeOdyDeparture(r) : makeOdyArrival(r);
-    if(a) n++;
+    if(a){
+      n++;
+      /* Claim the strip immediately. This publishes an ATC record with every
+         clearance still false — which is precisely the point: the flight deck
+         now knows a tower owns it, and every gate closes until we say otherwise. */
+      pushATC(a, "contact", spoken(a)+", "+(LZ.icao||"tower")+" tower, radar contact — hold position, stand by.");
+    }
   });
-  if(n) setTimeout(()=>toast("◆ "+n+" ODYSSEY flight"+(n>1?"s":"")+" on the board at "+LZ.icao),400);
+  if(n) setTimeout(()=>toast("◆ "+n+" ODYSSEY flight"+(n>1?"s":"")+" on the board at "+LZ.icao+" — clearances now required"),400);
   return n;
 }
 
@@ -851,7 +868,9 @@ const CMDS={
     if(a.state==="GATE"){ CMDS.push(a); } a.cleared.taxi=true; const rn=rName(a.rwy);
     a.route=buildTaxiOut(a); if(a.state==="WAITTAXI"||a.state==="PUSH") a.state="TAXI_OUT";
     you(a,"taxi to runway "+rn); pilot(a,"Taxi to "+rn+", "+spoken(a)); },
-  lineup:(a)=>{ if(a.kind!=="dep"||a.state!=="HOLD_SHORT"){return warn("Not holding short.");}
+  lineup:(a)=>{ if(a.kind!=="dep"){return warn("Not a departure.");}
+    /* our token may still be on the taxiway; the real aeroplane is in ODYSSEY */
+    if(!a.ody && a.state!=="HOLD_SHORT"){return warn("Not holding short.");}
     a.cleared.lineup=true; a.route=[lineupPt(a)]; a.state="LINEUP"; const rn=rName(a.rwy); you(a,"line up and wait runway "+rn); pilot(a,"Line up and wait, "+spoken(a)); },
   clearance:(a)=>{ if(a.kind!=="dep"){return warn("Not a departure.");}
     if(!a.sid){ return warn("No SID filed."); } a.cleared.sid=true;
@@ -860,7 +879,8 @@ const CMDS={
     pilot(a,"Cleared "+a.sid.name+", climb "+a.sid.alt+", "+spoken(a));
     if(bad){ toast("⚠ "+a.sid.name+" not valid from "+rName(a.rwy)); } },
   takeoff:(a)=>{ if(a.kind!=="dep"){return warn("Not a departure.");}
-    if(a.state!=="HOLD_SHORT"&&a.state!=="LINEUP"&&a.state!=="READY"){return warn("Not ready for departure.");}
+    if(!a.ody && a.state!=="HOLD_SHORT" && a.state!=="LINEUP" && a.state!=="READY"){return warn("Not ready for departure.");}
+    /* the runway must still be clear — that check protects a real aeroplane */
     if(!runwayClear(a)){ return warn("Runway occupied — hold."); }
     if(a.sid && !a.sid.rwys.includes(rName(a.rwy)) && !a._sidWarned){ a._sidWarned=true;
       G.grades.sidbust=(G.grades.sidbust||0)+1; score(-40,"SID/runway mismatch ("+a.sid.name+")"); }
@@ -2349,7 +2369,18 @@ function stripHTML(a){
   if(a.flash>0||a.emg){cls+=" hot";}
   const clr = a.kind==="arr" ? (a.cleared.land?"CLR LAND":a.cleared.appr?"CLR APPR":"—")
     : (a.cleared.takeoff?"CLR T/O":a.cleared.taxi?"TAXI":a.cleared.sid?"CLRD "+(a.sid?a.sid.name:""):a.cleared.push?"PUSH":"—");
-  const tag = a.ody?'<span class="odytag">◆ODY</span> ':(a.live?'<span class="livetag">◆LIVE</span> ':"");
+  /* an ODYSSEY strip should show what the PILOT is actually doing, not only what
+     we have told him. "Started, awaiting push" is the difference between a strip
+     you can act on and a strip you have to guess at. */
+  let odyNote="";
+  if(a.ody){
+    const st=odyStatus(a);
+    if(st==='started' && !a.cleared.push)      odyNote='<span class="odyst hot">ENG RUN · WANTS PUSH</span>';
+    else if(st==='started' && !a.cleared.taxi) odyNote='<span class="odyst hot">ENG RUN · WANTS TAXI</span>';
+    else if(st==='started')                    odyNote='<span class="odyst">ENG RUN</span>';
+    else if(st==='planned')                    odyNote='<span class="odyst">AT STAND</span>';
+  }
+  const tag = a.ody?'<span class="odytag">◆ODY</span> '+odyNote+' ':(a.live?'<span class="livetag">◆LIVE</span> ':"");
   const line2 = a.kind==="arr"
     ? tag+"◂ ARR "+rName(a.rwy)
     : tag+"▸ DEP "+rName(a.rwy)+(a.sid?" · "+a.sid.name:"")+" · "+(a.gate?a.gate.id:"");
