@@ -299,7 +299,15 @@ select{appearance:none;cursor:pointer;
         <div class="row">
           <div>
             <label>Reason for absence (remarks)</label>
-            <textarea id="fReason" placeholder="Could not find flight tickets in time and will return as soon as she finds one."></textarea>
+            <select id="fReasonSel">
+              <option value="">— Select a reason —</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" id="otherRow" hidden>
+          <div>
+            <label>Specify the reason</label>
+            <textarea id="fReason" placeholder="Type the reason in your own words."></textarea>
           </div>
         </div>
         <div id="contact" class="contact"></div>
@@ -548,6 +556,33 @@ const ROSTER=[
 
 const byName = n => ROSTER.find(r => r.name === n) || null;
 
+/* ═══════════════ STANDARD REASONS ═══════════════
+   The nineteen reasons that cover almost every absence, plus an escape hatch.
+   Picking from a fixed list means the same reason is worded the same way every
+   time it reaches the report — which is the whole point of a standard list. */
+const REASONS = [
+  'Medical Reason (Self)',
+  'Medical Emergency (Family Member)',
+  'Family Function',
+  'Bereavement / Death in the Family',
+  'Personal Emergency',
+  'Educational Loan / Bank Visit',
+  'Internship / Industrial Training Submission',
+  'Official University / Government Work',
+  'Travel Due to Personal Reasons',
+  'Attending Competitive Examination / Interview',
+  'Passport / Visa / Document Verification',
+  'Court / Legal Proceedings',
+  'Public Transport / Vehicle Breakdown',
+  'Weather / Natural Calamity',
+  'Participation in Sports / Cultural / NCC / NSS Event',
+  'Academic Project / Research Work',
+  'Placement Drive / Campus Recruitment',
+  'Mental Health / Stress-Related Reason',
+  'Religious Observance',
+];
+const OTHER = 'Other (Please Specify)';
+
 let S = { absentees: [], params: {}, roster: [], history: [] };
 
 const $ = id => document.getElementById(id);
@@ -578,6 +613,11 @@ function boot() {
   $('mOD').addEventListener('input', () => { S.od = +$('mOD').value || 0; save(); renderMsg(); });
   if (S.od == null) S.od = 0;
   $('mOD').value = S.od;
+  /* the reason list, with "Other" last as the escape hatch */
+  $('fReasonSel').innerHTML = '<option value="">— Select a reason —</option>' +
+    REASONS.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('') +
+    `<option value="${esc(OTHER)}">${esc(OTHER)}</option>`;
+  $('fReasonSel').addEventListener('change', onReasonChange);
   $('fReason').addEventListener('keydown', e => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addAbsentee();
   });
@@ -585,7 +625,7 @@ function boot() {
   $('fName').innerHTML = '<option value="">— Select a student —</option>' +
     ROSTER.map(r => `<option value="${esc(r.name)}">${String(r.n).padStart(2,'0')} · ${esc(r.name)}</option>`).join('');
   $('fName').addEventListener('change', showContact);
-  $('fName').addEventListener('keydown', e => { if (e.key === 'Enter') $('fReason').focus(); });
+  $('fName').addEventListener('keydown', e => { if (e.key === 'Enter') $('fReasonSel').focus(); });
   showContact();
   tick(); setInterval(tick, 1000);
   render();
@@ -646,18 +686,39 @@ function copyNum(v) {
   navigator.clipboard.writeText(v).then(() => toast(v + ' copied'), () => toast('Copy failed'));
 }
 
+/* "Other" is the only case that needs typing. Everything else is picked, so the
+   same reason is worded identically every time it lands in the report. */
+function onReasonChange() {
+  const other = $('fReasonSel').value === OTHER;
+  $('otherRow').hidden = !other;
+  if (other) $('fReason').focus(); else $('fReason').value = '';
+}
+/* what actually gets written: the chosen reason, or the typed one for "Other" */
+function reasonValue() {
+  const sel = $('fReasonSel').value;
+  if (!sel) return null;                                  // nothing chosen
+  if (sel !== OTHER) return sel;
+  const txt = $('fReason').value.trim();
+  return txt || null;                                     // "Other" with nothing typed
+}
+
 function addAbsentee() {
   const name = $('fName').value.trim();
   const status = $('fStatus').value;
-  const reason = $('fReason').value.trim();
   if (!name) { toast('Select a student'); $('fName').focus(); return; }
   if (S.absentees.some(a => a.name === name)) { toast(name + ' is already logged'); return; }
+  /* an "Other" with an empty box would put a nameless absence into the report —
+     catch it here rather than letting a blank line reach the CEO's copy */
+  if (!$('fReasonSel').value) { toast('Select a reason'); $('fReasonSel').focus(); return; }
+  const reason = reasonValue();
+  if (!reason) { toast('Type the reason, or pick one from the list'); $('fReason').focus(); return; }
   const r = byName(name);
   /* reg/phones are carried on the record so the log can show them — data() does
      NOT read them, so they never travel to the .docx */
   S.absentees.push({ name, status, reason, remark: DEF_REMARK(status),
                      reg: r ? r.reg : '', ph: r ? r.ph : '', pa: r ? r.pa : '' });
-  $('fName').value = ''; $('fReason').value = ''; $('fStatus').value = 'informed';
+  $('fName').value = ''; $('fStatus').value = 'informed';
+  $('fReasonSel').value = ''; $('fReason').value = ''; $('otherRow').hidden = true;
   showContact();
   $('fName').focus();
   save(); render();
@@ -678,10 +739,10 @@ function prefillSample() {
              reg: r.reg || '', ph: r.ph || '', pa: r.pa || '' };
   };
   S.absentees = [
-    mk('GUNGUN TAMBOLI', 'informed', 'Could not find flight tickets in time and will return as soon as she finds one.'),
-    mk('MOHANNED', 'informed', 'Was sent away because of his grooming standards, has informed me.'),
-    mk('S MANASSEH PAUL', 'unauthorized', 'Has not informed and his parents were spoken to and informed.'),
-    mk('DIBYAJYOTHI SUMAN BARMAN', 'informed', 'Also struggling to find flight tickets and will return once he finds one.'),
+    mk('GUNGUN TAMBOLI', 'informed', 'Family Function'),
+    mk('MOHANNED', 'informed', 'Medical Reason (Self)'),
+    mk('S MANASSEH PAUL', 'unauthorized', 'Personal Emergency'),
+    mk('DIBYAJYOTHI SUMAN BARMAN', 'informed', 'Travel Due to Personal Reasons'),
   ];
   save(); render(); toast('Sample day loaded');
 }
