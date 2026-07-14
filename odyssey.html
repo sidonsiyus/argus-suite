@@ -4674,6 +4674,7 @@ function sTurn(el){
         <div id="seq">${[["doors","Doors closed & armed"],["bridge","Jetbridge retracted"],
           ["chocks","Chocks removed"],["push","Pushback clearance & tug on"]].map(([k,n])=>
           `<div class="chk ${F.turn.seq[k]?'on':''}" data-k="${k}"><span class="bx">✓</span><span class="nm">${n}</span><span class="st2">—</span></div>`).join('')}</div>
+        <div id="tAtc" style="display:none;margin-top:11px"></div>
       </div>
 
       <div class="card hl" style="margin-bottom:12px"><h3>Engine start panel</h3>
@@ -4742,11 +4743,64 @@ function sTurn(el){
   const TA=F.turn.anim;
   $$('#seq .chk').forEach(c=>c.onclick=()=>{ const k=c.dataset.k;
     if(!SVC.every(([s])=>F.turn.prog[s]>=100)){ toast("Services still running.","warn"); return; }
+    /* The step is literally called "Pushback clearance". Until now it was a tick
+       box that asked nobody. If a PYRGOS tower has the strip, the clearance is
+       theirs to give — you do not push off a stand into a live taxiway because
+       you ticked a box yourself. */
+    if(k==="push" && !F.turn.seq.push){
+      const A=myATC();
+      if(A && A.role==="dep" && !(A.cleared && A.cleared.push)){
+        toast(A.tower+" has not approved pushback — you cannot push off the stand.","bad");
+        return;
+      }
+    }
     F.turn.seq[k]=!F.turn.seq[k]; c.classList.toggle('on',!!F.turn.seq[k]);
     const nm={doors:"Doors closed and armed",bridge:"Jetbridge retracted",
               chocks:"Chocks removed",push:"Tug connected, pushback clearance"}[k];
     if(F.turn.seq[k]) toast(nm+".","ok");
+    turnATC();
   });
+
+  /* ── the tower, live, on the stand ──────────────────────────────────────
+     The strip is already on PYRGOS's board by now (it was filed at Stn 06).
+     If a controller has it, they own the pushback — so show what they have
+     said and what you are still waiting for. */
+  function turnATC(){
+    const box=$('#tAtc'); if(!box) return;
+    const A=myATC();
+    if(!A || A.role!=="dep"){ box.style.display='none'; return; }
+    box.style.display='';
+    const cl=A.cleared||{};
+    const ok=cl.push;
+    const last=A.log&&A.log.length ? A.log[A.log.length-1].msg : null;
+    box.innerHTML=`
+      <div class="card" style="margin:0;border-color:${ok?'var(--green)':'var(--gold)'}">
+        <div class="ro"><span class="k">Tower</span><span class="v g">${A.tower}</span>
+          <span class="k">Runway</span><span class="v">${A.rwy||'—'}</span></div>
+        <div style="margin-top:7px">
+          ${ok ? '<span class="bdg ok">✓ PUSHBACK APPROVED</span>'
+               : '<span class="bdg warn">⏸ AWAITING PUSHBACK APPROVAL</span>'}
+        </div>
+        ${last?`<div style="margin-top:8px;font-family:var(--mono);font-size:9.5px;color:var(--muted);line-height:1.6">
+          <span style="color:var(--gold)">${A.tower}:</span> ${last}</div>`:''}
+        <div class="hint" style="margin-top:7px">${ok
+          ? 'Cleared to push. Tug on, and start when ready.'
+          : 'A controller in PYRGOS has your strip. You cannot push off the stand until they approve it.'}</div>
+      </div>`;
+    /* the sequence row itself should look locked, not merely refuse when clicked */
+    const row=document.querySelector('#seq .chk[data-k="push"]');
+    if(row){
+      const st=row.querySelector('.st2');
+      if(st) st.textContent = ok ? 'CLEARED' : 'HOLD';
+      row.style.opacity = (!ok && !F.turn.seq.push) ? .5 : 1;
+      row.style.borderColor = (!ok && !F.turn.seq.push) ? 'var(--gold)' : '';
+    }
+  }
+  turnATC();
+  const tOnStore=e=>{ if(!e.key||e.key===ATC_KEY) turnATC(); };
+  window.addEventListener('storage', tOnStore);
+  const tT=setInterval(turnATC, 2000);
+  stopFns.push(()=>{ window.removeEventListener('storage', tOnStore); clearInterval(tT); });
 
   const E=F.eng.seq;
   function logSeq(txt,kind){ if(E.done.includes(txt))return; E.done.push(txt);
@@ -5342,6 +5396,10 @@ function sTurn(el){
             F.eng.n1=21; F.eng.n2=62; F.eng.egt=430;
             E.stage="RUN"; E.n1=21; E.n2=62; E.egt=430; E.ff=380;
             logSeq("BOTH ENGINES RUNNING");
+            /* tell the tower. A controller looking at the strip should be able to
+               see that this aeroplane is now started and wants a taxi clearance,
+               rather than having to guess. */
+            pushHandoff('started');
             toast("Both engines started and stable. Ready to taxi.","ok"); renderHUD();
           }
         }
@@ -5589,10 +5647,15 @@ function sFly(el){
       </div>
       <div style="margin-top:8px">
         ${ATC.holding?'<span class="bdg warn" style="margin:0 4px 4px 0">⏸ HOLDING — await approach clearance</span>':''}
-        ${cl.appr?badge(1,'✓ APPROACH'):'<span class="bdg" style="margin:0 4px 4px 0;opacity:.45">approach</span>'}
-        ${cl.land?badge(1,'✓ LAND'):'<span class="bdg" style="margin:0 4px 4px 0;opacity:.45">land</span>'}
-        ${cl.takeoff?badge(1,'✓ TAKEOFF'):''}
-        ${cl.lineup?badge(1,'✓ LINE UP'):''}
+        ${ATC.role==="dep" ? `
+          ${cl.push?badge(1,'✓ PUSH'):'<span class="bdg" style="margin:0 4px 4px 0;opacity:.45">push</span>'}
+          ${cl.taxi?badge(1,'✓ TAXI'):'<span class="bdg" style="margin:0 4px 4px 0;opacity:.45">taxi</span>'}
+          ${cl.lineup?badge(1,'✓ LINE UP'):'<span class="bdg" style="margin:0 4px 4px 0;opacity:.45">line up</span>'}
+          ${cl.takeoff?badge(1,'✓ TAKEOFF'):'<span class="bdg" style="margin:0 4px 4px 0;opacity:.45">takeoff</span>'}
+        ` : `
+          ${cl.appr?badge(1,'✓ APPROACH'):'<span class="bdg" style="margin:0 4px 4px 0;opacity:.45">approach</span>'}
+          ${cl.land?badge(1,'✓ LAND'):'<span class="bdg" style="margin:0 4px 4px 0;opacity:.45">land</span>'}
+        `}
       </div>
       ${ATC.log&&ATC.log.length?`<div style="margin-top:9px;border-top:1px solid var(--line);padding-top:8px">
         ${ATC.log.slice(-4).map(l=>`<div style="font-family:var(--mono);font-size:9.5px;color:var(--muted);line-height:1.6">
@@ -5612,12 +5675,22 @@ function sFly(el){
     const B=[];
     const b=(id,l,cls,dis)=>B.push(`<button class="btn ${cls||''}" id="${id}" ${dis?'disabled':''}>${l}</button>`);
     const cl=(ATC&&ATC.cleared)||null;
-    const controlled=!!ATC;                       // is a tower actually working us?
-    const needAppr = controlled && ATC.role==="arr" && !(cl&&cl.appr);
-    const needLand = controlled && ATC.role==="arr" && !(cl&&cl.land);
-    const needTO   = controlled && ATC.role==="dep" && !(cl&&cl.takeoff);
-    if(S.ph==="HOLD") b('taxiB','Taxi to holding point');
-    else if(S.ph==="TAXI") b('lineB','Line up '+F.rwy);
+    const controlled=!!ATC;                       // a tower has the strip and owns us
+    const dep = controlled && ATC.role==="dep";
+    const arr = controlled && ATC.role==="arr";
+    const needAppr = arr && !(cl&&cl.appr);
+    const needLand = arr && !(cl&&cl.land);
+    /* THE GROUND CHAIN. Every one of these was previously unenforced: the tower
+       issued the clearance, ODYSSEY drew a tick next to it, and the pilot could
+       taxi, line up and roll regardless. A clearance you can ignore is not a
+       clearance. Taxiing without one is a runway incursion; lining up without one
+       is how two aeroplanes end up on the same strip of concrete.
+       A takeoff clearance implies you may line up; a taxi clearance implies push. */
+    const needTaxi = dep && !(cl && (cl.taxi || cl.lineup || cl.takeoff));
+    const needLine = dep && !(cl && (cl.lineup || cl.takeoff));
+    const needTO   = dep && !(cl && cl.takeoff);
+    if(S.ph==="HOLD") b('taxiB', needTaxi?'⏸ await taxi clearance':'Taxi to holding point','',needTaxi);
+    else if(S.ph==="TAXI") b('lineB', needLine?'⏸ await line-up clearance':'Line up '+F.rwy,'',needLine);
     else if(S.ph==="LINEUP") b('toB', needTO?'⏸ await takeoff clearance':'TAKE OFF · set thrust','primary',needTO);
     else if(S.ph==="ROLL"){ b('rejB','REJECT','danger'); }
     else if(S.ph==="CLIMB"||S.ph==="CRUISE"){ b('stepB','⤴ Step climb'); b('todB','Begin descent (TOD)'); }
