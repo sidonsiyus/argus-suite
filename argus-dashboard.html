@@ -178,6 +178,35 @@ select{appearance:none;cursor:pointer;
 .callstrip a:hover{color:var(--gold)}
 .callstrip i{color:var(--red);font-style:normal;opacity:.7}
 
+/* ── attendance percentage ──────────────────────────────────────────────── */
+.pct{--c:var(--gold)}
+.pct .top{display:flex;align-items:flex-end;gap:12px;margin-bottom:14px}
+.pct .big{font-family:var(--mono);font-size:46px;line-height:.92;font-weight:700;color:var(--c)}
+.pct .of{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.14em;
+  text-transform:uppercase;padding-bottom:6px;line-height:1.5}
+.pct .grade{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.2em;
+  text-transform:uppercase;font-weight:700;padding:7px 13px;border-radius:8px;border:1.5px solid var(--c)}
+/* GREAT solid green · GOOD outlined gold · NEEDS ATTENTION solid red */
+.pct.great{--c:var(--green)} .pct.great .grade{background:var(--c);color:#06170f}
+.pct.good {--c:var(--gold)}  .pct.good  .grade{background:transparent;color:var(--c)}
+.pct.bad  {--c:var(--red)}   .pct.bad   .grade{background:var(--c);color:#2a0a07}
+
+.pct .bar{height:12px;border-radius:99px;background:#0b0910;border:1px solid var(--line2);
+  overflow:hidden;display:flex}
+.pct .fill{background:var(--c);transition:width .5s cubic-bezier(.2,.8,.2,1);
+  box-shadow:0 0 14px -2px var(--c)}
+.pct .gap{background:repeating-linear-gradient(45deg,rgba(255,112,96,.22) 0 5px,transparent 5px 10px)}
+.pct .marks{position:relative;height:15px;margin-top:5px}
+.pct .marks i{position:absolute;top:0;font-family:var(--mono);font-size:8.5px;color:var(--faint);
+  font-style:normal;transform:translateX(-50%);white-space:nowrap}
+.pct .marks i::before{content:"";position:absolute;left:50%;top:-7px;width:1px;height:5px;background:var(--line2)}
+.pct .brk{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:16px}
+.pct .brk div{background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:9px 11px;text-align:center}
+.pct .brk b{display:block;font-family:var(--mono);font-size:17px;font-weight:700}
+.pct .brk span{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.14em;
+  color:var(--faint);text-transform:uppercase;margin-top:4px}
+.pct .brk .p b{color:var(--green)} .pct .brk .a b{color:var(--red)} .pct .brk .o b{color:var(--ink)}
+
 /* strength message */
 .msgbox{background:#0b0910;border:1px solid var(--line2);border-radius:11px;padding:16px 18px;
   font-family:var(--mono);font-size:12.5px;line-height:1.9;color:var(--ink);white-space:pre-wrap;
@@ -277,6 +306,11 @@ select{appearance:none;cursor:pointer;
       <div class="card">
         <h2>Today's log <span id="logCount" style="color:var(--faint);letter-spacing:.1em"></span></h2>
         <div id="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Attendance today</h2>
+        <div class="pct" id="pctCard"></div>
       </div>
 
       <div class="card">
@@ -732,7 +766,43 @@ function msgText() {
       `• Absent: ${pad2(abs)}`,
     ].join('\n') };
 }
+/* ── attendance percentage ───────────────────────────────────────────────
+   Computed from msgText(), which is what the strength message and the report
+   already use. Calculating it independently here would create a number that
+   could quietly disagree with the report printed right beneath it. */
+function grade(p) {
+  if (p >= 90) return { k: 'great', label: 'Great' };
+  if (p >= 75) return { k: 'good',  label: 'Good'  };
+  return { k: 'bad', label: 'Needs attention' };
+}
+function renderPct() {
+  const el = $('pctCard'); if (!el) return;
+  const m = msgText();
+  const strength = m.strength || 0;
+  const pct = strength > 0 ? (m.present / strength) * 100 : 0;
+  const g = grade(pct);
+  const shown = pct.toFixed(1).replace(/\.0$/, '');
+  el.className = 'pct ' + g.k;
+  el.innerHTML = `
+    <div class="top">
+      <div class="big">${shown}<span style="font-size:22px">%</span></div>
+      <div class="of">${m.present} of ${strength}<br>present today</div>
+      <div class="grade">${g.label}</div>
+    </div>
+    <div class="bar">
+      <div class="fill" style="width:${Math.max(0, Math.min(100, pct))}%"></div>
+      <div class="gap" style="width:${Math.max(0, 100 - Math.min(100, pct))}%"></div>
+    </div>
+    <div class="marks"><i style="left:75%">75%</i><i style="left:90%">90%</i></div>
+    <div class="brk">
+      <div class="p"><b>${m.present}</b><span>Present</span></div>
+      <div class="a"><b>${m.abs}</b><span>Absent</span></div>
+      <div class="o"><b>${m.od}</b><span>On duty</span></div>
+    </div>`;
+}
+
 function renderMsg() {
+  renderPct();                     // same numbers, refreshed together
   const m = msgText();
   if (!S.absManual) $('mAbs').value = m.abs;
   $('mPres').value = m.present;
