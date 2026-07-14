@@ -2223,18 +2223,35 @@ function windComp(wx, rwyHdgDeg){
    glidepath, and it will call you high when you are high.
    ══════════════════════════════════════════════════════════════ */
 const FT2M=0.3048, M2FT=3.28084;
-function makeCam(W,H,pitchDeg,fovDeg){
-  const f=(W/2)/Math.tan((fovDeg||60)*Math.PI/360);
-  const p=(pitchDeg||0)*Math.PI/180;
-  return {W,H,f,cx:W/2,cy:H/2,sp:Math.sin(p),cp:Math.cos(p)};
+/* published runway widths, metres. Delhi 28 is 60 m; Heathrow is 50 m; most of
+   the rest are 45 m. This matters: a wide runway looks closer than a narrow one
+   at the same range, and pilots really do flare high off an unfamiliar 60 m. */
+const RWY_W={
+  VIDP:{"28":60,"10":60,"29R":60,"09":45,"27":45,"29L":45,"11R":45},
+  VABB:{"09":60,"27":60,"14":45,"32":45},
+  OMDB:{_:60}, WSSS:{_:60}, EGLL:{_:50},
+  VNKT:{_:45}, VOMM:{_:45}, VOBL:{_:45}
+};
+function rwyWidth(icao, rid){
+  const t=RWY_W[icao]; if(!t) return 45;
+  const base=String(rid||"").replace("-INT","");
+  return t[base] || t._ || 45;
 }
-/* world point: X = metres right of centreline, Y = metres above the camera,
-   Z = metres ahead of the camera along its own axis. Returns null if behind. */
+function makeCam(W,H,pitchDeg,fovDeg,bankDeg){
+  const f=(W/2)/Math.tan((fovDeg||60)*Math.PI/360);
+  const p=(pitchDeg||0)*Math.PI/180, r=(bankDeg||0)*Math.PI/180;
+  return {W,H,f,cx:W/2,cy:H/2,sp:Math.sin(p),cp:Math.cos(p),sr:Math.sin(r),cr:Math.cos(r)};
+}
+/* world point: X = metres right of the CAMERA, Y = metres above it,
+   Z = metres ahead along its own axis. Pitch, then roll. Null if behind. */
 function proj(cam,X,Y,Z){
   const Zc = Z*cam.cp + Y*cam.sp;
   const Yc = Y*cam.cp - Z*cam.sp;
   if(Zc<3) return null;                    // behind, or through, the eye
-  return { x: cam.cx + cam.f*X/Zc, y: cam.cy - cam.f*Yc/Zc, z:Zc };
+  /* roll: bank right and the horizon's right end rises in the windscreen */
+  const Xr = X*cam.cr - Yc*cam.sr;
+  const Yr = X*cam.sr + Yc*cam.cr;
+  return { x: cam.cx + cam.f*Xr/Zc, y: cam.cy - cam.f*Yr/Zc, z:Zc };
 }
 /* rotate the runway frame into the camera frame by the crab angle */
 function crabbed(psiRad, X, Z){
@@ -2255,18 +2272,194 @@ function papiState(aglFt, distM){
   return PAPI_ANG.map(a=> ang>=a ? 1 : 0);      // 1 = white, 0 = red
 }
 
+/* ---- the ground, with a sense of scale ----------------------------------
+   A flat colour field gives the eye nothing to judge height or speed against.
+   Real terrain has edges — field boundaries, roads, parcels — and it is the
+   rate at which those stream past that tells you how high and how fast you
+   are. This is why the flare is impossible over featureless water or snow.  */
+function drawTerrain(c, cam, V, W, H, night, visM){
+  const wx_snow = !!(V.wx && V.wx.snow);
+  const camY=-(V.agl*FT2M + (V.eyeH||5));
+  const P=(X,Z)=>{ const r=crabbed(V.yaw||0, X-(V.xtrk||0), Z); return proj(cam, r.X, camY, r.Z); };
+  const seg=(x1,z1,x2,z2,col,wd)=>{
+    const a=P(x1,z1), b=P(x2,z2); if(!a||!b) return;
+    const d=Math.min(a.z,b.z), al=1-fogAlpha(d,visM);
+    if(al<0.04) return;
+    c.strokeStyle=col.replace("A",al.toFixed(3));
+    c.lineWidth=wd||1; c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); c.stroke();
+  };
+  const col = night?"rgba(26,44,34,A)" : "rgba(52,74,42,A)";
+  const d0=V.distM;
+  const far=Math.min(14000, Math.max(2500, visM*1.4));
+
+  /* fields of differing crop. Flat colour gives the eye nothing to judge height
+     or closure against — it is why a flare over featureless water or fresh snow
+     is so much harder. The patches ARE the height cue. */
+  if(!night){
+    for(let gx=-8; gx<8; gx++){
+      for(let gz=-6; gz<Math.ceil(far/500)+1; gz++){
+        const hx=Math.sin(gx*127.1+gz*311.7)*43758.5453; const r=hx-Math.floor(hx);
+        if(r<0.42) continue;
+        const x0=gx*500, z0=Math.floor(d0/500)*500 + gz*500;
+        if(Math.abs(x0)<300 || z0<-2200) continue;
+        const q=[[x0,z0],[x0+500,z0],[x0+500,z0+500],[x0,z0+500]].map(pt=>P(pt[0],pt[1]));
+        if(q.some(v=>!v)) continue;
+        const al=(1-fogAlpha(Math.min(...q.map(v=>v.z)),visM));
+        if(al<0.05) continue;
+        const tone = wx_snow ? 220+Math.round(r*24) : 0;
+        c.beginPath(); c.moveTo(q[0].x,q[0].y);
+        for(let i=1;i<4;i++) c.lineTo(q[i].x,q[i].y);
+        c.closePath();
+        c.fillStyle = wx_snow
+          ? `rgba(${tone},${tone+4},${tone+6},${al*0.5})`
+          : `rgba(${Math.round(66+r*46)},${Math.round(82+r*34)},${Math.round(48+r*26)},${al*0.55})`;
+        c.fill();
+      }
+    }
+  }
+  /* parcel boundaries on a 500 m lattice */
+  const zStart=Math.floor((d0-3000)/500)*500;
+  for(let z=zStart; z<d0+far; z+=500){
+    if(z<-2500) continue;
+    seg(-4000,z, 4000,z, col, 1);                 // across
+  }
+  for(let x=-4000; x<=4000; x+=500){
+    if(Math.abs(x)<260) continue;                 // leave the runway corridor clear
+    seg(x, Math.max(-2400,d0-3000), x, d0+far, col, 1);
+  }
+  /* a road running past the field — a strong, straight scale reference */
+  const rd = night?"rgba(60,66,72,A)":"rgba(96,100,104,A)";
+  seg(-4000, d0+far*0.55, 4000, d0+far*0.55, rd, 2.4);
+  /* scattered blocks: buildings/copses. Deterministic, so they do not shimmer. */
+  for(let i=0;i<90;i++){
+    const h1=Math.sin(i*12.9898)*43758.5453, h2=Math.sin(i*78.233)*12345.6789;
+    const fx=((h1-Math.floor(h1))-0.5)*7200;
+    const fz=d0 - 1500 + ((h2-Math.floor(h2)))*(far+1200);
+    if(Math.abs(fx)<300 || fz<-1200) continue;
+    const p=P(fx,fz); if(!p) continue;
+    const al=1-fogAlpha(p.z,visM); if(al<0.06) continue;
+    const sz=Math.max(1, cam.f/Math.max(120,p.z)*((h1-Math.floor(h1))*40+14));
+    c.fillStyle = night ? `rgba(24,34,28,${al*0.8})` : `rgba(58,72,50,${al*0.65})`;
+    c.fillRect(p.x-sz/2, p.y-sz*0.55, sz, sz*0.55);
+    if(night && (h2-Math.floor(h2))>0.72){        // a lit window here and there
+      c.fillStyle=`rgba(255,214,140,${al*0.55})`;
+      c.fillRect(p.x-sz*0.16, p.y-sz*0.42, Math.max(1,sz*0.3), Math.max(1,sz*0.2));
+    }
+  }
+}
+
+/* ---- the aerodrome around the runway ------------------------------------
+   The runway does not float in a field. There is a parallel taxiway, there are
+   connectors, there is an apron with the terminal on it — and having them there
+   is most of the difference between a diagram and a place.                  */
+function drawField(c, cam, V, W, H, night, visM){
+  if(V.distM > 9000) return;                       // too far out to resolve any of it
+  const camY=-(V.agl*FT2M + (V.eyeH||5));
+  const P=(X,Z)=>{ const r=crabbed(V.yaw||0, X-(V.xtrk||0), Z); return proj(cam, r.X, camY, r.Z); };
+  const quad=(pts,fill,stroke)=>{
+    const q=pts.map(p=>P(p[0],p[1]));
+    if(q.some(x=>!x)) return;
+    const d=Math.min(...q.map(x=>x.z)), al=1-fogAlpha(d,visM);
+    if(al<0.05) return;
+    c.beginPath(); c.moveTo(q[0].x,q[0].y);
+    for(let i=1;i<q.length;i++) c.lineTo(q[i].x,q[i].y);
+    c.closePath();
+    if(fill){ c.fillStyle=fill.replace("A",(al).toFixed(3)); c.fill(); }
+    if(stroke){ c.strokeStyle=stroke.replace("A",(al*0.8).toFixed(3)); c.lineWidth=1; c.stroke(); }
+  };
+  const d0=V.distM, L=V.rwyLen, HW=V.rwyW/2;
+  const TW = night?"rgba(16,20,22,A)":"rgba(58,62,58,A)";   // taxiway asphalt
+  const TL = night?"rgba(90,140,80,A)":"rgba(200,190,90,A)"; // taxiway centreline (yellow)
+  const TX = HW+95;                                          // parallel taxiway, 95 m out
+
+  /* the parallel taxiway, both sides */
+  [-1,1].forEach(sgn=>{
+    quad([[sgn*(TX-12), d0-60],[sgn*(TX+12), d0-60],[sgn*(TX+12), d0+L+60],[sgn*(TX-12), d0+L+60]], TW, null);
+    /* its centreline */
+    for(let z=d0-40; z<d0+L+40; z+=90){
+      const a=P(sgn*TX, z), b=P(sgn*TX, Math.min(z+45, d0+L+40));
+      if(!a||!b) continue;
+      const al=1-fogAlpha(Math.max(1,a.z),visM); if(al<0.06) continue;
+      c.strokeStyle=TL.replace("A",(al*0.75).toFixed(3));
+      c.lineWidth=Math.max(0.8, cam.f/Math.max(90,a.z)*0.9);
+      c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); c.stroke();
+    }
+  });
+  /* connectors every ~700 m, joining runway to taxiway */
+  for(let z=d0+120; z<d0+L-100; z+=700){
+    [-1,1].forEach(sgn=>{
+      quad([[sgn*HW, z-11],[sgn*TX, z-11],[sgn*TX, z+11],[sgn*HW, z+11]], TW, null);
+    });
+  }
+  /* the apron and the terminal, off the left-hand taxiway */
+  const AX0=-(TX+30), AX1=-(TX+330);
+  quad([[AX0, d0+L*0.18],[AX1, d0+L*0.18],[AX1, d0+L*0.70],[AX0, d0+L*0.70]],
+       night?"rgba(20,24,26,A)":"rgba(74,78,76,A)", null);
+  /* terminal block, with a lit face at night */
+  const TB0=AX1, TB1=AX1-150;
+  quad([[TB0, d0+L*0.24],[TB1, d0+L*0.24],[TB1, d0+L*0.64],[TB0, d0+L*0.64]],
+       night?"rgba(28,34,42,A)":"rgba(112,118,124,A)",
+       night?"rgba(120,150,190,A)":"rgba(160,170,178,A)");
+  if(night){
+    for(let z=d0+L*0.26; z<d0+L*0.63; z+=46){
+      const p=P(TB0, z); if(!p) continue;
+      const al=1-fogAlpha(p.z,visM); if(al<0.08) continue;
+      const sz=Math.max(1.2, cam.f/Math.max(110,p.z)*10);
+      c.fillStyle=`rgba(255,224,160,${al*0.7})`;
+      c.fillRect(p.x-sz/2, p.y-sz*0.8, sz, sz*0.5);
+    }
+    /* apron floodlights */
+    for(let z=d0+L*0.2; z<d0+L*0.7; z+=120){
+      const p=P(AX1+40, z); if(!p) continue;
+      const al=1-fogAlpha(p.z,visM); if(al<0.08) continue;
+      c.fillStyle=`rgba(255,240,200,${al*0.5})`;
+      c.shadowColor="rgba(255,240,200,.8)"; c.shadowBlur=14;
+      c.beginPath(); c.arc(p.x,p.y,Math.max(1.4,cam.f/Math.max(120,p.z)*2.2),0,7); c.fill();
+      c.shadowBlur=0;
+    }
+  }
+  /* aircraft parked on stand — small, but they give the terminal its scale */
+  for(let i=0;i<6;i++){
+    const z=d0+L*(0.26+i*0.065);
+    const p=P(AX0-70, z), q=P(AX0-118, z);
+    if(!p||!q) continue;
+    const al=1-fogAlpha(p.z,visM); if(al<0.08) continue;
+    c.strokeStyle = night?`rgba(120,130,140,${al*0.55})`:`rgba(228,232,236,${al*0.75})`;
+    c.lineWidth=Math.max(1, cam.f/Math.max(120,p.z)*3.4);
+    c.beginPath(); c.moveTo(p.x,p.y); c.lineTo(q.x,q.y); c.stroke();
+  }
+}
+
 /* ---- the view out of the windscreen ---- */
 function drawOutside(c, W, H, V){
   /* V: {agl, distM, pitch, crab, hdg, night, wx, rwyLen, rwyW, elev, onGround, rollout, ias} */
   const wx=V.wx, night=V.night;
   const visM = wx.vis;
-  const cam = makeCam(W,H, V.pitch, 36);
-  const horizonY = cam.cy + cam.f*Math.tan(V.pitch*Math.PI/180);
+  const bank = V.bank||0;
+  const cam = makeCam(W,H, V.pitch, 46, bank);
+
+  /* ── the horizon is a LINE, not a height ────────────────────────────────
+     Once the aeroplane can bank, the horizon tilts, and sky and ground stop
+     being two rectangles. Roll is a rotation of the whole image about the
+     optical axis, so the horizon is the line through the un-banked horizon
+     point, rotated by the bank angle. Everything else follows from that.   */
+  const rr = bank*Math.PI/180;
+  const hOff = cam.f*Math.tan(V.pitch*Math.PI/180);       // un-banked horizon offset
+  const hMid = { x: cam.cx + hOff*Math.sin(rr), y: cam.cy + hOff*Math.cos(rr) };
+  const hDir = { x: Math.cos(rr), y: -Math.sin(rr) };     // along the horizon
+  const hDn  = { x: Math.sin(rr), y:  Math.cos(rr) };     // perpendicular, toward the ground
+  const D=W*2.6, DEEP=H*3.2;
+  const hA={x:hMid.x+D*hDir.x, y:hMid.y+D*hDir.y}, hB={x:hMid.x-D*hDir.x, y:hMid.y-D*hDir.y};
+  const horizonY = hMid.y;                                // still handy for the haze/deck
+  const groundPoly=()=>{ c.beginPath(); c.moveTo(hA.x,hA.y); c.lineTo(hB.x,hB.y);
+    c.lineTo(hB.x+DEEP*hDn.x, hB.y+DEEP*hDn.y);
+    c.lineTo(hA.x+DEEP*hDn.x, hA.y+DEEP*hDn.y); c.closePath(); };
 
   /* ── sky: it darkens with height, because it does ── */
   const altKm = Math.max(0, (V.agl+V.elev)*FT2M/1000);
   const deep = Math.min(1, altKm/11);
-  const sky=c.createLinearGradient(0,0,0,Math.max(1,horizonY));
+  const skyEnd={x:hMid.x-DEEP*hDn.x, y:hMid.y-DEEP*hDn.y};
+  const sky=c.createLinearGradient(skyEnd.x,skyEnd.y,hMid.x,hMid.y);
   if(night){
     sky.addColorStop(0,"#02050c"); sky.addColorStop(1, deep>.5?"#050a16":"#0b1424");
   }else{
@@ -2275,37 +2468,58 @@ function drawOutside(c, W, H, V){
     sky.addColorStop(0.75,`rgb(${140-40*deep},${190-50*deep},${235-40*deep})`);
     sky.addColorStop(1, wx.fog?"#b9c4c8":`rgb(${196-30*deep},${222-30*deep},${240-20*deep})`);
   }
-  c.fillStyle=sky; c.fillRect(0,0,W,Math.max(0,horizonY));
+  c.fillStyle=sky; c.fillRect(0,0,W,H);                   // sky everywhere, ground painted over it
 
   /* stars, once it is properly dark and properly high */
   if(night && deep>0.15){
+    c.save(); c.beginPath(); c.moveTo(hA.x,hA.y); c.lineTo(hB.x,hB.y);
+    c.lineTo(hB.x-DEEP*hDn.x, hB.y-DEEP*hDn.y); c.lineTo(hA.x-DEEP*hDn.x, hA.y-DEEP*hDn.y);
+    c.closePath(); c.clip();
     c.fillStyle="rgba(255,255,255,"+(0.25+0.45*deep)+")";
-    for(let i=0;i<70;i++){
-      const sx=(i*137.5)%W, sy=((i*79.3)%Math.max(1,horizonY))*0.9;
-      c.fillRect(sx, sy, 1.2, 1.2);
-    }
+    for(let i=0;i<70;i++) c.fillRect((i*137.5)%W, (i*79.3)%H, 1.2, 1.2);
+    c.restore();
   }
 
   /* ── ground ── */
-  const gnd=c.createLinearGradient(0,horizonY,0,H);
+  const gEnd={x:hMid.x+DEEP*hDn.x, y:hMid.y+DEEP*hDn.y};
+  const gnd=c.createLinearGradient(hMid.x,hMid.y,gEnd.x,gEnd.y);
   if(night){ gnd.addColorStop(0,"#0a1410"); gnd.addColorStop(1,"#050b09"); }
   else if(wx.snow){ gnd.addColorStop(0,"#c9d6d8"); gnd.addColorStop(1,"#eef3f4"); }
   else { gnd.addColorStop(0,"#546b4a"); gnd.addColorStop(1,"#2c3a28"); }
-  c.fillStyle=gnd; c.fillRect(0,Math.max(0,horizonY),W,H-Math.max(0,horizonY));
+  c.save(); groundPoly(); c.clip();
+  c.fillStyle=gnd; c.fillRect(0,0,W,H);
+  drawTerrain(c, cam, V, W, H, night, visM);              // parcels, roads, something to judge height by
+  drawField(c, cam, V, W, H, night, visM);                // taxiways, apron, terminal
+  c.restore();
 
   /* haze band right on the horizon — the single cheapest thing that sells distance */
-  if(horizonY>0&&horizonY<H){
-    const hz=c.createLinearGradient(0,horizonY-26,0,horizonY+16);
+  {
     const hazeCol = night?"10,22,32" : wx.fog?"186,196,200" : "170,196,214";
+    c.save(); c.translate(hMid.x,hMid.y); c.rotate(-rr);
+    const hz=c.createLinearGradient(0,-26,0,16);
     hz.addColorStop(0,`rgba(${hazeCol},0)`);
     hz.addColorStop(0.55,`rgba(${hazeCol},${wx.fog?0.85:0.5})`);
     hz.addColorStop(1,`rgba(${hazeCol},0)`);
-    c.fillStyle=hz; c.fillRect(0,horizonY-26,W,42);
+    c.fillStyle=hz; c.fillRect(-D,-26,D*2,42);
+    c.restore();
   }
 
-  /* ── the aeroplane is IN the cloud: whiteout, and nothing else matters ── */
-  const inCloud = wx.ceil!=null && V.agl > wx.ceil-120 && V.agl < wx.ceil+900;
-  const aboveCloud = wx.ceil!=null && V.agl >= wx.ceil+900;
+  /* ── cloud is a LAYER you descend through, not a switch ──────────────────
+     Real cloud has a base and a top. You enter it, you lose everything, and then
+     you break out — and the break-out is gradual: the approach lights emerge
+     before the runway does. cloudFrac is how much of the world is taken away. */
+  const cTop = wx.ceil!=null ? wx.ceil + 1400 : null;
+  const cloudFrac = (()=>{
+    if(wx.ceil==null) return 0;
+    const a=V.agl;
+    if(a >= cTop) return 0;                              // above the deck: clear
+    if(a <= wx.ceil-90) return 0;                        // broken out beneath it
+    if(a < wx.ceil+140) return clamp((a-(wx.ceil-90))/230, 0, 1);   // breaking out
+    if(a > cTop-260)    return clamp((cTop-a)/260, 0, 1);           // entering the top
+    return 1;                                            // solidly inside
+  })();
+  const inCloud = cloudFrac > 0.55;
+  const aboveCloud = wx.ceil!=null && V.agl >= cTop;
   if(aboveCloud){
     /* a cloud deck below us, receding to the horizon */
     const deckY = (()=>{ const p=proj(cam,0,-(V.agl-wx.ceil)*FT2M, 12000); return p?p.y:horizonY+30; })();
@@ -2317,13 +2531,16 @@ function drawOutside(c, W, H, V){
 
   /* ── the runway, if we can be looking at it ── */
   const showRwy = V.distM < 22000 && V.agl < 6500;
-  if(showRwy && !inCloud){
+  if(showRwy && cloudFrac < 0.98){
     const L=V.rwyLen, HW=V.rwyW/2;
     const d0=V.distM;                                  // metres to threshold (negative once past it)
     /* the eye is not on the tarmac: it is gndH + a fuselage radius above it, so
        even parked on the runway you look DOWN the centreline, not along it */
     const camY=-(V.agl*FT2M + (V.eyeH||5));            // ground is this far BELOW the camera
-    const P=(X,Z)=>{ const r=crabbed(V.crab, X, Z); return proj(cam, r.X, camY, r.Z); };
+    /* yaw = crab + intercept track offset, and the camera sits xtrk metres off
+       the extended centreline. Together these are what swing the runway into
+       the windscreen as you turn final. */
+    const P=(X,Z)=>{ const r=crabbed(V.yaw||0, X-(V.xtrk||0), Z); return proj(cam, r.X, camY, r.Z); };
 
     /* fogged-out overlay strength for anything at the threshold */
     const fA=fogAlpha(Math.max(0,d0), visM);
@@ -2474,19 +2691,24 @@ function drawOutside(c, W, H, V){
     }
   }
 
-  /* ── in cloud: you see nothing, and that is the lesson ── */
-  if(inCloud){
+  /* ── in cloud: it takes the world away progressively ── */
+  if(cloudFrac>0.02){
     const c0=night?"rgba(40,52,68,":"rgba(232,238,242,";
-    c.fillStyle=c0+"0.94)"; c.fillRect(0,0,W,H);
-    for(let i=0;i<28;i++){
-      const t=(V.t||0)*0.4+i;
-      const sx=(i*97+ (t*40)%W)%W, sy=(i*61)%H;
-      c.fillStyle=c0+(0.05+0.05*Math.sin(t))+")";
-      c.beginPath(); c.arc(sx,sy,40+18*Math.sin(i*2.1),0,7); c.fill();
+    c.fillStyle=c0+(0.96*cloudFrac).toFixed(3)+")"; c.fillRect(0,0,W,H);
+    /* scud — ragged wisps that stream past. They are what make you feel you are
+       moving through the layer rather than sitting behind a white card. */
+    const t=(V.t||0);
+    for(let i=0;i<26;i++){
+      const sp=0.6+((i*37)%11)/9;
+      const sx=(((i*173) + t*130*sp) % (W+420)) - 210;
+      const sy=(i*73)%H;
+      const rr2=46+26*Math.sin(i*2.1);
+      c.fillStyle=c0+(0.05*cloudFrac*(0.5+0.5*Math.sin(t*0.6+i))).toFixed(3)+")";
+      c.beginPath(); c.ellipse(sx,sy,rr2*1.8,rr2*0.55,0,0,7); c.fill();
     }
   }
   /* ── fog everywhere else ── */
-  else if(visM<6000){
+  if(cloudFrac<0.9 && visM<6000){
     const f=Math.min(0.9, 1-visM/6000);
     c.fillStyle=night?`rgba(30,40,50,${f*.7})`:`rgba(206,214,218,${f*.85})`;
     c.fillRect(0,0,W,H);
@@ -3671,6 +3893,7 @@ function sRamp(el){
     R.icing=(F.oat!=null&&F.oat<6);
     R.found=[]; R.inspected=[]; R.disc={};
     R.gse=[{nm:"BOWSER",x:.30,y:.30},{nm:"BELT",x:.62,y:.72},{nm:"GPU",x:.44,y:.22},{nm:"STEPS",x:.20,y:.70}];
+    R.cur=0; R.hover=-1;
   }
   el.innerHTML=`
   <div class="stn-h"><div><div class="kick">Station 05 · Ramp safety</div><h2>Walkaround &amp; Aircraft Acceptance</h2>
@@ -3704,6 +3927,7 @@ function sRamp(el){
         <span class="live" id="aLive">STAND CLEAR</span><canvas id="aCv" height="240" style="cursor:pointer"></canvas></div>
       <div class="card hl"><h3>Ramp conditions</h3><div id="cBox"></div>
         <div class="btnrow" id="cBtn"></div>
+        <div id="blk" style="margin-top:10px"></div>
         <div class="btnrow"><button class="btn primary" id="clrB">Accept aircraft &amp; clear ramp</button></div></div>
     </div>
   </div>`;
@@ -3730,7 +3954,7 @@ function sRamp(el){
     R.fodPts.forEach(p=>{ if(p.got)return; const px=p.x*W,py=p.y*H;
       c.fillStyle='#ff5470';c.globalAlpha=.35+.28*Math.sin(t*3+px);c.beginPath();c.arc(px,py,8,0,7);c.fill();c.globalAlpha=1;
       c.fillStyle='#ffd98a';c.beginPath();c.arc(px,py,2.5,0,7);c.fill(); });
-    SPOTS.forEach(h=>{ const px=h.x*W,py=h.y*H;
+    SPOTS.forEach((h,i)=>{ const px=h.x*W,py=h.y*H;
       const ins=R.inspected.includes(h.id), fnd=R.found.includes(h.id);
       const col=fnd?'#ff5470':ins?'#3ee08f':'#f0b64a';
       if(!ins){ c.globalAlpha=.28+.25*Math.sin(t*2.2+px*.05); c.fillStyle=col;
@@ -3738,28 +3962,74 @@ function sRamp(el){
       c.strokeStyle=col;c.lineWidth=1.6;c.beginPath();c.arc(px,py,h.r,0,7);c.stroke();
       c.fillStyle=col;c.font='9px ui-monospace';c.textAlign='center';
       c.fillText(fnd?'!':ins?'✓':'?',px,py+3.5);c.textAlign='left'; });
-    const hint='Click each ? to inspect  ·  click red FOD to collect';
+
+    /* the focus cursor: what SPACE will inspect. This is what makes the station
+       playable without a mouse at all. */
+    const fc=SPOTS[R.cur]||SPOTS[0];
+    if(fc){ const px=fc.x*W, py=fc.y*H, rr=fc.r+11+1.5*Math.sin(t*4);
+      c.strokeStyle='#7cc6ff'; c.lineWidth=2; c.setLineDash([5,4]); c.lineDashOffset=-t*18;
+      c.beginPath(); c.arc(px,py,rr,0,7); c.stroke();
+      c.setLineDash([]); c.lineDashOffset=0;
+      /* the name, so you always know what you are about to look at */
+      c.font='9px ui-monospace'; const lw=c.measureText(fc.nm).width;
+      const lx=Math.min(Math.max(px-lw/2-6, 4), W-lw-16), ly=py-fc.r-26;
+      c.fillStyle='rgba(8,7,10,.88)'; rrect(c,lx,ly,lw+12,16,5); c.fill();
+      c.strokeStyle='rgba(124,198,255,.5)'; c.lineWidth=1; rrect(c,lx,ly,lw+12,16,5); c.stroke();
+      c.fillStyle='#7cc6ff'; c.fillText(fc.nm, lx+6, ly+11);
+    }
+    /* the hovered station gets a soft halo too */
+    if(R.hover>=0 && R.hover!==R.cur && SPOTS[R.hover]){
+      const hh=SPOTS[R.hover];
+      c.strokeStyle='rgba(246,241,232,.45)'; c.lineWidth=1.4;
+      c.beginPath(); c.arc(hh.x*W,hh.y*H,hh.r+8,0,7); c.stroke();
+    }
+    const hint='← → move  ·  SPACE inspect  ·  N next  ·  F collect FOD';
     c.font='8.5px ui-monospace';
     const hw=c.measureText(hint).width;
     c.fillStyle='rgba(8,7,10,.75)'; rrect(c,8,H-22,hw+16,16,8); c.fill();
     c.fillStyle='rgba(164,154,143,.9)'; c.fillText(hint,16,H-11);
   });
+  /* ── the walkaround, as real functions rather than synthetic clicks ──────
+     Every one of these is reachable by mouse OR keyboard, and they are the same
+     code path, so the two can never drift apart. */
+  function inspect(h){
+    if(!h) return;
+    if(R.inspected.includes(h.id)){ toast(h.nm+" — already inspected.","warn"); return; }
+    R.inspected.push(h.id);
+    if(R.defects.includes(h.id)){ R.found.push(h.id);
+      const d=DEFECTS.find(x=>x.id===h.id);
+      modal(`<h3 style="color:var(--red)">Defect found</h3><p><b>${d.nm}</b> at ${h.nm}.</p>
+        <p>Caught on the walkaround. Engineering will rectify before departure — this would otherwise have caused: <i>${d.hit}</i>.</p>
+        <div class="btnrow"><button class="btn primary" id="okD">Rectify &amp; continue</button></div>`);
+      $('#okD').onclick=closeModal;
+      toast("DEFECT — "+d.nm,"bad");
+    } else toast(h.nm+" — serviceable.","ok");
+    upd();
+  }
+  function collectFod(p){
+    if(!p||p.got) return false;
+    p.got=1; R.fodFound++; upd(); toast("FOD collected.","ok"); return true;
+  }
+  /* the focused station — moved with ← → , inspected with SPACE */
+  R.cur = R.cur||0;
+  const focusNext=(dir)=>{ R.cur=(R.cur+dir+SPOTS.length)%SPOTS.length; };
+  const nextUn=()=>{ for(let i=1;i<=SPOTS.length;i++){
+      const j=(R.cur+i)%SPOTS.length; if(!R.inspected.includes(SPOTS[j].id)) return j; }
+    return -1; };
+
+  cv.onmousemove=e=>{ const r=cv.getBoundingClientRect(), W=r.width, H=300;
+    const mx=e.clientX-r.left, my=e.clientY-r.top;
+    let hit=-1;
+    SPOTS.forEach((h,i)=>{ if(Math.hypot(mx-h.x*W,my-h.y*H)<h.r+10) hit=i; });
+    R.hover = hit; cv.style.cursor = hit>=0 ? 'pointer' : 'crosshair';
+  };
+  cv.onmouseleave=()=>{ R.hover=-1; };
   cv.onclick=e=>{ const r=cv.getBoundingClientRect(), W=r.width, H=300;
     const mx=e.clientX-r.left, my=e.clientY-r.top;
     for(const p of R.fodPts){ if(p.got)continue;
-      if(Math.hypot(mx-p.x*W,my-p.y*H)<14){ p.got=1; R.fodFound++; upd(); toast("FOD collected.","ok"); return; } }
-    for(const h of SPOTS){ if(Math.hypot(mx-h.x*W,my-h.y*H)<h.r+6){
-      if(R.inspected.includes(h.id)){ toast(h.nm+" — already inspected.","warn"); return; }
-      R.inspected.push(h.id);
-      if(R.defects.includes(h.id)){ R.found.push(h.id);
-        const d=DEFECTS.find(x=>x.id===h.id);
-        modal(`<h3 style="color:var(--red)">Defect found</h3><p><b>${d.nm}</b> at ${h.nm}.</p>
-          <p>Caught on the walkaround. Engineering will rectify before departure — this would otherwise have caused: <i>${d.hit}</i>.</p>
-          <div class="btnrow"><button class="btn primary" id="okD">Rectify &amp; continue</button></div>`);
-        $('#okD').onclick=closeModal;
-        toast("DEFECT — "+d.nm,"bad");
-      } else toast(h.nm+" — serviceable.","ok");
-      upd(); return; } }
+      if(Math.hypot(mx-p.x*W,my-p.y*H)<20){ collectFod(p); return; } }   // forgiving hit radius
+    for(let i=0;i<SPOTS.length;i++){ const h=SPOTS[i];
+      if(Math.hypot(mx-h.x*W,my-h.y*H)<h.r+10){ R.cur=i; inspect(h); return; } }
   };
   function upd(){ const n=R.inspected.length;
     $('#wN').textContent=n+' / '+SPOTS.length;
@@ -3808,17 +4078,78 @@ function sRamp(el){
       c.fillStyle=g.bad?'rgba(255,84,112,.2)':'rgba(62,224,143,.15)';
       c.strokeStyle=col;c.lineWidth=1.4;rrect(c,gx-24,gy-9,48,18,4);c.fill();c.stroke();
       c.fillStyle=col;c.font='8px ui-monospace';c.textAlign='center';c.fillText(g.nm,gx,gy+3);c.textAlign='left'; });
+    if(R.arcBreach!==breach) setTimeout(drawBlockers,0);    // the panel must not lie
     R.arcBreach=breach;
+    R._arc={W,H,eng,R1:W*.085};        // so repositioning can test the arcs for real
     const lv=$('#aLive');
     if(lv){ lv.textContent=breach?'⚠ GSE IN DANGER ZONE':'STAND CLEAR'; lv.style.color=breach?'var(--red)':'var(--gold)'; }
   });
+  /* ── repositioning GSE ────────────────────────────────────────────────────
+     This used to fling the unit to a RANDOM stand, which could easily drop it
+     straight back inside an arc — so you clicked, and clicked again. Now it goes
+     to the nearest stand that is genuinely clear, tested against the same arc
+     geometry the display draws. One action, guaranteed to resolve. */
+  const STANDS=[[.07,.13],[.93,.13],[.05,.48],[.95,.48],[.07,.89],[.93,.89],[.5,.05],[.28,.06],[.72,.06]];
+  function inArc(nx,ny){
+    const A=R._arc; if(!A) return false;
+    const gx=nx*A.W, gy=ny*A.H;
+    return A.eng.some(([ex,ey])=>{
+      const inI=Math.hypot(gx-ex, gy-(ey-A.R1*.15)) < A.R1*1.25;                 // intake, with margin
+      const inB=(gy>ey && gy<ey+A.H*.44+10 && Math.abs(gx-ex) < A.W*.06+((gy-ey)/(A.H*.44))*A.W*.03 + 26);
+      return inI||inB;
+    });
+  }
+  function reposition(g){
+    const free=STANDS.filter(sp=>!inArc(sp[0],sp[1]) &&
+      !R.gse.some(o=>o!==g && Math.hypot(o.x-sp[0],o.y-sp[1])<0.10));    // don't stack them
+    if(!free.length){ toast("No clear stand available.","warn"); return; }
+    free.sort((a,b)=>Math.hypot(a[0]-g.x,a[1]-g.y)-Math.hypot(b[0]-g.x,b[1]-g.y));
+    g.x=free[0][0]; g.y=free[0][1]; g.bad=0;
+    toast(g.nm+" repositioned clear of the arcs.","ok");
+  }
   ac.onclick=e=>{ const r=ac.getBoundingClientRect(),W=r.width,H=240;
     const mx=e.clientX-r.left,my=e.clientY-r.top;
-    for(const g of R.gse){ if(Math.abs(mx-g.x*W)<26&&Math.abs(my-g.y*H)<11){
-      const sp=[[.08,.14],[.92,.14],[.08,.88],[.92,.88],[.5,.05]][Math.floor(Math.random()*5)];
-      g.x=sp[0];g.y=sp[1]; toast(g.nm+" repositioned clear of the arcs.","ok"); return; } } };
+    for(const g of R.gse){ if(Math.abs(mx-g.x*W)<28&&Math.abs(my-g.y*H)<13){ reposition(g); return; } } };
+  ac.onmousemove=e=>{ const r=ac.getBoundingClientRect(),W=r.width,H=240;
+    const mx=e.clientX-r.left,my=e.clientY-r.top;
+    ac.style.cursor = R.gse.some(g=>Math.abs(mx-g.x*W)<28&&Math.abs(my-g.y*H)<13)?'pointer':'default';
+  };
   $$('#dC .chk').forEach(c=>{ const k=c.dataset.k;
     c.onclick=()=>{ R.disc[k]=!R.disc[k]; c.classList.toggle('on',!!R.disc[k]); cond(); }; });
+  /* everything standing between you and an accepted aircraft, named out loud */
+  function blockers(){
+    const b=[];
+    const un=SPOTS.length-R.inspected.length;
+    if(un>0) b.push({k:'Walkaround', v:un+' station'+(un>1?'s':'')+' unchecked', key:'N'});
+    const nd=['ppe','chocks','cones','bond','gpu'].filter(k=>!R.disc[k]);
+    if(nd.length) b.push({k:'Stand discipline', v:nd.length+' item'+(nd.length>1?'s':'')+' outstanding', key:'X'});
+    if(R.lightning&&!R.ligClear) b.push({k:'Thunderstorm', v:'within 5 nm — ramp suspended', key:'W'});
+    if(R.icing&&!R.deice) b.push({k:'Icing', v:'airframe contaminated', key:'E'});
+    return b;
+  }
+  /* warnings — they do NOT block you, they cost you. That difference is the lesson. */
+  function warnings(){
+    const w=[];
+    if(R.arcBreach) w.push({k:'GSE in danger arc', v:'−12 safety if you accept', key:'G'});
+    const fl=R.fodN-R.fodFound;
+    if(fl>0) w.push({k:'FOD on stand', v:fl+' item'+(fl>1?'s':'')+' · −3 each', key:'F'});
+    return w;
+  }
+  function drawBlockers(){
+    const bx=$('#blk'); if(!bx) return;
+    const b=blockers(), w=warnings();
+    const row=(x,cls)=>`<div class="ro" style="margin:0 0 5px"><span class="k">${x.k}</span>
+      <span class="v ${cls}">${x.v}</span><span class="k" style="text-align:right"><kbd>${x.key}</kbd></span></div>`;
+    let h='';
+    if(!b.length && !w.length) h='<div class="bdg ok">✓ Aircraft ready to accept — press ⏎</div>';
+    else {
+      h += b.map(x=>row(x,'bad')).join('') + w.map(x=>row(x,'wr')).join('');
+      if(!b.length) h+='<div class="bdg warn" style="margin-top:6px">You may accept — but it will cost you.</div>';
+    }
+    bx.innerHTML=h;
+    const cb=$('#clrB'); if(cb) cb.classList.toggle('primary', b.length===0);
+    renderKeyBar();
+  }
   function cond(){
     const lig=R.lightning&&!R.ligClear;
     let h=`<div class="ro">
@@ -3838,13 +4169,11 @@ function sRamp(el){
       toast("Storm cleared. 12 min lost — code 71.","warn"); cond(); };
     if($('#deB')) $('#deB').onclick=()=>{ R.deice=1; R.hot=900; R.deiceAt=Date.now(); F.delayMin+=8;
       toast("De-iced. Hold-over 15:00 — beat the clock.","ok"); cond(); };
+    drawBlockers();
   }
   $('#clrB').onclick=()=>{
-    if(R.inspected.length<SPOTS.length){ toast(`Walkaround incomplete — ${SPOTS.length-R.inspected.length} station(s) unchecked.`,"bad"); return; }
-    const need=['ppe','chocks','cones','bond','gpu'].filter(k=>!R.disc[k]);
-    if(need.length){ toast("Stand discipline incomplete: "+need.join(', ').toUpperCase(),"bad"); return; }
-    if(R.lightning&&!R.ligClear){ toast("Cannot clear — thunderstorm within 5 nm.","bad"); return; }
-    if(R.icing&&!R.deice){ toast("Cannot depart contaminated — de-ice first.","bad"); return; }
+    const b=blockers();
+    if(b.length){ toast(b[0].k+" — "+b[0].v+".  ["+b[0].key+"]","bad"); drawBlockers(); return; }
     if(R.arcBreach){ R.breaches=(R.breaches||0)+1; F.score.safety-=12;
       F.score.events.push("GSE inside engine danger arc at clearance");
       toast("INCIDENT — GSE left inside a danger arc.","bad"); }
@@ -3858,18 +4187,38 @@ function sRamp(el){
     foot(`Ramp cleared · <b>${R.found.length}</b> found · <b>${R.fodFound}/${R.fodN}</b> FOD · Safety <b>${Math.round(F.score.safety)}%</b>`);
   };
   upd();
+
+  /* ── the whole station, playable from the keyboard ───────────────────────── */
+  const DISC=['ppe','chocks','cones','bond','gpu'];
+  const DISCN={ppe:"PPE",chocks:"Chocks",cones:"Cones",bond:"Bowser bonded",gpu:"GPU clear"};
   keys([...globalKeys(),
-    ['n','Next uninspected',()=>{ const sp=SPOTS.find(x=>!R.inspected.includes(x.id));
-      if(!sp){ toast("Walkaround complete.","ok"); return; }
-      const r=cv.getBoundingClientRect();
-      cv.dispatchEvent(new MouseEvent('click',{clientX:r.left+sp.x*r.width,clientY:r.top+sp.y*300,bubbles:true})); }],
+    ['arrowleft','Prev station',()=>focusNext(-1)],
+    ['arrowright','Next station',()=>focusNext(1)],
+    [' ','Inspect',()=>inspect(SPOTS[R.cur]), {live:()=>!R.inspected.includes(SPOTS[R.cur].id)}],
+    ['n','Next unchecked',()=>{ const j=nextUn();
+      if(j<0){ toast("Walkaround complete.","ok"); return; }
+      R.cur=j; inspect(SPOTS[j]); }],
     ['f','Collect FOD',()=>{ const p=R.fodPts.find(x=>!x.got);
-      if(!p){ toast("No FOD left.","ok"); return; }
-      const r=cv.getBoundingClientRect();
-      cv.dispatchEvent(new MouseEvent('click',{clientX:r.left+p.x*r.width,clientY:r.top+p.y*300,bubbles:true})); }],
-    ['enter','Accept aircraft',()=>$('#clrB').click()]
+      if(!p){ toast("No FOD left on the stand.","ok"); return; }
+      collectFod(p); },
+      {live:()=>R.fodFound<R.fodN}],
+    ['g','Clear GSE from arc',()=>{ const g=R.gse.find(x=>x.bad);
+      if(!g){ toast("Stand is already clear of the danger arcs.","ok"); return; }
+      reposition(g); },
+      {live:()=>!!R.arcBreach}],
+    ['x','Tick discipline',()=>{ const k=DISC.find(k=>!R.disc[k]);
+      if(!k){ toast("Stand discipline complete.","ok"); return; }
+      R.disc[k]=true;
+      const el2=document.querySelector(`#dC .chk[data-k="${k}"]`); if(el2) el2.classList.add('on');
+      toast(DISCN[k]+" — confirmed.","ok"); cond(); },
+      {live:()=>DISC.some(k=>!R.disc[k])}],
+    ['e','De-ice',()=>{ const b=$('#deB'); if(b) b.click(); else toast("De-icing not required.","warn"); },
+      {live:()=>!!(R.icing&&!R.deice)}],
+    ['w','Wait out storm',()=>{ const b=$('#wLig'); if(b) b.click(); else toast("No storm holding you.","warn"); },
+      {live:()=>!!(R.lightning&&!R.ligClear)}],
+    ['enter','Accept aircraft',()=>$('#clrB').click(), {live:()=>blockers().length===0}]
   ]);
-  foot("Inspect <b>all 8 stations</b>, clear the <b>FOD</b> and <b>danger arcs</b>, complete <b>discipline</b>.");
+  foot("<b>← →</b> move · <b>SPACE</b> inspect · <b>N</b> next · <b>F</b> FOD · <b>G</b> clear GSE · <b>X</b> discipline · <b>⏎</b> accept");
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -5125,7 +5474,11 @@ function sFly(el){
   const S=F.fly||(F.fly={
     ph:"HOLD", v:0, alt:dep.elev, vs:0, pitch:0, dist:0, roll:0, rollout:0, touch:0,
     fuel:F.block-(F.fuelUsed||0), fl:(F.cruiseFL&&F.cruiseFL>=100)?F.cruiseFL:a.cruise.fl,
-    warp:1, t:0, gear:1, failed:null, calls:[], hist:[]
+    warp:1, t:0, gear:1, failed:null, calls:[], hist:[],
+    /* the lateral axis. Until now the aeroplane flew a straight-in and there was
+       nothing to bank. Now it intercepts the centreline from an offset, banks to
+       turn, rolls out on it, and kicks off the crab in the flare. */
+    xtrk:0, intc:0, bank:0, decrab:0, capt:false
   });
   const missed=F.ramp.missed||[];
   const bite=missed.length?DEFECTS.find(d=>d.id===missed[0]):null;
@@ -5284,7 +5637,17 @@ function sFly(el){
       toast("Step climb approved — FL"+S.fl,"ok"); });
     h('todB',()=>{S.ph="DESCENT";call("Descending "+des.icao,"g");toast("Top of descent.","ok");ctls();});
     h('apprB',()=>{ if(S.alt>13000){toast("Too high — continue descent.","warn");return;}
-      S.ph="APPROACH";call("Established on final · gear down","g");toast("Established.","ok");ctls(); });
+      S.ph="APPROACH";
+      /* you are not handed the centreline — you are vectored onto it. You start on
+         a base leg, well off to one side and pointed across the localiser, and you
+         fly the turn onto final yourself. The runway is not even in the windscreen
+         when you begin: it swings into view as you come round. */
+      const side = (Math.random()<0.5?-1:1);
+      S.xtrk = side * (3200+Math.random()*1600);          // metres off the centreline
+      S.intc = 0;                                          // downwind: parallel, but displaced
+      S.bank = 0; S.capt=false; S.decrab=0; S.turning=false;
+      call("Vectors to final — you are downwind, "+(side>0?"right":"left")+" of the localiser","g");
+      toast("Displaced from the centreline. The turn onto final comes at 3,600 ft.","ok");ctls(); });
     h('landB',()=>{ if(S.alt>1600){toast("Too high to land — continue approach.","warn");return;}
       S.ph="FLARE";call("Flare — retard","g");ctls(); });
     h('gaB',()=>{ S.ph="GOAROUND";F.gaCount++;F.score.ops-=6;F.delayMin+=9;
@@ -5317,6 +5680,34 @@ function sFly(el){
     const dt=raw/NS;
     for(let _s=0;_s<NS;_s++){ if(!F.flyDone||S.ph==="ROLLOUT"||S.ph==="REJECT") step(dt); }
     S.t+=raw;
+    /* ── the lateral flight law ────────────────────────────────────
+       Bank makes the turn; the turn changes the track; the track closes the
+       offset. That is the real causal chain, and it is why the roll-out has to
+       be led: you cannot stop a turn instantly, so you start straightening
+       before you reach the centreline or you sail straight through it.      */
+    function latStep(h, agl){
+      /* above 3,600 ft you are still on the downwind leg: displaced from the
+         localiser and tracking parallel to it. The turn onto final happens
+         where a real vectored intercept happens — low enough, and close enough,
+         that the runway actually swings into the windscreen as you come round. */
+      if(agl > 3600){ S.bank += (0-S.bank)*Math.min(1,h*2); S.intc*=Math.max(0,1-h*2); return; }
+      if(!S.turning){ S.turning=true; call("Turn onto final — intercepting the localiser","g"); }
+      const gs=Math.max(50, S.v*0.5144);                       // m/s
+      /* far out, a 30° intercept; close in, proportionally shallower */
+      const want = clamp(-S.xtrk*0.020, -25, 25);              // degrees of track offset
+      const err  = want - S.intc;
+      const bankWant = clamp(err*1.7, -25, 25);                // limited like a real autopilot
+      S.bank += (bankWant - S.bank) * Math.min(1, h*1.9);      // roll inertia
+      /* rate of turn from bank: ω = g·tanφ / V — the coordinated-turn equation.
+         25° at 140 kt gives ~3.7°/s, which is about a rate one turn. */
+      const omega = 9.81*Math.tan(S.bank*Math.PI/180)/gs * 180/Math.PI;
+      S.intc += omega*h;
+      S.xtrk += gs*Math.sin(S.intc*Math.PI/180)*h;             // the track carries us across
+      if(!S.capt && Math.abs(S.xtrk)<180 && Math.abs(S.intc)<12){
+        S.capt=true; call("Localiser captured","g");
+      }
+      if(S.capt && Math.abs(S.xtrk)<6 && Math.abs(S.intc)<0.5){ S.xtrk*=0.9; S.intc*=0.9; }
+    }
     function step(dt){
     /* ─── physics ─── */
     if(S.ph==="ROLL"){
@@ -5368,10 +5759,17 @@ function sFly(el){
          is always stabilised at the threshold regardless of how it got there      */
       S.v+=(F.vref-S.v)*Math.min(1,dt*0.42);
       S.pitch=-3; S.gear=1;
+      latStep(dt*12, S.alt-des.elev);
       if(S.alt<=des.elev+250){ S.ph="FLARE"; ctls(); }
     }
     else if(S.ph==="FLARE"){
       const agl=Math.max(0,S.alt-des.elev);
+      latStep(dt*12, agl);
+      /* de-crab. In a crosswind you fly final crabbed into wind, but you cannot
+         land crabbed — the gear would be side-loaded. So in the last hundred feet
+         you kick the nose straight with rudder and hold the into-wind wing down.
+         That is why a crosswind landing is banked at the moment of touchdown. */
+      if(agl<120){ S.decrab = Math.min(1, S.decrab + dt*12*0.9); }
       if(agl>250){ S.vs=-760; S.alt+=S.vs/60*dt*12; S.v=Math.max(F.vref,S.v-dt*5); }
       else {
         /* flare law: commanded sink is proportional to height, so the aircraft
@@ -5452,7 +5850,17 @@ function sFly(el){
          and on short final you will see the centreline offset because of it */
       const comp = windComp(wx, rwy.hdg);
       const tas = Math.max(60, S.v);
-      const crab = Math.asin(clamp(comp.cross/tas, -0.35, 0.35));
+      const rawCrab = Math.asin(clamp(comp.cross/tas, -0.35, 0.35));
+      const dc = arriving ? (S.decrab||0) : 0;
+      const crab = rawCrab*(1-dc);                      // kicked straight in the flare
+      /* bank = the intercept turn, plus the into-wind wing you drop once the crab
+         is taken out. Wind from the right → right wing down. */
+      const windLow = Math.sign(comp.cross)*Math.min(6, Math.abs(comp.cross)*0.35)*dc;
+      const onRwy = ["ROLLOUT","ROLL","ROTATE","LINEUP","TAXI","HOLD","REJECT"].includes(S.ph);
+      const bank  = onRwy ? 0 : (S.bank||0) + windLow;
+      const yaw   = crab + (arriving ? (S.intc||0)*Math.PI/180 : 0);
+      const xtrk  = arriving ? (S.xtrk||0) : 0;
+
       const fpa = S.v>40 ? Math.atan2(S.vs/60*FT2M, S.v*0.514)*180/Math.PI : 0;
       const night = (()=>{ const h=new Date().getUTCHours()+(fld.lon/15);
         const lh=((h%24)+24)%24; return lh<6.2||lh>18.4; })();
@@ -5460,8 +5868,9 @@ function sFly(el){
       const gm=geo(F.type);
       const eyeH=(gm.gndH||3.2)+(gm.fusDia||3.9)/2;     // cockpit eye above the tarmac, metres
       drawOutside(oc, OW, OH, {
-        agl, distM, pitch:S.pitch, crab, night, wx, t:S.t, eyeH,
-        rwyLen:rwy.len, rwyW:45, rwyName:rwyId.replace('-INT',''),
+        agl, distM, pitch:S.pitch, crab, yaw, xtrk, bank, night, wx, t:S.t, eyeH,
+        rwyLen:rwy.len, rwyW:rwyWidth(fld.icao, rwyId),  // 60 m at Delhi, 50 at Heathrow
+        rwyName:rwyId.replace('-INT',''),
         elev:fld.elev, wet:F.wet, fpa, ias:S.v
       });
 
