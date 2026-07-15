@@ -5769,6 +5769,147 @@ function sTurn(el){
 /* ══════════════════════════════════════════════════════════════
    STATION 08 · FLIGHT DECK — takeoff → cruise → landing, one screen
    ══════════════════════════════════════════════════════════════ */
+/* ── the instrument strip, as a callable function so it can be tested and reused.
+   Reads live flight state on every call, exactly like the PFD beside it. ── */
+function drawPanels(c, W, H){
+      const S=F.fly||{}, E=F.eng.seq||{}, night=true;
+      const ink="#e9edf2", dim="rgba(233,237,242,.5)", faint="rgba(233,237,242,.28)";
+      const green="#39d98a", amber="#f0b64a", red="#ff5b5b", blue="#6bb7ff";
+      const gap=10, pw=(W-gap*3)/4, ph=H-6, y0=3;
+      const panel=(x,title)=>{
+        c.fillStyle="rgba(255,255,255,.02)"; rrect(c,x,y0,pw,ph,9); c.fill();
+        c.strokeStyle="rgba(233,237,242,.10)"; c.lineWidth=1; rrect(c,x,y0,pw,ph,9); c.stroke();
+        c.fillStyle=faint; c.font="8px ui-monospace"; c.textAlign="left";
+        c.fillText(title.toUpperCase(), x+10, y0+14);
+      };
+      const led=(x,y,r,on,col)=>{
+        c.beginPath(); c.arc(x,y,r,0,7);
+        if(on){ c.fillStyle=col; c.shadowColor=col; c.shadowBlur=8; c.fill(); c.shadowBlur=0; }
+        else { c.fillStyle="rgba(255,255,255,.05)"; c.fill();
+               c.strokeStyle="rgba(233,237,242,.16)"; c.lineWidth=1; c.stroke(); }
+      };
+      const inTransit = (S.gear>0 && S.gear<1);
+      const arriving = ["APPROACH","FLARE","ROLLOUT"].includes(S.ph);
+      const gearDown = S.gear>=0.99 || arriving || ["HOLD","TAXI","LINEUP"].includes(S.ph);
+
+      /* ── 1 · LANDING GEAR ─────────────────────────────────────────────── */
+      let x=gap*0+0+ (W-pw*4-gap*3)/2; const bx=x;
+      panel(x,"Landing gear");
+      const gy=y0+34;
+      ["NOSE","LEFT","RIGHT"].forEach((lbl,i)=>{
+        const ly=gy+i*30;
+        c.fillStyle=dim; c.font="8px ui-monospace"; c.textAlign="left"; c.fillText(lbl, x+12, ly+3);
+        /* green = down & locked · red = in transit · dark = up */
+        led(x+pw-46, ly, 5, gearDown && !inTransit, green);
+        led(x+pw-28, ly, 5, inTransit, red);
+        c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="center";
+        if(i===0){ c.fillText("DN", x+pw-46, gy-8); c.fillText("TR", x+pw-28, gy-8); }
+      });
+      /* the lever */
+      const lvY=y0+ph-30, lvUp=!gearDown;
+      c.strokeStyle="rgba(233,237,242,.3)"; c.lineWidth=2;
+      c.beginPath(); c.moveTo(x+16,lvY); c.lineTo(x+16, lvY - (lvUp?18:-0)); c.stroke();
+      c.fillStyle=gearDown?green:dim;
+      c.beginPath(); c.arc(x+16, lvUp?lvY-18:lvY, 6, 0, 7); c.fill();
+      c.fillStyle=dim; c.font="8px ui-monospace"; c.textAlign="left";
+      c.fillText(gearDown?"DOWN":(inTransit?"IN TRANSIT":"UP"), x+30, lvY+3);
+
+      /* ── 2 · AUTOPILOT / FCU ──────────────────────────────────────────── */
+      x=bx+pw+gap; panel(x,"Autopilot · FCU");
+      const apOn = arriving || ["CLIMB","CRUISE","DESCENT"].includes(S.ph);
+      const modes=[["AP1",apOn],["FD",true],["A/THR",apOn||S.ph==="CLIMB"]];
+      modes.forEach((m,i)=>{
+        const mx=x+12+i*((pw-24)/3), mw=(pw-24)/3-6;
+        c.fillStyle=m[1]?"rgba(57,217,138,.16)":"rgba(255,255,255,.03)";
+        rrect(c,mx,y0+24,mw,15,3); c.fill();
+        c.fillStyle=m[1]?green:faint; c.font="bold 8px ui-monospace"; c.textAlign="center";
+        c.fillText(m[0], mx+mw/2, y0+34);
+      });
+      /* rwy lives in the outside-world block, not here — derive the heading from
+         the destination runway the aeroplane is flying to */
+      const _rid=(F.landRwy||"").replace("-INT","");
+      const _des=APT[F.route?F.route.to:""]||{rwys:{}};
+      const hdg = Math.round((_des.rwys&&_des.rwys[_rid]?_des.rwys[_rid].hdg:0));
+      const win=[["SPD",Math.round(S.v||F.vref||0)],["HDG",String(hdg).padStart(3,"0")],
+                 ["ALT",Math.round((S.alt||0)/10)*10],["V/S",(S.vs>0?"+":"")+Math.round(S.vs||0)]];
+      win.forEach((wd,i)=>{
+        const wx2=x+12+(i%2)*((pw-24)/2), wy=y0+46+Math.floor(i/2)*34, ww=(pw-24)/2-6;
+        c.fillStyle="rgba(0,0,0,.35)"; rrect(c,wx2,wy,ww,28,3); c.fill();
+        c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="left"; c.fillText(wd[0], wx2+5, wy+9);
+        c.fillStyle=blue; c.font="bold 13px ui-monospace"; c.textAlign="right";
+        c.fillText(String(wd[1]), wx2+ww-5, wy+22); c.textAlign="left";
+      });
+
+      /* ── 3 · THRUST ───────────────────────────────────────────────────── */
+      x=bx+(pw+gap)*2; panel(x,"Thrust");
+      const n1 = Math.max(E.n1||0, F.eng&&F.eng.n1||0);
+      /* lever detent from the phase */
+      const det = S.ph==="ROLL"||S.ph==="ROTATE" ? (F.thrust==="FLEX"?"FLX":"TOGA")
+                : S.ph==="CLIMB" ? "CLB"
+                : arriving||S.ph==="FLARE" ? "IDLE"
+                : S.ph==="ROLLOUT" ? "REV"
+                : "IDLE";
+      const detents=[["TOGA",.96],["FLX/MCT",.82],["CLB",.62],["IDLE",.12],["REV",-.15]];
+      const tq_x=x+16, tq_top=y0+26, tq_h=ph-52;
+      c.strokeStyle="rgba(233,237,242,.14)"; c.lineWidth=1;
+      c.beginPath(); c.moveTo(tq_x,tq_top); c.lineTo(tq_x,tq_top+tq_h); c.stroke();
+      detents.forEach(d=>{ const dy=tq_top+tq_h*(1-(d[1]+.15)/1.11);
+        c.strokeStyle="rgba(233,237,242,.2)"; c.beginPath(); c.moveTo(tq_x-4,dy); c.lineTo(tq_x+4,dy); c.stroke();
+        c.fillStyle = d[0].startsWith(det)||det===d[0]?ink:faint; c.font="7px ui-monospace"; c.textAlign="left";
+        c.fillText(d[0], tq_x+10, dy+2.5);
+      });
+      /* the lever knob at the current detent */
+      const cur=(detents.find(d=>d[0].startsWith(det))||detents.find(d=>d[0]===det)||detents[3]);
+      const ky=tq_top+tq_h*(1-(cur[1]+.15)/1.11);
+      c.fillStyle=amber; c.shadowColor=amber; c.shadowBlur=8;
+      rrect(c,tq_x-6,ky-4,12,8,2); c.fill(); c.shadowBlur=0;
+      /* N1 readout + bar */
+      c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="right"; c.fillText("N1", x+pw-12, y0+34);
+      c.fillStyle=n1>85?red:n1>50?amber:green; c.font="bold 15px ui-monospace";
+      c.fillText(Math.round(n1)+"%", x+pw-12, y0+52);
+      const barX=x+pw-46, barY=y0+60, barH=ph-y0-72;
+      c.fillStyle="rgba(0,0,0,.35)"; rrect(c,barX,barY,10,barH,3); c.fill();
+      const fill=clamp(n1/100,0,1);
+      c.fillStyle=n1>85?red:green;
+      rrect(c,barX,barY+barH*(1-fill),10,barH*fill,3); c.fill();
+
+      /* ── 4 · SIDESTICK + ATTITUDE ─────────────────────────────────────── */
+      x=bx+(pw+gap)*3; panel(x,"Sidestick · attitude");
+      const cx=x+pw/2, cy=y0+ph/2+6, R=Math.min(pw,ph)/2-18;
+      c.save(); c.beginPath(); c.arc(cx,cy,R,0,7); c.clip();
+      /* the attitude ball, rolled and pitched with the aeroplane */
+      const bank=(S.bank||0)*Math.PI/180, pitch=(S.pitch||0);
+      c.translate(cx,cy); c.rotate(-bank);
+      const horizonY = pitch*2.2;
+      c.fillStyle="#4a7fb5"; c.fillRect(-R*1.6, -R*1.6, R*3.2, R*1.6+horizonY);   // sky
+      c.fillStyle="#7a5a3a"; c.fillRect(-R*1.6, horizonY, R*3.2, R*1.6);           // ground
+      c.strokeStyle="rgba(255,255,255,.85)"; c.lineWidth=1.4;
+      c.beginPath(); c.moveTo(-R*1.6,horizonY); c.lineTo(R*1.6,horizonY); c.stroke();
+      for(let k=-2;k<=2;k++){ if(!k) continue; const py=horizonY - k*R*0.32;
+        const w2=k%2?6:11; c.strokeStyle="rgba(255,255,255,.6)"; c.lineWidth=1;
+        c.beginPath(); c.moveTo(-w2,py); c.lineTo(w2,py); c.stroke(); }
+      c.restore();
+      /* fixed aircraft reference */
+      c.strokeStyle=amber; c.lineWidth=2;
+      c.beginPath(); c.moveTo(cx-16,cy); c.lineTo(cx-5,cy);
+      c.moveTo(cx+5,cy); c.lineTo(cx+16,cy); c.moveTo(cx,cy-4); c.lineTo(cx,cy+2); c.stroke();
+      c.strokeStyle="rgba(233,237,242,.25)"; c.lineWidth=1; c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
+      /* the sidestick deflection box, bottom-left of the panel */
+      const skx=x+16, sky=y0+ph-16, sks=13;
+      c.strokeStyle="rgba(233,237,242,.2)"; c.lineWidth=1;
+      c.strokeRect(skx-sks,sky-sks,sks*2,sks*2);
+      c.strokeStyle="rgba(233,237,242,.12)";
+      c.beginPath(); c.moveTo(skx-sks,sky); c.lineTo(skx+sks,sky);
+      c.moveTo(skx,sky-sks); c.lineTo(skx,sky+sks); c.stroke();
+      /* stick position: roll → x, pitch demand / slope command → y */
+      const stx = clamp((S.bank||0)/25,-1,1)*sks;
+      const sty = clamp(-((S.gsTgt||0)/300 + (S.pitch||0)/8),-1,1)*sks;
+      c.fillStyle=green; c.shadowColor=green; c.shadowBlur=6;
+      c.beginPath(); c.arc(skx+stx, sky+sty, 3.5, 0, 7); c.fill(); c.shadowBlur=0;
+      c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="left"; c.fillText("STICK", skx+sks+6, sky-4);
+
+}
+
 function sFly(el){
   const a=FLEET[F.type], dep=APT[F.route.from], des=APT[F.route.to];
   const lrwys=Object.keys(des.rwys);
@@ -5826,6 +5967,10 @@ function sFly(el){
         <span class="live" id="owLive">GROUND</span>
         <canvas id="oCv" height="340"></canvas>
         <div id="owFoot" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
+      </div>
+      <div class="cv panelstrip" style="margin-bottom:12px">
+        <span class="tag">Panels · live</span>
+        <canvas id="panCv" height="200"></canvas>
       </div>
       <div class="cv" style="margin-bottom:12px"><span class="tag" id="pfdTag">Primary flight display</span>
         <span class="live" id="fLive">HOLDING</span><canvas id="fCv" height="400"></canvas></div>
@@ -6467,6 +6612,10 @@ function sFly(el){
         lv.textContent=nm[S.ph]||S.ph;
         lv.style.color=(S.ph==='REJECT'||S.ph==='GOAROUND')?'var(--red)':'var(--gold)'; }
     }
+    /* ═══ INSTRUMENT PANELS · live ═══ */
+    { const PN=fit($('#panCv'),200);
+      if(PN.W){ drawPanels(PN.c, PN.W, PN.H); } }
+
     /* ─── profile + fuel ─── */
     const G=fit($('#prCv'),200);
     if(G.W){ const {c,W,H}=G;
