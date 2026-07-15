@@ -1,0 +1,1106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MUSTER · BBA - Aviation IIA</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23fffdf8'/%3E%3Ccircle cx='16' cy='16' r='10.5' fill='none' stroke='%231f6f68' stroke-width='1.6'/%3E%3Cpath d='M10 16.4l4 4 8-8.4' fill='none' stroke='%23c2553c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.js"></script>
+<style>
+:root{
+  --bg:#f4f1ea; --panel:#fffdf8; --panel2:#faf7f0; --line:#e4ded1; --line2:#d3cabb;
+  --ink:#2b2a26; --muted:#6f6a5f; --faint:#9d9689;
+  /* teal is the working colour; terracotta is reserved for absence */
+  --gold:#1f6f68; --gold2:#2f8f86; --glow:rgba(31,111,104,.26);
+  --teal:#1f6f68; --teal2:#2f8f86;
+  --sand:#b8862f;                     /* the middle grade */
+  --green:#2f7d4f; --red:#c2553c; --red2:#d97a63;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+kbd{font-family:var(--mono)}
+button,input,select,textarea{font:inherit;color:inherit}
+::selection{background:var(--glow);color:#fff}
+
+/* ── ambient grid ── */
+#veil{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(1100px 620px at 82% -12%,rgba(31,111,104,.10),transparent 62%),
+    radial-gradient(720px 520px at 0% 104%,rgba(194,85,60,.07),transparent 60%),
+    linear-gradient(rgba(43,42,38,.030) 1px,transparent 1px) 0 0/58px 58px,
+    linear-gradient(90deg,rgba(43,42,38,.030) 1px,transparent 1px) 0 0/58px 58px;}
+
+/* ══════════ LOCK ══════════ */
+#lock{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(900px 700px at 50% 40%,#fffdf8,#ece7dc 72%);transition:opacity .7s ease,visibility .7s}
+#lock.gone{opacity:0;visibility:hidden}
+.lockbox{text-align:center;width:min(92vw,420px)}
+.scope{width:210px;height:210px;margin:0 auto 24px;position:relative;
+  border-radius:50%;border:1px solid var(--line2);
+  background:radial-gradient(circle at 50% 40%,#fffdf8,#f0ece2 72%);
+  box-shadow:inset 0 0 40px rgba(31,111,104,.10),0 0 0 6px rgba(31,111,104,.05),0 22px 50px -28px rgba(43,42,38,.35);
+  overflow:hidden}
+.scope canvas{position:absolute;inset:0;width:100%;height:100%}
+.scope::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(43,42,38,.030) 0 1px,transparent 1px 3px)}
+.shake{animation:shake .38s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(4px)}}
+
+.brand{font-family:var(--mono);font-size:22px;letter-spacing:.30em;font-weight:700;text-indent:.30em;
+  background:linear-gradient(100deg,var(--teal) 0%,var(--teal) 46%,var(--red) 62%,var(--red2) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.tagline{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--faint);margin-top:10px;text-transform:uppercase}
+.pinwrap{margin-top:30px;display:flex;gap:9px;justify-content:center}
+.pin{width:52px;height:62px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);
+  text-align:center;font-family:var(--mono);font-size:24px;letter-spacing:0;outline:none;transition:.18s;caret-color:var(--gold)}
+.pin:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(31,111,104,.14)}
+.pin.filled{color:var(--teal)}
+#lockmsg{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--faint);margin-top:20px;height:14px;text-transform:uppercase}
+#lockmsg.bad{color:var(--red)}
+.sig{margin-top:34px;font-family:var(--mono);font-size:9.5px;letter-spacing:.26em;color:var(--faint)}
+
+/* ══════════ APP ══════════ */
+#app{position:relative;z-index:1;opacity:0;transition:opacity .8s ease .15s;max-width:1500px;margin:0 auto;padding:0 24px 90px}
+#app.on{opacity:1}
+header{display:flex;align-items:center;gap:14px;height:70px;border-bottom:2px solid var(--teal);position:sticky;top:0;z-index:30;
+  background:linear-gradient(180deg,rgba(255,253,248,.97),rgba(255,253,248,.86));backdrop-filter:blur(12px)}
+header svg{width:34px;height:34px;flex:none}
+.hbrand b{font-family:var(--mono);font-size:13.5px;letter-spacing:.32em;display:block}
+.hbrand span{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--faint);text-transform:uppercase}
+.hspacer{flex:1}
+.clock{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em;text-align:right}
+.clock b{color:var(--teal);font-weight:700}
+.ghost{border:1px solid var(--line2);background:transparent;color:var(--muted);border-radius:8px;padding:8px 13px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.16em;cursor:pointer;transition:.18s;text-transform:uppercase}
+.ghost:hover{border-color:var(--red);color:var(--red)}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:26px;align-items:start}
+@media(max-width:1080px){.grid{grid-template-columns:1fr}}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 20px 22px;margin-bottom:22px;
+  box-shadow:0 1px 2px rgba(43,42,38,.04),0 10px 26px -18px rgba(43,42,38,.22)}
+.card h2{font-family:var(--mono);font-size:10.5px;letter-spacing:.26em;color:var(--teal);text-transform:uppercase;
+  display:flex;align-items:center;gap:9px;margin-bottom:16px}
+.card h2::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line2),transparent)}
+
+label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--faint);
+  text-transform:uppercase;margin-bottom:6px}
+input[type=text],input[type=number],input[type=date],select,textarea{
+  width:100%;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:10px 12px;
+  font-size:13.5px;outline:none;transition:.16s}
+input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(31,111,104,.12)}
+textarea{resize:vertical;min-height:64px;line-height:1.5}
+select{appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236f6a5f'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
+.row{display:grid;gap:12px;margin-bottom:13px}
+.r2{grid-template-columns:1fr 1fr}
+.r3{grid-template-columns:1fr 1fr 1fr}
+.r-name{grid-template-columns:1.4fr 1fr}
+
+.btn{width:100%;border:none;border-radius:9px;padding:12px;cursor:pointer;font-family:var(--mono);font-size:11px;
+  letter-spacing:.18em;text-transform:uppercase;background:linear-gradient(180deg,var(--teal2),var(--teal));color:#fff;
+  font-weight:700;transition:.16s}
+.btn:hover{filter:brightness(1.06);box-shadow:0 6px 20px rgba(31,111,104,.26)}
+.btn:active{transform:translateY(1px)}
+.btn.line{background:transparent;border:1px solid var(--line2);color:var(--muted);font-weight:500}
+.btn.line:hover{border-color:var(--teal);color:var(--teal);box-shadow:none}
+
+/* stat strip */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 13px;
+  box-shadow:0 1px 2px rgba(43,42,38,.04)}
+.stat b{display:block;font-family:var(--mono);font-size:27px;line-height:1;color:var(--teal)}
+.stat span{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase;
+  display:block;margin-top:8px}
+.stat.g b{color:var(--green)} .stat.r b{color:var(--red)}
+
+/* absentee list */
+#list{display:flex;flex-direction:column;gap:10px}
+.ab{background:var(--panel2);border:1px solid var(--line2);border-radius:11px;padding:13px 14px;
+  border-left:3px solid var(--red);animation:slide .3s ease}
+.ab.inf{border-left-color:var(--teal)}
+@keyframes slide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.ab-top{display:flex;align-items:center;gap:10px}
+.ab-top b{font-size:14px}
+.tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;padding:3px 7px;border-radius:5px;text-transform:uppercase}
+.tag.inf{background:rgba(31,111,104,.10);color:var(--teal)}
+.tag.una{background:rgba(194,85,60,.10);color:var(--red)}
+.x{margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;font-size:16px;line-height:1;padding:2px 4px}
+.x:hover{color:var(--red)}
+.ab p{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+.ab .rmk{margin-top:9px;background:transparent;border:1px dashed var(--line2);border-radius:7px;padding:6px 9px;
+  font-size:11.5px;color:var(--muted);width:100%}
+.empty{text-align:center;padding:30px 10px;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+  color:var(--faint);text-transform:uppercase;border:1px dashed var(--line2);border-radius:11px}
+
+/* ── paper preview ── */
+.paperwrap{position:sticky;top:96px}
+.papertop{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.papertop span{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;color:var(--faint);text-transform:uppercase}
+.papertop span.f{margin-left:auto;color:var(--red)}
+#paper{background:#fff;color:#1a1a1a;border-radius:6px;padding:38px 40px;font-family:Arial,Helvetica,sans-serif;
+  border:1px solid var(--line);
+  box-shadow:0 24px 60px -26px rgba(43,42,38,.45);max-height:calc(100vh - 210px);overflow:auto;font-size:12px}
+#paper h1{font-size:19px;color:#1F4E79;text-align:center;margin-bottom:3px}
+#paper .sub{text-align:center;font-style:italic;color:#555;font-size:11px;padding-bottom:6px;border-bottom:1.5px solid #2E75B6;margin-bottom:20px}
+#paper h3{font-size:13px;color:#1F4E79;border-bottom:1px solid #1F4E79;padding-bottom:4px;margin:20px 0 10px}
+#paper table{width:100%;border-collapse:collapse;font-size:10px}
+#paper td,#paper th{border:1px solid #ccc;padding:5px 7px;text-align:left;vertical-align:middle}
+#paper .lbl{background:#D6E4F0;color:#1F4E79;font-weight:700;width:37%}
+#paper .val{background:#F5FAFF}
+#paper thead th{background:#1F4E79;color:#fff;border-color:#1F4E79;font-size:11px}
+#paper .st{color:#C00000;font-weight:700}
+#paper ol{margin:8px 0 0 20px;font-size:10px;color:#333;line-height:1.75}
+#paper::-webkit-scrollbar{width:8px}#paper::-webkit-scrollbar-thumb{background:#d5d5d5;border-radius:9px}
+
+.acts{display:grid;grid-template-columns:1.5fr 1fr;gap:10px;margin-top:16px}
+
+/* ── contact box: on screen only, never in the report ── */
+.contact{margin:-2px 0 14px}
+.contact .cbox{background:var(--panel2);border:1px solid var(--line2);border-left:3px solid var(--teal);
+  border-radius:11px;padding:13px 15px;animation:slide .26s ease}
+.contact .chead{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.contact .chead b{font-size:14px}
+.contact .reg{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--teal);
+  background:rgba(31,111,104,.10);padding:3px 7px;border-radius:5px;font-weight:700}
+.contact .note{margin-left:auto;font-family:var(--mono);font-size:8px;letter-spacing:.14em;
+  color:var(--red);text-transform:uppercase;font-weight:700}
+.contact .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.num{background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.num span{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;
+  color:var(--faint);text-transform:uppercase;margin-bottom:5px}
+.num a{font-family:var(--mono);font-size:12.5px;color:var(--ink);text-decoration:none;letter-spacing:.02em;font-weight:600;display:block}
+.num a:hover{color:var(--teal)}
+.num.none em{font-family:var(--mono);font-size:11px;color:var(--red);font-style:normal}
+.copyn{background:none;border:none;color:var(--faint);cursor:pointer;font-family:var(--mono);
+  font-size:9px;letter-spacing:.12em;padding:0;margin-top:5px;text-transform:uppercase}
+.copyn:hover{color:var(--teal)}
+.callstrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:10px;
+  padding-top:9px;border-top:1px dashed var(--line2);font-family:var(--mono);font-size:10.5px}
+.callstrip b{color:var(--teal);letter-spacing:.1em;font-weight:700}
+.callstrip a{color:var(--muted);text-decoration:none;letter-spacing:.04em}
+.callstrip a:hover{color:var(--teal)}
+.callstrip i{color:var(--red);font-style:normal}
+
+.autonote{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint);
+  text-transform:uppercase;line-height:1.6}
+
+/* ── attendance percentage ──────────────────────────────────────────────── */
+.pct{--c:var(--teal)}
+.pct .top{display:flex;align-items:flex-end;gap:12px;margin-bottom:14px}
+.pct .big{font-family:var(--mono);font-size:46px;line-height:.92;font-weight:700;color:var(--c)}
+.pct .of{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.14em;
+  text-transform:uppercase;padding-bottom:6px}
+.pct .grade{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.2em;
+  text-transform:uppercase;font-weight:700;padding:7px 13px;border-radius:8px;border:1.5px solid var(--c)}
+/* GREAT solid teal · GOOD outlined sand · NEEDS ATTENTION solid terracotta.
+   Fill carries the meaning as well as hue, so the grade survives a mono print. */
+.pct.great{--c:var(--teal)} .pct.great .grade{background:var(--c);color:#fff}
+.pct.good {--c:var(--sand)} .pct.good  .grade{background:transparent;color:var(--c)}
+.pct.bad  {--c:var(--red)}  .pct.bad   .grade{background:var(--c);color:#fff}
+
+.pct .bar{height:12px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);
+  overflow:hidden;display:flex}
+.pct .fill{background:var(--c);transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.pct .gap{background:repeating-linear-gradient(45deg,rgba(194,85,60,.20) 0 5px,transparent 5px 10px)}
+.pct .marks{position:relative;height:15px;margin-top:5px}
+.pct .marks i{position:absolute;top:0;font-family:var(--mono);font-size:8.5px;color:var(--faint);
+  font-style:normal;transform:translateX(-50%);white-space:nowrap}
+.pct .marks i::before{content:"";position:absolute;left:50%;top:-7px;width:1px;height:5px;background:var(--line2)}
+.pct .brk{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:16px}
+.pct .brk div{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;text-align:center}
+.pct .brk b{display:block;font-family:var(--mono);font-size:17px;font-weight:700}
+.pct .brk span{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.14em;
+  color:var(--faint);text-transform:uppercase;margin-top:4px}
+.pct .brk .p b{color:var(--teal)} .pct .brk .a b{color:var(--red)} .pct .brk .o b{color:var(--ink)}
+
+/* strength message */
+.msgbox{background:var(--panel2);border:1px solid var(--line2);border-left:3px solid var(--teal);
+  border-radius:11px;padding:16px 18px;
+  font-family:var(--mono);font-size:12.5px;line-height:1.9;color:var(--ink);white-space:pre-wrap;
+  margin-top:14px;position:relative}
+.msgbox .bul{color:var(--red)}
+.msgbox .k{color:var(--muted)}
+
+/* history */
+.hist{display:flex;flex-direction:column;gap:8px;max-height:230px;overflow:auto}
+.hitem{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line2);
+  border-radius:9px;padding:10px 12px;font-size:12.5px}
+.hitem span{font-family:var(--mono);font-size:10px;color:var(--faint);margin-left:auto}
+.hitem button{background:none;border:none;color:var(--teal);font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.14em;cursor:pointer;text-transform:uppercase;font-weight:700}
+.hitem button:hover{color:var(--red)}
+
+/* toast */
+#toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,80px);z-index:80;background:var(--teal);
+  border:1px solid var(--teal);color:#fff;border-radius:10px;padding:12px 20px;font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;opacity:0;transition:.32s;pointer-events:none;
+  box-shadow:0 12px 30px -12px rgba(43,42,38,.5)}
+#toast.on{transform:translate(-50%,0);opacity:1}
+.mark{position:fixed;right:18px;bottom:14px;z-index:5;font-family:var(--mono);font-size:9px;letter-spacing:.24em;
+  color:#c9c1b2;pointer-events:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="veil"></div>
+
+<!-- ══════════ LOCK ══════════ -->
+<div id="lock">
+  <div class="lockbox">
+    <div class="scope"><canvas id="scopeCv"></canvas></div>
+    <div class="brand">MUSTER</div>
+    <div class="tagline">BBA · Aviation IIA · Roll Call</div>
+    <div class="pinwrap" id="pinwrap">
+      <input class="pin" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
+      <input class="pin" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
+      <input class="pin" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
+      <input class="pin" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
+    </div>
+    <div id="lockmsg">Enter access code</div>
+    <div class="sig">MUSTER · ROLL CALL</div>
+  </div>
+</div>
+
+<!-- ══════════ APP ══════════ -->
+<div id="app">
+  <header>
+    <svg viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="12.5" fill="none" stroke="#1f6f68" stroke-width="1.4" opacity=".6"/>
+      <circle cx="16" cy="16" r="8" fill="none" stroke="#1f6f68" stroke-width="1" opacity=".3"/>
+      <path d="M10.5 16.4l3.8 3.8 7.4-7.8" fill="none" stroke="#c2553c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="hbrand"><b>MUSTER</b><span>BBA · Aviation IIA · Roll Call</span></div>
+    <div class="hspacer"></div>
+    <div class="clock"><b id="cDate">—</b><br><span id="cTime">—</span></div>
+    <button class="ghost" onclick="lockNow()">Lock</button>
+  </header>
+
+  <div class="stats">
+    <div class="stat g"><b id="sPresent">0</b><span>Present</span></div>
+    <div class="stat r"><b id="sAbsent">0</b><span>Absent</span></div>
+    <div class="stat"><b id="sInf">0</b><span>Informed</span></div>
+    <div class="stat r"><b id="sUna">0</b><span>Unauthorized</span></div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT -->
+    <div>
+      <div class="card">
+        <h2>Mark an absentee</h2>
+        <div class="row r-name">
+          <div>
+            <label>Student name</label>
+            <select id="fName">
+              <option value="">— Select a student —</option>
+            </select>
+          </div>
+          <div>
+            <label>Status</label>
+            <select id="fStatus">
+              <option value="informed">Informed</option>
+              <option value="unauthorized">Unauthorized</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Reason for absence (remarks)</label>
+            <select id="fReasonSel">
+              <option value="">— Select a reason —</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" id="otherRow" hidden>
+          <div>
+            <label>Specify the reason</label>
+            <textarea id="fReason" placeholder="Type the reason in your own words."></textarea>
+          </div>
+        </div>
+        <div id="contact" class="contact"></div>
+        <button class="btn" onclick="addAbsentee()">Add to today's log &nbsp;↵</button>
+      </div>
+
+      <div class="card">
+        <h2>Today's log <span id="logCount" style="color:var(--faint);letter-spacing:.1em"></span></h2>
+        <div id="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Attendance today</h2>
+        <div class="pct" id="pctCard"></div>
+      </div>
+
+      <div class="card">
+        <h2>Daily strength message</h2>
+        <div class="row r3">
+          <div><label>Absent (from log)</label><input type="number" id="mAbs" disabled></div>
+          <div><label>OD (on duty)</label><input type="number" id="mOD" min="0" value="0" autocomplete="off"></div>
+          <div><label>Present (auto)</label><input type="number" id="mPres" disabled></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin:-2px 0 2px">
+          <span class="autonote">Absent is taken from today's log — you only enter OD</span>
+          <span style="font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint)">PRESENT = STRENGTH − ABSENT − OD</span>
+        </div>
+        <div class="msgbox" id="msgBox"></div>
+        <div class="acts" style="margin-top:12px">
+          <button class="btn" onclick="copyMsg()">Copy message</button>
+          <button class="btn line" onclick="shareMsg()">Share</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Report parameters</h2>
+        <div class="row r2">
+          <div><label>Report date</label><input type="date" id="pDate"></div>
+          <div><label>Class / file code</label><input type="text" id="pClass" value="BBA-AviationIIA"></div>
+        </div>
+        <div class="row r2">
+          <div><label>Program name (for message)</label><input type="text" id="pProg" value="BBA - Aviation IIA"></div>
+          <div><label>&nbsp;</label><div style="font-family:var(--mono);font-size:9.5px;color:var(--faint);padding:11px 0">USED IN THE STRENGTH MESSAGE</div></div>
+        </div>
+        <div class="row r3">
+          <div><label>Class strength</label><input type="number" id="pStrength" value="45" min="0"></div>
+          <div><label>Late arrivals</label><input type="number" id="pLate" value="0" min="0"></div>
+          <div><label>Half day (informed)</label><input type="number" id="pHalf" value="0" min="0"></div>
+        </div>
+        <div class="row r2">
+          <div><label>Prepared by</label><input type="text" id="pBy" value="Class Coordinator"></div>
+          <div><label>Submitted to</label><input type="text" id="pTo" value="Chief Executive Officer"></div>
+        </div>
+        <div class="row">
+          <div><label>Report title (heading inside the .docx)</label><input type="text" id="pTitle" value="CLASS ATTENDANCE REPORT"></div>
+        </div>
+        <div class="row">
+          <div><label>Subtitle line</label><input type="text" id="pSub" value="Prepared for the Office of the Chief Executive Officer"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Recent reports</h2>
+        <div class="hist" id="hist"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="paperwrap">
+      <div class="papertop">
+        <span>Live document preview</span>
+        <span class="f" id="fileName">—</span>
+      </div>
+      <div id="paper"></div>
+      <div class="acts">
+        <button class="btn" onclick="exportDocx()">Download .docx</button>
+        <button class="btn line" onclick="copySummary()">Copy summary</button>
+      </div>
+      <div class="acts">
+        <button class="btn line" onclick="clearDay()">Clear today's log</button>
+        <button class="btn line" onclick="prefillSample()">Load sample day</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div class="mark">BBA — AVIATION IIA</div>
+
+<script>
+/* ═══════════════ LOCK (code 2000) ═══════════════ */
+const CODE = "2000";
+const pins = [...document.querySelectorAll('.pin')];
+const lockEl = document.getElementById('lock');
+const lockMsg = document.getElementById('lockmsg');
+
+pins.forEach((p, i) => {
+  p.addEventListener('input', () => {
+    p.value = p.value.replace(/\D/g, '');
+    p.classList.toggle('filled', !!p.value);
+    if (p.value && i < 3) pins[i + 1].focus();
+    if (pins.every(x => x.value)) tryUnlock();
+  });
+  p.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !p.value && i > 0) pins[i - 1].focus();
+    if (e.key === 'Enter') tryUnlock();
+  });
+});
+setTimeout(() => pins[0].focus(), 400);
+
+function tryUnlock() {
+  if (pins.map(p => p.value).join('') === CODE) {
+    lockMsg.classList.remove('bad');
+    lockMsg.textContent = 'Access granted · opening a hundred eyes';
+    setTimeout(() => {
+      lockEl.classList.add('gone');
+      document.getElementById('app').classList.add('on');
+      boot();
+    }, 620);
+  } else {
+    lockMsg.classList.add('bad');
+    lockMsg.textContent = 'Access denied';
+    document.querySelector('.lockbox').classList.add('shake');
+    setTimeout(() => document.querySelector('.lockbox').classList.remove('shake'), 400);
+    pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+    pins[0].focus();
+  }
+}
+function lockNow() {
+  document.getElementById('app').classList.remove('on');
+  lockEl.classList.remove('gone');
+  lockMsg.classList.remove('bad');
+  lockMsg.textContent = 'Enter access code';
+  pins.forEach(p => { p.value = ''; p.classList.remove('filled'); });
+  setTimeout(() => pins[0].focus(), 300);
+}
+
+/* ═══════════════ RADAR SCOPE (lock screen) ═══════════════ */
+(function radar() {
+  const cv = document.getElementById('scopeCv'), c = cv.getContext('2d');
+  const blips = Array.from({ length: 9 }, (_, i) => ({
+    a: i * 0.698 + 0.4, r: 0.30 + ((i * 41) % 100) / 100 * 0.60, drift: (i % 3 - 1) * 0.00022,
+  }));
+  let t0 = performance.now();
+  function frame(now) {
+    const D = Math.min(devicePixelRatio || 1, 2);
+    const W = cv.clientWidth, H = cv.clientHeight;
+    if (cv.width !== W * D) { cv.width = W * D; cv.height = H * D; }
+    c.setTransform(D, 0, 0, D, 0, 0);
+    c.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 4;
+    const t = (now - t0) / 1000;
+    const sweep = t * 1.15;
+
+    /* range rings */
+    c.strokeStyle = 'rgba(31,111,104,.20)'; c.lineWidth = 1;
+    for (let i = 1; i <= 4; i++) { c.beginPath(); c.arc(cx, cy, R * i / 4, 0, 7); c.stroke(); }
+    /* graticule */
+    c.strokeStyle = 'rgba(31,111,104,.13)';
+    for (let i = 0; i < 12; i++) {
+      const a = i * Math.PI / 6;
+      c.beginPath(); c.moveTo(cx + Math.cos(a) * R * .18, cy + Math.sin(a) * R * .18);
+      c.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); c.stroke();
+    }
+    /* sweep wedge */
+    c.save();
+    c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sweep - 0.62, sweep); c.closePath();
+    const g = c.createRadialGradient(cx, cy, 0, cx, cy, R);
+    g.addColorStop(0, 'rgba(31,111,104,.30)'); g.addColorStop(1, 'rgba(31,111,104,0)');
+    c.fillStyle = g; c.fill(); c.restore();
+    c.strokeStyle = 'rgba(31,111,104,.85)'; c.lineWidth = 1.4;
+    c.beginPath(); c.moveTo(cx, cy);
+    c.lineTo(cx + Math.cos(sweep) * R, cy + Math.sin(sweep) * R); c.stroke();
+
+    /* contacts — glow when the beam passes, then decay */
+    blips.forEach(b => {
+      b.a += b.drift;
+      const bx = cx + Math.cos(b.a) * R * b.r, by = cy + Math.sin(b.a) * R * b.r;
+      const d = ((sweep - b.a) % 6.283 + 6.283) % 6.283;
+      const f = Math.max(0, 1 - d / 2.4);
+      c.fillStyle = 'rgba(194,85,60,' + (0.10 + f * 0.9) + ')';
+      c.beginPath(); c.arc(bx, by, 1.5 + f * 2.2, 0, 7); c.fill();
+      if (f > .55) {
+        c.strokeStyle = 'rgba(194,85,60,' + (f - .55) * 1.2 + ')'; c.lineWidth = 1;
+        c.beginPath(); c.arc(bx, by, 5 + (1 - f) * 12, 0, 7); c.stroke();
+      }
+    });
+
+    /* hub */
+    c.fillStyle = '#1F4E79'; c.beginPath(); c.arc(cx, cy, 2.4, 0, 7); c.fill();
+    c.strokeStyle = 'rgba(31,111,104,.35)'; c.lineWidth = 1;
+    c.beginPath(); c.arc(cx, cy, 7 + Math.sin(t * 2) * 2, 0, 7); c.stroke();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ═══════════════ STATE ═══════════════ */
+const KEY = 'muster_bba_avn_iia_v2';   // v2: roll changed to 45, so the old saved 46 must not come back
+/* ═══════════════ CLASS ROSTER · BBA - Aviation IIA ═══════════════
+   45 students. SYED AYMAN (25156340) was in the source sheet but has been
+   discontinued and is removed. Two things worth knowing about the rest:
+     • MOHAMED FAZIL A's father number is "-" in the sheet — left blank, not guessed.
+     • S ABHIJIT's father number is +968 9123 2538 — an Omani number, not a broken
+       Indian one. It is kept with its country code and dials correctly.
+   Several students give the same number for both parents; that is shown as-is. */
+const ROSTER=[
+  {n:1, reg:"25156101", name:"AASHINI JOSHO J. M.", ph:"7845094329", phx:"78450 94329", fa:"7598164329", fax:"75981 64329", mo:"9489874329", mox:"94898 74329"},
+  {n:2, reg:"25156102", name:"N .B. ADHARSH", ph:"8129216007", phx:"81292 16007", fa:"9940145100", fax:"99401 45100", mo:"7358451032", mox:"73584 51032"},
+  {n:3, reg:"25156103", name:"AHAMED FASIL", ph:"6383747011", phx:"63837 47011", fa:"6374127515", fax:"63741 27515", mo:"9043499313", mox:"90434 99313"},
+  {n:4, reg:"25156104", name:"M.AKASH", ph:"6382350455", phx:"63823 50455", fa:"6382350455", fax:"63823 50455", mo:"6382350455", mox:"63823 50455"},
+  {n:5, reg:"25156105", name:"BATHRINATHAN M", ph:"9994294060", phx:"99942 94060", fa:"9585137523", fax:"95851 37523", mo:"9585137523", mox:"95851 37523"},
+  {n:6, reg:"25156106", name:"DEEPAK S", ph:"7339668581", phx:"73396 68581", fa:"9790834165", fax:"97908 34165", mo:"9884715177", mox:"98847 15177"},
+  {n:7, reg:"25156107", name:"DHANUSREE.V", ph:"8122326362", phx:"81223 26362", fa:"9787687097", fax:"97876 87097", mo:"8098432277", mox:"80984 32277"},
+  {n:8, reg:"25156108", name:"FIRDAWS.S", ph:"8610191486", phx:"86101 91486", fa:"9750209159", fax:"97502 09159", mo:"8072213190", mox:"80722 13190"},
+  {n:9, reg:"25156109", name:"HARESH K", ph:"8754941267", phx:"87549 41267", fa:"9443088805", fax:"94430 88805", mo:"6383784295", mox:"63837 84295"},
+  {n:10, reg:"25156110", name:"HASINI N", ph:"9791305474", phx:"97913 05474", fa:"8122584622", fax:"81225 84622", mo:"8122146507", mox:"81221 46507"},
+  {n:11, reg:"25156111", name:"HITESH J", ph:"8807723817", phx:"88077 23817", fa:"9940336588", fax:"99403 36588", mo:"9003292443", mox:"90032 92443"},
+  {n:12, reg:"25156112", name:"JATIN SHARMA M", ph:"8814907709", phx:"88149 07709", fa:"8814907709", fax:"88149 07709", mo:"8814907709", mox:"88149 07709"},
+  {n:13, reg:"25156113", name:"JOJU K J", ph:"8610178496", phx:"86101 78496", fa:"9363373149", fax:"93633 73149", mo:"7306930604", mox:"73069 30604"},
+  {n:14, reg:"25156114", name:"R.KOKILA", ph:"9994025205", phx:"99940 25205", fa:"9940210723", fax:"99402 10723", mo:"9952939693", mox:"99529 39693"},
+  {n:15, reg:"25156115", name:"KOWSICKVARMAN AS", ph:"9698121780", phx:"96981 21780", fa:"9498168989", fax:"94981 68989", mo:"7373888870", mox:"73738 88870"},
+  {n:16, reg:"25156116", name:"KRISHALI ANANDKUMAR", ph:"9150616590", phx:"91506 16590", fa:"7708557909", fax:"77085 57909", mo:"7708557909", mox:"77085 57909"},
+  {n:17, reg:"25156117", name:"T. LANCY BALA", ph:"8925703924", phx:"89257 03924", fa:"9942862655", fax:"99428 62655", mo:"9788692455", mox:"97886 92455"},
+  {n:18, reg:"25156118", name:"MAHALAKSHMI RAJAKUMAR", ph:"9176369237", phx:"91763 69237", fa:"7845665165", fax:"78456 65165", mo:"9500060941", mox:"95000 60941"},
+  {n:19, reg:"25156119", name:"MITHUN SHAM", ph:"9363118574", phx:"93631 18574", fa:"9941135353", fax:"99411 35353", mo:"9994369590", mox:"99943 69590"},
+  {n:20, reg:"25156120", name:"MOHAMED FARHAN. A", ph:"7806991379", phx:"78069 91379", fa:"9865073843", fax:"98650 73843", mo:"9865073843", mox:"98650 73843"},
+  {n:21, reg:"25156121", name:"MOHAMED FAZIL A", ph:"7094608642", phx:"70946 08642", fa:"", fax:"", mo:"9095079207", mox:"90950 79207"},
+  {n:22, reg:"25156122", name:"MOHAMED IRSHATH", ph:"7904694652", phx:"79046 94652", fa:"8428626776", fax:"84286 26776", mo:"8610449307", mox:"86104 49307"},
+  {n:23, reg:"25156123", name:"MOHAMED MUBIN.M", ph:"9841677896", phx:"98416 77896", fa:"9500085204", fax:"95000 85204", mo:"9500335853", mox:"95003 35853"},
+  {n:24, reg:"25156124", name:"MOHAMED MUFEEN J", ph:"9360698916", phx:"93606 98916", fa:"9342329069", fax:"93423 29069", mo:"9488378132", mox:"94883 78132"},
+  {n:25, reg:"25156125", name:"MOHAMMED JAMEEL S", ph:"9884469854", phx:"98844 69854", fa:"8668144424", fax:"86681 44424", mo:"9677275765", mox:"96772 75765"},
+  {n:26, reg:"25156126", name:"D.MONESH KUMAR", ph:"9444600818", phx:"94446 00818", fa:"9381331339", fax:"93813 31339", mo:"6382494502", mox:"63824 94502"},
+  {n:27, reg:"25156127", name:"NITHYASHREE.M", ph:"9629050720", phx:"96290 50720", fa:"9790595382", fax:"97905 95382", mo:"9629050720", mox:"96290 50720"},
+  {n:28, reg:"25156128", name:"J S PADMA SRI PRANITHA", ph:"8122131909", phx:"81221 31909", fa:"9159107343", fax:"91591 07343", mo:"9787293343", mox:"97872 93343"},
+  {n:29, reg:"25156129", name:"RACHANA ANN OOMMEN", ph:"8015153979", phx:"80151 53979", fa:"9176553979", fax:"91765 53979", mo:"9841271950", mox:"98412 71950"},
+  {n:30, reg:"25156130", name:"R.S PAVITHRA", ph:"6381157518", phx:"63811 57518", fa:"9003436677", fax:"90034 36677", mo:"9940171990", mox:"99401 71990"},
+  {n:31, reg:"25156131", name:"S ABHIJIT", ph:"9600099772", phx:"96000 99772", fa:"+96891232538", fax:"+968 9123 2538", mo:"9940142477", mox:"99401 42477"},
+  {n:32, reg:"25156132", name:"S. SAKTHIDHARAN", ph:"9123537162", phx:"91235 37162", fa:"9941431974", fax:"99414 31974", mo:"7402769812", mox:"74027 69812"},
+  {n:33, reg:"25156133", name:"S.SHAHILLA FADNAAN", ph:"8148861598", phx:"81488 61598", fa:"9894481804", fax:"98944 81804", mo:"8072962214", mox:"80729 62214"},
+  {n:34, reg:"25156134", name:"T.SHAMIM AFROSE", ph:"9790192357", phx:"97901 92357", fa:"9003715434", fax:"90037 15434", mo:"6385754508", mox:"63857 54508"},
+  {n:35, reg:"25156135", name:"SHRI PRANAV K R", ph:"9025980771", phx:"90259 80771", fa:"9445801395", fax:"94458 01395", mo:"8778946659", mox:"87789 46659"},
+  {n:36, reg:"25156136", name:"M.SRI HARINI", ph:"8015343297", phx:"80153 43297", fa:"9500513297", fax:"95005 13297", mo:"9092768100", mox:"90927 68100"},
+  {n:37, reg:"25156137", name:"SRIJAN K", ph:"7200498905", phx:"72004 98905", fa:"9840705894", fax:"98407 05894", mo:"9884781530", mox:"98847 81530"},
+  {n:38, reg:"25156138", name:"SUBHISHA SS", ph:"7558020951", phx:"75580 20951", fa:"7558020951", fax:"75580 20951", mo:"9846833540", mox:"98468 33540"},
+  {n:39, reg:"25156139", name:"J SUREANDAR", ph:"9551249171", phx:"95512 49171", fa:"9841499852", fax:"98414 99852", mo:"9940105598", mox:"99401 05598"},
+  {n:40, reg:"25156140", name:"SURYA PRAKASH CHOUDHARY T", ph:"8072522108", phx:"80725 22108", fa:"9884515595", fax:"98845 15595", mo:"8939539755", mox:"89395 39755"},
+  {n:41, reg:"25156141", name:"TAMILARASI.M", ph:"9150948251", phx:"91509 48251", fa:"9500279195", fax:"95002 79195", mo:"9789093754", mox:"97890 93754"},
+  {n:42, reg:"25156142", name:"UTSAV KUMAR PANJEEYAR", ph:"8667282670", phx:"86672 82670", fa:"8124273303", fax:"81242 73303", mo:"7373929490", mox:"73739 29490"},
+  {n:43, reg:"25156143", name:"K.M. VISALI", ph:"8838120706", phx:"88381 20706", fa:"9786762137", fax:"97867 62137", mo:"9786117905", mox:"97861 17905"},
+  {n:44, reg:"25156144", name:"VISHVA.A.DAVEY", ph:"9363487984", phx:"93634 87984", fa:"9283455787", fax:"92834 55787", mo:"9840628521", mox:"98406 28521"},
+  {n:45, reg:"25156314", name:"GOKULESH", ph:"9342429182", phx:"93424 29182", fa:"7397248889", fax:"73972 48889", mo:"9940628178", mox:"99406 28178"},
+];
+
+const byName = n => ROSTER.find(r => r.name === n) || null;
+
+/* ═══════════════ STANDARD REASONS ═══════════════
+   The nineteen reasons that cover almost every absence, plus an escape hatch.
+   Picking from a fixed list means the same reason is worded the same way every
+   time it reaches the report — which is the whole point of a standard list. */
+const REASONS = [
+  'Medical Reason (Self)',
+  'Medical Emergency (Family Member)',
+  'Family Function',
+  'Bereavement / Death in the Family',
+  'Personal Emergency',
+  'Educational Loan / Bank Visit',
+  'Internship / Industrial Training Submission',
+  'Official University / Government Work',
+  'Travel Due to Personal Reasons',
+  'Attending Competitive Examination / Interview',
+  'Passport / Visa / Document Verification',
+  'Court / Legal Proceedings',
+  'Public Transport / Vehicle Breakdown',
+  'Weather / Natural Calamity',
+  'Participation in Sports / Cultural / NCC / NSS Event',
+  'Academic Project / Research Work',
+  'Placement Drive / Campus Recruitment',
+  'Mental Health / Stress-Related Reason',
+  'Religious Observance',
+];
+const OTHER = 'Other (Please Specify)';
+
+let S = { absentees: [], params: {}, roster: [], history: [] };
+
+const $ = id => document.getElementById(id);
+const today = () => { const n = new Date(); return new Date(n.getTime() - n.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+const P = ['pDate', 'pClass', 'pProg', 'pStrength', 'pLate', 'pHalf', 'pBy', 'pTo', 'pSub', 'pTitle'];
+
+function save() {
+  S.params = Object.fromEntries(P.map(k => [k, $(k).value]));
+  localStorage.setItem(KEY, JSON.stringify(S));
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) S = Object.assign(S, JSON.parse(raw));
+  } catch (e) {}
+  P.forEach(k => {
+    if (k === 'pDate') return;                       // the date is always today
+    if (S.params && S.params[k] != null && S.params[k] !== '') $(k).value = S.params[k];
+  });
+  $('pDate').value = today();
+}
+
+let lastDay = null;
+function boot() {
+  load();
+  lastDay = today();
+  P.forEach(k => $(k).addEventListener('input', () => { save(); render(); }));
+  $('mOD').addEventListener('input', () => { S.od = +$('mOD').value || 0; save(); renderMsg(); });
+  if (S.od == null) S.od = 0;
+  $('mOD').value = S.od;
+  $('fReasonSel').innerHTML = '<option value="">— Select a reason —</option>' +
+    REASONS.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('') +
+    `<option value="${esc(OTHER)}">${esc(OTHER)}</option>`;
+  $('fReasonSel').addEventListener('change', onReasonChange);
+  $('fReason').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addAbsentee();
+  });
+  $('fName').innerHTML = '<option value="">— Select a student —</option>' +
+    ROSTER.map(r => `<option value="${esc(r.name)}">${String(r.n).padStart(2,'0')} · ${esc(r.name)}</option>`).join('');
+  $('fName').addEventListener('change', showContact);
+  $('fName').addEventListener('keydown', e => { if (e.key === 'Enter') $('fReasonSel').focus(); });
+  showContact();
+  tick(); setInterval(tick, 1000);
+  render();
+  $('fName').focus();
+}
+function tick() {
+  const n = new Date();
+  if ($('pDate').value === lastDay && lastDay !== today()) { $('pDate').value = today(); save(); render(); }
+  lastDay = $('pDate').value;
+  $('cDate').textContent = n.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase();
+  $('cTime').textContent = n.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+/* ═══════════════ ENTRY ═══════════════ */
+const DEF_REMARK = s => s === 'informed' ? 'Prior notification given' : 'No prior notification';
+
+/* ── student & parent contact ──────────────────────────────────────────────
+   On screen so you can pick up the phone. Deliberately NOT part of data(), so
+   it never reaches the .docx — the remarks report stays exactly as it was. */
+function showContact() {
+  const box = $('contact');
+  const r = byName($('fName').value);
+  if (!r) { box.innerHTML = ''; return; }
+  const num = (label, dial, disp) => dial
+    ? `<div class="num"><span>${label}</span><a href="tel:${dial}">${disp}</a>
+         <button class="copyn" onclick="copyNum('${dial}')">Copy</button></div>`
+    : `<div class="num none"><span>${label}</span><em>Not on record</em></div>`;
+  box.innerHTML = `
+    <div class="cbox">
+      <div class="chead">
+        <b>${esc(r.name)}</b><span class="reg">${r.reg}</span>
+        <span class="note">Not included in the report</span>
+      </div>
+      <div class="nums">
+        ${num('Student', tel(r.ph), r.phx)}
+        ${num('Father',  tel(r.fa), r.fax)}
+        ${num('Mother',  tel(r.mo), r.mox)}
+      </div>
+    </div>`;
+}
+/* a bare 10-digit number is Indian; one already carrying a + keeps its own code */
+function tel(v) { return !v ? '' : (v[0] === '+' ? v : '+91' + v); }
+function fmtPh(v) { return v.length === 10 ? v.slice(0,5) + ' ' + v.slice(5) : v; }
+function copyNum(v) {
+  navigator.clipboard.writeText(v).then(() => toast(v + ' copied'), () => toast('Copy failed'));
+}
+function callStrip(a) {
+  const r = byName(a.name) || {};
+  if (!r.reg) return '';
+  const bit = (lbl, dial, disp) => dial
+    ? `<a href="tel:${tel(dial)}">${lbl} ${disp}</a>`
+    : `<i>${lbl} — not on record</i>`;
+  return `<div class="callstrip">
+    <b>${r.reg}</b>
+    ${bit('Student', r.ph, r.phx)}
+    ${bit('Father', r.fa, r.fax)}
+    ${bit('Mother', r.mo, r.mox)}
+  </div>`;
+}
+
+/* "Other" is the only case that needs typing. Everything else is picked, so the
+   same reason is worded identically every time it lands in the report. */
+function onReasonChange() {
+  const other = $('fReasonSel').value === OTHER;
+  $('otherRow').hidden = !other;
+  if (other) $('fReason').focus(); else $('fReason').value = '';
+}
+/* what actually gets written: the chosen reason, or the typed one for "Other" */
+function reasonValue() {
+  const sel = $('fReasonSel').value;
+  if (!sel) return null;
+  if (sel !== OTHER) return sel;
+  const txt = $('fReason').value.trim();
+  return txt || null;
+}
+
+function addAbsentee() {
+  const name = $('fName').value.trim();
+  const status = $('fStatus').value;
+  if (!name) { toast('Select a student'); $('fName').focus(); return; }
+  if (S.absentees.some(a => a.name === name)) { toast(name + ' is already logged'); return; }
+  /* an "Other" with an empty box would put a nameless absence into the report —
+     catch it here rather than letting a blank line reach the CEO's copy */
+  if (!$('fReasonSel').value) { toast('Select a reason'); $('fReasonSel').focus(); return; }
+  const reason = reasonValue();
+  if (!reason) { toast('Type the reason, or pick one from the list'); $('fReason').focus(); return; }
+  /* contact details are NOT stored on the record — callStrip() looks them up from
+     the roster at render time. Nothing about a phone number ever enters the data
+     that data() turns into the .docx. */
+  S.absentees.push({ name, status, reason, remark: DEF_REMARK(status) });
+  $('fName').value = ''; $('fStatus').value = 'informed';
+  $('fReasonSel').value = ''; $('fReason').value = ''; $('otherRow').hidden = true;
+  showContact();
+  $('fName').focus();
+  save(); render();
+  toast(name + ' logged');
+}
+function delAbsentee(i) { S.absentees.splice(i, 1); save(); render(); }
+function editRemark(i, v) { S.absentees[i].remark = v; save(); renderPaper(); }
+
+function clearDay() {
+  if (!S.absentees.length) return;
+  if (!confirm("Clear today's log? The report parameters stay as they are.")) return;
+  S.absentees = []; save(); render(); toast('Log cleared');
+}
+function prefillSample() {
+  const mk = (name, status, reason) => ({ name, status, reason, remark: DEF_REMARK(status) });
+  S.absentees = [
+    mk('AHAMED FASIL', 'informed', 'Family Function'),
+    mk('R.KOKILA', 'informed', 'Medical Reason (Self)'),
+    mk('S ABHIJIT', 'unauthorized', 'Personal Emergency'),
+  ];
+  save(); render(); toast('Sample day loaded');
+}
+
+/* ═══════════════ DERIVED DATA ═══════════════ */
+function firstTokens(name) { return name.split(/\s+/).filter(Boolean); }
+function observation(a) {
+  if (!a.reason) return '';
+  const low = a.reason.toLowerCase();
+  const named = firstTokens(a.name).some(t => t.length > 2 && low.includes(t.toLowerCase()));
+  return named ? a.reason : a.name + ' — ' + a.reason;
+}
+function longDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB',
+    { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+function fileStem() {
+  const iso = $('pDate').value || new Date().toISOString().slice(0, 10);
+  const [y, m, d] = iso.split('-');
+  return `${($('pClass').value || 'Class').trim()}_${d}_${m}_${y.slice(2)}`;
+}
+function data() {
+  const abs = S.absentees;
+  const strength = +$('pStrength').value || 0;
+  return {
+    title: ($('pTitle') && $('pTitle').value.trim()) || 'CLASS ATTENDANCE REPORT',
+    subtitle: $('pSub').value,
+    dateText: longDate($('pDate').value || new Date().toISOString().slice(0, 10)),
+    present: Math.max(0, strength - abs.length),
+    late: +$('pLate').value || 0,
+    halfDay: +$('pHalf').value || 0,
+    preparedBy: $('pBy').value,
+    submittedTo: $('pTo').value,
+    absentees: abs,
+    observations: abs.map(observation).filter(Boolean),
+  };
+}
+
+/* ═══════════════ RENDER ═══════════════ */
+function render() {
+  const abs = S.absentees;
+  const inf = abs.filter(a => a.status === 'informed').length;
+  $('sPresent').textContent = Math.max(0, (+$('pStrength').value || 0) - abs.length);
+  $('sAbsent').textContent = abs.length;
+  $('sInf').textContent = inf;
+  $('sUna').textContent = abs.length - inf;
+  $('logCount').textContent = abs.length ? `· ${abs.length}` : '';
+
+  $('list').innerHTML = abs.length ? abs.map((a, i) => `
+    <div class="ab ${a.status === 'informed' ? 'inf' : ''}">
+      <div class="ab-top">
+        <b>${esc(a.name)}</b>
+        <span class="tag ${a.status === 'informed' ? 'inf' : 'una'}">${a.status}</span>
+        <button class="x" onclick="delAbsentee(${i})" title="Remove">✕</button>
+      </div>
+      ${a.reason ? `<p>${esc(a.reason)}</p>` : ''}
+      ${callStrip(a)}
+      <input class="rmk" value="${esc(a.remark)}" oninput="editRemark(${i},this.value)" title="Remarks column in the table">
+    </div>`).join('') : `<div class="empty">Nobody absent yet — a full house</div>`;
+
+  renderPaper();
+  renderMsg();
+  renderHist();
+}
+
+/* ═══════════════ STRENGTH MESSAGE ═══════════════ */
+const pad2 = n => String(Math.max(0, n | 0)).padStart(2, '0');
+function msgText() {
+  const strength = +$('pStrength').value || 0;
+  const od = +$('mOD').value || 0;
+  /* the log is the single source of truth for the absent count. It used to be
+     possible to type a number here that disagreed with the names in the log —
+     and the names go into the report, so the two could quietly contradict
+     each other in a document already on its way to the CEO. */
+  const abs = S.absentees.length;
+  const present = Math.max(0, strength - od - abs);
+  const iso = $('pDate').value || new Date().toISOString().slice(0, 10);
+  const [y, m, d] = iso.split('-');
+  return { present, od, abs, strength,
+    text: [
+      `Program Name:  ${$('pProg').value.trim()}`,
+      `• Date ${d}-${m}-${y}`,
+      `• Student Strength: ${strength}`,
+      `• Present: ${pad2(present)}`,
+      `• OD (On Duty) : ${pad2(od)}`,
+      `• Absent: ${pad2(abs)}`,
+    ].join('\n') };
+}
+/* ── attendance percentage ───────────────────────────────────────────────
+   Deliberately computed from msgText(), the same source the strength message
+   and the report use. A second, independent calculation here would be a
+   percentage that could quietly drift out of step with the report beneath it. */
+function grade(p) {
+  if (p >= 90) return { k: 'great', label: 'Great' };
+  if (p >= 75) return { k: 'good',  label: 'Good'  };
+  return { k: 'bad', label: 'Needs attention' };
+}
+function renderPct() {
+  const m = msgText();
+  const el = $('pctCard'); if (!el) return;
+  const strength = m.strength || 0;
+  const pct = strength > 0 ? (m.present / strength) * 100 : 0;
+  const g = grade(pct);
+  const shown = pct.toFixed(1).replace(/\.0$/, '');
+  el.className = 'pct ' + g.k;
+  el.innerHTML = `
+    <div class="top">
+      <div class="big">${shown}<span style="font-size:22px">%</span></div>
+      <div class="of">${m.present} of ${strength}<br>present today</div>
+      <div class="grade">${g.label}</div>
+    </div>
+    <div class="bar">
+      <div class="fill" style="width:${Math.max(0, Math.min(100, pct))}%"></div>
+      <div class="gap" style="width:${Math.max(0, 100 - Math.min(100, pct))}%"></div>
+    </div>
+    <div class="marks"><i style="left:75%">75%</i><i style="left:90%">90%</i></div>
+    <div class="brk">
+      <div class="p"><b>${m.present}</b><span>Present</span></div>
+      <div class="a"><b>${m.abs}</b><span>Absent</span></div>
+      <div class="o"><b>${m.od}</b><span>On duty</span></div>
+    </div>`;
+}
+
+function renderMsg() {
+  renderPct();                     // same numbers, refreshed together
+  const m = msgText();
+  $('mAbs').value = m.abs;
+  $('mPres').value = m.present;
+  $('msgBox').innerHTML = esc(m.text)
+    .replace(/^•/gm, '<span class="bul">•</span>')
+    .replace(/(Program Name:|Date|Student Strength:|Present:|OD \(On Duty\) :|Absent:)/g, '<span class="k">$1</span>');
+}
+function copyMsg() {
+  navigator.clipboard.writeText(msgText().text)
+    .then(() => toast('Message copied'), () => toast('Copy blocked by browser'));
+}
+function shareMsg() {
+  const t = msgText().text;
+  if (navigator.share) navigator.share({ text: t }).catch(() => {});
+  else { window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); }
+}
+
+function renderPaper() {
+  const d = data();
+  const inf = d.absentees.filter(a => a.status === 'informed');
+  const una = d.absentees.filter(a => a.status === 'unauthorized');
+  const tally = l => l.length ? `${l.length} (${l.map(a => esc(a.name)).join(', ')})` : '0';
+  const rows = [
+    ['Date', esc(d.dateText)], ['Total Students Present', d.present], ['Total Absentees', d.absentees.length],
+    ['Informed Absences', tally(inf)], ['Unauthorized Absences', tally(una)],
+    ['Late Arrivals (~10:30 AM)', d.late], ['Half Day (Informed)', d.halfDay],
+    ['Report Prepared By', esc(d.preparedBy)], ['Submitted To', esc(d.submittedTo)],
+  ];
+  $('fileName').textContent = fileStem() + '.docx';
+  $('paper').innerHTML = `
+    <h1>${esc(d.title)}</h1>
+    <div class="sub">${esc(d.subtitle)}</div>
+    <h3>Report Summary</h3>
+    <table>${rows.map(r => `<tr><td class="lbl">${r[0]}</td><td class="val">${r[1]}</td></tr>`).join('')}</table>
+    <h3>Detailed Attendance Log</h3>
+    <table><thead><tr><th>#</th><th>Student Name</th><th>Status</th><th>Remarks</th></tr></thead>
+      <tbody>${d.absentees.length ? d.absentees.map((a, i) => `<tr>
+        <td>${i + 1}</td><td>${esc(a.name)}</td>
+        <td class="st">Absent (${a.status === 'informed' ? 'Informed' : 'Unauthorized'})</td>
+        <td>${esc(a.remark)}</td></tr>`).join('')
+      : `<tr><td colspan="4" style="text-align:center;color:#888">No absentees recorded</td></tr>`}</tbody></table>
+    ${d.observations.length ? `<h3>Observations &amp; Notes</h3><ol>${d.observations.map(o => `<li>${esc(o)}</li>`).join('')}</ol>` : ''}`;
+}
+
+function renderHist() {
+  $('hist').innerHTML = S.history.length ? S.history.slice(0, 12).map((h, i) => `
+    <div class="hitem">${esc(h.file)}<span>${h.count} abs</span>
+      <button onclick="restore(${i})">Restore</button></div>`).join('')
+    : `<div class="empty">No reports generated yet</div>`;
+}
+function restore(i) {
+  const h = S.history[i];
+  S.absentees = JSON.parse(JSON.stringify(h.absentees));
+  Object.entries(h.params).forEach(([k, v]) => { if ($(k)) $(k).value = v; });
+  save(); render(); toast('Restored ' + h.file);
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let tT;
+function toast(m) {
+  const t = $('toast'); t.textContent = m; t.classList.add('on');
+  clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 2200);
+}
+
+/* ═══════════════ SUMMARY TEXT ═══════════════ */
+function copySummary() {
+  const d = data();
+  const inf = d.absentees.filter(a => a.status === 'informed').map(a => a.name);
+  const una = d.absentees.filter(a => a.status === 'unauthorized').map(a => a.name);
+  const txt = [
+    `CLASS ATTENDANCE — ${d.dateText}`,
+    `Present: ${d.present} | Absent: ${d.absentees.length}`,
+    `Informed (${inf.length}): ${inf.join(', ') || '—'}`,
+    `Unauthorized (${una.length}): ${una.join(', ') || '—'}`,
+    '',
+    ...d.observations.map((o, i) => `${i + 1}. ${o}`),
+  ].join('\n');
+  navigator.clipboard.writeText(txt).then(() => toast('Summary copied'), () => toast('Copy blocked by browser'));
+}
+
+/* ═══════════════ DOCX ═══════════════ */
+function buildArgusReport(D, d) {
+  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType,
+    BorderStyle, ShadingType, AlignmentType, VerticalAlign, LevelFormat, convertInchesToTwip } = D;
+
+  const NAVY = '1F4E79', BLUE = '2E75B6', RED = 'C00000', GREY = '555555',
+    BODY = '1A1A1A', NOTE = '333333', LINE = 'CCCCCC', LBL = 'D6E4F0', VAL = 'F5FAFF';
+
+  const cb = color => ({
+    top: { style: BorderStyle.SINGLE, size: 1, color }, bottom: { style: BorderStyle.SINGLE, size: 1, color },
+    left: { style: BorderStyle.SINGLE, size: 1, color }, right: { style: BorderStyle.SINGLE, size: 1, color },
+  });
+  const tb = {
+    top: { style: BorderStyle.SINGLE, size: 4, color: 'auto' }, bottom: { style: BorderStyle.SINGLE, size: 4, color: 'auto' },
+    left: { style: BorderStyle.SINGLE, size: 4, color: 'auto' }, right: { style: BorderStyle.SINGLE, size: 4, color: 'auto' },
+    insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: 'auto' },
+    insideVertical: { style: BorderStyle.SINGLE, size: 4, color: 'auto' },
+  };
+  const M = { top: 90, bottom: 90, left: 150, right: 150 };
+  const MH = { top: 100, bottom: 100, left: 150, right: 150 };
+
+  const heading = text => new Paragraph({
+    spacing: { before: 320, after: 120 },
+    border: { bottom: { style: BorderStyle.SINGLE, size: 6, space: 1, color: NAVY } },
+    children: [new TextRun({ text, bold: true, color: NAVY, size: 26 })],
+  });
+  const gap = after => new Paragraph({ spacing: { after }, children: [] });
+
+  const sumRow = (label, value) => new TableRow({
+    children: [
+      new TableCell({
+        width: { size: 3500, type: WidthType.DXA }, borders: cb(LINE), margins: M,
+        shading: { type: ShadingType.CLEAR, fill: LBL, color: 'auto' },
+        children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, color: NAVY, size: 20 })] })],
+      }),
+      new TableCell({
+        width: { size: 5860, type: WidthType.DXA }, borders: cb(LINE), margins: M,
+        shading: { type: ShadingType.CLEAR, fill: VAL, color: 'auto' },
+        children: [new Paragraph({ children: [new TextRun({ text: String(value), color: BODY, size: 20 })] })],
+      }),
+    ],
+  });
+
+  const inf = d.absentees.filter(a => a.status === 'informed');
+  const una = d.absentees.filter(a => a.status === 'unauthorized');
+  const tally = l => l.length ? `${l.length} (${l.map(a => a.name).join(', ')})` : '0';
+
+  const summary = new Table({
+    width: { size: 9360, type: WidthType.DXA }, columnWidths: [3500, 5860], borders: tb,
+    rows: [
+      sumRow('Date', d.dateText), sumRow('Total Students Present', d.present),
+      sumRow('Total Absentees', d.absentees.length), sumRow('Informed Absences', tally(inf)),
+      sumRow('Unauthorized Absences', tally(una)), sumRow('Late Arrivals (~10:30 AM)', d.late),
+      sumRow('Half Day (Informed)', d.halfDay), sumRow('Report Prepared By', d.preparedBy),
+      sumRow('Submitted To', d.submittedTo),
+    ],
+  });
+
+  const COLS = [573, 2409, 3309, 3069];
+  const hCell = text => new TableCell({
+    borders: cb(NAVY), margins: MH, verticalAlign: VerticalAlign.CENTER,
+    shading: { type: ShadingType.CLEAR, fill: NAVY, color: 'auto' },
+    children: [new Paragraph({ children: [new TextRun({ text, bold: true, color: 'FFFFFF' })] })],
+  });
+  const bCell = (runs, width) => new TableCell({
+    width: { size: width, type: WidthType.DXA }, borders: cb(LINE), margins: M,
+    verticalAlign: VerticalAlign.CENTER,
+    shading: { type: ShadingType.CLEAR, fill: 'FFFFFF', color: 'auto' },
+    children: [new Paragraph({ children: runs })],
+  });
+
+  const log = new Table({
+    width: { size: 9360, type: WidthType.DXA }, columnWidths: COLS, borders: tb,
+    rows: [
+      new TableRow({ tableHeader: true, children: ['#', 'Student Name', 'Status', 'Remarks'].map(hCell) }),
+      ...d.absentees.map((a, i) => new TableRow({
+        children: [
+          bCell([new TextRun({ text: String(i + 1), size: 20 })], COLS[0]),
+          bCell([new TextRun({ text: a.name, size: 20 })], COLS[1]),
+          bCell([new TextRun({ text: a.status === 'informed' ? 'Absent (Informed)' : 'Absent (Unauthorized)', bold: true, color: RED, size: 20 })], COLS[2]),
+          bCell([new TextRun({ text: a.remark || '', size: 20 })], COLS[3]),
+        ],
+      })),
+    ],
+  });
+
+  const children = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER, spacing: { after: 60 },
+      children: [new TextRun({ text: d.title, bold: true, color: NAVY, size: 40 })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER, spacing: { after: 40 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 12, space: 4, color: BLUE } },
+      children: [new TextRun({ text: d.subtitle, italics: true, color: GREY })],
+    }),
+    gap(240), heading('Report Summary'), gap(120), summary, gap(320),
+    heading('Detailed Attendance Log'), gap(120), log, gap(320),
+  ];
+  if (d.observations.length) {
+    children.push(heading('Observations & Notes'));
+    d.observations.forEach(t => children.push(new Paragraph({
+      numbering: { reference: 'obs-list', level: 0 },
+      children: [new TextRun({ text: t, color: NOTE, size: 20 })],
+    })));
+  }
+
+  return new Document({
+    styles: { default: { document: { run: { font: 'Arial', size: 22 } } } },
+    numbering: {
+      config: [{
+        reference: 'obs-list',
+        levels: [{
+          level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.START,
+          style: { paragraph: { indent: { left: convertInchesToTwip(0.5), hanging: convertInchesToTwip(0.25) } } },
+        }],
+      }],
+    },
+    sections: [{
+      properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1200, right: 1200, bottom: 1200, left: 1200 } } },
+      children,
+    }],
+  });
+}
+
+function exportDocx() {
+  if (typeof docx === 'undefined') { toast('Document engine offline — reconnect and reload'); return; }
+  if (!S.absentees.length && !confirm('No absentees logged. Generate a full-attendance report anyway?')) return;
+  const d = data(), file = fileStem() + '.docx';
+  docx.Packer.toBlob(buildArgusReport(docx, d)).then(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = file;
+    a.click(); URL.revokeObjectURL(a.href);
+    S.history.unshift({
+      file, count: d.absentees.length, at: Date.now(),
+      absentees: JSON.parse(JSON.stringify(S.absentees)),
+      params: Object.fromEntries(P.map(k => [k, $(k).value])),
+    });
+    S.history = S.history.slice(0, 30);
+    save(); renderHist(); toast(file + ' downloaded');
+  }).catch(e => { console.error(e); toast('Generation failed — see console'); });
+}
+</script>
+</body>
+</html>
