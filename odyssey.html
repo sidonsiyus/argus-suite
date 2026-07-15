@@ -2287,9 +2287,23 @@ function crabbed(psiRad, X, Z){
   return { X: X*c - Z*s, Z: X*s + Z*c };
 }
 /* how far can we see? exponential extinction — fog eats the far end first */
+/* Koschmieder: an extended OBJECT — a runway, a field, a building — fades as its
+   contrast against the background is lost. This is meteorological visibility. */
 function fogAlpha(dist, visM){
   if(visM>=9000) return 0;
   return 1-Math.exp(-2.6*dist/Math.max(120,visM));
+}
+/* Allard: a POINT SOURCE OF LIGHT obeys a different law entirely. It is seen far
+   beyond the meteorological visibility, because you are detecting emitted light,
+   not lost contrast. This is why RVR exceeds met visibility, why high-intensity
+   approach lighting exists at all, and why on a filthy night you see the lights
+   long before you see one square metre of runway.
+   Treating lights like surfaces — as this did — makes an ILS in poor weather a
+   black screen, which is the exact opposite of what the lighting is FOR. */
+function lightAlpha(dist, visM, night){
+  if(visM>=9000) return 0;
+  const eff = Math.max(150, visM) * (night ? 2.7 : 1.8);   // RVR-like effective range
+  return Math.min(0.94, 1-Math.exp(-2.2*dist/eff));
 }
 /* PAPI: four units abeam the threshold. Each shows white above its own angle,
    red below. 2 white + 2 red is the 3° slope. This is the real logic. */
@@ -2464,7 +2478,21 @@ function drawOutside(c, W, H, V){
   const wx=V.wx, night=V.night;
   const visM = wx.vis;
   const bank = V.bank||0;
-  const cam = makeCam(W,H, V.pitch, 46, bank);
+  /* ── airframe buffet ─────────────────────────────────────────────────────
+     A perfectly steady camera is the loudest tell that a view is synthetic. Real
+     air is never still: the airframe shakes, and the whole world shakes with it
+     because your eye is bolted to the airframe. Small, high-frequency, and
+     scaled by how rough it actually is. */
+  const buf = clamp(V.buffet||0, 0, 1.4);
+  let shX=0, shY=0, shR=0;
+  if(buf>0.01){
+    const t=(V.t||0)*1000;
+    shX = (Math.sin(t*0.031)+Math.sin(t*0.0173)*0.6+Math.sin(t*0.071)*0.35) * buf * 7.5;
+    shY = (Math.sin(t*0.027)+Math.sin(t*0.0141)*0.7+Math.sin(t*0.063)*0.4) * buf * 6.5;
+    shR = (Math.sin(t*0.019)+Math.sin(t*0.047)*0.5) * buf * 1.35;      // degrees of roll
+  }
+  const cam = makeCam(W,H, V.pitch + shY*0.06, 46, bank + shR);
+  cam.cx += shX; cam.cy += shY;
 
   /* ── the horizon is a LINE, not a height ────────────────────────────────
      Once the aeroplane can bank, the horizon tilts, and sky and ground stop
@@ -2571,17 +2599,33 @@ function drawOutside(c, W, H, V){
     const P=(X,Z)=>{ const r=crabbed(V.yaw||0, X-(V.xtrk||0), Z); return proj(cam, r.X, camY, r.Z); };
 
     /* fogged-out overlay strength for anything at the threshold */
-    const fA=fogAlpha(Math.max(0,d0), visM);
+    /* PAPI is a light unit, not a painted surface — it obeys Allard, and it is
+       specifically designed to be acquired early in poor weather. */
+    const fA=lightAlpha(Math.max(0,d0), visM, night);
 
     /* --- approach lighting: 900 m of it, the thing you actually see first --- */
     if(d0>-200){
+      /* THE RABBIT. Sequenced flashers run up the centreline toward the threshold
+         twice a second. In poor visibility they are the first thing you acquire,
+         and they exist precisely to drag your eye to the runway. A static row of
+         dots is not an approach lighting system. */
+      const rabbit = ((V.t||0)*2.0) % 1;                 // 0..1, one run per half-second
       for(let k=1;k<=18;k++){
         const z=d0-k*50;                                // 50 m spacing, back from the threshold
         if(z< -50) continue;
         const p=P(0,z); if(!p) continue;
-        const a=(1-fogAlpha(Math.max(0,z),visM))*(night?1:0.9);
+        const a=(1-lightAlpha(Math.max(0,z),visM,night))*(night?1:0.9);
         if(a<=0.02) continue;
         const sz=Math.max(2.0, cam.f/Math.max(60,p.z)*3.0);
+        /* is the flash passing through this bar right now? */
+        const phase = 1 - (k/18);                        // 0 at the far end, 1 at the threshold
+        const flash = Math.max(0, 1 - Math.abs(rabbit-phase)*11);
+        if(flash>0.05){
+          c.fillStyle=`rgba(255,255,255,${Math.min(1,a*flash)})`;
+          c.shadowColor="rgba(255,255,255,.95)"; c.shadowBlur=16*flash;
+          c.beginPath(); c.arc(p.x,p.y, sz*(1.5+flash*1.1), 0, 7); c.fill();
+          c.shadowBlur=0;
+        }
         /* the 300 m crossbar — a real ALS has one, and it is how you judge roll */
         const isBar = (k===6);
         c.fillStyle = night?`rgba(255,246,214,${a})`:`rgba(255,255,255,${a*.9})`;
@@ -2613,6 +2657,48 @@ function drawOutside(c, W, H, V){
       else if(wx.rain||V.wet){ rg.addColorStop(0,"#22282c"); rg.addColorStop(1,"#3d464c"); }
       else { rg.addColorStop(0,"#252b2e"); rg.addColorStop(1,"#454c51"); }
       c.fillStyle=rg; c.fill();
+
+      /* ── rubber in the touchdown zone ────────────────────────────────────
+         Every aeroplane that lands here leaves rubber, so the first 600 m of a
+         busy runway is visibly black. It is also, inconveniently, the slipperiest
+         part of a wet runway — which is why you are told not to land long. */
+      c.save(); c.clip();
+      const tdz1=P(-HW,d0+250), tdz2=P(HW,d0+250), tdz3=P(HW,d0+850), tdz4=P(-HW,d0+850);
+      if(tdz1&&tdz2&&tdz3&&tdz4){
+        const rub=c.createLinearGradient(0,tdz3.y,0,tdz1.y);
+        rub.addColorStop(0,   night?"rgba(0,0,0,0)"   :"rgba(18,20,22,0)");
+        rub.addColorStop(0.45,night?"rgba(0,0,0,.45)" :"rgba(18,20,22,.42)");
+        rub.addColorStop(1,   night?"rgba(0,0,0,.18)" :"rgba(18,20,22,.16)");
+        c.fillStyle=rub;
+        c.beginPath(); c.moveTo(tdz1.x,tdz1.y); c.lineTo(tdz2.x,tdz2.y);
+        c.lineTo(tdz3.x,tdz3.y); c.lineTo(tdz4.x,tdz4.y); c.closePath(); c.fill();
+      }
+      /* ── a wet runway is a mirror ─────────────────────────────────────────
+         Standing water reflects the approach and runway lights back at you in long
+         vertical smears. At night in rain this is most of what you actually see,
+         and it is why a wet runway looks so different from a dry one. */
+      if((wx.rain||V.wet) && d0<7000){
+        const sheen=c.createLinearGradient(0,c3.y,0,c1.y);
+        sheen.addColorStop(0, night?"rgba(150,190,220,.10)":"rgba(190,215,235,.16)");
+        sheen.addColorStop(1, night?"rgba(150,190,220,.02)":"rgba(190,215,235,.04)");
+        c.fillStyle=sheen; c.fill();
+        if(night){
+          for(let k=0;k<14;k++){
+            const z=d0+k*(L/14);
+            const q=P((k%2?1:-1)*HW*0.92, z); if(!q) continue;
+            const a=(1-fogAlpha(Math.max(1,z),visM))*0.5;
+            if(a<0.04) continue;
+            const hgt=Math.max(4, cam.f/Math.max(80,q.z)*26);
+            const rf=c.createLinearGradient(q.x,q.y,q.x,q.y+hgt);
+            rf.addColorStop(0,`rgba(255,240,190,${a})`);
+            rf.addColorStop(1,"rgba(255,240,190,0)");
+            c.fillStyle=rf;
+            c.fillRect(q.x-1.2, q.y, 2.4, hgt);        // the smear of a light on water
+          }
+        }
+      }
+      c.restore();
+
       /* an edge stroke, because at 1.5 nm the runway is 20 px wide and a fill
          alone simply does not read against terrain */
       c.strokeStyle=night?"rgba(150,170,180,.35)":"rgba(240,248,250,.55)";
@@ -2680,9 +2766,10 @@ function drawOutside(c, W, H, V){
     /* --- runway lighting --- */
     if(night || wx.fog || visM<6000){
       const glow=(px,py,col,sz,a)=>{ c.fillStyle=col.replace("A",a); c.shadowColor=col.replace("A",Math.min(1,a));
-        c.shadowBlur=sz*3.5; c.beginPath(); c.arc(px,py,sz,0,7); c.fill(); c.shadowBlur=0; };
+        c.shadowBlur=sz*(3.5 + (visM<6000 ? Math.min(1,(6000-visM)/5200)*8 : 0));
+        c.beginPath(); c.arc(px,py,sz,0,7); c.fill(); c.shadowBlur=0; };
       for(let z=d0; z<=d0+L; z+=60){
-        const a=(1-fogAlpha(Math.max(0,z),visM));
+        const a=(1-lightAlpha(Math.max(0,z),visM,night));
         if(a<0.04) continue;
         const sz=Math.max(0.9, cam.f/Math.max(70, z-d0+Math.max(1,d0))*0.9);
         [-HW,HW].forEach(x=>{ const p=P(x,z); if(p) glow(p.x,p.y,"rgba(255,244,214,A)",Math.min(3.4,sz),a*.95); });
@@ -2692,12 +2779,12 @@ function drawOutside(c, W, H, V){
         const gp=P(i*HW/4.4, d0+1);
         if(gp){ const a=1-fA; if(a>0.04) glow(gp.x,gp.y,"rgba(60,255,150,A)",2.6,a); }
         const rp=P(i*HW/4.4, d0+L-1);
-        if(rp){ const a=1-fogAlpha(Math.max(0,d0+L),visM); if(a>0.04) glow(rp.x,rp.y,"rgba(255,70,70,A)",2.2,a); }
+        if(rp){ const a=1-lightAlpha(Math.max(0,d0+L),visM,night); if(a>0.04) glow(rp.x,rp.y,"rgba(255,70,70,A)",2.2,a); }
       }
       /* centreline lights */
       for(let z=d0+30; z<d0+L; z+=60){
         const p=P(0,z); if(!p) continue;
-        const a=(1-fogAlpha(Math.max(0,z),visM)); if(a<0.05) continue;
+        const a=(1-lightAlpha(Math.max(0,z),visM,night)); if(a<0.05) continue;
         glow(p.x,p.y,"rgba(255,255,255,A)",1.7,a*.9);
       }
     }
@@ -2706,15 +2793,24 @@ function drawOutside(c, W, H, V){
     if(d0>50 && d0<9000 && V.agl>10){
       const st=papiState(V.agl, d0);
       const px0=-(HW+16);                              // left of the threshold, where it lives
+      /* Fog SCATTERS light, it does not simply hide it. A PAPI seen through murk
+         has a core that stays bright and a halo that swells — which is why lights
+         look bigger and fuzzier in poor weather, and why you acquire them long
+         before you can make out the runway they sit beside. Dimming them into
+         grey (as this did) is exactly backwards, and it made a legal CAT I
+         approach look like a black screen. */
+      const murk = visM<6000 ? Math.min(1,(6000-visM)/5200) : 0;
       for(let i=0;i<4;i++){
         const p=P(px0-i*4.2, d0+3); if(!p) continue;
-        const a=(1-fA)*0.95; if(a<0.05) continue;
+        const a=Math.min(1,(1-fA)*1.6); if(a<0.05) continue;      // bright core
         const white=st[i]===1;
         const col=white?"rgba(255,255,255,A)":"rgba(255,58,58,A)";
         const sz=Math.max(1.8, cam.f/Math.max(90,p.z)*2.2);
         c.fillStyle=col.replace("A",a);
-        c.shadowColor=col.replace("A",a); c.shadowBlur=sz*4;
-        c.beginPath(); c.arc(p.x,p.y,sz,0,7); c.fill(); c.shadowBlur=0;
+        c.shadowColor=col.replace("A",Math.min(1,a*1.1));
+        c.shadowBlur=sz*(4 + murk*9);                              // the halo swells
+        c.beginPath(); c.arc(p.x,p.y,sz*(1+murk*0.35),0,7); c.fill();
+        c.shadowBlur=0;
       }
     }
   }
@@ -2738,7 +2834,9 @@ function drawOutside(c, W, H, V){
   /* ── fog everywhere else ── */
   if(cloudFrac<0.9 && visM<6000){
     const f=Math.min(0.9, 1-visM/6000);
-    c.fillStyle=night?`rgba(30,40,50,${f*.7})`:`rgba(206,214,218,${f*.85})`;
+    /* lighter at night: the fog you actually see is the light scattered back off
+       it, not a grey sheet. Painting a heavy wash over the lights buried them. */
+    c.fillStyle=night?`rgba(30,40,50,${f*.34})`:`rgba(206,214,218,${f*.85})`;
     c.fillRect(0,0,W,H);
   }
   /* rain on the glass */
@@ -2751,21 +2849,140 @@ function drawOutside(c, W, H, V){
     }
   }
 
-  /* ── the windscreen we are looking through ── */
+  /* ══ THE GLASS ═══════════════════════════════════════════════════════════
+     Everything from here is ON the windscreen or ON the cockpit — it sits between
+     your eye and the world, and it is most of what makes a view feel flown rather
+     than watched. Order matters: rain and glare are on the glass, so they go on
+     top of the world but UNDER the airframe that holds the glass. */
+  const gT=H*0.055, gB=H-H*0.10;                       // glass top / bottom
+
+  /* ── sun glare ───────────────────────────────────────────────────────────
+     A low sun on the nose is a real handling problem — it is why you brief it.
+     Sun elevation from the time of day; azimuth from the runway you are facing. */
+  if(!night && !inCloud && cloudFrac<0.5){
+    const hr=(new Date().getUTCHours()+ (V.elev!=null?0:0) + 5.5) % 24;   // local-ish
+    const sunEl = Math.sin((hr-6)/12*Math.PI) * 62;                        // deg above horizon
+    if(sunEl>-2 && sunEl<34){
+      const lowness = 1 - Math.max(0,sunEl)/34;                            // 1 = on the horizon
+      const sx = cam.cx + Math.sin((V.yaw||0)+0.6)*W*0.42;
+      const sy = hMid.y - cam.f*Math.tan(sunEl*Math.PI/180)*0.45;
+      if(sx>-W*0.3 && sx<W*1.3){
+        const gl=c.createRadialGradient(sx,sy,0,sx,sy,W*0.55);
+        gl.addColorStop(0,`rgba(255,246,214,${0.34*lowness})`);
+        gl.addColorStop(0.35,`rgba(255,232,180,${0.14*lowness})`);
+        gl.addColorStop(1,"rgba(255,232,180,0)");
+        c.fillStyle=gl; c.fillRect(0,0,W,H);
+        /* the streak a dirty windscreen throws across your eye */
+        c.save(); c.translate(sx,sy); c.rotate(0.12);
+        const st=c.createLinearGradient(-W*0.5,0,W*0.5,0);
+        st.addColorStop(0,"rgba(255,240,200,0)");
+        st.addColorStop(0.5,`rgba(255,244,214,${0.18*lowness})`);
+        st.addColorStop(1,"rgba(255,240,200,0)");
+        c.fillStyle=st; c.fillRect(-W*0.5,-H*0.012,W,H*0.024); c.restore();
+      }
+    }
+  }
+
+  /* ── rain on the glass, and the wipers that clear it ─────────────────────
+     Rain does not fall past the windscreen of a moving aeroplane — it streaks
+     backwards across it. And the wiper is what makes the world flicker in and
+     out, which is exactly what flying an approach in rain feels like. */
+  if(wx.rain || wx.snow){
+    const t=V.t||0;
+    const heavy = wx.ts ? 1 : 0.6;
+    c.save();
+    c.beginPath(); c.rect(0,gT,W,gB-gT); c.clip();
+    /* the wiper sweeps, and clears the glass behind it */
+    const sweep = (t*1.35) % 2;                        // 0..2, out and back
+    const ang = (sweep<1 ? sweep : 2-sweep);           // 0..1
+    const wAng = (-0.62 + ang*1.12);                   // radians from vertical
+    const px=W*0.30, py=gB+H*0.03, R=H*0.92;
+    for(let i=0;i<(wx.snow?70:150)*heavy;i++){
+      const sd=(i*97.13)%1, sp=(i*41.7)%1;
+      const rx=((i*137.5) + t*(wx.snow?60:520)*(0.6+sp)) % (W+140) - 70;
+      const ry=(gT + ((i*79.3 + t*(wx.snow?90:240)*(0.5+sd)) % (gB-gT)));
+      /* the wiper has just passed here → the glass is clear */
+      const a=Math.atan2(rx-px, py-ry);
+      if(Math.abs(a-wAng)<0.16) continue;
+      if(wx.snow){
+        c.fillStyle=`rgba(255,255,255,${0.25+0.35*sd})`;
+        c.beginPath(); c.arc(rx,ry,1.1+1.9*sd,0,7); c.fill();
+      } else {
+        c.strokeStyle=`rgba(200,220,235,${0.16+0.24*sd})`;
+        c.lineWidth=0.8+sd*0.9;
+        c.beginPath(); c.moveTo(rx,ry); c.lineTo(rx-9-14*sp, ry+3+5*sd); c.stroke();
+      }
+    }
+    if(!wx.snow){                                      // the wiper blade itself
+      c.strokeStyle="rgba(12,16,20,.75)"; c.lineWidth=3.2; c.lineCap="round";
+      c.beginPath(); c.moveTo(px,py);
+      c.lineTo(px+Math.sin(wAng)*R, py-Math.cos(wAng)*R); c.stroke();
+      c.strokeStyle="rgba(40,48,56,.5)"; c.lineWidth=1.2;
+      c.beginPath(); c.moveTo(px,py);
+      c.lineTo(px+Math.sin(wAng)*R*0.97, py-Math.cos(wAng)*R*0.97); c.stroke();
+      c.lineCap="butt";
+    }
+    c.restore();
+  }
+
+  /* ── the aeroplane around the glass ──────────────────────────────────────
+     An A320 flight deck: a curved coaming above, window posts outboard of the
+     eye line, and a glareshield below with the FCU on it. The frame is what
+     tells your eye it is sitting IN something. */
   c.save();
-  const post=night?"rgba(6,10,14,.95)":"rgba(20,26,30,.92)";
+  const post=night?"rgba(6,10,14,.97)":"rgba(24,30,35,.95)";
+
+  /* top coaming, with a lit lip so it reads as a surface and not a black bar */
   c.fillStyle=post;
-  c.beginPath();                                       // top coaming
-  c.moveTo(0,0); c.lineTo(W,0); c.lineTo(W,H*0.055);
-  c.quadraticCurveTo(W/2,H*0.135, 0,H*0.055); c.closePath(); c.fill();
-  c.fillRect(0,H-H*0.10,W,H*0.10);                     // glareshield
+  c.beginPath();
+  c.moveTo(0,0); c.lineTo(W,0); c.lineTo(W,gT);
+  c.quadraticCurveTo(W/2,H*0.135, 0,gT); c.closePath(); c.fill();
+  c.strokeStyle=night?"rgba(70,90,105,.35)":"rgba(150,170,185,.45)"; c.lineWidth=1.4;
+  c.beginPath(); c.moveTo(0,gT); c.quadraticCurveTo(W/2,H*0.135, W,gT); c.stroke();
+
+  /* side posts */
+  c.fillStyle=post;
   c.fillRect(0,0,W*0.030,H); c.fillRect(W-W*0.030,0,W*0.030,H);
-  /* The window post does NOT cross the eye line. The captain sits left of the
+  /* The centre post does NOT cross the eye line. The captain sits left of the
      aircraft centreline and looks down the runway through clear glass; the post
      is outboard of that. Putting it on the optical axis would hide the very
      thing the view exists to show. */
-  c.fillStyle=night?"rgba(10,16,20,.9)":"rgba(28,36,42,.88)";
-  c.fillRect(W*0.735,0,W*0.019,H-H*0.10);
+  c.fillStyle=night?"rgba(12,18,22,.92)":"rgba(32,40,46,.9)";
+  c.fillRect(W*0.735,0,W*0.019,gB);
+  c.fillStyle=night?"rgba(60,80,95,.25)":"rgba(140,160,175,.3)";
+  c.fillRect(W*0.735,0,W*0.004,gB);                    // a highlight down its edge
+
+  /* ── the glareshield ─────────────────────────────────────────────────── */
+  const gs=c.createLinearGradient(0,gB,0,H);
+  if(night){ gs.addColorStop(0,"#0d1216"); gs.addColorStop(0.25,"#080c10"); gs.addColorStop(1,"#04070a"); }
+  else     { gs.addColorStop(0,"#3a444c"); gs.addColorStop(0.3,"#232a30"); gs.addColorStop(1,"#161b20"); }
+  c.fillStyle=gs; c.fillRect(0,gB,W,H-gB);
+  /* the coaming lip catches the light — this single line does most of the work
+     of making it look like a moulded surface rather than a rectangle */
+  c.strokeStyle=night?"rgba(90,115,135,.5)":"rgba(190,205,218,.6)"; c.lineWidth=2;
+  c.beginPath(); c.moveTo(0,gB+1); c.lineTo(W,gB+1); c.stroke();
+  c.strokeStyle=night?"rgba(0,0,0,.6)":"rgba(0,0,0,.35)"; c.lineWidth=1;
+  c.beginPath(); c.moveTo(0,gB+3.5); c.lineTo(W,gB+3.5); c.stroke();
+
+  /* the FCU: the strip of numbers you actually fly the aeroplane by */
+  const fy=gB+(H-gB)*0.30, fh=(H-gB)*0.44;
+  const fcu=[["SPD",Math.round(V.ias||0)],["HDG",String(Math.round(((V.rwyHdg||0)+ (V.yaw||0)*180/Math.PI +360)%360)).padStart(3,"0")],
+             ["ALT",Math.round((V.agl+ (V.elev||0))/10)*10],["V/S",(V.vs>0?"+":"")+Math.round(V.vs||0)]];
+  fcu.forEach((f,i)=>{
+    const bw=W*0.108, bx=W*0.055 + i*(bw+W*0.028);
+    if(bx+bw>W*0.70) return;
+    c.fillStyle=night?"rgba(2,5,7,.9)":"rgba(8,12,15,.85)";
+    rrect(c,bx,fy,bw,fh,3); c.fill();
+    c.strokeStyle=night?"rgba(50,70,85,.5)":"rgba(90,110,125,.5)"; c.lineWidth=1;
+    rrect(c,bx,fy,bw,fh,3); c.stroke();
+    c.fillStyle=night?"rgba(120,150,170,.75)":"rgba(150,175,195,.8)";
+    c.font="7px ui-monospace"; c.textAlign="left";
+    c.fillText(f[0], bx+4, fy+8);
+    c.fillStyle=night?"#5fe0b8":"#7dffd4";
+    c.font="bold 13px ui-monospace"; c.textAlign="right";
+    c.fillText(String(f[1]), bx+bw-5, fy+fh-5);
+    c.textAlign="left";
+  });
   c.restore();
 
   /* the flight-path marker: where the aeroplane is ACTUALLY going, not where it points.
@@ -5564,7 +5781,14 @@ function sFly(el){
     /* the lateral axis. Until now the aeroplane flew a straight-in and there was
        nothing to bank. Now it intercepts the centreline from an offset, banks to
        turn, rolls out on it, and kicks off the crab in the flare. */
-    xtrk:0, intc:0, bank:0, decrab:0, capt:false
+    xtrk:0, intc:0, bank:0, decrab:0, capt:false,
+    /* THE POSITION VECTOR. Until now the distance to the threshold was DERIVED
+       from the altitude on a 3° line — so the view and the slope agreed by
+       construction and PAPI could never say anything but "on slope". Now the
+       aeroplane has a real along-track distance that closes at groundspeed, and
+       a vertical deviation from the path that you can fly. PAPI reads the true
+       geometry, so it can finally catch you out. */
+    gdist:0, gsDev:0, gsTgt:0, gsCmd:0, buffet:0
   });
   const missed=F.ramp.missed||[];
   const bite=missed.length?DEFECTS.find(d=>d.id===missed[0]):null;
@@ -5747,6 +5971,9 @@ function sFly(el){
       S.xtrk = side * (3200+Math.random()*1600);          // metres off the centreline
       S.intc = 0;                                          // downwind: parallel, but displaced
       S.bank = 0; S.capt=false; S.decrab=0; S.turning=false;
+      /* start on the 3° path, at whatever range that altitude puts you */
+      S.gdist = Math.max(400, (S.alt-des.elev)*FT2M/Math.tan(3*Math.PI/180));
+      S.gsDev = 0; S.gsTgt = 0; S.gsCmd = 0;
       call("Vectors to final — you are downwind, "+(side>0?"right":"left")+" of the localiser","g");
       toast("Displaced from the centreline. The turn onto final comes at 3,600 ft.","ok");ctls(); });
     h('landB',()=>{ if(S.alt>1600){toast("Too high to land — continue approach.","warn");return;}
@@ -5786,6 +6013,45 @@ function sFly(el){
        offset. That is the real causal chain, and it is why the roll-out has to
        be led: you cannot stop a turn instantly, so you start straightening
        before you reach the centreline or you sail straight through it.      */
+    /* ── the vertical flight law ────────────────────────────────────────────
+       The threshold closes at groundspeed. The 3° path gives the height you
+       SHOULD be at for that range. gsDev is how far off it you actually are —
+       which is a real number now, not zero by definition. Turbulence pushes it
+       around, you can command it, and the autopilot slowly reels you back in.
+       PAPI then reports the truth, and can finally tell you that you are high. */
+    function vertStep(h, elev){
+      /* wx and rwy live in the RENDER scope, not here — derive them from the
+         flight, or this whole law dies silently on a ReferenceError and the
+         aeroplane simply hangs in the air. (It did exactly that.) */
+      const w = wxAt(des.icao);
+      const rid = (F.landRwy||"").replace("-INT","");
+      const rh = (des.rwys && des.rwys[rid]) ? des.rwys[rid].hdg : 0;
+      const gs = Math.max(45, S.v*0.5144 - (windComp(w, rh).head||0)*0.5144);
+      S.gdist = Math.max(25, S.gdist - gs*h);
+      const pathFt = (S.gdist*Math.tan(3*Math.PI/180))*M2FT;    // the slope, in feet AGL
+
+      /* ── where the pilot is trying to be, relative to the beam ────────────
+         gsTgt is a TARGET the pilot owns: press ↑ and you are asking to fly 60 ft
+         higher, and you STAY there until you ask otherwise. An offset that quietly
+         washes itself out would mean PAPI never really bites — and being caught
+         out by PAPI is the entire point of having it. */
+      S.gsTgt = clamp((S.gsTgt||0) + (S.gsCmd||0)*h*90, -400, 700);
+      /* the aeroplane flies to that target the way an aeroplane does: smoothly */
+      S.gsDev += (S.gsTgt - S.gsDev) * Math.min(1, h*0.45);
+      /* turbulence and gusts genuinely move you off it */
+      const gust = (w.wspd||0) > 14 ? (Math.random()-0.5) * (w.wspd/14) * 2.6 : 0;
+      S.gsDev += gust*h*7;
+      S.gsDev = clamp(S.gsDev, -420, 760);
+
+      const prevAlt=S.alt;
+      S.alt = Math.max(elev, elev + pathFt + S.gsDev);
+      S.vs  = h>0 ? (S.alt-prevAlt)/h*60 : 0;                   // vs is now a RESULT, not a setting
+      /* pitch follows the flight path, as it must */
+      const fpaDeg = Math.atan2((S.vs/60)*FT2M, gs)*180/Math.PI;
+      S.pitch += ((fpaDeg + 2.2) - S.pitch) * Math.min(1, h*1.4);
+      /* airframe buffet in rough air — the camera should feel it */
+      S.buffet = ((w.wspd||0)>16 ? Math.min(1,(w.wspd-16)/18) : 0) + (w.ts?0.35:0);
+    }
     function latStep(h, agl){
       /* above 3,600 ft you are still on the downwind leg: displaced from the
          localiser and tracking parallel to it. The turn onto final happens
@@ -5854,18 +6120,24 @@ function sFly(el){
       if(S.alt<=des.elev+2300&&!S.dCall){S.dCall=1;toast("Platform altitude — establish the approach.","ok");}
     }
     else if(S.ph==="APPROACH"){
-      S.vs=-760; S.alt=Math.max(des.elev,S.alt+S.vs/60*dt*12);
+      const h=dt*12;
       S.dist=Math.min(total-.3,S.dist+dt*.45);
       /* managed onto VREF — a real approach is speed-controlled, so the aeroplane
          is always stabilised at the threshold regardless of how it got there      */
       S.v+=(F.vref-S.v)*Math.min(1,dt*0.42);
-      S.pitch=-3; S.gear=1;
-      latStep(dt*12, S.alt-des.elev);
-      if(S.alt<=des.elev+250){ S.ph="FLARE"; ctls(); }
+      S.gear=1;
+      vertStep(h, des.elev);                 // ← the aeroplane now has a real position
+      latStep(h, S.alt-des.elev);
+      if(S.alt<=des.elev+250 || S.gdist<1400){ S.ph="FLARE"; ctls(); }
     }
     else if(S.ph==="FLARE"){
       const agl=Math.max(0,S.alt-des.elev);
-      latStep(dt*12, agl);
+      const h=dt*12;
+      /* keep closing the threshold — the ground must keep coming at you */
+      S.gdist = Math.max(-1200, (S.gdist||0) - Math.max(45,S.v*0.5144)*h);
+      const wF = wxAt(des.icao);
+      S.buffet = ((wF.wspd||0)>16 ? Math.min(1,(wF.wspd-16)/18) : 0);
+      latStep(h, agl);
       /* de-crab. In a crosswind you fly final crabbed into wind, but you cannot
          land crabbed — the gear would be side-loaded. So in the last hundred feet
          you kick the nose straight with rudder and hold the into-wind wing down.
@@ -5944,7 +6216,9 @@ function sFly(el){
       if(S.ph==="ROLLOUT"||S.ph==="REJECT") distM = -(S.rollout||0);
       else if(S.ph==="ROLL"||S.ph==="ROTATE") distM = -(S.roll||0);
       else if(S.ph==="LINEUP"||S.ph==="TAXI"||S.ph==="HOLD") distM = -60;
-      else if(arriving) distM = Math.max(30, agl*FT2M/Math.tan(3*Math.PI/180));
+      /* the REAL along-track distance. This is the whole point: the view and the
+         glideslope are no longer the same number wearing two hats. */
+      else if(arriving) distM = Math.max(25, S.gdist || (agl*FT2M/Math.tan(3*Math.PI/180)));
       else distM = -(S.roll||0) - agl*FT2M/Math.tan(12*Math.PI/180);   // climbing away
 
       /* crab: with a crosswind the nose is not where the aeroplane is going,
@@ -5970,6 +6244,7 @@ function sFly(el){
       const eyeH=(gm.gndH||3.2)+(gm.fusDia||3.9)/2;     // cockpit eye above the tarmac, metres
       drawOutside(oc, OW, OH, {
         agl, distM, pitch:S.pitch, crab, yaw, xtrk, bank, night, wx, t:S.t, eyeH,
+        buffet:S.buffet||0, vs:S.vs||0, rwyHdg:rwy.hdg, gsDev:S.gsDev||0,
         rwyLen:rwy.len, rwyW:rwyWidth(fld.icao, rwyId),  // 60 m at Delhi, 50 at Heathrow
         rwyName:rwyId.replace('-INT',''),
         elev:fld.elev, wet:F.wet, fpa, ias:S.v
@@ -6259,6 +6534,12 @@ function sFly(el){
     ['r','REJECT',K('rejB'),{live:()=>S.ph==='ROLL'}],
     ['c','Step climb',K('stepB'),{live:()=>['CLIMB','CRUISE'].includes(S.ph)}],
     ['v','Top of descent',K('todB'),{live:()=>['CLIMB','CRUISE'].includes(S.ph)}],
+    ['arrowup','Go above the slope',()=>{ S.gsCmd=1; setTimeout(()=>{S.gsCmd=0;},260); },
+      {live:()=>S.ph==='APPROACH'||S.ph==='FLARE'}],
+    ['arrowdown','Go below the slope',()=>{ S.gsCmd=-1; setTimeout(()=>{S.gsCmd=0;},260); },
+      {live:()=>S.ph==='APPROACH'||S.ph==='FLARE'}],
+    ['0','Recapture the slope',()=>{ S.gsTgt=0; toast("Correcting back to the glidepath.","ok"); },
+      {live:()=>S.ph==='APPROACH'&&Math.abs(S.gsTgt||0)>15}],
     ['a','Approach',K('apprB'),{live:()=>S.ph==='DESCENT'}],
     ['x','GO AROUND',K('gaB'),{live:()=>['APPROACH','FLARE'].includes(S.ph)}],
     [['+','='],'Faster',()=>{ S.warp=Math.min(16,S.warp*2); $('#wpV').textContent=S.warp; }],
