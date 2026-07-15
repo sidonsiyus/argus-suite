@@ -118,25 +118,6 @@
   @media(max-width:620px){.rcard{flex-direction:column}
     .rvis{width:100%;height:96px;border-right:none;border-bottom:1px solid var(--line)}}
 
-  /* ── private dashboard launcher, pinned bottom-right ── */
-  .dash{position:fixed;right:22px;bottom:22px;z-index:40;display:flex;align-items:center;gap:11px;
-    padding:11px 15px 11px 12px;border-radius:14px;background:rgba(16,13,21,.92);
-    border:1px solid var(--line2);backdrop-filter:blur(10px);transition:.28s;
-    box-shadow:0 18px 44px -26px #000}
-  .dash:hover{border-color:var(--gold);transform:translateY(-2px);
-    box-shadow:0 22px 50px -26px rgba(240,182,74,.55)}
-  .dash .ic{position:relative;width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;
-    background:radial-gradient(circle at 50% 35%,#1d1826,#100d15);border:1px solid var(--line2)}
-  .dash:hover .ic{border-color:rgba(240,182,74,.5)}
-  .dash .ic svg{width:19px;height:19px;fill:none;stroke:var(--gold);stroke-width:1.7;
-    stroke-linecap:round;stroke-linejoin:round}
-  .dash .ic i{position:absolute;top:-2px;right:-2px;width:7px;height:7px;border-radius:50%;
-    background:var(--gold);box-shadow:0 0 8px var(--gold);animation:bl 1.8s ease-in-out infinite}
-  .dash b{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--ink);font-weight:700}
-  .dash span{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.16em;color:var(--faint);margin-top:3px}
-  @media(max-width:600px){.dash{right:14px;bottom:14px;padding:10px 13px 10px 10px}
-    .dash b{font-size:9.5px}.dash span{display:none}}
-
   footer{position:relative;z-index:1;text-align:center;color:var(--faint);font-family:var(--mono);
     font-size:9.5px;letter-spacing:.11em;padding:30px 24px 30px}
   footer b{color:var(--muted);font-weight:500}
@@ -154,6 +135,36 @@
     .wpName{color:var(--ink);font-size:11px}
   }
   @media(prefers-reduced-motion:reduce){.wp{animation:none;opacity:1}}
+
+  /* ═══ attendance dashboard dock ═══ */
+  .dashdock{position:fixed;right:22px;bottom:20px;z-index:40;
+    display:flex;flex-direction:column;align-items:flex-end;gap:8px;
+    animation:ddIn .7s .5s both}
+  @keyframes ddIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .ddlabel{font-family:var(--mono);font-size:8.5px;letter-spacing:.26em;color:var(--faint);
+    padding-right:4px}
+  .ddrow{display:flex;gap:9px}
+  .ddash{position:relative;width:74px;height:74px;border-radius:15px;
+    background:linear-gradient(160deg,rgba(22,20,26,.92),rgba(12,10,16,.92));
+    border:1px solid var(--line);backdrop-filter:blur(8px);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s}
+  .ddash::before{content:"";position:absolute;inset:0;background:var(--dc);opacity:0;transition:opacity .18s}
+  .ddash::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--dc);opacity:.9}
+  .ddash svg{width:22px;height:22px;fill:none;stroke:var(--dc);stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round;transition:transform .18s}
+  .ddash span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--ink);font-weight:600}
+  .ddash em{font-family:var(--mono);font-size:6.5px;letter-spacing:.08em;color:var(--faint);font-style:normal}
+  .ddash:hover,.ddash:focus{transform:translateY(-4px);border-color:var(--dc);
+    box-shadow:0 10px 26px -12px var(--dc),0 0 0 1px var(--dc) inset;outline:none}
+  .ddash:hover svg{transform:scale(1.12)}
+  .ddash:hover span{color:#fff}
+  @media(max-width:640px){
+    .dashdock{right:12px;bottom:12px}
+    .ddash{width:60px;height:60px;border-radius:12px}
+    .ddash svg{width:18px;height:18px}
+    .ddash em{display:none}
+  }
 </style>
 </head>
 <body>
@@ -206,19 +217,6 @@
     </a>
   </div>
 </div>
-<a class="dash" href="argus-dashboard.html" title="Attendance command — private">
-  <span class="ic">
-    <svg viewBox="0 0 24 24">
-      <rect x="3" y="4" width="18" height="16" rx="2.4"/>
-      <path d="M3 9h18"/><path d="M7.5 13.4l1.9 1.9 3.6-3.9"/><path d="M15.5 13h3M15.5 16.5h3"/>
-    </svg><i></i>
-  </span>
-  <span style="display:block">
-    <b>DASHBOARD</b>
-    <span>ATTENDANCE COMMAND · PRIVATE</span>
-  </span>
-</a>
-
 <footer>ARGUS SUITE · <b>eight browser-based modules</b> + research · made by sid</footer>
 <script>
 /* favicon injected as a Blob — no data-URI escaping to get wrong */
@@ -671,5 +669,28 @@ function loop(){
 layout();
 requestAnimationFrame(loop);
 </script>
+
+  <!-- ═══ ATTENDANCE DASHBOARDS · bottom-right dock ═══ -->
+  <div class="dashdock" id="dashdock">
+    <div class="ddlabel">ATTENDANCE</div>
+    <div class="ddrow">
+      <a class="ddash" href="argus-dashboard.html" style="--dc:#f0b64a" title="ARGUS · Bsc Aero - IIA">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>
+        <span>ARGUS</span><em>Bsc Aero · IIA</em>
+      </a>
+      <a class="ddash" href="absence-audit-report.html" style="--dc:#c8202f" title="Absence Audit · BBA - Aviation IIC">
+        <svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+        <span>AUDIT</span><em>BBA Avn · IIC</em>
+      </a>
+      <a class="ddash" href="muster.html" style="--dc:#1f6f68" title="MUSTER · BBA - Aviation IIA">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.4l3 3 5.2-5.6"/></svg>
+        <span>MUSTER</span><em>BBA Avn · IIA</em>
+      </a>
+      <a class="ddash" href="olympia.html" style="--dc:#d81f2a" title="OLYMPIA · BBA - Aviation IIIB">
+        <svg viewBox="0 0 24 24"><path d="M12 3.5l2.5 5.2 5.7.8-4.1 4 1 5.6L12 21.4 6.9 24.1l1-5.6-4.1-4 5.7-.8z"/></svg>
+        <span>OLYMPIA</span><em>BBA Avn · IIIB</em>
+      </a>
+    </div>
+  </div>
 </body>
 </html>
