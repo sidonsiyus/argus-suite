@@ -51,11 +51,11 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:linear-gradient(100deg,var(--gold) 0%,var(--gold) 46%,var(--red) 62%,var(--red2) 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent}
 .tagline{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--faint);margin-top:10px;text-transform:uppercase}
-.pinwrap{margin-top:30px;display:flex;gap:9px;justify-content:center}
-.pin{width:52px;height:62px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);
+.wrap{margin-top:30px;display:flex;gap:9px;justify-content:center}
+.{width:52px;height:62px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);
   text-align:center;font-family:var(--mono);font-size:24px;letter-spacing:0;outline:none;transition:.18s;caret-color:var(--gold)}
-.pin:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(216,31,42,.14)}
-.pin.filled{color:var(--gold)}
+.:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(216,31,42,.14)}
+..filled{color:var(--gold)}
 #lockmsg{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--faint);margin-top:20px;height:14px;text-transform:uppercase}
 #lockmsg.bad{color:var(--red)}
 .sig{margin-top:34px;font-family:var(--mono);font-size:9.5px;letter-spacing:.26em;color:var(--faint)}
@@ -255,11 +255,11 @@ select{appearance:none;cursor:pointer;
     <div class="scope"><canvas id="scopeCv"></canvas></div>
     <div class="brand">OLYMPIA</div>
     <div class="tagline">BBA · Aviation IIIB · Attendance</div>
-    <div class="pinwrap" id="pinwrap">
-      <input class="pin" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
-      <input class="pin" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
-      <input class="pin" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
-      <input class="pin" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
+    <div class="wrap" id="wrap">
+      <input class="" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
+      <input class="" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
+      <input class="" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
+      <input class="" maxlength="1" inputmode="numeric" type="password" autocomplete="off">
     </div>
     <div id="lockmsg">Enter access code</div>
     <div class="sig">OLYMPIA · ATTENDANCE</div>
@@ -409,7 +409,7 @@ select{appearance:none;cursor:pointer;
 
 <script>
 /* ═══════════════ LOCK (code 2000) ═══════════════ */
-const CODE = "2000";
+const CODE = "2026";
 const pins = [...document.querySelectorAll('.pin')];
 const lockEl = document.getElementById('lock');
 const lockMsg = document.getElementById('lockmsg');
