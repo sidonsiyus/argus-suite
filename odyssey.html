@@ -5772,143 +5772,391 @@ function sTurn(el){
 /* ── the instrument strip, as a callable function so it can be tested and reused.
    Reads live flight state on every call, exactly like the PFD beside it. ── */
 function drawPanels(c, W, H){
-      const S=F.fly||{}, E=F.eng.seq||{}, night=true;
-      const ink="#e9edf2", dim="rgba(233,237,242,.5)", faint="rgba(233,237,242,.28)";
-      const green="#39d98a", amber="#f0b64a", red="#ff5b5b", blue="#6bb7ff";
-      const gap=10, pw=(W-gap*3)/4, ph=H-6, y0=3;
-      const panel=(x,title)=>{
-        c.fillStyle="rgba(255,255,255,.02)"; rrect(c,x,y0,pw,ph,9); c.fill();
-        c.strokeStyle="rgba(233,237,242,.10)"; c.lineWidth=1; rrect(c,x,y0,pw,ph,9); c.stroke();
-        c.fillStyle=faint; c.font="8px ui-monospace"; c.textAlign="left";
-        c.fillText(title.toUpperCase(), x+10, y0+14);
-      };
-      const led=(x,y,r,on,col)=>{
-        c.beginPath(); c.arc(x,y,r,0,7);
-        if(on){ c.fillStyle=col; c.shadowColor=col; c.shadowBlur=8; c.fill(); c.shadowBlur=0; }
-        else { c.fillStyle="rgba(255,255,255,.05)"; c.fill();
-               c.strokeStyle="rgba(233,237,242,.16)"; c.lineWidth=1; c.stroke(); }
-      };
-      const inTransit = (S.gear>0 && S.gear<1);
-      const arriving = ["APPROACH","FLARE","ROLLOUT"].includes(S.ph);
-      const gearDown = S.gear>=0.99 || arriving || ["HOLD","TAXI","LINEUP"].includes(S.ph);
+  const S=F.fly||{}, E=F.eng.seq||{}, a=FLEET[F.type]||{};
+  /* ── an A320-glass palette: near-black panels, the four EFIS colours ── */
+  const bg0="#0a0d11", bg1="#12161c", edge="rgba(150,170,190,.14)", edge2="rgba(150,170,190,.28)";
+  const ink="#e9edf2", dim="rgba(210,222,235,.55)", faint="rgba(180,196,214,.32)";
+  const grn="#4ade80", amb="#f5b942", red="#ff5b5b", cyan="#4fd6e0", mag="#e07be0", wht="#eef4fb";
+  const arriving=["APPROACH","FLARE","ROLLOUT"].includes(S.ph);
+  const rolling =["ROLL","ROTATE","REJECT"].includes(S.ph);
+  const airborne=["CLIMB","CRUISE","DESCENT","APPROACH","FLARE","GOAROUND"].includes(S.ph);
 
-      /* ── 1 · LANDING GEAR ─────────────────────────────────────────────── */
-      let x=gap*0+0+ (W-pw*4-gap*3)/2; const bx=x;
-      panel(x,"Landing gear");
-      const gy=y0+34;
-      ["NOSE","LEFT","RIGHT"].forEach((lbl,i)=>{
-        const ly=gy+i*30;
-        c.fillStyle=dim; c.font="8px ui-monospace"; c.textAlign="left"; c.fillText(lbl, x+12, ly+3);
-        /* green = down & locked · red = in transit · dark = up */
-        led(x+pw-46, ly, 5, gearDown && !inTransit, green);
-        led(x+pw-28, ly, 5, inTransit, red);
-        c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="center";
-        if(i===0){ c.fillText("DN", x+pw-46, gy-8); c.fillText("TR", x+pw-28, gy-8); }
-      });
-      /* the lever */
-      const lvY=y0+ph-30, lvUp=!gearDown;
-      c.strokeStyle="rgba(233,237,242,.3)"; c.lineWidth=2;
-      c.beginPath(); c.moveTo(x+16,lvY); c.lineTo(x+16, lvY - (lvUp?18:-0)); c.stroke();
-      c.fillStyle=gearDown?green:dim;
-      c.beginPath(); c.arc(x+16, lvUp?lvY-18:lvY, 6, 0, 7); c.fill();
-      c.fillStyle=dim; c.font="8px ui-monospace"; c.textAlign="left";
-      c.fillText(gearDown?"DOWN":(inTransit?"IN TRANSIT":"UP"), x+30, lvY+3);
+  /* six instruments across the strip */
+  const gap=9, N=7, pw=(W-gap*(N+1))/N, ph=H-gap*2, y0=gap;
+  const X=i=> gap + i*(pw+gap);
 
-      /* ── 2 · AUTOPILOT / FCU ──────────────────────────────────────────── */
-      x=bx+pw+gap; panel(x,"Autopilot · FCU");
-      const apOn = arriving || ["CLIMB","CRUISE","DESCENT"].includes(S.ph);
-      const modes=[["AP1",apOn],["FD",true],["A/THR",apOn||S.ph==="CLIMB"]];
-      modes.forEach((m,i)=>{
-        const mx=x+12+i*((pw-24)/3), mw=(pw-24)/3-6;
-        c.fillStyle=m[1]?"rgba(57,217,138,.16)":"rgba(255,255,255,.03)";
-        rrect(c,mx,y0+24,mw,15,3); c.fill();
-        c.fillStyle=m[1]?green:faint; c.font="bold 8px ui-monospace"; c.textAlign="center";
-        c.fillText(m[0], mx+mw/2, y0+34);
-      });
-      /* rwy lives in the outside-world block, not here — derive the heading from
-         the destination runway the aeroplane is flying to */
-      const _rid=(F.landRwy||"").replace("-INT","");
-      const _des=APT[F.route?F.route.to:""]||{rwys:{}};
-      const hdg = Math.round((_des.rwys&&_des.rwys[_rid]?_des.rwys[_rid].hdg:0));
-      const win=[["SPD",Math.round(S.v||F.vref||0)],["HDG",String(hdg).padStart(3,"0")],
-                 ["ALT",Math.round((S.alt||0)/10)*10],["V/S",(S.vs>0?"+":"")+Math.round(S.vs||0)]];
-      win.forEach((wd,i)=>{
-        const wx2=x+12+(i%2)*((pw-24)/2), wy=y0+46+Math.floor(i/2)*34, ww=(pw-24)/2-6;
-        c.fillStyle="rgba(0,0,0,.35)"; rrect(c,wx2,wy,ww,28,3); c.fill();
-        c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="left"; c.fillText(wd[0], wx2+5, wy+9);
-        c.fillStyle=blue; c.font="bold 13px ui-monospace"; c.textAlign="right";
-        c.fillText(String(wd[1]), wx2+ww-5, wy+22); c.textAlign="left";
-      });
+  const bezel=(x,title,accent)=>{
+    /* the outer frame: a dark brushed-metal moulding around the glass */
+    const fg=c.createLinearGradient(0,y0-1,0,y0+ph+1);
+    fg.addColorStop(0,"#2a3038"); fg.addColorStop(0.5,"#191d23"); fg.addColorStop(1,"#0d1015");
+    c.fillStyle=fg; rrect(c,x-1,y0-1,pw+2,ph+2,11); c.fill();
+    /* the recessed glass face, sunk into the frame */
+    const g=c.createLinearGradient(0,y0+3,0,y0+ph-3);
+    g.addColorStop(0,"#141a21"); g.addColorStop(0.5,bg1); g.addColorStop(1,"#080b0e");
+    c.fillStyle=g; rrect(c,x+3,y0+3,pw-6,ph-6,8); c.fill();
+    /* inner shadow at the top edge — glass sits BELOW the frame lip */
+    const sh=c.createLinearGradient(0,y0+3,0,y0+13);
+    sh.addColorStop(0,"rgba(0,0,0,.55)"); sh.addColorStop(1,"rgba(0,0,0,0)");
+    c.fillStyle=sh; rrect(c,x+3,y0+3,pw-6,12,8); c.fill();
+    /* the curved glass sheen across the top third */
+    const gl=c.createLinearGradient(0,y0+3,0,y0+ph*0.5);
+    gl.addColorStop(0,"rgba(255,255,255,.055)"); gl.addColorStop(1,"rgba(255,255,255,0)");
+    c.save(); c.beginPath(); rrect(c,x+3,y0+3,pw-6,ph-6,8); c.clip();
+    c.fillStyle=gl; c.fillRect(x+3,y0+3,pw-6,ph*0.5); c.restore();
+    /* frame highlight (top) and shadow (bottom) — light from above */
+    c.strokeStyle="rgba(255,255,255,.12)"; c.lineWidth=1;
+    c.beginPath(); c.moveTo(x+4,y0+1); c.arcTo(x+pw-1,y0+1,x+pw-1,y0+ph,10); c.stroke();
+    c.strokeStyle="rgba(0,0,0,.5)"; c.lineWidth=1;
+    c.beginPath(); c.moveTo(x-1,y0+ph); c.lineTo(x+pw,y0+ph); c.stroke();
+    /* four corner screws — small, but they read as "hardware" instantly */
+    const screw=(sx,sy)=>{ c.fillStyle="#23282f"; c.beginPath(); c.arc(sx,sy,1.9,0,7); c.fill();
+      c.strokeStyle="rgba(0,0,0,.6)"; c.lineWidth=.7;
+      c.beginPath(); c.moveTo(sx-1.2,sy-1.2); c.lineTo(sx+1.2,sy+1.2); c.stroke(); };
+    screw(x+6,y0+6); screw(x+pw-6,y0+6); screw(x+6,y0+ph-6); screw(x+pw-6,y0+ph-6);
+    /* the label, on its own little engraved plate */
+    c.fillStyle=faint; c.font="700 8px ui-monospace"; c.textAlign="left";
+    c.fillText(title.toUpperCase(), x+13, y0+16);
+    if(accent){ c.fillStyle=accent; c.shadowColor=accent; c.shadowBlur=5;
+      c.fillRect(x+13, y0+20, 16, 2); c.shadowBlur=0; }
+  };
+  /* a soft glow behind a lit value — cheap, and it sells "emissive display" */
+  const glowText=(txt,gx,gy,col,font,align)=>{
+    c.font=font; c.textAlign=align||"left";
+    c.fillStyle=col; c.shadowColor=col; c.shadowBlur=6; c.fillText(txt,gx,gy);
+    c.shadowBlur=0; c.fillText(txt,gx,gy);
+  };
+  const led=(x,y,r,on,col)=>{
+    c.beginPath(); c.arc(x,y,r,0,7);
+    if(on){ c.fillStyle=col; c.shadowColor=col; c.shadowBlur=9; c.fill(); c.shadowBlur=0;
+            c.strokeStyle="rgba(255,255,255,.5)"; c.lineWidth=.6; c.stroke(); }
+    else { c.fillStyle="rgba(255,255,255,.04)"; c.fill();
+           c.strokeStyle="rgba(200,214,230,.2)"; c.lineWidth=1; c.stroke(); }
+  };
+  /* a circular gauge with a swept arc + needle — the workhorse of an EIS */
+  const dial=(cx,cy,r,frac,lo,hi,val,unit,redFrac)=>{
+    const a0=Math.PI*0.75, a1=Math.PI*2.25;                 // 270° sweep, bottom gap
+    /* the dished gauge face */
+    const fd=c.createRadialGradient(cx,cy-r*0.3,r*0.2,cx,cy,r*1.15);
+    fd.addColorStop(0,"#12171d"); fd.addColorStop(1,"#070a0d");
+    c.fillStyle=fd; c.beginPath(); c.arc(cx,cy,r+3,0,7); c.fill();
+    /* graduation ticks around the arc */
+    for(let t=0;t<=10;t++){ const ta=a0+(a1-a0)*(t/10);
+      const major=t%5===0, r1=r+2, r2=r-(major?5:2.5);
+      c.strokeStyle=major?"rgba(210,222,235,.55)":"rgba(210,222,235,.25)"; c.lineWidth=major?1.3:0.8;
+      c.beginPath(); c.moveTo(cx+Math.cos(ta)*r1,cy+Math.sin(ta)*r1);
+      c.lineTo(cx+Math.cos(ta)*r2,cy+Math.sin(ta)*r2); c.stroke(); }
+    /* the track */
+    c.lineWidth=3.4; c.strokeStyle="rgba(255,255,255,.07)"; c.lineCap="round";
+    c.beginPath(); c.arc(cx,cy,r,a0,a1); c.stroke();
+    if(redFrac!=null){ c.strokeStyle="rgba(255,91,91,.9)"; c.lineWidth=3.4;
+      c.beginPath(); c.arc(cx,cy,r,a0+(a1-a0)*redFrac,a1); c.stroke(); }
+    const f=clamp(frac,0,1), ang=a0+(a1-a0)*f;
+    const col = f>(redFrac!=null?redFrac:1.1)?red : f>0.82?amb : grn;
+    /* the lit arc, with a glow so it reads as emissive */
+    c.strokeStyle=col; c.shadowColor=col; c.shadowBlur=7;
+    c.beginPath(); c.arc(cx,cy,r,a0,ang); c.stroke(); c.shadowBlur=0;
+    /* needle with a drop shadow, tapering to a tail */
+    const nx=cx+Math.cos(ang)*(r-2), ny=cy+Math.sin(ang)*(r-2);
+    c.strokeStyle="rgba(0,0,0,.5)"; c.lineWidth=2.6;
+    c.beginPath(); c.moveTo(cx+1,cy+1.5); c.lineTo(nx+1,ny+1.5); c.stroke();
+    c.strokeStyle=wht; c.lineWidth=2; c.lineCap="round";
+    c.beginPath(); c.moveTo(cx-Math.cos(ang)*4,cy-Math.sin(ang)*4); c.lineTo(nx,ny); c.stroke();
+    c.lineCap="butt";
+    /* the hub, a little machined boss */
+    const hb=c.createRadialGradient(cx-1,cy-1,0,cx,cy,4);
+    hb.addColorStop(0,"#3a424c"); hb.addColorStop(1,"#12171d");
+    c.fillStyle=hb; c.beginPath(); c.arc(cx,cy,3.4,0,7); c.fill();
+    c.strokeStyle="rgba(0,0,0,.6)"; c.lineWidth=1; c.beginPath(); c.arc(cx,cy,3.4,0,7); c.stroke();
+    if(val!=null){ glowText(String(val),cx,cy+r+13,col,"700 13px ui-monospace","center");
+      if(unit){ c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="center"; c.fillText(unit, cx, cy+r+22); } }
+  };
 
-      /* ── 3 · THRUST ───────────────────────────────────────────────────── */
-      x=bx+(pw+gap)*2; panel(x,"Thrust");
-      const n1 = Math.max(E.n1||0, F.eng&&F.eng.n1||0);
-      /* lever detent from the phase */
-      const det = S.ph==="ROLL"||S.ph==="ROTATE" ? (F.thrust==="FLEX"?"FLX":"TOGA")
-                : S.ph==="CLIMB" ? "CLB"
-                : arriving||S.ph==="FLARE" ? "IDLE"
-                : S.ph==="ROLLOUT" ? "REV"
-                : "IDLE";
-      const detents=[["TOGA",.96],["FLX/MCT",.82],["CLB",.62],["IDLE",.12],["REV",-.15]];
-      const tq_x=x+16, tq_top=y0+26, tq_h=ph-52;
-      c.strokeStyle="rgba(233,237,242,.14)"; c.lineWidth=1;
-      c.beginPath(); c.moveTo(tq_x,tq_top); c.lineTo(tq_x,tq_top+tq_h); c.stroke();
-      detents.forEach(d=>{ const dy=tq_top+tq_h*(1-(d[1]+.15)/1.11);
-        c.strokeStyle="rgba(233,237,242,.2)"; c.beginPath(); c.moveTo(tq_x-4,dy); c.lineTo(tq_x+4,dy); c.stroke();
-        c.fillStyle = d[0].startsWith(det)||det===d[0]?ink:faint; c.font="7px ui-monospace"; c.textAlign="left";
-        c.fillText(d[0], tq_x+10, dy+2.5);
-      });
-      /* the lever knob at the current detent */
-      const cur=(detents.find(d=>d[0].startsWith(det))||detents.find(d=>d[0]===det)||detents[3]);
-      const ky=tq_top+tq_h*(1-(cur[1]+.15)/1.11);
-      c.fillStyle=amber; c.shadowColor=amber; c.shadowBlur=8;
-      rrect(c,tq_x-6,ky-4,12,8,2); c.fill(); c.shadowBlur=0;
-      /* N1 readout + bar */
-      c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="right"; c.fillText("N1", x+pw-12, y0+34);
-      c.fillStyle=n1>85?red:n1>50?amber:green; c.font="bold 15px ui-monospace";
-      c.fillText(Math.round(n1)+"%", x+pw-12, y0+52);
-      const barX=x+pw-46, barY=y0+60, barH=ph-y0-72;
-      c.fillStyle="rgba(0,0,0,.35)"; rrect(c,barX,barY,10,barH,3); c.fill();
-      const fill=clamp(n1/100,0,1);
-      c.fillStyle=n1>85?red:green;
-      rrect(c,barX,barY+barH*(1-fill),10,barH*fill,3); c.fill();
+  const n1 = Math.max(E.n1||0, (F.eng&&F.eng.n1)||0);
+  const n2 = Math.max(E.n2||0, (F.eng&&F.eng.n2)||0);
+  const egt= Math.max(E.egt||0,(F.eng&&F.eng.egt)||0);
+  const inTransit = S.gear>0 && S.gear<1;
+  const gearDown = S.gear>=0.99 || arriving || ["HOLD","TAXI","LINEUP"].includes(S.ph);
 
-      /* ── 4 · SIDESTICK + ATTITUDE ─────────────────────────────────────── */
-      x=bx+(pw+gap)*3; panel(x,"Sidestick · attitude");
-      const cx=x+pw/2, cy=y0+ph/2+6, R=Math.min(pw,ph)/2-18;
-      c.save(); c.beginPath(); c.arc(cx,cy,R,0,7); c.clip();
-      /* the attitude ball, rolled and pitched with the aeroplane */
-      const bank=(S.bank||0)*Math.PI/180, pitch=(S.pitch||0);
-      c.translate(cx,cy); c.rotate(-bank);
-      const horizonY = pitch*2.2;
-      c.fillStyle="#4a7fb5"; c.fillRect(-R*1.6, -R*1.6, R*3.2, R*1.6+horizonY);   // sky
-      c.fillStyle="#7a5a3a"; c.fillRect(-R*1.6, horizonY, R*3.2, R*1.6);           // ground
-      c.strokeStyle="rgba(255,255,255,.85)"; c.lineWidth=1.4;
-      c.beginPath(); c.moveTo(-R*1.6,horizonY); c.lineTo(R*1.6,horizonY); c.stroke();
-      for(let k=-2;k<=2;k++){ if(!k) continue; const py=horizonY - k*R*0.32;
-        const w2=k%2?6:11; c.strokeStyle="rgba(255,255,255,.6)"; c.lineWidth=1;
-        c.beginPath(); c.moveTo(-w2,py); c.lineTo(w2,py); c.stroke(); }
-      c.restore();
-      /* fixed aircraft reference */
-      c.strokeStyle=amber; c.lineWidth=2;
-      c.beginPath(); c.moveTo(cx-16,cy); c.lineTo(cx-5,cy);
-      c.moveTo(cx+5,cy); c.lineTo(cx+16,cy); c.moveTo(cx,cy-4); c.lineTo(cx,cy+2); c.stroke();
-      c.strokeStyle="rgba(233,237,242,.25)"; c.lineWidth=1; c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
-      /* the sidestick deflection box, bottom-left of the panel */
-      const skx=x+16, sky=y0+ph-16, sks=13;
-      c.strokeStyle="rgba(233,237,242,.2)"; c.lineWidth=1;
-      c.strokeRect(skx-sks,sky-sks,sks*2,sks*2);
-      c.strokeStyle="rgba(233,237,242,.12)";
-      c.beginPath(); c.moveTo(skx-sks,sky); c.lineTo(skx+sks,sky);
-      c.moveTo(skx,sky-sks); c.lineTo(skx,sky+sks); c.stroke();
-      /* stick position: roll → x, pitch demand / slope command → y */
-      const stx = clamp((S.bank||0)/25,-1,1)*sks;
-      const sty = clamp(-((S.gsTgt||0)/300 + (S.pitch||0)/8),-1,1)*sks;
-      c.fillStyle=green; c.shadowColor=green; c.shadowBlur=6;
-      c.beginPath(); c.arc(skx+stx, sky+sty, 3.5, 0, 7); c.fill(); c.shadowBlur=0;
-      c.fillStyle=faint; c.font="7px ui-monospace"; c.textAlign="left"; c.fillText("STICK", skx+sks+6, sky-4);
+  /* ═══ 1 · LANDING GEAR ═══════════════════════════════════════════════════ */
+  let x=X(0); bezel(x,"L/G", grn);
+  {
+    const gy=y0+34;
+    ["NOSE","LEFT","RIGHT"].forEach((lbl,i)=>{
+      const ly=gy+i*22;
+      c.fillStyle=dim; c.font="8px ui-monospace"; c.textAlign="left"; c.fillText(lbl, x+11, ly+3);
+      led(x+pw-40, ly, 4.5, gearDown && !inTransit, grn);       // down & locked
+      led(x+pw-22, ly, 4.5, inTransit, red);                    // in transit
+    });
+    c.fillStyle=faint; c.font="6.5px ui-monospace"; c.textAlign="center";
+    c.fillText("DN", x+pw-40, gy-8); c.fillText("TR", x+pw-22, gy-8);
+    /* the lever, drawn as a real handle with a wheel knob */
+    const lvY=y0+ph-20, up=!gearDown;
+    c.strokeStyle="rgba(210,222,235,.45)"; c.lineWidth=2.4; c.lineCap="round";
+    c.beginPath(); c.moveTo(x+18,lvY); c.lineTo(x+18, lvY-(up?16:0)); c.stroke();
+    c.fillStyle=gearDown?grn:dim; c.shadowColor=gearDown?grn:"transparent"; c.shadowBlur=gearDown?7:0;
+    c.beginPath(); c.arc(x+18, up?lvY-16:lvY, 6, 0, 7); c.fill(); c.shadowBlur=0;
+    c.fillStyle=dim; c.font="700 8px ui-monospace"; c.textAlign="left";
+    c.fillText(inTransit?"UNLK":(gearDown?"DOWN":"UP"), x+30, lvY-2);
+  }
 
+  /* ═══ 2 · FLAPS / SLATS ══════════════════════════════════════════════════ */
+  x=X(1); bezel(x,"FLAP", cyan);
+  {
+    /* the A320 SLATS/FLAPS gauge — two indices, S and F, each stepping through
+       their own gate, exactly as the real ECAM wheel shows them */
+    const conf=(typeof F.flap==="number")?F.flap:(arriving?3:0);
+    const steps=["0","1","2","3","F"], fracFor=[0,.25,.5,.72,1];
+    const cx=x+pw/2, cy=y0+ph*0.44, R=pw*0.30;
+    /* the arc track, thicker and dished */
+    c.strokeStyle="rgba(255,255,255,.10)"; c.lineWidth=3; c.lineCap="round";
+    c.beginPath(); c.arc(cx,cy,R,Math.PI*0.88,Math.PI*1.62); c.stroke(); c.lineCap="butt";
+    /* gate ticks at each detent */
+    steps.forEach((lb,i)=>{
+      const ang=Math.PI*0.88 + (Math.PI*0.74)*(i/(steps.length-1));
+      const on = i===conf || (conf===4&&i===4);
+      c.strokeStyle=on?cyan:"rgba(200,220,235,.3)"; c.lineWidth=on?1.6:1;
+      c.beginPath(); c.moveTo(cx+Math.cos(ang)*(R-3),cy+Math.sin(ang)*(R-3));
+      c.lineTo(cx+Math.cos(ang)*(R+3),cy+Math.sin(ang)*(R+3)); c.stroke();
+      c.fillStyle= on?cyan:faint; c.font=(on?"700 ":"")+"7.5px ui-monospace"; c.textAlign="center";
+      c.fillText(lb, cx+Math.cos(ang)*(R+11), cy+Math.sin(ang)*(R+11)+2.5);
+    });
+    const pf=fracFor[Math.min(conf,4)]||0;
+    const pang=Math.PI*0.88 + (Math.PI*0.74)*pf;
+    /* the SLAT index (inner, green) and FLAP index (outer, green) — Airbus draws
+       them separately; slats lead flaps by a notch on the way out */
+    const slatFrac = Math.min(1, pf*1.15);
+    const sang=Math.PI*0.88 + (Math.PI*0.74)*slatFrac;
+    c.strokeStyle=grn; c.lineWidth=2; c.shadowColor=grn; c.shadowBlur=5;
+    c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx+Math.cos(sang)*(R*0.66), cy+Math.sin(sang)*(R*0.66)); c.stroke();
+    c.strokeStyle=cyan; c.lineWidth=2; c.shadowColor=cyan;
+    c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx+Math.cos(pang)*R, cy+Math.sin(pang)*R); c.stroke();
+    c.shadowBlur=0;
+    c.fillStyle="#2a323c"; c.beginPath(); c.arc(cx,cy,2.6,0,7); c.fill();
+    /* the S / F legend */
+    c.fillStyle=grn; c.font="6px ui-monospace"; c.textAlign="left"; c.fillText("S", x+11, y0+ph-20);
+    c.fillStyle=cyan; c.fillText("F", x+22, y0+ph-20);
+    glowText("CONF "+(conf===4?"FULL":conf), cx, y0+ph-8, ink, "700 10px ui-monospace", "center");
+  }
+
+  /* ═══ 3 · N1 (per-engine) ════════════════════════════════════════════════ */
+  x=X(2); bezel(x,"N1", amb);
+  {
+    /* two engines, two dials — the heart of the EIS */
+    const r=pw*0.20, cyy=y0+ph/2-2;
+    const jitter = airborne?0:(rolling?0:0);
+    [ -1, 1 ].forEach((side,i)=>{
+      const cx=x+pw/2 + side*(pw*0.24);
+      const val = n1 + (i? -0.3:0.3);                    // tiny split, as real engines have
+      dial(cx,cyy,r, val/100, 0,100, Math.round(val), i? "ENG2":"ENG1", 0.92);
+    });
+  }
+
+  /* ═══ 4 · EGT + N2 + FUEL ════════════════════════════════════════════════ */
+  x=X(3); bezel(x,"ENG", red);
+  {
+    const rowY=y0+32, rh=(ph-42)/3;
+    /* a segmented bar — discrete LED cells, the way a real EIS strip reads,
+       with a redline notch and a tick scale beneath */
+    const bar=(y,label,val,max,col,unit,redFrac)=>{
+      c.fillStyle=dim; c.font="8px ui-monospace"; c.textAlign="left"; c.fillText(label, x+11, y);
+      const over = redFrac!=null && val/max>redFrac;
+      glowText(val+(unit||""), x+pw-11, y, over?red:col, "700 11px ui-monospace", "right");
+      const bx=x+11, bw=pw-22, by=y+6, bh=5, cells=18, cw=(bw-(cells-1)*1)/cells;
+      const f=clamp(val/max,0,1);
+      for(let k=0;k<cells;k++){ const cf=(k+1)/cells, lit=cf<=f;
+        const cellCol = redFrac!=null&&cf>redFrac ? red : cf>0.82 ? amb : col;
+        c.fillStyle = lit ? cellCol : "rgba(255,255,255,.05)";
+        if(lit){ c.shadowColor=cellCol; c.shadowBlur=4; }
+        c.fillRect(bx+k*(cw+1), by, cw, bh); c.shadowBlur=0; }
+      /* redline notch */
+      if(redFrac!=null){ const rx=bx+bw*redFrac; c.strokeStyle=red; c.lineWidth=1;
+        c.beginPath(); c.moveTo(rx,by-1); c.lineTo(rx,by+bh+1); c.stroke(); }
+    };
+    bar(rowY,       "EGT", Math.round(egt),  1000, amb, "°", 0.72);
+    bar(rowY+rh,    "N2",  Math.round(n2),   100,  grn, "%", 0.95);
+    const fuelT = Math.max(0, (S.fuel||0)/1000);
+    bar(rowY+rh*2,  "FOB", fuelT.toFixed(1), (F.block||9000)/1000, cyan, "t");
+    /* fuel flow, a small live number under FOB — real ECAM shows it */
+    const ff = airborne ? (rolling?0:Math.round(n1*11)) : 0;
+    c.fillStyle=faint; c.font="6.5px ui-monospace"; c.textAlign="left";
+    c.fillText("FF "+ff+" kg/h", x+11, y0+ph-7);
+  }
+
+  /* ═══ 5 · AUTOPILOT / FCU ════════════════════════════════════════════════ */
+  x=X(4); bezel(x,"FCU", grn);
+  {
+    const apOn = airborne && S.ph!=="FLARE";
+    const modes=[["AP1",apOn],["FD",true],["ATHR",apOn||S.ph==="CLIMB"]];
+    modes.forEach((m,i)=>{
+      const mw=(pw-22)/3-4, mx=x+11+i*((pw-22)/3);
+      c.fillStyle=m[1]?"rgba(74,222,128,.18)":"rgba(255,255,255,.03)";
+      rrect(c,mx,y0+24,mw,14,3); c.fill();
+      if(m[1]){ c.strokeStyle="rgba(74,222,128,.5)"; c.lineWidth=.8; rrect(c,mx,y0+24,mw,14,3); c.stroke(); }
+      c.fillStyle=m[1]?grn:faint; c.font="700 7.5px ui-monospace"; c.textAlign="center";
+      c.fillText(m[0], mx+mw/2, y0+34);
+    });
+    const _rid=(F.landRwy||"").replace("-INT",""), _des=APT[F.route?F.route.to:""]||{rwys:{}};
+    const hdg=Math.round((_des.rwys&&_des.rwys[_rid]?_des.rwys[_rid].hdg:0));
+    const win=[["SPD",Math.round(S.v||F.vref||0),grn],["HDG",String(hdg).padStart(3,"0"),grn],
+               ["ALT",Math.round((S.alt||0)/10)*10,grn],["V/S",(S.vs>0?"+":"")+Math.round(S.vs||0),(S.vs<-100||S.vs>100)?amb:grn]];
+    win.forEach((wd,i)=>{
+      const ww=(pw-22)/2-4, wx2=x+11+(i%2)*((pw-22)/2), wy=y0+44+Math.floor(i/2)*30;
+      c.fillStyle="rgba(0,0,0,.4)"; rrect(c,wx2,wy,ww,25,3); c.fill();
+      c.strokeStyle="rgba(150,170,190,.16)"; c.lineWidth=.8; rrect(c,wx2,wy,ww,25,3); c.stroke();
+      c.fillStyle=faint; c.font="6.5px ui-monospace"; c.textAlign="left"; c.fillText(wd[0], wx2+4, wy+8);
+      c.fillStyle=wd[2]; c.font="700 12px ui-monospace"; c.textAlign="right";
+      c.fillText(String(wd[1]), wx2+ww-4, wy+20); c.textAlign="left";
+    });
+  }
+
+  /* ═══ 6 · ATTITUDE + SIDESTICK ═══════════════════════════════════════════ */
+  x=X(5); bezel(x,"ATT", cyan);
+  {
+    const cx=x+pw/2, cy=y0+ph/2+2, R=Math.min(pw,ph)/2-16;
+    c.save(); c.beginPath(); c.arc(cx,cy,R,0,7); c.clip();
+    const bank=(S.bank||0)*Math.PI/180, pitch=(S.pitch||0);
+    c.translate(cx,cy); c.rotate(-bank);
+    const PPD=2.6;                                          // pixels per degree of pitch
+    const hY=pitch*PPD;
+    /* sky: brighter at the horizon, as a real ADI is */
+    const sky=c.createLinearGradient(0,-R*1.7,0,hY);
+    sky.addColorStop(0,"#1a5a9a"); sky.addColorStop(0.7,"#3f86c4"); sky.addColorStop(1,"#5aa0d8");
+    c.fillStyle=sky; c.fillRect(-R*1.7,-R*1.7,R*3.4,R*1.7+hY);
+    const gnd=c.createLinearGradient(0,hY,0,R*1.7);
+    gnd.addColorStop(0,"#9c7440"); gnd.addColorStop(0.4,"#7a5730"); gnd.addColorStop(1,"#513a20");
+    c.fillStyle=gnd; c.fillRect(-R*1.7,hY,R*3.4,R*1.7);
+    /* the horizon line */
+    c.strokeStyle="rgba(255,255,255,.95)"; c.lineWidth=1.6;
+    c.beginPath(); c.moveTo(-R*1.7,hY); c.lineTo(R*1.7,hY); c.stroke();
+    /* the pitch ladder — numbered rungs, the thing that makes it read as a PFD */
+    c.font="6px ui-monospace"; c.textAlign="center"; c.lineWidth=1.2;
+    for(let d=-30;d<=30;d+=10){ if(!d) continue; const py=hY-d*PPD;
+      if(Math.abs(py)>R) continue;
+      c.strokeStyle="rgba(255,255,255,.8)"; c.beginPath(); c.moveTo(-13,py); c.lineTo(13,py); c.stroke();
+      c.fillStyle="rgba(255,255,255,.85)"; c.fillText(String(Math.abs(d)),-20,py+2); c.fillText(String(Math.abs(d)),20,py+2); }
+    for(let d=-25;d<=25;d+=10){ const py=hY-d*PPD; if(Math.abs(py)>R) continue;   // half rungs
+      c.strokeStyle="rgba(255,255,255,.5)"; c.beginPath(); c.moveTo(-6,py); c.lineTo(6,py); c.stroke(); }
+    c.restore();
+    /* bank pointer arc + ticks */
+    c.strokeStyle="rgba(255,255,255,.3)"; c.lineWidth=1; c.beginPath(); c.arc(cx,cy,R,Math.PI*1.15,Math.PI*1.85); c.stroke();
+    [-30,-20,-10,0,10,20,30].forEach(d=>{ const ta=-Math.PI/2 + d*Math.PI/180;
+      const r1=R, r2=R-(d%30===0?6:3); c.strokeStyle="rgba(255,255,255,.5)"; c.lineWidth=1;
+      c.beginPath(); c.moveTo(cx+Math.cos(ta)*r1, cy+Math.sin(ta)*r1);
+      c.lineTo(cx+Math.cos(ta)*r2, cy+Math.sin(ta)*r2); c.stroke(); });
+    /* the bank index triangle */
+    const ba=-Math.PI/2 - bank;
+    c.fillStyle=amb; c.beginPath();
+    c.moveTo(cx+Math.cos(ba)*(R-1), cy+Math.sin(ba)*(R-1));
+    c.lineTo(cx+Math.cos(ba-0.05)*(R-8), cy+Math.sin(ba-0.05)*(R-8));
+    c.lineTo(cx+Math.cos(ba+0.05)*(R-8), cy+Math.sin(ba+0.05)*(R-8)); c.closePath(); c.fill();
+    /* fixed aircraft symbol */
+    c.strokeStyle=amb; c.lineWidth=2.4; c.lineCap="round";
+    c.beginPath(); c.moveTo(cx-15,cy); c.lineTo(cx-5,cy); c.moveTo(cx+5,cy); c.lineTo(cx+15,cy);
+    c.moveTo(cx,cy-4); c.lineTo(cx,cy+3); c.stroke(); c.lineCap="butt";
+    c.strokeStyle=edge2; c.lineWidth=1; c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
+    /* slip/skid: the little trapezoid + ball below the bank pointer. It slides
+       with lateral acceleration — in a coordinated turn it stays centred, and a
+       student learning to fly the aeroplane learns to keep it there. */
+    const slip = clamp(((S.bank||0) - (S.gsTgt!=null?0:0))*0.4 + (S.xtrk||0)*0.02, -1, 1);
+    const stY=cy-R+16;
+    c.strokeStyle="rgba(255,255,255,.6)"; c.lineWidth=1.2;
+    c.beginPath(); c.moveTo(cx-7,stY); c.lineTo(cx-5,stY+4); c.lineTo(cx+5,stY+4); c.lineTo(cx+7,stY); c.stroke();
+    c.fillStyle=Math.abs(slip)<0.25?grn:amb;
+    c.beginPath(); c.arc(cx+slip*6, stY+2.5, 2.2, 0, 7); c.fill();
+    /* sidestick deflection box */
+    const skx=x+15, skyy=y0+ph-15, sks=11;
+    c.strokeStyle="rgba(200,214,230,.22)"; c.lineWidth=1; c.strokeRect(skx-sks,skyy-sks,sks*2,sks*2);
+    c.strokeStyle="rgba(200,214,230,.12)";
+    c.beginPath(); c.moveTo(skx-sks,skyy); c.lineTo(skx+sks,skyy); c.moveTo(skx,skyy-sks); c.lineTo(skx,skyy+sks); c.stroke();
+    const stx=clamp((S.bank||0)/25,-1,1)*sks, sty=clamp(-((S.gsTgt||0)/300+(S.pitch||0)/8),-1,1)*sks;
+    c.fillStyle=grn; c.shadowColor=grn; c.shadowBlur=6; c.beginPath(); c.arc(skx+stx,skyy+sty,3,0,7); c.fill(); c.shadowBlur=0;
+  }
+
+  /* ═══ 7 · STANDBY · ASI + ALTIMETER ══════════════════════════════════════
+     The little backup gauges every airliner carries in case the glass fails.
+     Round, mechanical-looking, moving-pointer instruments — deliberately unlike
+     the EFIS tapes, because in real life they ARE different hardware. */
+  x=X(6); bezel(x,"STBY", wht);
+  {
+    const elev=(APT[F.route?F.route.to:""]||{}).elev||0;
+    const asiC ={cx:x+pw*0.30, cy:y0+ph*0.36, r:pw*0.20};
+    const altC={cx:x+pw*0.70, cy:y0+ph*0.64, r:pw*0.20};
+
+    /* a round instrument face: dished, ticked, with a moving pointer */
+    const face=(cx,cy,r)=>{
+      const fd=c.createRadialGradient(cx,cy-r*0.3,r*0.15,cx,cy,r*1.2);
+      fd.addColorStop(0,"#0d1218"); fd.addColorStop(1,"#05080b");
+      c.fillStyle=fd; c.beginPath(); c.arc(cx,cy,r+3,0,7); c.fill();
+      c.strokeStyle="rgba(150,170,190,.22)"; c.lineWidth=1.4;
+      c.beginPath(); c.arc(cx,cy,r+3,0,7); c.stroke();
+    };
+    /* the ASI — airspeed, 40..340 kt around the dial */
+    face(asiC.cx,asiC.cy,asiC.r);
+    { const {cx,cy,r}=asiC, lo=40, hi=340, a0=Math.PI*0.75, a1=Math.PI*2.25;
+      for(let v=lo; v<=hi; v+=20){ const f=(v-lo)/(hi-lo), ta=a0+(a1-a0)*f, major=v%40===0;
+        c.strokeStyle="rgba(220,232,245,"+(major?".7":".35")+")"; c.lineWidth=major?1.2:.7;
+        c.beginPath(); c.moveTo(cx+Math.cos(ta)*(r-1),cy+Math.sin(ta)*(r-1));
+        c.lineTo(cx+Math.cos(ta)*(r-(major?5:2.5)),cy+Math.sin(ta)*(r-(major?5:2.5))); c.stroke();
+        if(major && v%80===0){ c.fillStyle="rgba(210,224,238,.75)"; c.font="5.5px ui-monospace"; c.textAlign="center";
+          c.fillText(String(v/10), cx+Math.cos(ta)*(r-9), cy+Math.sin(ta)*(r-9)+2); } }
+      const spd=clamp((S.v||0),lo,hi), f=(spd-lo)/(hi-lo), ang=a0+(a1-a0)*f;
+      c.strokeStyle="rgba(0,0,0,.5)"; c.lineWidth=2.2;
+      c.beginPath(); c.moveTo(cx+1,cy+1); c.lineTo(cx+Math.cos(ang)*(r-3)+1,cy+Math.sin(ang)*(r-3)+1); c.stroke();
+      c.strokeStyle=wht; c.lineWidth=1.6; c.lineCap="round";
+      c.beginPath(); c.moveTo(cx-Math.cos(ang)*4,cy-Math.sin(ang)*4); c.lineTo(cx+Math.cos(ang)*(r-3),cy+Math.sin(ang)*(r-3)); c.stroke();
+      c.lineCap="butt";
+      c.fillStyle="#2a323c"; c.beginPath(); c.arc(cx,cy,2.4,0,7); c.fill();
+      c.fillStyle=faint; c.font="700 5.5px ui-monospace"; c.textAlign="center"; c.fillText("KT", cx, cy+r-4);
+    }
+    /* the altimeter — a three-pointer face is too busy this small, so a single
+       hundreds-of-feet pointer plus a digital thousands counter, like a modern
+       standby instrument */
+    face(altC.cx,altC.cy,altC.r);
+    { const {cx,cy,r}=altC, a0=-Math.PI/2;
+      for(let h=0;h<10;h++){ const ta=a0+h/10*Math.PI*2, major=true;
+        c.strokeStyle="rgba(220,232,245,.6)"; c.lineWidth=1;
+        c.beginPath(); c.moveTo(cx+Math.cos(ta)*(r-1),cy+Math.sin(ta)*(r-1));
+        c.lineTo(cx+Math.cos(ta)*(r-4),cy+Math.sin(ta)*(r-4)); c.stroke();
+        c.fillStyle="rgba(210,224,238,.7)"; c.font="5.5px ui-monospace"; c.textAlign="center";
+        c.fillText(String(h), cx+Math.cos(ta)*(r-9), cy+Math.sin(ta)*(r-9)+2); }
+      const altFt=Math.max(0,S.alt||0);
+      const hundreds=(altFt%1000)/1000, ang=a0+hundreds*Math.PI*2;
+      c.strokeStyle="rgba(0,0,0,.5)"; c.lineWidth=2.2;
+      c.beginPath(); c.moveTo(cx+1,cy+1); c.lineTo(cx+Math.cos(ang)*(r-3)+1,cy+Math.sin(ang)*(r-3)+1); c.stroke();
+      c.strokeStyle=wht; c.lineWidth=1.6; c.lineCap="round";
+      c.beginPath(); c.moveTo(cx-Math.cos(ang)*4,cy-Math.sin(ang)*4); c.lineTo(cx+Math.cos(ang)*(r-3),cy+Math.sin(ang)*(r-3)); c.stroke();
+      c.lineCap="butt";
+      c.fillStyle="#2a323c"; c.beginPath(); c.arc(cx,cy,2.4,0,7); c.fill();
+      /* the thousands counter window */
+      const kft=Math.floor(altFt/1000);
+      c.fillStyle="rgba(0,0,0,.6)"; rrect(c,cx-12,cy-r-9,24,10,2); c.fill();
+      c.strokeStyle="rgba(150,170,190,.3)"; c.lineWidth=.7; rrect(c,cx-12,cy-r-9,24,10,2); c.stroke();
+      glowText(String(kft).padStart(2,"0")+"k", cx, cy-r-1, wht, "700 8px ui-monospace", "center");
+    }
+    /* the QNH setting, bottom of the panel — a real standby altimeter shows it */
+    const qnh=(F.wx&&F.route&&F.wx[F.route.to]&&F.wx[F.route.to].qnh)||1013;
+    c.fillStyle="rgba(0,0,0,.5)"; rrect(c,x+pw/2-20,y0+ph-16,40,12,2); c.fill();
+    c.strokeStyle="rgba(150,170,190,.28)"; c.lineWidth=.7; rrect(c,x+pw/2-20,y0+ph-16,40,12,2); c.stroke();
+    glowText(String(qnh), x+pw/2, y0+ph-7, "#f5b942", "700 8px ui-monospace", "center");
+    c.fillStyle=faint; c.font="5px ui-monospace"; c.textAlign="center"; c.fillText("QNH", x+pw/2, y0+ph-18);
+  }
+
+  /* ── whole-strip glass finish ────────────────────────────────────────────
+     A faint vignette and a scan-line sheen laid over everything, so the strip
+     reads as one lit sheet of glass rather than six flat drawings. Subtle on
+     purpose — you should feel it, not see it. */
+  const vg=c.createRadialGradient(W/2,H/2,H*0.4,W/2,H/2,W*0.7);
+  vg.addColorStop(0,"rgba(0,0,0,0)"); vg.addColorStop(1,"rgba(0,0,0,.28)");
+  c.fillStyle=vg; c.fillRect(0,0,W,H);
+  c.globalAlpha=0.028; c.fillStyle="#8fbfff";
+  for(let yy=0; yy<H; yy+=3) c.fillRect(0,yy,W,1);          // scan lines
+  c.globalAlpha=1;
+  /* a single soft highlight sweeping the top edge — the ambient light on glass */
+  const tp=c.createLinearGradient(0,0,0,H*0.22);
+  tp.addColorStop(0,"rgba(255,255,255,.05)"); tp.addColorStop(1,"rgba(255,255,255,0)");
+  c.fillStyle=tp; c.fillRect(0,0,W,H*0.22);
 }
+
 
 function sFly(el){
   const a=FLEET[F.type], dep=APT[F.route.from], des=APT[F.route.to];
@@ -5970,7 +6218,7 @@ function sFly(el){
       </div>
       <div class="cv panelstrip" style="margin-bottom:12px">
         <span class="tag">Panels · live</span>
-        <canvas id="panCv" height="200"></canvas>
+        <canvas id="panCv" height="260"></canvas>
       </div>
       <div class="cv" style="margin-bottom:12px"><span class="tag" id="pfdTag">Primary flight display</span>
         <span class="live" id="fLive">HOLDING</span><canvas id="fCv" height="400"></canvas></div>
@@ -6613,7 +6861,7 @@ function sFly(el){
         lv.style.color=(S.ph==='REJECT'||S.ph==='GOAROUND')?'var(--red)':'var(--gold)'; }
     }
     /* ═══ INSTRUMENT PANELS · live ═══ */
-    { const PN=fit($('#panCv'),200);
+    { const PN=fit($('#panCv'),260);
       if(PN.W){ drawPanels(PN.c, PN.W, PN.H); } }
 
     /* ─── profile + fuel ─── */
