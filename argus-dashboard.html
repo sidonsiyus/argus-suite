@@ -199,6 +199,21 @@ select{appearance:none;cursor:pointer;
 .dd-date{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:70px}
 .dd-reason{font-size:11px;color:var(--muted)}
 .trk-note{font-family:var(--mono);font-size:8.5px;letter-spacing:.09em;color:var(--faint);margin-top:10px;line-height:1.6}
+
+/* ═══ od + streak + weekday ═══ */
+.tag.od{background:rgba(95,211,154,.14);color:var(--green)}
+.streak{font-family:var(--mono);font-size:8px;letter-spacing:.05em;color:var(--red);background:rgba(255,112,96,.15);padding:2px 6px;border-radius:5px;margin-left:7px;vertical-align:middle;white-space:nowrap}
+.drill-flag{font-family:var(--mono);font-size:10px;padding:6px 9px;border-radius:6px;margin-bottom:8px;line-height:1.5}
+.drill-flag.hot{background:rgba(255,112,96,.12);color:var(--red)}
+.drill-flag.rec{background:rgba(240,182,74,.12);color:var(--gold2)}
+.trk-dow{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;margin-bottom:14px}
+.dow-title{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint);margin-bottom:9px;text-transform:uppercase}
+.dow-row{display:flex;align-items:flex-end;gap:9px;height:52px;padding:0 2px}
+.dow-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;justify-content:flex-end}
+.dow-bar{width:100%;max-width:26px;background:var(--gold);border-radius:3px 3px 0 0;opacity:.85}
+.dow-lbl{font-family:var(--mono);font-size:9px;color:var(--muted)}
+.dow-note{font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-top:9px;letter-spacing:.03em}
+.dow-note b{color:var(--gold)}
 </style>
 </head>
 <body>
@@ -258,6 +273,7 @@ select{appearance:none;cursor:pointer;
             <select id="fStatus">
               <option value="informed">Informed</option>
               <option value="unauthorized">Unauthorized</option>
+              <option value="od">On Duty (OD)</option>
             </select>
           </div>
         </div>
@@ -326,6 +342,7 @@ select{appearance:none;cursor:pointer;
         <h2>Term attendance tracker</h2>
         <div class="trk-summary" id="trkSummary">No data yet</div>
         <div class="trk-chart" id="trkChart"></div>
+        <div class="trk-dow" id="trkDow"></div>
         <div class="trk-toolbar">
           <button class="btn line" onclick="exportTrackerCSV()">Export CSV</button>
           <button class="btn line" onclick="copyAllLetters()">Copy defaulter letters</button>
@@ -517,7 +534,7 @@ function tick() {
 }
 
 /* ═══════════════ ENTRY ═══════════════ */
-const DEF_REMARK = s => s === 'informed' ? 'Prior notification given' : 'No prior notification';
+const DEF_REMARK = s => s === 'informed' ? 'Prior notification given' : s === 'od' ? 'On official duty (counted present)' : 'No prior notification';
 
 function addAbsentee() {
   const name = $('fName').value.trim();
@@ -574,7 +591,7 @@ function data() {
     title: 'CLASS ATTENDANCE REPORT',
     subtitle: $('pSub').value,
     dateText: longDate($('pDate').value || new Date().toISOString().slice(0, 10)),
-    present: Math.max(0, strength - abs.length),
+    present: Math.max(0, strength - abs.filter(a => a.status !== 'od').length),
     late: +$('pLate').value || 0,
     halfDay: +$('pHalf').value || 0,
     preparedBy: $('pBy').value,
@@ -588,10 +605,12 @@ function data() {
 function render() {
   const abs = S.absentees;
   const inf = abs.filter(a => a.status === 'informed').length;
-  $('sPresent').textContent = Math.max(0, (+$('pStrength').value || 0) - abs.length);
-  $('sAbsent').textContent = abs.length;
+  const odN = abs.filter(a => a.status === 'od').length;
+  const trueAbs = abs.length - odN;
+  $('sPresent').textContent = Math.max(0, (+$('pStrength').value || 0) - trueAbs);
+  $('sAbsent').textContent = trueAbs;
   $('sInf').textContent = inf;
-  $('sUna').textContent = abs.length - inf;
+  $('sUna').textContent = trueAbs - inf;
   $('logCount').textContent = abs.length ? `· ${abs.length}` : '';
   $('roster').innerHTML = S.roster.map(n => `<option value="${esc(n)}">`).join('');
 
@@ -599,7 +618,7 @@ function render() {
     <div class="ab ${a.status === 'informed' ? 'inf' : ''}">
       <div class="ab-top">
         <b>${esc(a.name)}</b>
-        <span class="tag ${a.status === 'informed' ? 'inf' : 'una'}">${a.status}</span>
+        <span class="tag ${a.status === 'informed' ? 'inf' : a.status === 'od' ? 'od' : 'una'}">${a.status === 'od' ? 'on duty' : a.status}</span>
         <button class="x" onclick="delAbsentee(${i})" title="Remove">✕</button>
       </div>
       ${a.reason ? `<p>${esc(a.reason)}</p>` : ''}
@@ -614,11 +633,11 @@ function render() {
 
 /* ═══════════════ STRENGTH MESSAGE ═══════════════ */
 const pad2 = n => String(Math.max(0, n | 0)).padStart(2, '0');
-function syncAbs() { S.absManual = false; save(); renderMsg(); }
+function syncAbs() { S.absManual = false; const od = S.absentees.filter(a => a.status === 'od').length; S.od = od; if ($('mOD')) $('mOD').value = od; save(); renderMsg(); }
 function msgText() {
   const strength = +$('pStrength').value || 0;
   const od = +$('mOD').value || 0;
-  const abs = S.absManual ? (+$('mAbs').value || 0) : S.absentees.length;
+  const abs = S.absManual ? (+$('mAbs').value || 0) : S.absentees.filter(a => a.status !== 'od').length;
   const present = Math.max(0, strength - od - abs);
   const iso = $('pDate').value || new Date().toISOString().slice(0, 10);
   const [y, m, d] = iso.split('-');
@@ -655,10 +674,12 @@ function renderPaper() {
   const d = data();
   const inf = d.absentees.filter(a => a.status === 'informed');
   const una = d.absentees.filter(a => a.status === 'unauthorized');
+  const od  = d.absentees.filter(a => a.status === 'od');
   const tally = l => l.length ? `${l.length} (${l.map(a => esc(a.name)).join(', ')})` : '0';
   const rows = [
-    ['Date', esc(d.dateText)], ['Total Students Present', d.present], ['Total Absentees', d.absentees.length],
+    ['Date', esc(d.dateText)], ['Total Students Present', d.present], ['Total Absentees', inf.length + una.length],
     ['Informed Absences', tally(inf)], ['Unauthorized Absences', tally(una)],
+    ['On Duty (counted present)', tally(od)],
     ['Late Arrivals (~10:30 AM)', d.late], ['Half Day (Informed)', d.halfDay],
     ['Report Prepared By', esc(d.preparedBy)], ['Submitted To', esc(d.submittedTo)],
   ];
@@ -672,7 +693,7 @@ function renderPaper() {
     <table><thead><tr><th>#</th><th>Student Name</th><th>Status</th><th>Remarks</th></tr></thead>
       <tbody>${d.absentees.length ? d.absentees.map((a, i) => `<tr>
         <td>${i + 1}</td><td>${esc(a.name)}</td>
-        <td class="st">Absent (${a.status === 'informed' ? 'Informed' : 'Unauthorized'})</td>
+        <td class="st">${a.status === 'od' ? 'On Duty (Present)' : 'Absent (' + (a.status === 'informed' ? 'Informed' : 'Unauthorized') + ')'}</td>
         <td>${esc(a.remark)}</td></tr>`).join('')
       : `<tr><td colspan="4" style="text-align:center;color:#888">No absentees recorded</td></tr>`}</tbody></table>
     ${d.observations.length ? `<h3>Observations &amp; Notes</h3><ol>${d.observations.map(o => `<li>${esc(o)}</li>`).join('')}</ol>` : ''}`;
@@ -703,11 +724,13 @@ function copySummary() {
   const d = data();
   const inf = d.absentees.filter(a => a.status === 'informed').map(a => a.name);
   const una = d.absentees.filter(a => a.status === 'unauthorized').map(a => a.name);
+  const od  = d.absentees.filter(a => a.status === 'od').map(a => a.name);
   const txt = [
     `CLASS ATTENDANCE — ${d.dateText}`,
-    `Present: ${d.present} | Absent: ${d.absentees.length}`,
+    `Present: ${d.present} | Absent: ${inf.length + una.length}`,
     `Informed (${inf.length}): ${inf.join(', ') || '—'}`,
     `Unauthorized (${una.length}): ${una.join(', ') || '—'}`,
+    `On Duty (${od.length}): ${od.join(', ') || '—'}`,
     '',
     ...d.observations.map((o, i) => `${i + 1}. ${o}`),
   ].join('\n');
@@ -759,14 +782,16 @@ function buildArgusReport(D, d) {
 
   const inf = d.absentees.filter(a => a.status === 'informed');
   const una = d.absentees.filter(a => a.status === 'unauthorized');
+  const odL = d.absentees.filter(a => a.status === 'od');
   const tally = l => l.length ? `${l.length} (${l.map(a => a.name).join(', ')})` : '0';
 
   const summary = new Table({
     width: { size: 9360, type: WidthType.DXA }, columnWidths: [3500, 5860], borders: tb,
     rows: [
       sumRow('Date', d.dateText), sumRow('Total Students Present', d.present),
-      sumRow('Total Absentees', d.absentees.length), sumRow('Informed Absences', tally(inf)),
-      sumRow('Unauthorized Absences', tally(una)), sumRow('Late Arrivals (~10:30 AM)', d.late),
+      sumRow('Total Absentees', inf.length + una.length), sumRow('Informed Absences', tally(inf)),
+      sumRow('Unauthorized Absences', tally(una)), sumRow('On Duty (counted present)', tally(odL)),
+      sumRow('Late Arrivals (~10:30 AM)', d.late),
       sumRow('Half Day (Informed)', d.halfDay), sumRow('Report Prepared By', d.preparedBy),
       sumRow('Submitted To', d.submittedTo),
     ],
@@ -793,7 +818,7 @@ function buildArgusReport(D, d) {
         children: [
           bCell([new TextRun({ text: String(i + 1), size: 20 })], COLS[0]),
           bCell([new TextRun({ text: a.name, size: 20 })], COLS[1]),
-          bCell([new TextRun({ text: a.status === 'informed' ? 'Absent (Informed)' : 'Absent (Unauthorized)', bold: true, color: RED, size: 20 })], COLS[2]),
+          bCell([new TextRun({ text: a.status === 'od' ? 'On Duty (Present)' : (a.status === 'informed' ? 'Absent (Informed)' : 'Absent (Unauthorized)'), bold: true, color: a.status === 'od' ? '2E7D32' : RED, size: 20 })], COLS[2]),
           bCell([new TextRun({ text: a.remark || '', size: 20 })], COLS[3]),
         ],
       })),
@@ -845,7 +870,7 @@ function fmtDate(iso, short){
   const [y,m,d]=iso.split('-').map(Number);
   return new Date(y,m-1,d).toLocaleDateString('en-GB', short?{day:'2-digit',month:'short'}:{day:'2-digit',month:'short',year:'2-digit'});
 }
-function uniqAbs(list){ const set=new Set(); (list||[]).forEach(a=>{ if(a&&a.name)set.add(a.name.trim()); }); return set.size; }
+function uniqAbs(list){ const set=new Set(); (list||[]).forEach(a=>{ if(a&&a.name&&a.status!=='od')set.add(a.name.trim()); }); return set.size; }
 
 function trackerDayRecords(){
   const byDate=new Map();
@@ -858,25 +883,38 @@ function trackerDayRecords(){
   if(cur) byDate.set(cur,{date:cur,strength:+$('pStrength').value||0,absentees:S.absentees||[]});
   return [...byDate.values()].sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : 0);
 }
+function weekdayOf(iso){ if(!/^\d{4}-\d{2}-\d{2}/.test(iso))return -1; const [y,m,d]=iso.split('-').map(Number); return new Date(y,m-1,d).getDay(); }
+function trailingStreak(r, order){
+  const absSet=new Set(r.dates.filter(x=>x.status!=='od').map(x=>x.date));
+  let s=0;
+  for(let i=order.length-1;i>=0;i--){ if(absSet.has(order[i]))s++; else break; }
+  return s;
+}
 function trackerAgg(){
   const days=trackerDayRecords();
   const held=days.length;
+  const order=days.map(d=>d.date);
+  const dow=[0,0,0,0,0,0,0];
   const per=new Map();
   days.forEach(d=>{
     const seen=new Set();
     (d.absentees||[]).forEach(a=>{
       if(!a||!a.name)return; const key=a.name.trim(); if(seen.has(key))return; seen.add(key);
-      if(!per.has(key))per.set(key,{name:key,absent:0,informed:0,unauth:0,dates:[]});
-      const r=per.get(key); r.absent++; (a.status==='informed'?r.informed++:r.unauth++);
+      if(!per.has(key))per.set(key,{name:key,absent:0,informed:0,unauth:0,od:0,dates:[]});
+      const r=per.get(key);
+      if(a.status==='od'){ r.od++; }
+      else { r.absent++; (a.status==='informed'?r.informed++:r.unauth++); const wd=weekdayOf(d.date); if(wd>=0)dow[wd]++; }
       r.dates.push({date:d.date,status:a.status,reason:a.reason||''});
     });
   });
   const rows=[...per.values()].map(r=>{
     const pct=held? Math.round(((held-r.absent)/held)*1000)/10 : 100;
     let flag='ok'; if(pct<65)flag='cond'; else if(pct<75)flag='det';
-    return Object.assign({},r,{held,pct,flag});
+    const streak=trailingStreak(r, order);
+    const recover=flag==='ok'?0:Math.max(0, 4*r.absent - held);
+    return Object.assign({},r,{held,pct,flag,streak,recover});
   }).sort((a,b)=> a.pct-b.pct || b.absent-a.absent || a.name.localeCompare(b.name));
-  return {held,days,rows};
+  return {held,days,rows,dow};
 }
 function trendSVG(days){
   if(!days.length) return '<div class="empty" style="padding:14px">No data yet</div>';
@@ -892,15 +930,34 @@ function trendSVG(days){
   const yt=`<text x="4" y="${pt+8}" class="ax">${maxY}</text>`;
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Daily present count">${bars}${first}${last}${yt}</svg>`;
 }
+function renderDow(dow){
+  const el=$('trkDow'); if(!el)return;
+  const full=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const order=[1,2,3,4,5,6];
+  const vals=order.map(i=>dow[i]);
+  const total=vals.reduce((a,b)=>a+b,0);
+  if(!total){ el.innerHTML=''; el.style.display='none'; return; }
+  el.style.display='block';
+  const max=Math.max(...vals,1);
+  const peak=vals.indexOf(Math.max(...vals));
+  const bars=order.map((i,k)=>{
+    const v=dow[i]; const h=Math.round((v/max)*44)+2;
+    return `<div class="dow-col"><div class="dow-bar" style="height:${h}px" title="${full[i]}: ${v}"></div><div class="dow-lbl">${full[i].slice(0,3)}</div></div>`;
+  }).join('');
+  el.innerHTML=`<div class="dow-title">Absences by weekday</div><div class="dow-row">${bars}</div><div class="dow-note">Most absences fall on <b>${full[order[peak]]}</b> (${vals[peak]}).</div>`;
+}
 function renderTracker(){
-  const {held,rows,days}=trackerAgg();
+  const {held,rows,days,dow}=trackerAgg();
   const flagged=rows.filter(r=>r.flag!=='ok').length;
-  const sum=$('trkSummary'); if(sum)sum.innerHTML=`${held} class${held===1?'':'es'} recorded &middot; ${rows.length} student${rows.length===1?'':'s'} with absences &middot; <b>${flagged}</b> below 75%`;
+  const streaks=rows.filter(r=>r.streak>=2).length;
+  const sum=$('trkSummary'); if(sum)sum.innerHTML=`${held} class${held===1?'':'es'} recorded &middot; ${rows.length} student${rows.length===1?'':'s'} with absences &middot; <b>${flagged}</b> below 75%${streaks?` &middot; <b>${streaks}</b> on an active streak`:''}`;
   const ch=$('trkChart'); if(ch)ch.innerHTML=trendSVG(days);
+  renderDow(dow);
   const list=$('trkList'); if(list)list.innerHTML = rows.length ? rows.map((r,i)=>{
     const cls=r.flag; const badge=r.flag==='cond'?'CONDONATION':r.flag==='det'?'DETENTION':'OK';
+    const streak=r.streak>=2?` <span class="streak">${r.streak} in a row</span>`:'';
     return `<div class="trk-row ${cls}" onclick="toggleDrill(${i})">
-      <span class="trk-name">${esc(r.name)}</span>
+      <span class="trk-name">${esc(r.name)}${streak}</span>
       <span class="trk-pct">${r.pct}%</span>
       <span class="trk-ab">${r.absent}/${held}</span>
       <span class="trk-badge ${cls}">${badge}</span>
@@ -912,8 +969,14 @@ function toggleDrill(i){
   const el=$('drill'+i); if(!el||!window.__trkRows)return; const r=window.__trkRows[i]; if(!r)return;
   if(el.style.display==='none'){
     const dates=r.dates.slice().sort((a,b)=> a.date<b.date?1:-1);
-    el.innerHTML=`<div class="drill-head">${esc(r.name)} &middot; ${r.pct}% &middot; ${r.absent} absence${r.absent===1?'':'s'} (${r.informed} informed / ${r.unauth} unauthorized)</div>`
-      + dates.map(d=>`<div class="drill-day"><span class="dd-date">${fmtDate(d.date)}</span><span class="tag ${d.status==='informed'?'inf':'una'}">${d.status}</span><span class="dd-reason">${esc(d.reason||'—')}</span></div>`).join('')
+    const tagCls=st=> st==='informed'?'inf':st==='od'?'od':'una';
+    const tagTxt=st=> st==='od'?'on duty':st;
+    const flags=[];
+    if(r.streak>=2)flags.push(`<div class="drill-flag hot">Absent ${r.streak} classes in a row (most recent stretch).</div>`);
+    if(r.recover>0)flags.push(`<div class="drill-flag rec">Must attend the next ${r.recover} class${r.recover===1?'':'es'} without absence to reach 75%.</div>`);
+    el.innerHTML=`<div class="drill-head">${esc(r.name)} &middot; ${r.pct}% &middot; ${r.absent} absence${r.absent===1?'':'s'} (${r.informed} informed / ${r.unauth} unauthorized${r.od?` / ${r.od} on duty`:''})</div>`
+      + flags.join('')
+      + dates.map(d=>`<div class="drill-day"><span class="dd-date">${fmtDate(d.date)}</span><span class="tag ${tagCls(d.status)}">${tagTxt(d.status)}</span><span class="dd-reason">${esc(d.reason||'—')}</span></div>`).join('')
       + `<div style="margin-top:10px"><button class="btn line" onclick="event.stopPropagation();copyLetter(${i})">Copy warning letter</button></div>`;
     el.style.display='block';
   } else el.style.display='none';
@@ -923,7 +986,7 @@ function letterFor(r){
   const by=($('pBy').value||'Class Coordinator').trim();
   const first=firstTokens(r.name)[0]||r.name;
   const kind=r.flag==='cond'?'CONDONATION OF ATTENDANCE':'SHORTAGE OF ATTENDANCE';
-  const dates=r.dates.slice().sort((a,b)=> a.date<b.date?-1:1);
+  const dates=r.dates.filter(d=>d.status!=='od').slice().sort((a,b)=> a.date<b.date?-1:1);
   const body=r.flag==='cond'
     ? `This is below the 65% condonation limit. You are required to meet the class coordinator immediately regarding condonation and to submit supporting documents for your absences.`
     : `This is below the 75% attendance requirement. You are hereby warned to improve your attendance immediately, failing which you may be detained from appearing for the examinations as per institutional norms.`;
@@ -931,8 +994,10 @@ function letterFor(r){
     `To,`, `${r.name}`, `${prog}`, ``,
     `Subject: Warning — ${kind} (attendance ${r.pct}%)`, ``,
     `Dear ${first},`, ``,
-    `As per the attendance records maintained for ${prog}, your attendance currently stands at ${r.pct}% (${r.held-r.absent} of ${r.held} classes attended; ${r.absent} absence${r.absent===1?'':'s'} recorded).`,
-    body, ``,
+    `As per the attendance records maintained for ${prog}, your attendance currently stands at ${r.pct}% (${r.held-r.absent} of ${r.held} classes attended; ${r.absent} absence${r.absent===1?'':'s'} recorded${r.od?`; ${r.od} on-duty day${r.od===1?'':'s'} counted as present`:''}).`,
+    body,
+    ...(r.recover>0?[``,`To reach the 75% requirement you must attend the next ${r.recover} class${r.recover===1?'':'es'} without absence.`]:[]),
+    ``,
     `Absence record:`,
     ...dates.map(d=>`  • ${fmtDate(d.date)} — ${d.status==='informed'?'Informed':'Unauthorized'}${d.reason?': '+d.reason:''}`),
     ``, `You are advised to take this warning seriously.`, ``,
@@ -955,9 +1020,9 @@ function downloadBlob(content,filename,type){
 function exportTrackerCSV(){
   const {held,rows}=trackerAgg();
   if(!rows.length){toast('Nothing to export yet');return;}
-  const head=['Name','Classes Held','Absences','Informed','Unauthorized','Attendance %','Status'];
+  const head=['Name','Classes Held','Absences','Informed','Unauthorized','On Duty','Attendance %','Current Streak','Classes to reach 75%','Status'];
   const status=r=> r.flag==='cond'?'Condonation (<65%)' : r.flag==='det'?'Detention (<75%)' : 'OK';
-  const lines=[head, ...rows.map(r=>[r.name,held,r.absent,r.informed,r.unauth,r.pct,status(r)])];
+  const lines=[head, ...rows.map(r=>[r.name,held,r.absent,r.informed,r.unauth,r.od,r.pct,r.streak,r.recover,status(r)])];
   const csv=lines.map(row=>row.map(csvCell).join(',')).join('\r\n');
   downloadBlob(csv, (($('pClass').value||'ARGUS').trim())+'_attendance.csv', 'text/csv');
   toast('CSV exported');
