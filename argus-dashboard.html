@@ -254,9 +254,9 @@ select{appearance:none;cursor:pointer;
 
 /* ═══ tracker inline bars ═══ */
 .trk-row{position:relative;overflow:hidden}
-.trk-fill{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,rgba(240,182,74,.16),rgba(240,182,74,.03));z-index:0;pointer-events:none;transition:width .5s}
+.trk-row>.trk-fill{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,rgba(240,182,74,.16),rgba(240,182,74,.03));z-index:0;pointer-events:none;transition:width .5s}
 .trk-row.cond .trk-fill{background:linear-gradient(90deg,rgba(255,112,96,.18),rgba(255,112,96,.03))}
-.trk-row > *{position:relative;z-index:1}
+.trk-row > *:not(.trk-fill){position:relative;z-index:1}
 
 /* ═══ heatmap ═══ */
 .trk-heat,.trk-donut{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;margin-bottom:14px}
@@ -301,6 +301,19 @@ select{appearance:none;cursor:pointer;
 .btn,.ghost{position:relative;overflow:hidden}
 .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.28);transform:scale(0);animation:rip .52s ease-out;pointer-events:none;z-index:2}
 @keyframes rip{to{transform:scale(2.4);opacity:0}}
+
+/* ═══ daily-log viewer + banner ═══ */
+.hitem .hview{background:none;border:none;color:var(--ink);font-family:inherit;font-size:12.5px;cursor:pointer;text-align:left;padding:0;flex:1;display:flex;align-items:center}
+.hitem .hview:hover{color:var(--gold)}
+.htag{font-family:var(--mono);font-size:7px;letter-spacing:.12em;color:var(--faint);border:1px solid var(--line2);border-radius:4px;padding:1px 5px;margin-left:8px;text-transform:uppercase}
+.hlog{background:var(--panel);border:1px solid var(--line2);border-radius:9px;padding:10px 12px;margin:2px 0;display:flex;flex-direction:column;gap:7px}
+.hlog-row{display:flex;align-items:center;gap:8px;font-size:12px}
+.hlog-row b{font-size:12.5px}
+.hlog-r{color:var(--muted);font-size:11px}
+.hlog-empty{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.08em}
+.vbanner{background:rgba(240,182,74,.1);border:1px solid var(--gold);border-radius:12px;padding:11px 15px;margin-bottom:22px;font-family:var(--mono);font-size:11px;letter-spacing:.03em;color:var(--gold2);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.vbanner b{color:var(--gold)}
+.vbanner button{margin-left:auto;background:linear-gradient(180deg,var(--gold2),var(--gold));color:#1a1206;border:none;border-radius:7px;padding:7px 13px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;font-weight:700}
 </style>
 </head>
 <body>
@@ -356,6 +369,8 @@ select{appearance:none;cursor:pointer;
     <h2>Defaulters watchlist <span class="cnt" id="watchCnt"></span></h2>
     <div id="watchBody"></div>
   </div>
+
+  <div id="viewBanner"></div>
 
   <div class="grid">
     <!-- LEFT -->
@@ -436,7 +451,7 @@ select{appearance:none;cursor:pointer;
       </div>
 
       <div class="card">
-        <h2>Recent reports</h2>
+        <h2>Daily logs &amp; reports</h2>
         <div class="hist" id="hist"></div>
       </div>
 
@@ -598,7 +613,7 @@ function lockNow() {
 
 /* ═══════════════ STATE ═══════════════ */
 const KEY = 'argus_dash_v1';
-let S = { absentees: [], params: {}, roster: [], history: [], term: { start:'', end:'', held:'' } };
+let S = { absentees: [], params: {}, roster: [], history: [], term: { start:'', end:'', held:'' }, logDay: '' };
 
 const $ = id => document.getElementById(id);
 const today = () => { const n = new Date(); return new Date(n.getTime() - n.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
@@ -623,6 +638,7 @@ function load() {
 let lastDay = null;
 function boot() {
   load();
+  bootRollover();
   lastDay = today();
   P.forEach(k => $(k).addEventListener('input', () => { save(); render(); }));
   $('mOD').addEventListener('input', () => { S.od = +$('mOD').value || 0; save(); renderMsg(); });
@@ -646,8 +662,8 @@ function boot() {
 }
 function tick() {
   const n = new Date();
-  if ($('pDate').value === lastDay && lastDay !== today()) { $('pDate').value = today(); save(); render(); }
-  lastDay = $('pDate').value;
+  rolloverTick();
+  lastDay = today();
   $('cDate').textContent = n.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase();
   $('cTime').textContent = n.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
@@ -660,6 +676,7 @@ function addAbsentee() {
   const status = $('fStatus').value;
   const reason = $('fReason').value.trim();
   if (!name) { toast('Student name required'); $('fName').focus(); return; }
+  if (!S.logDay) S.logDay = today();
   pushUndo();
   S.absentees.push({ name, status, reason, remark: DEF_REMARK(status) });
   if (!S.roster.includes(name)) S.roster.push(name);
@@ -701,11 +718,8 @@ function longDate(iso) {
   return new Date(y, m - 1, d).toLocaleDateString('en-GB',
     { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
-function fileStem() {
-  const iso = $('pDate').value || new Date().toISOString().slice(0, 10);
-  const [y, m, d] = iso.split('-');
-  return `${($('pClass').value || 'Class').trim()}_${d}_${m}_${y.slice(2)}`;
-}
+function fileStemFor(iso){ const [y, m, d] = String(iso).split('-'); return `${($('pClass').value || 'Class').trim()}_${d}_${m}_${(y||'').slice(2)}`; }
+function fileStem() { return fileStemFor($('pDate').value || today()); }
 function data() {
   const abs = S.absentees;
   const strength = +$('pStrength').value || 0;
@@ -752,6 +766,7 @@ function render() {
   renderWatchlist();
   renderHeatmap();
   renderDonut();
+  renderBanner();
 }
 
 /* ═══════════════ STRENGTH MESSAGE ═══════════════ */
@@ -823,10 +838,43 @@ function renderPaper() {
 }
 
 function renderHist() {
-  $('hist').innerHTML = S.history.length ? S.history.slice(0, 12).map((h, i) => `
-    <div class="hitem">${esc(h.file)}<span>${h.count} abs</span>
-      <button onclick="restore(${i})">Restore</button></div>`).join('')
-    : `<div class="empty">No reports generated yet</div>`;
+  $('hist').innerHTML = S.history.length ? S.history.slice(0, 40).map((h, i) => {
+    const date = (h.params && h.params.pDate) || '';
+    const label = date ? fmtDate(date) : esc(h.file);
+    const auto = h.auto ? '<span class="htag">auto</span>' : '';
+    return `<div class="hitem">
+      <button class="hview" onclick="toggleHist(${i})" title="View this day's log">${esc(label)}${auto}</button>
+      <span>${h.count} abs</span>
+      <button onclick="openDay(${i})">Open</button>
+    </div><div class="hlog" id="hlog${i}" style="display:none"></div>`;
+  }).join('') : `<div class="empty">No logs recorded yet</div>`;
+}
+function toggleHist(i){
+  const el=$('hlog'+i); if(!el)return; const h=S.history[i]; if(!h)return;
+  if(el.style.display==='none'){
+    const abs=h.absentees||[];
+    el.innerHTML = abs.length ? abs.map(a=>`<div class="hlog-row"><span class="tag ${a.status==='informed'?'inf':a.status==='od'?'od':'una'}">${a.status==='od'?'on duty':a.status}</span><b>${esc(a.name)}</b>${a.reason?`<span class="hlog-r">${esc(a.reason)}</span>`:''}</div>`).join('')
+      : `<div class="hlog-empty">No absentees — full attendance that day</div>`;
+    el.style.display='block';
+  } else el.style.display='none';
+}
+function openDay(i){
+  const h=S.history[i]; if(!h)return;
+  const t=today();
+  if(S.logDay===t && S.absentees.length) archiveDay(t);   // keep today safe before switching
+  pushUndo();
+  S.absentees=JSON.parse(JSON.stringify(h.absentees||[]));
+  Object.entries(h.params||{}).forEach(([k,v])=>{ if($(k))$(k).value=v; });
+  S.logDay=(h.params&&h.params.pDate)||t;
+  viewingDate = S.logDay!==t ? S.logDay : null;
+  save(); render(); toast('Opened '+((h.params&&h.params.pDate)?fmtDate(h.params.pDate):h.file));
+}
+function backToToday(){
+  const t=today();
+  if(S.logDay!==t && S.absentees.length) archiveDay(S.logDay); // save edits to the day being left
+  const idx=S.history.findIndex(h=>h.params&&h.params.pDate===t);
+  S.absentees = idx>=0 ? JSON.parse(JSON.stringify(S.history[idx].absentees)) : [];
+  S.logDay=t; $('pDate').value=t; viewingDate=null; save(); render(); toast('Back to today');
 }
 function restore(i) {
   const h = S.history[i];
@@ -1313,6 +1361,53 @@ function renderDonut(){
 
 /* ═══════════════ RIPPLE ═══════════════ */
 document.addEventListener('click',e=>{ const t=e.target.closest('.btn,.ghost'); if(!t)return; const r=document.createElement('span'); r.className='ripple'; const b=t.getBoundingClientRect(); const d=Math.max(b.width,b.height); r.style.width=r.style.height=d+'px'; r.style.left=(e.clientX-b.left-d/2)+'px'; r.style.top=(e.clientY-b.top-d/2)+'px'; t.appendChild(r); setTimeout(()=>r.remove(),520); });
+
+/* ═══════════════ DAILY ROLLOVER + ARCHIVE ═══════════════ */
+let viewingDate = null;
+function archiveDay(date){
+  if(!date) return;
+  const params = Object.fromEntries(P.map(k => [k, $(k).value]));
+  params.pDate = date;
+  const entry = {
+    file: fileStemFor(date) + '.docx',
+    count: (S.absentees||[]).filter(a => a.status !== 'od').length,
+    at: Date.now(),
+    absentees: JSON.parse(JSON.stringify(S.absentees||[])),
+    params, auto: true,
+  };
+  const dup = S.history.findIndex(h => h.params && h.params.pDate === date);
+  if(dup >= 0) S.history.splice(dup, 1);
+  S.history.unshift(entry);
+  S.history = S.history.slice(0, 60);
+}
+function bootRollover(){
+  const t = today();
+  if(!S.logDay) S.logDay = t;
+  if(S.logDay !== t){
+    if(S.absentees && S.absentees.length) archiveDay(S.logDay);  // stow yesterday
+    S.absentees = []; S.logDay = t;                              // fresh page for today
+  }
+  if(!S.absentees || !S.absentees.length){                       // resurrect today's log if saved
+    const idx = S.history.findIndex(h => h.params && h.params.pDate === t);
+    if(idx >= 0) S.absentees = JSON.parse(JSON.stringify(S.history[idx].absentees || []));
+  }
+  $('pDate').value = t;
+  save();
+}
+function rolloverTick(){
+  if(viewingDate) return;                    // don't wipe a past day the user is viewing
+  const t = today();
+  if(S.logDay && S.logDay !== t){
+    if(S.absentees && S.absentees.length) archiveDay(S.logDay);
+    S.absentees = []; S.logDay = t; $('pDate').value = t; save(); render();
+  }
+}
+function renderBanner(){
+  const el = $('viewBanner'); if(!el) return;
+  el.innerHTML = viewingDate
+    ? `<div class="vbanner">Viewing archived log for <b>${fmtDate(viewingDate)}</b> — any edits save to that day.<button onclick="backToToday()">Return to today</button></div>`
+    : '';
+}
 
 function exportDocx() {
   if (typeof docx === 'undefined') { toast('Document engine offline — reconnect and reload'); return; }
