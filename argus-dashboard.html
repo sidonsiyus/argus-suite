@@ -255,7 +255,7 @@ select{appearance:none;cursor:pointer;
 .quick-chip:active{transform:translateY(0)}
 
 /* ═══ tracker inline bars ═══ */
-.trk-row{position:relative;overflow:hidden}
+.trk-row{position:relative;overflow:hidden;min-height:38px}
 .trk-row::before{content:"";position:absolute;top:0;bottom:0;left:0;width:var(--p,0);background:linear-gradient(90deg,rgba(240,182,74,.16),rgba(240,182,74,.03));z-index:0;pointer-events:none;transition:width .5s}
 .trk-row.cond::before{background:linear-gradient(90deg,rgba(255,112,96,.18),rgba(255,112,96,.03))}
 .trk-row > *{position:relative;z-index:1}
@@ -458,7 +458,7 @@ select{appearance:none;cursor:pointer;
       </div>
 
       <div class="card">
-        <h2>Term attendance tracker</h2>
+        <h2>Term attendance tracker <span style="margin-left:auto;font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:var(--faint);text-transform:none">BUILD&nbsp;0718-E</span></h2>
         <div class="trk-summary" id="trkSummary">No data yet</div>
         <div class="trk-chart" id="trkChart"></div>
         <div class="trk-dow" id="trkDow"></div>
@@ -503,7 +503,7 @@ select{appearance:none;cursor:pointer;
 </div>
 
 <div id="toast"></div>
-<div class="mark">MADE FOR SID, BY SID</div>
+<div class="mark">MADE FOR SID, BY SID &middot; BUILD 0718-E</div>
 
 <script>
 /* ═══════════════ LOCK (code 2000) ═══════════════ */
