@@ -214,6 +214,93 @@ select{appearance:none;cursor:pointer;
 .dow-lbl{font-family:var(--mono);font-size:9px;color:var(--muted)}
 .dow-note{font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-top:9px;letter-spacing:.03em}
 .dow-note b{color:var(--gold)}
+
+/* ═══ glance / gauge ═══ */
+.glance{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.gauge-wrap{position:relative;width:132px;height:132px;flex:none}
+.gauge{width:132px;height:132px}
+.g-track{fill:none;stroke:var(--line2);stroke-width:9}
+.g-arc{fill:none;stroke:var(--gold);stroke-width:9;stroke-linecap:round;stroke-dasharray:327;stroke-dashoffset:327;transform:rotate(-90deg);transform-origin:60px 60px;transition:stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1),stroke .45s;filter:drop-shadow(0 0 6px rgba(240,182,74,.35))}
+.g-val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--gold);transition:color .4s}
+.g-val b{font-family:var(--mono);font-size:33px;line-height:1;font-weight:700}
+.g-val span{font-family:var(--mono);font-size:7.5px;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;margin-top:5px}
+.glance-tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;flex:1;min-width:280px}
+@media(max-width:640px){.glance-tiles{grid-template-columns:repeat(3,1fr)}}
+.gtile{background:var(--panel2);border:1px solid var(--line2);border-radius:11px;padding:13px 12px}
+.gtile b{display:block;font-family:var(--mono);font-size:24px;line-height:1;color:var(--gold)}
+.gtile span{font-family:var(--mono);font-size:8px;letter-spacing:.15em;color:var(--faint);text-transform:uppercase;display:block;margin-top:7px}
+.gtile.g b{color:var(--green)} .gtile.r b{color:var(--red)} .gtile.grn b{color:var(--green)}
+
+/* ═══ watchlist ═══ */
+.watch h2 .cnt{font-family:var(--mono);color:var(--red);font-size:10px;margin-left:2px}
+.watch-tier{margin-bottom:12px} .watch-tier:last-child{margin-bottom:0}
+.watch-lab{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;display:block;margin-bottom:8px}
+.watch-lab.det{color:var(--gold)} .watch-lab.cond{color:var(--red)}
+.watch-chips{display:flex;flex-wrap:wrap;gap:8px}
+.watch-chip{background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:8px 11px;font-size:12px;color:var(--ink);cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.watch-chip b{font-family:var(--mono);font-size:11px}
+.watch-chip.det{border-left:3px solid var(--gold)} .watch-chip.det b{color:var(--gold)}
+.watch-chip.cond{border-left:3px solid var(--red)} .watch-chip.cond b{color:var(--red)}
+.watch-chip:hover{transform:translateY(-2px);border-color:var(--gold);box-shadow:0 6px 18px -8px rgba(240,182,74,.4)}
+.watch-clear{font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--green);background:rgba(95,211,154,.08);border:1px dashed rgba(95,211,154,.3);border-radius:10px;padding:14px;text-align:center}
+
+/* ═══ quick roster ═══ */
+.quick{margin-top:14px}
+.quick-lab{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;margin-bottom:8px}
+.quick-chips{display:flex;flex-wrap:wrap;gap:7px}
+.quick-chip{background:transparent;border:1px solid var(--line2);border-radius:7px;padding:6px 10px;font-size:11.5px;color:var(--muted);cursor:pointer;transition:.15s}
+.quick-chip:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-1px)}
+.quick-chip:active{transform:translateY(0)}
+
+/* ═══ tracker inline bars ═══ */
+.trk-row{position:relative;overflow:hidden}
+.trk-fill{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,rgba(240,182,74,.16),rgba(240,182,74,.03));z-index:0;pointer-events:none;transition:width .5s}
+.trk-row.cond .trk-fill{background:linear-gradient(90deg,rgba(255,112,96,.18),rgba(255,112,96,.03))}
+.trk-row > *{position:relative;z-index:1}
+
+/* ═══ heatmap ═══ */
+.trk-heat,.trk-donut{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;margin-bottom:14px}
+.heat-title,.don-title{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint);margin-bottom:9px;text-transform:uppercase}
+.heat-grid{display:flex;flex-wrap:wrap;gap:4px}
+.heat-cell{width:15px;height:15px;border-radius:3px;background:rgba(240,182,74,calc(var(--l) * 0.92 + 0.06));border:1px solid rgba(255,255,255,.04)}
+.heat-scale{display:flex;align-items:center;gap:4px;margin-top:9px;font-family:var(--mono);font-size:8px;color:var(--faint)}
+.heat-scale i{width:13px;height:13px;border-radius:3px}
+.heat-scale i:nth-of-type(1){background:rgba(240,182,74,.14)}.heat-scale i:nth-of-type(2){background:rgba(240,182,74,.38)}.heat-scale i:nth-of-type(3){background:rgba(240,182,74,.64)}.heat-scale i:nth-of-type(4){background:rgba(240,182,74,.95)}
+
+/* ═══ donut ═══ */
+.don-wrap{display:flex;align-items:center;gap:18px}
+.don-ring{width:96px;height:96px;border-radius:50%;flex:none;position:relative;-webkit-mask:radial-gradient(circle 30px at 50% 50%,transparent 98%,#000 100%);mask:radial-gradient(circle 30px at 50% 50%,transparent 98%,#000 100%)}
+.don-hole{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.don-hole b{font-family:var(--mono);font-size:20px;color:var(--ink)}
+.don-hole span{font-family:var(--mono);font-size:7.5px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
+.don-legend{flex:1;display:flex;flex-direction:column;gap:7px}
+.don-li{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.don-li i{width:11px;height:11px;border-radius:3px;flex:none}
+.don-li b{color:var(--ink);font-family:var(--mono);font-size:12px}
+.don-li span{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+
+/* ═══ term settings ═══ */
+.trk-term{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.trk-term label{margin-bottom:5px}
+.trk-term input{padding:8px 10px;font-size:12px}
+
+/* ═══ weekday polish ═══ */
+.dow-bar{background:linear-gradient(180deg,var(--gold2),var(--gold));transition:height .5s}
+.dow-col.peak .dow-bar{box-shadow:0 0 12px rgba(240,182,74,.6);opacity:1}
+
+/* ═══ header shimmer ═══ */
+.hbrand b{background:linear-gradient(90deg,var(--ink) 0%,var(--gold2) 45%,var(--gold) 55%,var(--ink) 100%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 6s linear infinite}
+@keyframes shimmer{to{background-position:-220% 0}}
+
+/* ═══ card entrance + glass + ripple ═══ */
+.card,.glance{animation:cardIn .55s cubic-bezier(.2,.8,.2,1) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.card{position:relative;box-shadow:inset 0 1px 0 rgba(255,255,255,.028),0 20px 50px -40px #000}
+.card::before{content:"";position:absolute;inset:0;border-radius:14px;pointer-events:none;z-index:0;background:radial-gradient(120% 80% at 100% 0,rgba(240,182,74,.03),transparent 60%)}
+.card > *{position:relative;z-index:1}
+.btn,.ghost{position:relative;overflow:hidden}
+.ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.28);transform:scale(0);animation:rip .52s ease-out;pointer-events:none;z-index:2}
+@keyframes rip{to{transform:scale(2.4);opacity:0}}
 </style>
 </head>
 <body>
@@ -247,14 +334,27 @@ select{appearance:none;cursor:pointer;
     <div class="hbrand"><b>ARGUS</b><span>Attendance Command</span></div>
     <div class="hspacer"></div>
     <div class="clock"><b id="cDate">—</b><br><span id="cTime">—</span></div>
+    <button class="ghost" id="undoBtn" onclick="undo()" title="Undo last change (Ctrl+Z)" style="opacity:.4">Undo</button>
     <button class="ghost" onclick="lockNow()">Lock</button>
   </header>
 
-  <div class="stats">
-    <div class="stat g"><b id="sPresent">0</b><span>Present</span></div>
-    <div class="stat r"><b id="sAbsent">0</b><span>Absent</span></div>
-    <div class="stat"><b id="sInf">0</b><span>Informed</span></div>
-    <div class="stat r"><b id="sUna">0</b><span>Unauthorized</span></div>
+  <div class="glance card">
+    <div class="gauge-wrap">
+      <svg class="gauge" viewBox="0 0 120 120"><circle class="g-track" cx="60" cy="60" r="52"/><circle class="g-arc" id="gArc" cx="60" cy="60" r="52"/></svg>
+      <div class="g-val"><b id="gPct">0</b><span>% present</span></div>
+    </div>
+    <div class="glance-tiles">
+      <div class="gtile g"><b id="sPresent">0</b><span>Present</span></div>
+      <div class="gtile r"><b id="sAbsent">0</b><span>Absent</span></div>
+      <div class="gtile grn"><b id="sOD">0</b><span>On Duty</span></div>
+      <div class="gtile"><b id="sInf">0</b><span>Informed</span></div>
+      <div class="gtile r"><b id="sUna">0</b><span>Unauthorized</span></div>
+    </div>
+  </div>
+
+  <div class="card watch">
+    <h2>Defaulters watchlist <span class="cnt" id="watchCnt"></span></h2>
+    <div id="watchBody"></div>
   </div>
 
   <div class="grid">
@@ -284,6 +384,7 @@ select{appearance:none;cursor:pointer;
           </div>
         </div>
         <button class="btn" onclick="addAbsentee()">Add to today's log &nbsp;↵</button>
+        <div class="quick" id="quickRoster"></div>
       </div>
 
       <div class="card">
@@ -307,6 +408,7 @@ select{appearance:none;cursor:pointer;
           <button class="btn" onclick="copyMsg()">Copy message</button>
           <button class="btn line" onclick="shareMsg()">Share</button>
         </div>
+        <button class="btn line" style="margin-top:10px" onclick="copyNotices()">Copy parent / student absence notices</button>
       </div>
 
       <div class="card">
@@ -343,11 +445,21 @@ select{appearance:none;cursor:pointer;
         <div class="trk-summary" id="trkSummary">No data yet</div>
         <div class="trk-chart" id="trkChart"></div>
         <div class="trk-dow" id="trkDow"></div>
+        <div class="trk-heat" id="trkHeat"></div>
+        <div class="trk-donut" id="trkDonut"></div>
+        <div class="trk-term">
+          <div><label>Term start</label><input type="date" id="tStart"></div>
+          <div><label>Term end</label><input type="date" id="tEnd"></div>
+          <div><label>Classes held (override)</label><input type="number" id="tHeld" min="0" placeholder="auto"></div>
+        </div>
         <div class="trk-toolbar">
-          <button class="btn line" onclick="exportTrackerCSV()">Export CSV</button>
-          <button class="btn line" onclick="copyAllLetters()">Copy defaulter letters</button>
+          <button class="btn line" onclick="exportTrackerCSV()">Export tracker CSV</button>
+          <button class="btn line" onclick="exportMonthlyRegister()">Export register</button>
+          <button class="btn line" onclick="copyLettersTier('det')">Shortage letters &lt;75%</button>
+          <button class="btn line" onclick="copyLettersTier('cond')">Condonation &lt;65%</button>
           <button class="btn line" onclick="backupJSON()">Backup all data</button>
           <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center">Restore backup<input type="file" accept="application/json,.json" onchange="restoreJSON(this)" style="display:none"></label>
+          <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center;grid-column:1 / -1">Import roster from CSV<input type="file" accept=".csv,text/csv" onchange="importRosterCSV(this)" style="display:none"></label>
         </div>
         <div class="trk-list" id="trkList"></div>
         <div class="trk-note">GOLD BAR = BELOW 75% (DETENTION) &middot; RED = BELOW 65% (CONDONATION) &middot; TAP A NAME FOR DATES &amp; LETTER. % IS BASED ON LOGGED ABSENCES ACROSS SAVED REPORTS + TODAY.</div>
@@ -486,7 +598,7 @@ function lockNow() {
 
 /* ═══════════════ STATE ═══════════════ */
 const KEY = 'argus_dash_v1';
-let S = { absentees: [], params: {}, roster: [], history: [] };
+let S = { absentees: [], params: {}, roster: [], history: [], term: { start:'', end:'', held:'' } };
 
 const $ = id => document.getElementById(id);
 const today = () => { const n = new Date(); return new Date(n.getTime() - n.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
@@ -521,6 +633,13 @@ function boot() {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addAbsentee();
   });
   $('fName').addEventListener('keydown', e => { if (e.key === 'Enter') $('fReason').focus(); });
+  if(!S.term)S.term={start:'',end:'',held:''};
+  { const t=S.term; if($('tStart'))$('tStart').value=t.start||''; if($('tEnd'))$('tEnd').value=t.end||''; if($('tHeld'))$('tHeld').value=t.held||''; }
+  ['tStart','tEnd','tHeld'].forEach(id=>{ const el=$(id); if(el)el.addEventListener('input',()=>{ S.term.start=$('tStart').value; S.term.end=$('tEnd').value; S.term.held=$('tHeld').value; save(); render(); }); });
+  { const qr=$('quickRoster'); if(qr)qr.addEventListener('click',e=>{const b=e.target.closest('.quick-chip');if(b)quickAdd(b.dataset.name);}); }
+  { const wb=$('watchBody'); if(wb)wb.addEventListener('click',e=>{const b=e.target.closest('.watch-chip');if(b)jumpToStudent(b.dataset.name);}); }
+  document.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&(e.key==='z'||e.key==='Z')){ const ae=document.activeElement; if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return; e.preventDefault(); undo(); } });
+  updateUndoBtn();
   tick(); setInterval(tick, 1000);
   render();
   $('fName').focus();
@@ -541,6 +660,7 @@ function addAbsentee() {
   const status = $('fStatus').value;
   const reason = $('fReason').value.trim();
   if (!name) { toast('Student name required'); $('fName').focus(); return; }
+  pushUndo();
   S.absentees.push({ name, status, reason, remark: DEF_REMARK(status) });
   if (!S.roster.includes(name)) S.roster.push(name);
   $('fName').value = ''; $('fReason').value = ''; $('fStatus').value = 'informed';
@@ -548,15 +668,17 @@ function addAbsentee() {
   save(); render();
   toast(name + ' logged');
 }
-function delAbsentee(i) { S.absentees.splice(i, 1); save(); render(); }
+function delAbsentee(i) { pushUndo(); S.absentees.splice(i, 1); save(); render(); }
 function editRemark(i, v) { S.absentees[i].remark = v; save(); renderPaper(); }
 
 function clearDay() {
   if (!S.absentees.length) return;
   if (!confirm("Clear today's log? The report parameters stay as they are.")) return;
+  pushUndo();
   S.absentees = []; save(); render(); toast('Log cleared');
 }
 function prefillSample() {
+  pushUndo();
   S.absentees = [
     { name: 'Gungun Tamboli', status: 'informed', reason: 'Gungun Tamboli could not find flight tickets in time and will return as soon as she finds one.', remark: 'Prior notification given' },
     { name: 'Mohanned', status: 'informed', reason: 'Mohanned was sent away because of his grooming standards, has informed me.', remark: 'Prior notification given' },
@@ -607,10 +729,7 @@ function render() {
   const inf = abs.filter(a => a.status === 'informed').length;
   const odN = abs.filter(a => a.status === 'od').length;
   const trueAbs = abs.length - odN;
-  $('sPresent').textContent = Math.max(0, (+$('pStrength').value || 0) - trueAbs);
-  $('sAbsent').textContent = trueAbs;
-  $('sInf').textContent = inf;
-  $('sUna').textContent = trueAbs - inf;
+  renderGlance();
   $('logCount').textContent = abs.length ? `· ${abs.length}` : '';
   $('roster').innerHTML = S.roster.map(n => `<option value="${esc(n)}">`).join('');
 
@@ -629,6 +748,10 @@ function render() {
   renderMsg();
   renderHist();
   renderTracker();
+  renderQuick();
+  renderWatchlist();
+  renderHeatmap();
+  renderDonut();
 }
 
 /* ═══════════════ STRENGTH MESSAGE ═══════════════ */
@@ -707,6 +830,7 @@ function renderHist() {
 }
 function restore(i) {
   const h = S.history[i];
+  pushUndo();
   S.absentees = JSON.parse(JSON.stringify(h.absentees));
   Object.entries(h.params).forEach(([k, v]) => { if ($(k)) $(k).value = v; });
   save(); render(); toast('Restored ' + h.file);
@@ -872,15 +996,17 @@ function fmtDate(iso, short){
 }
 function uniqAbs(list){ const set=new Set(); (list||[]).forEach(a=>{ if(a&&a.name&&a.status!=='od')set.add(a.name.trim()); }); return set.size; }
 
+function inTerm(date){ const t=S.term||{}; const ds=String(date); if(t.start && ds<t.start)return false; if(t.end && ds>t.end)return false; return true; }
 function trackerDayRecords(){
   const byDate=new Map();
   (S.history||[]).forEach(h=>{
     const date=(h.params&&h.params.pDate) || (h.at?new Date(h.at).toISOString().slice(0,10):null) || h.file;
+    if(!inTerm(date))return;
     const strength=+(h.params&&h.params.pStrength)||0;
     byDate.set(date,{date,strength,absentees:h.absentees||[]});
   });
   const cur=$('pDate').value;
-  if(cur) byDate.set(cur,{date:cur,strength:+$('pStrength').value||0,absentees:S.absentees||[]});
+  if(cur && inTerm(cur)) byDate.set(cur,{date:cur,strength:+$('pStrength').value||0,absentees:S.absentees||[]});
   return [...byDate.values()].sort((a,b)=> a.date<b.date?-1 : a.date>b.date?1 : 0);
 }
 function weekdayOf(iso){ if(!/^\d{4}-\d{2}-\d{2}/.test(iso))return -1; const [y,m,d]=iso.split('-').map(Number); return new Date(y,m-1,d).getDay(); }
@@ -892,7 +1018,7 @@ function trailingStreak(r, order){
 }
 function trackerAgg(){
   const days=trackerDayRecords();
-  const held=days.length;
+  const held=(S.term&&+S.term.held>0)?+S.term.held:days.length;
   const order=days.map(d=>d.date);
   const dow=[0,0,0,0,0,0,0];
   const per=new Map();
@@ -908,7 +1034,7 @@ function trackerAgg(){
     });
   });
   const rows=[...per.values()].map(r=>{
-    const pct=held? Math.round(((held-r.absent)/held)*1000)/10 : 100;
+    const pct=held? Math.max(0,Math.min(100,Math.round(((held-r.absent)/held)*1000)/10)) : 100;
     let flag='ok'; if(pct<65)flag='cond'; else if(pct<75)flag='det';
     const streak=trailingStreak(r, order);
     const recover=flag==='ok'?0:Math.max(0, 4*r.absent - held);
@@ -942,7 +1068,7 @@ function renderDow(dow){
   const peak=vals.indexOf(Math.max(...vals));
   const bars=order.map((i,k)=>{
     const v=dow[i]; const h=Math.round((v/max)*44)+2;
-    return `<div class="dow-col"><div class="dow-bar" style="height:${h}px" title="${full[i]}: ${v}"></div><div class="dow-lbl">${full[i].slice(0,3)}</div></div>`;
+    return `<div class="dow-col${k===peak?' peak':''}"><div class="dow-bar" style="height:${h}px" title="${full[i]}: ${v}"></div><div class="dow-lbl">${full[i].slice(0,3)}</div></div>`;
   }).join('');
   el.innerHTML=`<div class="dow-title">Absences by weekday</div><div class="dow-row">${bars}</div><div class="dow-note">Most absences fall on <b>${full[order[peak]]}</b> (${vals[peak]}).</div>`;
 }
@@ -957,6 +1083,7 @@ function renderTracker(){
     const cls=r.flag; const badge=r.flag==='cond'?'CONDONATION':r.flag==='det'?'DETENTION':'OK';
     const streak=r.streak>=2?` <span class="streak">${r.streak} in a row</span>`:'';
     return `<div class="trk-row ${cls}" onclick="toggleDrill(${i})">
+      <div class="trk-fill" style="width:${Math.max(0,Math.min(100,r.pct))}%"></div>
       <span class="trk-name">${esc(r.name)}${streak}</span>
       <span class="trk-pct">${r.pct}%</span>
       <span class="trk-ab">${r.absent}/${held}</span>
@@ -1050,6 +1177,143 @@ function restoreJSON(input){
   rd.readAsText(f);
 }
 
+/* ═══════════════ TODAY GLANCE + GAUGE ═══════════════ */
+function todayStats(){
+  const abs=S.absentees, strength=+$('pStrength').value||0;
+  const od=abs.filter(a=>a.status==='od').length;
+  const inf=abs.filter(a=>a.status==='informed').length;
+  const trueAbs=abs.length-od;
+  const una=trueAbs-inf;
+  const present=Math.max(0,strength-trueAbs);
+  const pct=strength?Math.round((present/strength)*1000)/10:0;
+  return {strength,present,trueAbs,inf,una,od,pct};
+}
+function countUp(el,to,dur){
+  if(!el)return; dur=dur||600;
+  const from=parseFloat(String(el.textContent).replace(/[^0-9.\-]/g,''))||0;
+  const dec=!Number.isInteger(to);
+  if(Math.abs(from-to)<0.05){ el.textContent=dec?to.toFixed(1):String(Math.round(to)); return; }
+  const t0=performance.now();
+  (function step(t){ const k=Math.min(1,(t-t0)/dur); const e=0.5-0.5*Math.cos(k*Math.PI); const v=from+(to-from)*e;
+    el.textContent=dec?(Math.round(v*10)/10).toFixed(1):String(Math.round(v)); if(k<1)requestAnimationFrame(step); })(t0);
+}
+function renderGlance(){
+  const t=todayStats(), arc=$('gArc'), C=2*Math.PI*52;
+  const col=t.pct>=75?'var(--green)':t.pct>=65?'var(--gold)':'var(--red)';
+  if(arc){ arc.style.strokeDasharray=C.toFixed(1); arc.style.strokeDashoffset=(C*(1-t.pct/100)).toFixed(1); arc.style.stroke=col; }
+  const gv=$('gPct'); if(gv){ countUp(gv,t.pct); const w=gv.closest('.g-val'); if(w)w.style.color=col; }
+  countUp($('sPresent'),t.present); countUp($('sAbsent'),t.trueAbs); countUp($('sOD'),t.od); countUp($('sInf'),t.inf); countUp($('sUna'),t.una);
+}
+
+/* ═══════════════ WATCHLIST ═══════════════ */
+function renderWatchlist(){
+  const el=$('watchBody'); if(!el)return;
+  const {rows,held}=trackerAgg();
+  const det=rows.filter(r=>r.flag==='det'), cond=rows.filter(r=>r.flag==='cond');
+  const cnt=$('watchCnt'); if(cnt)cnt.textContent=(det.length+cond.length)?`· ${det.length+cond.length}`:'';
+  if(!held||(!det.length&&!cond.length)){ el.innerHTML=`<div class="watch-clear">✓ Everyone is at or above 75% — the watchlist is clear.</div>`; return; }
+  const chip=r=>`<button class="watch-chip ${r.flag}" data-name="${esc(r.name)}">${esc(r.name)} <b>${r.pct}%</b>${r.streak>=2?' 🔥':''}</button>`;
+  el.innerHTML=(cond.length?`<div class="watch-tier"><span class="watch-lab cond">Condonation · below 65%</span><div class="watch-chips">${cond.map(chip).join('')}</div></div>`:'')
+    +(det.length?`<div class="watch-tier"><span class="watch-lab det">Detention watch · below 75%</span><div class="watch-chips">${det.map(chip).join('')}</div></div>`:'');
+}
+function jumpToStudent(name){
+  const rows=window.__trkRows||[]; const i=rows.findIndex(r=>r.name===name); if(i<0)return;
+  const drill=$('drill'+i); if(drill&&drill.style.display==='none')toggleDrill(i);
+  const row=drill?drill.previousElementSibling:null; (row||drill||$('trkList')).scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+/* ═══════════════ QUICK ROSTER ═══════════════ */
+function renderQuick(){
+  const el=$('quickRoster'); if(!el)return;
+  const logged=new Set(S.absentees.map(a=>a.name.trim()));
+  const names=(S.roster||[]).filter(n=>!logged.has(n.trim()));
+  el.innerHTML=names.length?`<div class="quick-lab">Quick add from roster · one tap = informed absence</div><div class="quick-chips">${names.map(n=>`<button class="quick-chip" data-name="${esc(n)}">+ ${esc(n)}</button>`).join('')}</div>`:'';
+}
+function quickAdd(name){ if(!name)return; pushUndo(); S.absentees.push({name,status:'informed',reason:'',remark:DEF_REMARK('informed')}); if(!S.roster.includes(name))S.roster.push(name); save(); render(); toast(name+' logged (informed)'); }
+
+/* ═══════════════ UNDO ═══════════════ */
+let undoStack=[];
+function pushUndo(){ undoStack.push(JSON.stringify(S.absentees)); if(undoStack.length>30)undoStack.shift(); updateUndoBtn(); }
+function undo(){ if(!undoStack.length){toast('Nothing to undo');return;} S.absentees=JSON.parse(undoStack.pop()); save(); render(); updateUndoBtn(); toast('Undone'); }
+function updateUndoBtn(){ const b=$('undoBtn'); if(b)b.style.opacity=undoStack.length?'1':'.4'; }
+
+/* ═══════════════ PARENT / STUDENT NOTICES ═══════════════ */
+function absenceNotices(){
+  const iso=$('pDate').value||today(), prog=($('pProg').value||$('pClass').value||'the class').trim(), by=($('pBy').value||'Class Coordinator').trim();
+  return S.absentees.filter(a=>a.status!=='od').map(a=>{
+    const first=firstTokens(a.name)[0]||a.name;
+    return [`Dear Parent / Guardian of ${a.name},`,
+      `This is to inform you that ${first} (${prog}) was marked absent (${a.status==='informed'?'informed':'no prior notification'}) on ${fmtDate(iso)}.`,
+      a.reason?`Reason on record: ${a.reason}`:'',
+      `Kindly ensure regular attendance. Please contact the class coordinator for any clarification.`,
+      `— ${by}`].filter(Boolean).join('\n');
+  });
+}
+function copyNotices(){ const n=absenceNotices(); if(!n.length){toast('No absentees to notify (OD excluded)');return;}
+  navigator.clipboard.writeText(n.join('\n\n────────────\n\n')).then(()=>toast(n.length+' parent notice'+(n.length===1?'':'s')+' copied'),()=>toast('Copy blocked by browser')); }
+
+/* ═══════════════ MONTHLY REGISTER ═══════════════ */
+function exportMonthlyRegister(){
+  const days=trackerDayRecords(); if(!days.length){toast('No records yet');return;}
+  const full=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const head=['Date','Weekday','Strength','Present','Absent','Informed','Unauthorized','On Duty','Absentee names'];
+  const lines=[head];
+  days.forEach(d=>{
+    const od=(d.absentees||[]).filter(a=>a.status==='od').length;
+    const inf=(d.absentees||[]).filter(a=>a.status==='informed').length;
+    const una=(d.absentees||[]).filter(a=>a.status==='unauthorized').length;
+    const trueAbs=inf+una, present=Math.max(0,(d.strength||0)-trueAbs);
+    const names=(d.absentees||[]).filter(a=>a.status!=='od').map(a=>a.name).join('; ');
+    const wd=weekdayOf(d.date);
+    lines.push([d.date,wd>=0?full[wd]:'',d.strength||0,present,trueAbs,inf,una,od,names]);
+  });
+  const csv=lines.map(r=>r.map(csvCell).join(',')).join('\r\n');
+  downloadBlob(csv,(($('pClass').value||'ARGUS').trim())+'_register.csv','text/csv'); toast('Register exported');
+}
+
+/* ═══════════════ TIER LETTER BATCHING ═══════════════ */
+function copyLettersTier(tier){
+  const rows=(window.__trkRows||[]).filter(r=>tier==='cond'?r.flag==='cond':r.flag!=='ok');
+  if(!rows.length){toast(tier==='cond'?'Nobody below 65%':'Nobody below 75%');return;}
+  const title=tier==='cond'?'CONDONATION LETTERS · BELOW 65%':'SHORTAGE / DETENTION LETTERS · BELOW 75%';
+  const out=`${title}\n${'='.repeat(title.length)}\n\n`+rows.map(letterFor).join('\n\n──────────────────────────────\n\n');
+  navigator.clipboard.writeText(out).then(()=>toast(rows.length+' letter'+(rows.length===1?'':'s')+' copied'),()=>toast('Copy blocked by browser'));
+}
+
+/* ═══════════════ ROSTER CSV IMPORT ═══════════════ */
+function importRosterCSV(input){
+  const f=input.files&&input.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=()=>{ try{
+    const names=[]; String(rd.result).split(/\r?\n/).forEach(line=>{ if(!line.trim())return; const c=line.split(',')[0].replace(/^"|"$/g,'').trim(); if(c&&c.toLowerCase()!=='name')names.push(c); });
+    let added=0; names.forEach(n=>{ if(!S.roster.includes(n)){S.roster.push(n);added++;} });
+    save(); render(); toast(added+' name'+(added===1?'':'s')+' added to roster');
+  }catch(e){ toast('Could not read that CSV'); } input.value=''; };
+  rd.readAsText(f);
+}
+
+/* ═══════════════ HEATMAP ═══════════════ */
+function renderHeatmap(){
+  const el=$('trkHeat'); if(!el)return; const days=trackerDayRecords();
+  if(!days.length){ el.innerHTML=''; el.style.display='none'; return; } el.style.display='block';
+  const cells=days.map(d=>{ const strength=d.strength||0; const rate=strength?(strength-uniqAbs(d.absentees))/strength:1; const l=Math.max(0,Math.min(1,rate));
+    return `<div class="heat-cell" style="--l:${l.toFixed(2)}" title="${fmtDate(d.date)} · ${Math.round(rate*100)}% present"></div>`; }).join('');
+  el.innerHTML=`<div class="heat-title">Daily present rate · ${days.length} class${days.length===1?'':'es'}</div><div class="heat-grid">${cells}</div><div class="heat-scale"><span>fewer</span><i></i><i></i><i></i><i></i><span>full house</span></div>`;
+}
+
+/* ═══════════════ REASON / TYPE DONUT ═══════════════ */
+function renderDonut(){
+  const el=$('trkDonut'); if(!el)return; const days=trackerDayRecords();
+  let inf=0,una=0,od=0; days.forEach(d=>(d.absentees||[]).forEach(a=>{ if(!a)return; if(a.status==='od')od++; else if(a.status==='informed')inf++; else una++; }));
+  const total=inf+una+od; if(!total){ el.innerHTML=''; el.style.display='none'; return; } el.style.display='block';
+  const segs=[['Informed',inf,'#f0b64a'],['Unauthorized',una,'#ff7060'],['On Duty',od,'#5fd39a']].filter(x=>x[1]>0);
+  let acc=0; const stops=segs.map(x=>{ const a=acc,b=acc+x[1]/total*360; acc=b; return `${x[2]} ${a.toFixed(1)}deg ${b.toFixed(1)}deg`; }).join(',');
+  const legend=segs.map(x=>`<div class="don-li"><i style="background:${x[2]}"></i>${x[0]} <b>${x[1]}</b><span>${Math.round(x[1]/total*100)}%</span></div>`).join('');
+  el.innerHTML=`<div class="don-title">Absence entries by type</div><div class="don-wrap"><div class="don-ring" style="background:conic-gradient(${stops})"><div class="don-hole"><b>${total}</b><span>entries</span></div></div><div class="don-legend">${legend}</div></div>`;
+}
+
+/* ═══════════════ RIPPLE ═══════════════ */
+document.addEventListener('click',e=>{ const t=e.target.closest('.btn,.ghost'); if(!t)return; const r=document.createElement('span'); r.className='ripple'; const b=t.getBoundingClientRect(); const d=Math.max(b.width,b.height); r.style.width=r.style.height=d+'px'; r.style.left=(e.clientX-b.left-d/2)+'px'; r.style.top=(e.clientY-b.top-d/2)+'px'; t.appendChild(r); setTimeout(()=>r.remove(),520); });
+
 function exportDocx() {
   if (typeof docx === 'undefined') { toast('Document engine offline — reconnect and reload'); return; }
   if (!S.absentees.length && !confirm('No absentees logged. Generate a full-attendance report anyway?')) return;
@@ -1058,13 +1322,17 @@ function exportDocx() {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = file;
     a.click(); URL.revokeObjectURL(a.href);
-    S.history.unshift({
+    const entry = {
       file, count: d.absentees.length, at: Date.now(),
       absentees: JSON.parse(JSON.stringify(S.absentees)),
       params: Object.fromEntries(P.map(k => [k, $(k).value])),
-    });
+    };
+    const pDate = $('pDate').value;
+    const dup = S.history.findIndex(h => h.params && h.params.pDate === pDate);
+    if (dup >= 0) S.history.splice(dup, 1);
+    S.history.unshift(entry);
     S.history = S.history.slice(0, 30);
-    save(); renderHist(); toast(file + ' downloaded');
+    save(); render(); toast(file + ' downloaded' + (dup >= 0 ? ' · replaced same-date report' : ''));
   }).catch(e => { console.error(e); toast('Generation failed — see console'); });
 }
 </script>
