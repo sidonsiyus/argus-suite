@@ -331,6 +331,22 @@ select{appearance:none;cursor:pointer;
 .num.none em{font-family:var(--mono);font-size:11px;color:var(--red);font-style:normal;opacity:.75}
 .copyn{background:none;border:none;color:var(--faint);cursor:pointer;font-family:var(--mono);font-size:9px;letter-spacing:.12em;padding:0;margin-top:5px;text-transform:uppercase}
 .copyn:hover{color:var(--gold)}
+
+/* cloud sync bar */
+#syncBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px 13px;margin-bottom:14px;font-family:var(--mono)}
+.sdot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none;transition:.2s}
+.sdot.ok{background:var(--green);box-shadow:0 0 8px var(--green)}
+.sdot.warn{background:var(--gold)}
+.sdot.busy{background:var(--teal);animation:spulse 1s infinite}
+@keyframes spulse{50%{opacity:.35}}
+#sStatus{font-size:11px;letter-spacing:.03em;color:var(--muted);flex:1;min-width:140px}
+.sbtn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink);background:transparent;border:1px solid var(--line2);border-radius:7px;padding:7px 12px;cursor:pointer;transition:.15s}
+.sbtn:hover{border-color:var(--teal);color:var(--teal)}
+.sbtn.gear{padding:7px 10px}
+.sbtn.save{border-color:var(--green);color:var(--green)}
+#sSetup{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;padding-top:10px;border-top:1px solid var(--line)}
+#sSetup input{flex:1;min-width:180px;background:var(--panel);border:1px solid var(--line2);border-radius:7px;padding:9px 11px;color:var(--ink);font-family:var(--mono);font-size:12px}
+#sSetup p{flex-basis:100%;margin:2px 0 0;font-size:9.5px;color:var(--faint);line-height:1.6}
 </style>
 </head>
 <body>
@@ -355,6 +371,18 @@ select{appearance:none;cursor:pointer;
 
 <!-- ══════════ APP ══════════ -->
 <div id="app">
+    <div id="syncBar">
+      <span class="sdot" id="sDot"></span>
+      <span id="sStatus">Local only — tap the gear to connect</span>
+      <button id="sNow" class="sbtn">Sync now</button>
+      <button id="sGear" class="sbtn gear">⚙</button>
+      <div id="sSetup" hidden>
+        <input id="sUrl" placeholder="Worker URL (https://…workers.dev)">
+        <input id="sKey" type="password" placeholder="Sync key">
+        <button id="sSave" class="sbtn save">Save &amp; connect</button>
+        <p>Enter these once per device. Every device that shares the same key sees the same data (most recent edit wins). The key is stored only on this device.</p>
+      </div>
+    </div>
   <header>
     <svg viewBox="0 0 32 32">
       <circle cx="16" cy="16" r="12.5" fill="none" stroke="#f0b64a" stroke-width="1" opacity=".38"/>
@@ -644,7 +672,9 @@ const P = ['pDate', 'pClass', 'pProg', 'pStrength', 'pLate', 'pHalf', 'pBy', 'pT
 
 function save() {
   S.params = Object.fromEntries(P.map(k => [k, $(k).value]));
+  S._ts = Date.now();
   localStorage.setItem(KEY, JSON.stringify(S));
+  cloudPush();
 }
 function load() {
   try {
@@ -741,9 +771,56 @@ function showContact(){
     : `<div class="num none"><span>${label}</span><em>Not on record</em></div>`;
   box.innerHTML=`<div class="cbox"><div class="chead"><b>${esc(r.name)}</b><span class="reg">${r.reg}</span><span class="note">Not included in the report</span></div><div class="nums">${num('Student',r.ph)}${num('Parent / guardian',r.pa)}</div></div>`;
 }
+/* ─────────── cloud sync (Cloudflare Worker + KV) ─────────── */
+const SYNC = { url: localStorage.getItem('argus_sync_url') || '', key: localStorage.getItem('argus_sync_key') || '' };
+const syncOn = () => !!(SYNC.url && SYNC.key);
+const hhmm = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function setSync(txt, cls) { const d = $('sDot'), t = $('sStatus'); if (!d) return; t.textContent = txt; d.className = 'sdot ' + (cls || ''); }
+function rehydrate() {
+  P.forEach(k => { if (k !== 'pDate' && S.params && S.params[k] != null) $(k).value = S.params[k]; });
+  if (S.od != null) $('mOD').value = S.od;
+  render(); if (typeof renderMsg === 'function') renderMsg();
+}
+async function cloudPull(silent) {
+  if (!syncOn()) return; setSync('Syncing…', 'busy');
+  try {
+    const r = await fetch(SYNC.url, { headers: { 'X-Sync-Key': SYNC.key } });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    if (d && d._ts && d._ts > (S._ts || 0)) { S = Object.assign(S, d); localStorage.setItem(KEY, JSON.stringify(S)); rehydrate(); if (!silent) toast('Loaded latest from cloud'); }
+    setSync('Synced · ' + hhmm(), 'ok');
+  } catch (e) { setSync('Offline — using this device', 'warn'); }
+}
+let _pushT;
+function cloudPush() {
+  if (!syncOn()) return; clearTimeout(_pushT);
+  _pushT = setTimeout(async () => {
+    setSync('Syncing…', 'busy');
+    try {
+      const r = await fetch(SYNC.url, { method: 'POST', headers: { 'X-Sync-Key': SYNC.key, 'Content-Type': 'application/json' }, body: JSON.stringify(S) });
+      if (!r.ok) throw new Error(r.status);
+      setSync('Synced · ' + hhmm(), 'ok');
+    } catch (e) { setSync('Offline — will retry', 'warn'); }
+  }, 1200);
+}
+function initSync() {
+  if (!$('sUrl')) return;
+  $('sUrl').value = SYNC.url; $('sKey').value = SYNC.key;
+  $('sGear').onclick = () => { $('sSetup').hidden = !$('sSetup').hidden; };
+  $('sSave').onclick = () => {
+    SYNC.url = $('sUrl').value.trim().replace(/\/$/, ''); SYNC.key = $('sKey').value.trim();
+    localStorage.setItem('argus_sync_url', SYNC.url); localStorage.setItem('argus_sync_key', SYNC.key);
+    $('sSetup').hidden = true;
+    if (syncOn()) { toast('Cloud sync connected'); cloudPull(); } else { setSync('Local only — tap the gear to connect', ''); }
+  };
+  $('sNow').onclick = () => { if (!syncOn()) { $('sSetup').hidden = false; toast('Enter the Worker URL and key first'); return; } cloudPull(); };
+  if (syncOn()) cloudPull(); else setSync('Local only — tap the gear to connect', '');
+}
+
 function boot() {
   load();
   bootRollover();
+  initSync();
   lastDay = today();
   P.forEach(k => $(k).addEventListener('input', () => { save(); render(); }));
   $('mOD').addEventListener('input', () => { S.od = +$('mOD').value || 0; save(); renderMsg(); });
