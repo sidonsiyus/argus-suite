@@ -357,6 +357,33 @@ select{appearance:none;cursor:pointer;
 #sSetup p{flex-basis:100%;margin:2px 0 0;font-size:9.5px;color:var(--faint);line-height:1.6}
 
 @media (display-mode: standalone){ body{ padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); } #lock{ padding-top:env(safe-area-inset-top); } }
+
+/* filter box + dropdown */
+.namewrap{display:flex;flex-direction:column;gap:7px}
+.namewrap #fFilter,.namewrap select{width:100%}
+.namewrap #fFilter{font-size:13px}
+.kbdhint{margin-top:8px;font-size:10px;color:var(--faint);letter-spacing:.02em}
+.kbdhint b{font-family:var(--mono);color:var(--muted);background:rgba(120,180,165,.12);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+/* drafted parent message */
+.pmsg{margin-top:13px;border-top:1px dashed var(--line2);padding-top:12px}
+.pmlabel{font-family:var(--mono);font-size:8px;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;margin-bottom:7px}
+.pmsg-t{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:11.5px;line-height:1.62;color:var(--muted);white-space:pre-wrap}
+.pmsg-b{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap;align-items:center}
+.pmsg-b a,.pmsg-b .pmc{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-decoration:none;border-radius:7px;padding:8px 14px;cursor:pointer;border:1px solid}
+.pmsg-b .wa{background:#1faa55;border-color:#1faa55;color:#fff}
+.pmsg-b .wa:hover{filter:brightness(1.1)}
+.pmsg-b .sms{background:transparent;border-color:var(--teal);color:var(--teal)}
+.pmsg-b .sms:hover{background:rgba(30,203,184,.15)}
+.pmsg-b .pmc{background:transparent;border-color:var(--line2);color:var(--muted);margin-top:0}
+.pmsg-b .pmno{font-size:10px;color:var(--gold)}
+
+/* per-absentee WhatsApp buttons */
+.ab-wa{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.wab{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-decoration:none;border-radius:6px;padding:6px 11px;border:1px solid;display:inline-flex;align-items:center;gap:5px;transition:.12s}
+.wab.wapar{background:#1faa55;border-color:#1faa55;color:#fff}
+.wab.wastu{background:transparent;border-color:#1faa55;color:#3ad9a0}
+.wab.wapar:hover,.wab.wastu:hover{filter:brightness(1.12)}
+.wab.off{border-color:var(--line2);color:var(--faint);opacity:.7}
 </style>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -450,7 +477,10 @@ select{appearance:none;cursor:pointer;
         <div class="row r-name">
           <div>
             <label>Student name</label>
-            <select id="fName"><option value="">— Select a student —</option></select>
+            <div class="namewrap">
+              <input id="fFilter" type="text" placeholder="Type to filter the list…" autocomplete="off" spellcheck="false">
+              <select id="fName"><option value="">— Select a student —</option></select>
+            </div>
           </div>
           <div>
             <label>Status</label>
@@ -474,6 +504,7 @@ select{appearance:none;cursor:pointer;
           </div>
         </div>
         <div id="contact" class="contact"></div>
+        <div class="kbdhint"><b>N</b> jump to filter · type to narrow the list, then pick · <b>Enter</b> → reason → <b>Enter</b> adds</div>
         <button class="btn" onclick="addAbsentee()">Add to today's log &nbsp;↵</button>
         <div class="quick" id="quickRoster"></div>
       </div>
@@ -784,17 +815,63 @@ const REASONS = [
 ];
 const OTHER = 'Other (Please Specify)';
 
-function onReasonChange(){ const other=$('fReasonSel').value===OTHER; $('otherRow').hidden=!other; if(other)$('fReason').focus(); else $('fReason').value=''; }
+function onReasonChange(){ const other=$('fReasonSel').value===OTHER; $('otherRow').hidden=!other; if(other)$('fReason').focus(); else $('fReason').value=''; if(byName(($('fName').value||'').trim())) showContact(); }
 function reasonValue(){ const sel=$('fReasonSel').value; if(!sel)return null; if(sel!==OTHER)return sel; return $('fReason').value.trim()||null; }
 function fmtPh(v){ return v.length===10 ? v.slice(0,5)+' '+v.slice(5) : v; }
 function copyNum(v){ navigator.clipboard.writeText(v).then(()=>toast(v+' copied'),()=>toast('Copy failed')); }
+function fmtDatePretty(iso){ if(!iso)return today(); const d=new Date(iso+'T00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function parentMsg(r){
+  const date=fmtDatePretty(($('pDate')&&$('pDate').value)||'');
+  const cls=(($('pProg')&&$('pProg').value)||($('pClass')&&$('pClass').value)||'').trim();
+  const reason=(typeof reasonValue==='function'&&reasonValue())||'';
+  let m=`Dear Parent, this is to inform you that your ward ${r.name} (Reg. ${r.reg})`;
+  if(cls) m+=` of ${cls}`;
+  m+=` was absent on ${date}.`;
+  if(reason && reason!==OTHER) m+=` Reason noted: ${reason}.`;
+  m+=` Kindly ensure regular attendance. — Class In-charge`;
+  return m;
+}
+function copyMsg(btn){ const t=btn.closest('.pmsg').querySelector('.pmsg-t').textContent; navigator.clipboard.writeText(t).then(()=>toast('Message copied'),()=>toast('Copy failed')); }
+/* filter box narrows the dropdown; the dropdown stays a normal picker */
+function populateNames(){
+  const q=(($('fFilter')&&$('fFilter').value)||'').trim().toLowerCase();
+  const matches=ROSTER.filter(r=> !q || r.name.toLowerCase().includes(q) || String(r.n).padStart(2,'0').includes(q));
+  const sel=$('fName'); if(!sel) return matches; const cur=sel.value;
+  sel.innerHTML=(matches.length===1 ? '' : '<option value="">— Select a student —</option>')
+    + matches.map(r=>`<option value="${esc(r.name)}">${String(r.n).padStart(2,'0')} · ${esc(r.name)}</option>`).join('');
+  if(matches.length===1) sel.value=matches[0].name;
+  else if(matches.some(r=>r.name===cur)) sel.value=cur;
+  else sel.value='';
+  showContact();
+  return matches;
+}
+function initNameCombo(){
+  const sel=$('fName'), fil=$('fFilter'); if(!sel)return;
+  populateNames();
+  sel.addEventListener('change', showContact);
+  if(fil){
+    fil.addEventListener('input', populateNames);
+    fil.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){ e.preventDefault(); const m=populateNames(); if(!sel.value && m.length){ sel.value=m[0].name; showContact(); } if(sel.value) $('fReasonSel').focus(); }
+      else if(e.key==='ArrowDown'){ e.preventDefault(); sel.focus(); }
+      else if(e.key==='Escape'){ fil.value=''; populateNames(); }
+    });
+  }
+}
 function showContact(){
-  const box=$('contact'); if(!box)return; const r=byName($('fName').value);
+  const box=$('contact'); if(!box)return; const r=byName(($('fName').value||'').trim());
   if(!r){ box.innerHTML=''; return; }
   const num=(label,v)=> v
     ? `<div class="num"><span>${label}</span><a href="tel:+91${v}">${fmtPh(v)}</a><button class="copyn" onclick="copyNum('${v}')">Copy</button></div>`
     : `<div class="num none"><span>${label}</span><em>Not on record</em></div>`;
-  box.innerHTML=`<div class="cbox"><div class="chead"><b>${esc(r.name)}</b><span class="reg">${r.reg}</span><span class="note">Not included in the report</span></div><div class="nums">${num('Student',r.ph)}${num('Parent / guardian',r.pa)}</div></div>`;
+  const msg=parentMsg(r);
+  const btns=(r.pa
+    ? `<a class="wa" href="https://wa.me/91${r.pa}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp parent</a>`
+      +`<a class="sms" href="sms:+91${r.pa}?&body=${encodeURIComponent(msg)}">SMS</a>`
+    : `<span class="pmno">No parent number — copy only</span>`)
+    +`<button class="pmc" onclick="copyMsg(this)">Copy</button>`;
+  const pm=`<div class="pmsg"><div class="pmlabel">Draft parent message</div><div class="pmsg-t">${esc(msg)}</div><div class="pmsg-b">${btns}</div></div>`;
+  box.innerHTML=`<div class="cbox"><div class="chead"><b>${esc(r.name)}</b><span class="reg">${r.reg}</span><span class="note">Not included in the report</span></div><div class="nums">${num('Student',r.ph)}${num('Parent / guardian',r.pa)}</div>${pm}</div>`;
 }
 /* ─────────── cloud sync (Cloudflare Worker + KV) ─────────── */
 const SYNC = { url: localStorage.getItem('argus_sync_url') || '', key: localStorage.getItem('argus_sync_key') || '' };
@@ -859,11 +936,16 @@ function boot() {
     REASONS.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('') +
     `<option value="${esc(OTHER)}">${esc(OTHER)}</option>`;
   $('fReasonSel').addEventListener('change', onReasonChange);
-  $('fName').innerHTML = '<option value="">— Select a student —</option>' +
-    ROSTER.map(r => `<option value="${esc(r.name)}">${String(r.n).padStart(2,'0')} · ${esc(r.name)}</option>`).join('');
-  $('fName').addEventListener('change', showContact);
+  initNameCombo();
   showContact();
-  $('fName').addEventListener('keydown', e => { if (e.key === 'Enter') $('fReasonSel').focus(); });
+  $('fReason').addEventListener('input', () => { if (byName(($('fName').value||'').trim())) showContact(); });
+  document.addEventListener('keydown', e => {
+    const app=$('app'); if(!app||!app.classList.contains('on')) return;
+    if(e.key==='Enter' && e.target && e.target.id==='fReasonSel'){ e.preventDefault(); addAbsentee(); if($('fFilter'))$('fFilter').value=''; populateNames(); ($('fFilter')||$('fName')).focus(); return; }
+    const tag=(e.target&&e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea'||tag==='select') return;
+    if(e.key==='n'||e.key==='N'||e.key==='/'){ e.preventDefault(); ($('fFilter')||$('fName')).focus(); }
+  });
   if(!S.term)S.term={start:'',end:'',held:''};
   { const t=S.term; if($('tStart'))$('tStart').value=t.start||''; if($('tEnd'))$('tEnd').value=t.end||''; if($('tHeld'))$('tHeld').value=t.held||''; }
   ['tStart','tEnd','tHeld'].forEach(id=>{ const el=$(id); if(el)el.addEventListener('input',()=>{ S.term.start=$('tStart').value; S.term.end=$('tEnd').value; S.term.held=$('tHeld').value; save(); render(); }); });
@@ -896,7 +978,7 @@ function addAbsentee() {
   const r = byName(name);
   S.absentees.push({ name, status, reason, remark: DEF_REMARK(status), reg: r?r.reg:'', ph: r?r.ph:'', pa: r?r.pa:'' });
   if (!S.roster.includes(name)) S.roster.push(name);
-  $('fName').value = ''; $('fReasonSel').value = ''; $('otherRow').hidden = true; $('fReason').value = ''; $('fStatus').value = 'informed';
+  $('fName').value = ''; $('fReasonSel').value = ''; $('otherRow').hidden = true; $('fReason').value = ''; $('fStatus').value = 'informed'; if($('fFilter'))$('fFilter').value=''; if(typeof populateNames==='function')populateNames();
   showContact();
   $('fName').focus();
   save(); render();
@@ -955,6 +1037,17 @@ function data() {
 }
 
 /* ═══════════════ RENDER ═══════════════ */
+function absContact(a){ const r=byName(a.name)||{}; return { name:a.name, reg:a.reg||r.reg||'', ph:a.ph||r.ph||'', pa:a.pa||r.pa||'' }; }
+function _msgMeta(){ return { date:fmtDatePretty(($('pDate')&&$('pDate').value)||''), cls:(($('pProg')&&$('pProg').value)||($('pClass')&&$('pClass').value)||'').trim() }; }
+function msgParent(a){ const c=absContact(a), {date,cls}=_msgMeta();
+  let m=`Dear Parent, this is to inform you that your ward ${c.name}${c.reg?` (Reg. ${c.reg})`:''}${cls?` of ${cls}`:''} was absent on ${date}.`;
+  if(a.reason && a.reason!==OTHER) m+=` Reason noted: ${a.reason}.`;
+  m+=` Kindly ensure regular attendance. — Class In-charge`; return m; }
+function msgStudent(a){ const c=absContact(a), {date,cls}=_msgMeta();
+  let m=`Dear ${c.name}, you were marked absent${cls?` in ${cls}`:''} on ${date}.`;
+  if(a.reason && a.reason!==OTHER) m+=` Reason noted: ${a.reason}.`;
+  m+=` Please ensure regular attendance. — Class In-charge`; return m; }
+function waLink(num,msg){ return `https://wa.me/91${num}?text=${encodeURIComponent(msg)}`; }
 function render() {
   const abs = S.absentees;
   const inf = abs.filter(a => a.status === 'informed').length;
@@ -963,7 +1056,7 @@ function render() {
   renderGlance();
   $('logCount').textContent = abs.length ? `· ${abs.length}` : '';
 
-  $('list').innerHTML = abs.length ? abs.map((a, i) => `
+  $('list').innerHTML = abs.length ? abs.map((a, i) => { const c = absContact(a); return `
     <div class="ab ${a.status === 'informed' ? 'inf' : ''}">
       <div class="ab-top">
         <b>${esc(a.name)}</b>
@@ -972,7 +1065,11 @@ function render() {
       </div>
       ${a.reason ? `<p>${esc(a.reason)}</p>` : ''}
       <input class="rmk" value="${esc(a.remark)}" oninput="editRemark(${i},this.value)" title="Remarks column in the table">
-    </div>`).join('') : `<div class="empty">Nobody absent yet — a full house</div>`;
+      <div class="ab-wa">
+        ${c.pa ? `<a class="wab wapar" href="${waLink(c.pa, msgParent(a))}" target="_blank" rel="noopener">✆ WhatsApp parent</a>` : `<span class="wab off">No parent number</span>`}
+        ${c.ph ? `<a class="wab wastu" href="${waLink(c.ph, msgStudent(a))}" target="_blank" rel="noopener">✆ WhatsApp student</a>` : `<span class="wab off">No student number</span>`}
+      </div>
+    </div>`; }).join('') : `<div class="empty">Nobody absent yet — a full house</div>`;
 
   renderPaper();
   renderMsg();
