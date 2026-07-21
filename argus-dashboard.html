@@ -384,6 +384,27 @@ select{appearance:none;cursor:pointer;
 .wab.wastu{background:transparent;border-color:#1faa55;color:#3ad9a0}
 .wab.wapar:hover,.wab.wastu:hover{filter:brightness(1.12)}
 .wab.off{border-color:var(--line2);color:var(--faint);opacity:.7}
+
+[hidden]{display:none!important}
+/* scan register */
+.scanbtn{margin-top:8px;background:transparent!important;border:1px solid var(--teal)!important;color:var(--teal)!important}
+#scanModal{position:fixed;inset:0;z-index:120;background:rgba(3,7,6,.85);display:flex;align-items:center;justify-content:center;padding:16px}
+.scan-card{background:var(--panel2);border:1px solid var(--line2);border-radius:14px;width:min(700px,100%);max-height:92vh;display:flex;flex-direction:column;padding:16px}
+.scan-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.scan-head b{font-size:16px}
+.scan-x{background:transparent;border:1px solid var(--line2);color:var(--muted);border-radius:7px;width:30px;height:30px;cursor:pointer}
+.scan-photo{display:block;text-align:center;background:rgba(30,203,184,.1);border:1px dashed var(--teal);border-radius:10px;padding:15px;color:var(--teal);cursor:pointer;font-size:13px;letter-spacing:.03em}
+.scan-status{font-size:11px;color:var(--muted);margin:10px 2px;line-height:1.55;min-height:16px}
+.scan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:6px;overflow-y:auto;padding:2px}
+.schip{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:12px;user-select:none}
+.schip .sn{font-family:var(--mono);font-size:9px;color:var(--faint);min-width:18px}
+.schip .stt{margin-left:auto;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;padding:2px 6px;border-radius:4px}
+.schip.p{opacity:.62}.schip.p .stt{background:rgba(58,217,160,.15);color:var(--green)}
+.schip.a{border-color:var(--red);background:rgba(255,91,110,.1)}.schip.a .stt{background:var(--red);color:#fff}
+.schip.od{border-color:var(--gold);background:rgba(240,182,74,.12)}.schip.od .stt{background:var(--gold);color:#231a04}
+.scan-foot{display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.scan-count{flex:1;font-size:12px;color:var(--muted)}
+.scan-log{background:var(--gold);border:0;color:#231a04;font-weight:700;border-radius:9px;padding:11px 18px;cursor:pointer;font-family:var(--mono);letter-spacing:.05em}
 </style>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -506,6 +527,7 @@ select{appearance:none;cursor:pointer;
         <div id="contact" class="contact"></div>
         <div class="kbdhint"><b>N</b> jump to filter · type to narrow the list, then pick · <b>Enter</b> → reason → <b>Enter</b> adds</div>
         <button class="btn" onclick="addAbsentee()">Add to today's log &nbsp;↵</button>
+        <button class="btn scanbtn" onclick="openScan()">📷 Scan register</button>
         <div class="quick" id="quickRoster"></div>
       </div>
 
@@ -1037,6 +1059,72 @@ function data() {
 }
 
 /* ═══════════════ RENDER ═══════════════ */
+let scanState={};
+function openScan(){ scanState={}; ROSTER.forEach(r=>scanState[r.name]='p'); $('scanStatus').textContent = (typeof syncOn==='function'&&syncOn()) ? 'Take an UPRIGHT photo of the register — it reads the handwriting and pre-selects absentees. Or just tap the students. Tap cycles: present → ABSENT → OD.' : 'Tap the absent students below (tap cycles present → ABSENT → OD). Connect cloud sync (⚙) to enable photo handwriting reading.'; renderScanGrid(); $('scanModal').hidden=false; }
+function closeScan(){ $('scanModal').hidden=true; }
+function cycleScan(name){ const o=scanState[name]||'p'; scanState[name]= o==='p'?'a':o==='a'?'od':'p'; renderScanGrid(); }
+function renderScanGrid(){ const g=$('scanGrid'); if(!g)return;
+  g.innerHTML=ROSTER.map(r=>{ const st=scanState[r.name]||'p', lab=st==='a'?'ABSENT':st==='od'?'OD':'present';
+    return `<div class="schip ${st}" onclick="cycleScan(${JSON.stringify(r.name)})"><span class="sn">${String(r.n).padStart(2,'0')}</span>${esc(r.name)}<span class="stt">${lab}</span></div>`; }).join('');
+  const na=Object.values(scanState).filter(x=>x==='a').length, nod=Object.values(scanState).filter(x=>x==='od').length;
+  $('scanCount').textContent=`${na} absent · ${nod} OD selected`;
+}
+function scanLog(){ const add=[];
+  ROSTER.forEach(r=>{ const st=scanState[r.name]; if(st==='a'||st==='od'){ if(S.absentees.some(a=>a.name===r.name))return;
+    const status=st==='od'?'od':'unauthorized'; add.push({name:r.name,status,reason:'',remark:DEF_REMARK(status),reg:r.reg,ph:r.ph,pa:r.pa}); } });
+  if(!add.length){ toast('No students selected'); return; }
+  if(!S.logDay)S.logDay=today(); pushUndo(); S.absentees.push(...add); save(); render(); closeScan(); toast(add.length+' added from register');
+}
+function ensureTesseract(){ return new Promise((res,rej)=>{ if(window.Tesseract)return res(); const sc=document.createElement('script'); sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'; sc.onload=()=>res(); sc.onerror=()=>rej(new Error('load')); document.head.appendChild(sc); }); }
+function _norm(x){ return (x||'').toUpperCase().replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim(); }
+function _sim(line,name){ const set=new Set(_norm(line).split(' ').filter(t=>t.length>1)); const toks=_norm(name).split(' ').filter(t=>t.length>1); if(!toks.length)return 0; let h=0; toks.forEach(t=>{ if(set.has(t))h++; }); return h/toks.length; }
+function fileToB64(file,maxDim){ return new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>{
+  let w=img.width,h=img.height; const sc=Math.min(1,(maxDim||1600)/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc);
+  const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+  URL.revokeObjectURL(img.src); res(c.toDataURL('image/jpeg',0.85).split(',')[1]); }; img.onerror=rej; img.src=URL.createObjectURL(file); }); }
+function matchAndMarks(data){
+  scanState={}; ROSTER.forEach(r=>scanState[r.name]='p');
+  const lines=(data.text||'').split(/\n/).map(_norm).filter(x=>x.length>1);
+  const words=(data.words||[]).map(w=>{ const xs=(w.b||[]).map(p=>p.x||0), ys=(w.b||[]).map(p=>p.y||0);
+    return { t:(w.t||'').toUpperCase().replace(/[^A-Z0-9]/g,''), cx:xs.length?(Math.min(...xs)+Math.max(...xs))/2:0, cy:ys.length?(Math.min(...ys)+Math.max(...ys))/2:0, h:ys.length?Math.max(...ys)-Math.min(...ys):14 }; });
+  let found=0;
+  ROSTER.forEach(r=>{
+    let best=0; lines.forEach(ln=>{ const sc=_sim(ln,r.name); if(sc>best)best=sc; });
+    if(best<0.55) return; found++;
+    if(words.length){ const toks=_norm(r.name).split(' ').filter(t=>t.length>1);
+      const anchor=toks.slice().sort((a,b)=>b.length-a.length)[0]||'';
+      const aw=(anchor.length>2)?words.filter(w=>w.t===anchor):[];
+      if(aw.length){ const cy=aw[0].cy, hh=aw[0].h||14;
+        const rowX=words.filter(w=>toks.includes(w.t)&&Math.abs(w.cy-cy)<hh*0.9).map(w=>w.cx);
+        const maxX=rowX.length?Math.max(...rowX):aw[0].cx;
+        const band=words.filter(w=>Math.abs(w.cy-cy)<hh*0.9&&w.cx>maxX).map(w=>w.t);
+        if(band.includes('OD')) scanState[r.name]='od'; else if(band.includes('A')) scanState[r.name]='a';
+      }
+    }
+  });
+  renderScanGrid(); return found;
+}
+async function runScanOCR(file){
+  if(typeof syncOn==='function' && syncOn()){
+    try{ $('scanStatus').textContent='Uploading photo to the handwriting reader…';
+      const b64=await fileToB64(file,1600);
+      $('scanStatus').textContent='Reading handwriting…';
+      const r=await fetch(SYNC.url.replace(/\/$/,'')+'/ocr',{method:'POST',headers:{'X-Sync-Key':SYNC.key,'Content-Type':'application/json'},body:JSON.stringify({image:b64})});
+      if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('HTTP '+r.status)); }
+      const found=matchAndMarks(await r.json());
+      $('scanStatus').textContent = found? `Read ${found} students. Verify the highlighted ABSENT / OD (tap to fix), then log. Best results when the register is photographed upright.` : 'Read the photo but could not match names — tap the absent students below.';
+      return;
+    }catch(e){ $('scanStatus').textContent='Cloud reader error: '+e.message+'. Falling back — you can tap the absent students below.'; return; }
+  }
+  // no cloud sync connected: try on-device (weak on handwriting)
+  try{ $('scanStatus').textContent='No cloud reader connected — trying on-device (poor on handwriting)…'; await ensureTesseract();
+    const url=URL.createObjectURL(file);
+    const {data}=await Tesseract.recognize(url,'eng',{logger:m=>{ if(m.status==='recognizing text'&&$('scanStatus'))$('scanStatus').textContent='Reading… '+Math.round((m.progress||0)*100)+'%'; }});
+    URL.revokeObjectURL(url);
+    const found=matchAndMarks({text:(data.lines||[]).map(l=>l.text).join('\n'), words:[]});
+    $('scanStatus').textContent = found? `Matched ${found}. Verify and log. For handwriting, connect cloud sync to use the accurate reader.` : 'Could not read the handwriting on-device. Connect cloud sync (⚙ on the sync bar) for accurate handwriting OCR, or tap the students manually.';
+  }catch(e){ $('scanStatus').textContent='Could not run OCR. Tap the absent students below.'; }
+}
 function absContact(a){ const r=byName(a.name)||{}; return { name:a.name, reg:a.reg||r.reg||'', ph:a.ph||r.ph||'', pa:a.pa||r.pa||'' }; }
 function _msgMeta(){ return { date:fmtDatePretty(($('pDate')&&$('pDate').value)||''), cls:(($('pProg')&&$('pProg').value)||($('pClass')&&$('pClass').value)||'').trim() }; }
 function msgParent(a){ const c=absContact(a), {date,cls}=_msgMeta();
@@ -1743,5 +1831,14 @@ function exportDocx() {
   }).catch(e => { console.error(e); toast('Generation failed — see console'); });
 }
 </script>
+<div id="scanModal" hidden>
+  <div class="scan-card">
+    <div class="scan-head"><b>📷 Scan register</b><button class="scan-x" onclick="closeScan()">✕</button></div>
+    <label class="scan-photo"><input id="scanFile" type="file" accept="image/*" capture="environment" hidden onchange="if(this.files[0])runScanOCR(this.files[0])">Take a photo of the register (or choose one)</label>
+    <div id="scanStatus" class="scan-status"></div>
+    <div id="scanGrid" class="scan-grid"></div>
+    <div class="scan-foot"><span id="scanCount" class="scan-count"></span><button class="scan-log" onclick="scanLog()">Log selected absentees</button></div>
+  </div>
+</div>
 </body>
 </html>
