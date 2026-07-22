@@ -449,11 +449,12 @@ function softSprite(core, falloff){
 const twinkleUniforms = { uTime:{value:0}, uScale:{value:innerHeight*Math.min(devicePixelRatio||1,2.5)/2}, uSun:{value:new THREE.Vector3(1,0,0)} };
 /* procedural star-point: white-hot core + tight coloured halo + fine diffraction
    spikes. Drawn in the shader, so it stays pixel-sharp at any size or zoom. */
-function twinkleMaterial(size, speed, depth, minTw, spike, core, eclipse){
+function twinkleMaterial(size, speed, depth, minTw, spike, core, eclipse, white){
   return new THREE.ShaderMaterial({
     uniforms:{ uSize:{value:size}, uSpeed:{value:speed}, uMin:{value:minTw},
                uSpike:{value:spike===undefined?0.35:spike}, uCore:{value:core===undefined?26.0:core},
                uEclipse:{value:eclipse?1.0:0.0}, uSun:twinkleUniforms.uSun,
+               uWhite:{value:white===undefined?0.86:white},
                uTime:twinkleUniforms.uTime, uScale:twinkleUniforms.uScale },
     vertexShader:`attribute vec3 aCol; attribute float aPhase; attribute float aMag;
       uniform float uTime,uSize,uScale,uSpeed,uMin,uEclipse; uniform vec3 uSun;
@@ -472,7 +473,7 @@ function twinkleMaterial(size, speed, depth, minTw, spike, core, eclipse){
         vec4 mv=modelViewMatrix*vec4(position,1.0);
         gl_PointSize=clamp(uSize*aMag*uScale*(0.82+0.36*vTw)/max(0.001,-mv.z), 2.0, 30.0);
         gl_Position=projectionMatrix*mv; }`,
-    fragmentShader:`uniform float uSpike,uCore;
+    fragmentShader:`uniform float uSpike,uCore,uWhite;
       varying vec3 vCol; varying float vTw; varying float vMag; varying float vEcl;
       void main(){
         vec2 q=(gl_PointCoord-0.5)*2.0;
@@ -487,8 +488,10 @@ function twinkleMaterial(size, speed, depth, minTw, spike, core, eclipse){
         }
         float inten=(core+halo+sp)*vTw;
         if(inten<0.004) discard;
-        vec3 col=mix(vCol, vec3(1.0), core*0.86);        // white-hot core = shiny
-        col=mix(vec3(0.30,0.36,0.62)*vCol, col, vEcl);   // eclipsed = cold and dim
+        float lum=dot(vCol,vec3(0.299,0.587,0.114));
+        vec3 tint=clamp(mix(vec3(lum),vCol,1.30),0.0,1.0);   // deepen the layer hue
+        vec3 col=mix(tint, vec3(1.0), clamp(core*uWhite,0.0,1.0));
+        col=mix(vec3(0.30,0.36,0.62)*tint, col, vEcl);   // eclipsed = cold and dim
         inten*=mix(0.30, 1.0, vEcl);
         gl_FragColor=vec4(col*(0.85+0.55*vTw), inten);
       }`,
@@ -746,18 +749,18 @@ async function getGroup(group){
   throw new Error('no data');
 }
 const GROUPS=[
-  {id:'stations',           label:'Space Stations',       color:0xffb454, on:true, tles:null},
-  {id:'gps-ops',            label:'GPS',                  color:0x7dff9b, on:true, tles:null},
-  {id:'glo-ops',            label:'GLONASS',              color:0x5fe6bf, on:true, tles:null},
-  {id:'galileo',            label:'Galileo',              color:0x54cfe0, on:true, tles:null},
-  {id:'weather',            label:'Weather',              color:0xff8fd0, on:true, tles:null},
-  {id:'oneweb',             label:'OneWeb',               color:0xc9a0ff, on:true, tles:null},
-  {id:'starlink',           label:'Starlink',             color:0x8fbfff, on:true, tles:null},
-  {id:'visual',             label:'Brightest',            color:0xffffff, on:true, tles:null},
-  {id:'cosmos-2251-debris', label:'Debris · Cosmos-2251', color:0xff8a5c, on:true, tles:null},
-  {id:'iridium-33-debris',  label:'Debris · Iridium-33',  color:0xffc061, on:true, tles:null},
-  {id:'fengyun-1c-debris',  label:'Debris · Fengyun-1C',  color:0xff5d6c, on:true, tles:null},
-  {id:'active',             label:'Other Active',         color:0x93a7bb, on:true, tles:null},
+  {id:'stations',           label:'Space Stations',       color:0xffa023, on:true, tles:null},
+  {id:'gps-ops',            label:'GPS',                  color:0x2bf56b, on:true, tles:null},
+  {id:'glo-ops',            label:'GLONASS',              color:0x00d9a5, on:true, tles:null},
+  {id:'galileo',            label:'Galileo',              color:0x14b4e6, on:true, tles:null},
+  {id:'weather',            label:'Weather',              color:0xff47b4, on:true, tles:null},
+  {id:'oneweb',             label:'OneWeb',               color:0x9b5cff, on:true, tles:null},
+  {id:'starlink',           label:'Starlink',             color:0x3d94ff, on:true, tles:null},
+  {id:'visual',             label:'Brightest',            color:0xfff4d6, on:true, tles:null},
+  {id:'cosmos-2251-debris', label:'Debris · Cosmos-2251', color:0xff6a1f, on:true, tles:null},
+  {id:'iridium-33-debris',  label:'Debris · Iridium-33',  color:0xffc400, on:true, tles:null},
+  {id:'fengyun-1c-debris',  label:'Debris · Fengyun-1C',  color:0xff2740, on:true, tles:null},
+  {id:'active',             label:'Other Active',         color:0x7d93aa, on:true, tles:null},
 ];
 let shellTLE=[];
 function initWorker(){
@@ -784,7 +787,7 @@ function buildShell(){
     for(let i=0;i<shellCount;i++){ ph[i]=Math.random(); mg[i]=0.85+Math.random()*0.5; }
     geo.setAttribute('aPhase', new THREE.BufferAttribute(ph,1));
     geo.setAttribute('aMag',   new THREE.BufferAttribute(mg,1));
-    shell=new THREE.Points(geo, twinkleMaterial(0.0092, 3.4, false, 0.38, 0.30, 44.0, true));
+    shell=new THREE.Points(geo, twinkleMaterial(0.0092, 3.4, false, 0.38, 0.30, 44.0, true, 0.26));
     scene.add(shell);
     if(!worker) initWorker(); propBusy=false; worker.postMessage({type:'load', tles:shellTLE});
   }
