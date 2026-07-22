@@ -183,8 +183,8 @@
       <div class="face fHome">
         <div class="word">ARGUS</div>
         <div class="wsub">SUITE</div>
-        <div class="htag">Interactive aviation engineering — flight ops, tower control,
-          aerodynamics, CAD, NDT and a live global tracker.</div>
+        <div class="htag">Interactive aviation &amp; aerospace engineering — flight ops, tower control,
+          aerodynamics, CAD, NDT, and live trackers from the runway to orbit.</div>
         <div class="hhint">SELECT A MODULE</div>
       </div>
       <div class="face fRead" id="fRead">
@@ -217,7 +217,7 @@
     </a>
   </div>
 </div>
-<footer>ARGUS SUITE · <b>eight browser-based modules</b> + research · made by sid</footer>
+<footer>ARGUS SUITE · <b>nine browser-based modules</b> + research · made by sid</footer>
 <script>
 /* favicon injected as a Blob — no data-URI escaping to get wrong */
 (function(){
@@ -240,7 +240,8 @@ const ICON={
   tunnel: '<path d="M3 8h11a2.4 2.4 0 1 0-2.4-2.4"/><path d="M3 12h16a2.4 2.4 0 1 1-2.4 2.4"/><path d="M3 16h8.5a2 2 0 1 1-2 2"/>',
   catia:  '<path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>',
   ndt:    '<circle cx="11" cy="11" r="6.2"/><path d="M20 20l-3.8-3.8"/><path d="M8 11h1.5l1-2.6 1.7 4.8 1.1-2.2H15"/>',
-  hangar: '<path d="M3 20.5V11l9-6 9 6v9.5"/><path d="M2 20.5h20"/><path d="M8.5 20.5v-5.5h7v5.5"/><path d="M12 8.8v2.4"/>'
+  hangar: '<path d="M3 20.5V11l9-6 9 6v9.5"/><path d="M2 20.5h20"/><path d="M8.5 20.5v-5.5h7v5.5"/><path d="M12 8.8v2.4"/>',
+  oracle: '<circle cx="12" cy="12" r="5.6"/><path d="M12 6.4c-2.1 1.7-2.1 9.5 0 11.2M12 6.4c2.1 1.7 2.1 9.5 0 11.2"/><path d="M6.4 12h11.2"/><ellipse cx="12" cy="12" rx="10.4" ry="4" transform="rotate(-27 12 12)"/><circle cx="20.6" cy="8.9" r="1"/>'
 };
 
 /* ═══ the module previews — these play INSIDE the hub on hover ═══ */
@@ -378,6 +379,49 @@ const PREV={
     c.fillStyle='rgba(255,84,112,.95)';
     c.beginPath(); c.arc(W*.12+W*.76*.52, base+H*.11, 2.4, 0, 7); c.fill();
   },
+  oracle(c,W,H,t){
+    const cx=W*.5, cy=H*.52, R=Math.min(W,H)*.235;
+    for(let i=0;i<32;i++){                                   // twinkling field
+      const sx=((i*137)%1000)/1000*W, sy=((i*311)%1000)/1000*H;
+      const tw=.22+.78*Math.abs(Math.sin(t*1.9+i*1.7));
+      c.fillStyle='rgba(190,230,255,'+(tw*.55).toFixed(3)+')';
+      c.fillRect(sx,sy,1.3,1.3);
+    }
+    const rot=-0.48, RX=R*1.9, RY=R*0.58, ang=t*0.9;
+    const ox=Math.cos(ang)*RX, oy=Math.sin(ang)*RY;
+    const px=cx+ox*Math.cos(rot)-oy*Math.sin(rot);
+    const py=cy+ox*Math.sin(rot)+oy*Math.cos(rot);
+    const behind=Math.sin(ang)<0;
+    const sat=()=>{
+      const gg=c.createRadialGradient(px,py,0,px,py,6.5);
+      gg.addColorStop(0,'rgba(255,255,255,.95)');
+      gg.addColorStop(.34,'rgba(77,225,214,.72)');
+      gg.addColorStop(1,'rgba(77,225,214,0)');
+      c.fillStyle=gg; c.beginPath(); c.arc(px,py,6.5,0,7); c.fill();
+      c.fillStyle='#fff'; c.beginPath(); c.arc(px,py,1.5,0,7); c.fill();
+    };
+    c.save(); c.translate(cx,cy); c.rotate(rot);
+    c.strokeStyle='rgba(77,225,214,.30)'; c.lineWidth=1;
+    c.beginPath(); c.ellipse(0,0,RX,RY,0,0,7); c.stroke(); c.restore();
+    if(behind) sat();
+    const g=c.createRadialGradient(cx-R*.35,cy-R*.4,R*.12,cx,cy,R);
+    g.addColorStop(0,'rgba(112,192,236,.78)');
+    g.addColorStop(.65,'rgba(28,92,152,.66)');
+    g.addColorStop(1,'rgba(8,30,60,.88)');
+    c.fillStyle=g; c.beginPath(); c.arc(cx,cy,R,0,7); c.fill();
+    c.save(); c.beginPath(); c.arc(cx,cy,R,0,7); c.clip();
+    c.strokeStyle='rgba(77,225,214,.26)'; c.lineWidth=.8;
+    for(let i=1;i<=3;i++){ c.beginPath(); c.ellipse(cx,cy,R*(i/3.2),R,0,0,7); c.stroke(); }
+    for(let i=-2;i<=2;i++){ const yy=cy+R*(i/3), rr=Math.sqrt(Math.max(0,R*R-(R*i/3)*(R*i/3)));
+      c.beginPath(); c.moveTo(cx-rr,yy); c.lineTo(cx+rr,yy); c.stroke(); }
+    c.restore();
+    c.strokeStyle='rgba(77,225,214,.62)'; c.lineWidth=1.1;
+    c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
+    const hg=c.createRadialGradient(cx,cy,R*.92,cx,cy,R*1.4);   // atmospheric halo
+    hg.addColorStop(0,'rgba(77,225,214,.26)'); hg.addColorStop(1,'rgba(77,225,214,0)');
+    c.fillStyle=hg; c.beginPath(); c.arc(cx,cy,R*1.4,0,7); c.fill();
+    if(!behind) sat();
+  },
   hangar(c,W,H,t){
     const gy=H*.76, bob=Math.sin(t*1.2)*1.2;
     c.strokeStyle='rgba(49,197,106,.22)'; c.lineWidth=1;
@@ -408,6 +452,9 @@ const MODULES=[
   {f:"argus.html",                     acc:"#2ec4b6", k:"argus",   n:"ARGUS",    live:1,
    tag:"LIVE · GLOBAL RADAR",
    d:"Real aircraft worldwide, streaming live. Routes, altitudes, ETAs, weather radar and ATC audio."},
+  {f:"oracle.html",                    acc:"#4de1d6", k:"oracle",  n:"ORACLE",   live:1,
+   tag:"ORBITAL &middot; LIVE SATELLITES",
+   d:"Every tracked object in orbit, live from CelesTrak — Starlink, GPS, debris — with the ISS downlink and the Artemis II flight reconstructed."},
   {f:"pyrgos.html",                    acc:"#f0b64a", k:"pyrgos",  n:"PYRGOS",   live:1,
    tag:"ATC · TOWER CONTROL",
    d:"Work the tower across four airports — holding stacks, wake spacing, SIDs and runway incursions."},
