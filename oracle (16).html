@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ORACLE · Orbital Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#04070f; --void2:#070c18;
+    --phos:#4de1d6;        /* phosphor cyan — data */
+    --phos-dim:#2b7f7a;
+    --amber:#ffb454;       /* the satellite */
+    --ink:#e7f0f5; --mute:#6f8798; --faint:#3d5163;
+    --line:rgba(120,180,200,.14); --line2:rgba(120,180,200,.28);
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --disp:'Space Grotesk',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:var(--void);color:var(--ink);font-family:var(--mono)}
+  #view{position:fixed;inset:0;display:block}
+  .hud{position:fixed;pointer-events:none;z-index:10}
+  .hud *{pointer-events:auto}
+
+  /* corner console frame */
+  .frame{position:fixed;inset:14px;z-index:5;pointer-events:none;border:1px solid var(--line)}
+  .frame::before,.frame::after{content:"";position:absolute;width:26px;height:26px;border:2px solid var(--phos-dim)}
+  .frame::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+  .frame::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+  .cnr{position:fixed;width:26px;height:26px;border:2px solid var(--phos-dim);z-index:5;pointer-events:none}
+  .cnr.tr{top:13px;right:13px;border-left:0;border-bottom:0}
+  .cnr.bl{bottom:13px;left:13px;border-right:0;border-top:0}
+
+  /* top-left identity */
+  .brand{top:30px;left:34px}
+  .brand h1{font-family:var(--disp);font-weight:700;font-size:26px;letter-spacing:.42em;color:var(--ink);text-indent:.42em}
+  .brand .tag{font-size:9.5px;letter-spacing:.34em;color:var(--phos-dim);margin-top:5px;text-transform:uppercase}
+  .brand .live{display:inline-flex;align-items:center;gap:7px;margin-top:11px;font-size:9px;letter-spacing:.24em;color:var(--mute)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);animation:pb 1.6s infinite}
+  @keyframes pb{50%{opacity:.35}}
+
+  /* telemetry panel */
+  .telem{top:30px;right:34px;width:270px;background:linear-gradient(180deg,rgba(8,14,26,.82),rgba(5,9,18,.82));
+    border:1px solid var(--line2);border-radius:3px;backdrop-filter:blur(7px)}
+  .telem .th{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .telem .th b{font-family:var(--disp);font-size:12px;letter-spacing:.2em;color:var(--amber)}
+  .telem .th span{font-size:8px;letter-spacing:.2em;color:var(--faint)}
+  .telem .name{padding:11px 14px 6px;font-size:13px;letter-spacing:.06em;color:var(--ink)}
+  .telem .norad{padding:0 14px 12px;font-size:9px;letter-spacing:.16em;color:var(--mute)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-top:1px solid var(--line)}
+  .cell{background:var(--void2);padding:11px 14px}
+  .cell.full{grid-column:1/3}
+  .cell k{display:block;font-size:8px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase;margin-bottom:5px}
+  .cell v{font-size:16px;letter-spacing:.02em;color:var(--phos);font-variant-numeric:tabular-nums}
+  .cell v small{font-size:9px;color:var(--phos-dim);letter-spacing:.1em}
+  .src{padding:10px 14px;font-size:8px;letter-spacing:.13em;color:var(--faint);border-top:1px solid var(--line);line-height:1.7}
+  .src b{color:var(--phos-dim);font-weight:600}
+
+  /* time console (bottom) */
+  .console{bottom:30px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;
+    background:linear-gradient(180deg,rgba(8,14,26,.85),rgba(5,9,18,.85));border:1px solid var(--line2);
+    border-radius:3px;padding:9px 11px;backdrop-filter:blur(7px)}
+  .clock{font-size:12px;letter-spacing:.08em;color:var(--ink);padding:0 12px 0 6px;min-width:186px;font-variant-numeric:tabular-nums}
+  .clock small{display:block;font-size:8px;letter-spacing:.2em;color:var(--faint)}
+  .btn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--mute);background:transparent;
+    border:1px solid var(--line);border-radius:2px;padding:8px 11px;cursor:pointer;transition:.13s}
+  .btn:hover{color:var(--phos);border-color:var(--phos-dim)}
+  .btn.on{color:var(--void);background:var(--phos);border-color:var(--phos);font-weight:600}
+  .sep{width:1px;height:22px;background:var(--line)}
+  .spd{display:flex;gap:4px}
+
+  /* iss label */
+  #issLabel{position:fixed;z-index:8;transform:translate(-50%,-140%);font-size:9px;letter-spacing:.22em;
+    color:var(--amber);text-shadow:0 0 8px rgba(0,0,0,.9);white-space:nowrap;pointer-events:none;display:none}
+  #issLabel::after{content:"";position:absolute;left:50%;top:130%;width:1px;height:12px;background:var(--amber);transform:translateX(-50%);opacity:.6}
+
+  /* loader */
+  #load{position:fixed;inset:0;z-index:30;background:var(--void);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;transition:opacity .7s}
+  #load .ring{width:46px;height:46px;border:2px solid var(--line2);border-top-color:var(--phos);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #load .lt{font-size:10px;letter-spacing:.3em;color:var(--phos-dim);text-transform:uppercase}
+
+  .layers{bottom:30px;left:34px;display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+  .lyr{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--mute);
+    background:linear-gradient(180deg,rgba(8,14,26,.82),rgba(5,9,18,.82));border:1px solid var(--line2);border-radius:3px;
+    padding:10px 13px;cursor:pointer;backdrop-filter:blur(7px);transition:.13s}
+  .lyr .sw{width:10px;height:10px;border-radius:2px;background:#9fe8ff;box-shadow:0 0 8px #9fe8ff;transition:.13s}
+  .lyr b{color:var(--phos);font-variant-numeric:tabular-nums}
+  .lyr:hover{border-color:var(--phos-dim)}
+  .lyr.off{color:var(--faint)} .lyr.off .sw{background:var(--faint);box-shadow:none}
+  .lyr-note{font-size:8px;letter-spacing:.16em;color:var(--faint);padding-left:2px;text-transform:uppercase}
+  .lyr-title{font-size:8px;letter-spacing:.24em;color:var(--faint);padding-left:2px;margin-bottom:1px}
+  .lyr .sw{transition:.13s}
+  .lyr.off .sw{background:var(--faint)!important;box-shadow:none!important}
+  .lyr:not(.off) .sw{box-shadow:0 0 8px currentColor}
+  .search{margin-top:5px;width:174px;background:var(--void2);border:1px solid var(--line2);border-radius:3px;color:var(--ink);
+    font-family:var(--mono);font-size:11px;letter-spacing:.05em;padding:9px 11px}
+  .search::placeholder{color:var(--faint)} .search:focus{outline:none;border-color:var(--phos-dim)}
+  .sel{bottom:30px;right:34px;width:250px;background:linear-gradient(180deg,rgba(8,14,26,.86),rgba(5,9,18,.86));
+    border:1px solid var(--line2);border-radius:3px;backdrop-filter:blur(7px);opacity:0;transform:translateY(8px);pointer-events:none;transition:.2s}
+  .sel.show{opacity:1;transform:none;pointer-events:auto}
+  .sel-h{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);gap:8px}
+  .sel-h b{font-size:12px;letter-spacing:.05em;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sel-x{background:transparent;border:1px solid var(--line2);color:var(--mute);border-radius:2px;width:22px;height:22px;cursor:pointer;flex:none}
+  .sel-x:hover{color:var(--phos);border-color:var(--phos-dim)}
+  .sel-id{padding:9px 14px 0;font-size:9px;letter-spacing:.14em;color:var(--phos-dim)}
+  .sel .grid{margin-top:10px}
+  @media (max-width:760px){
+    .layers{left:22px;bottom:auto;top:96px}
+    .telem{display:none} .brand{left:22px;top:22px} .brand h1{font-size:20px}
+    .console{flex-wrap:wrap;max-width:92vw;justify-content:center} .clock{min-width:0}
+  }
+
+/* ORBIT-VEIL-style layout */
+.objline{font-size:9px;letter-spacing:.18em;color:var(--phos-dim);margin-top:7px;text-transform:uppercase}
+.clockwrap{top:24px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;
+  background:linear-gradient(180deg,rgba(8,14,26,.72),rgba(5,9,18,.5));border:1px solid var(--line);border-radius:4px;padding:12px 24px;backdrop-filter:blur(6px)}
+.bigclock{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:.14em;color:var(--ink);font-variant-numeric:tabular-nums}
+.clockmeta{font-size:9px;letter-spacing:.2em;color:var(--mute);display:flex;gap:8px;align-items:center}
+.clockist{margin-top:5px;font-size:9px;letter-spacing:.16em;color:var(--faint);display:flex;gap:7px;align-items:baseline}
+.clockist b{font-size:14px;font-weight:500;color:var(--amber);letter-spacing:.1em;font-variant-numeric:tabular-nums}
+.livemk{display:inline-flex;align-items:center;gap:5px;color:var(--phos)} .livemk .dot{width:6px;height:6px}
+.clockwrap .spd{display:flex;gap:4px;margin-top:5px}
+.sbtn{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--mute);background:transparent;border:1px solid var(--line);border-radius:2px;padding:5px 8px;cursor:pointer;transition:.13s}
+.sbtn:hover{color:var(--phos);border-color:var(--phos-dim)}
+.sbtn.on{color:var(--void);background:var(--phos);border-color:var(--phos);font-weight:600}
+.searchwrap{top:30px;right:34px}
+.searchwrap .search{width:238px;background:linear-gradient(180deg,rgba(8,14,26,.8),rgba(5,9,18,.8));border:1px solid var(--line2);border-radius:4px;
+  color:var(--ink);font-family:var(--mono);font-size:12px;letter-spacing:.04em;padding:12px 15px;backdrop-filter:blur(7px)}
+.searchwrap .search::placeholder{color:var(--faint)} .searchwrap .search:focus{outline:none;border-color:var(--phos-dim)}
+.layers{left:34px;bottom:66px;width:244px;max-height:54vh;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,rgba(8,14,26,.85),rgba(5,9,18,.85));border:1px solid var(--line2);border-radius:4px;backdrop-filter:blur(7px);overflow:hidden}
+.layers .lyr-title{font-size:9px;letter-spacing:.26em;color:var(--faint);padding:13px 16px 10px;border-bottom:1px solid var(--line)}
+#lyrList{overflow-y:auto;padding:5px 0}
+#lyrList::-webkit-scrollbar{width:5px} #lyrList::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+.lrow{display:flex;align-items:center;gap:11px;width:100%;padding:8px 16px;background:transparent;border:0;cursor:pointer;font-family:var(--mono);text-align:left}
+.lrow:hover{background:rgba(120,180,200,.06)}
+.ldot{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 7px currentColor}
+.lname{flex:1;font-size:11.5px;letter-spacing:.02em;color:var(--ink)}
+.lcount{font-size:10px;color:var(--mute);font-variant-numeric:tabular-nums}
+.lrow.off{opacity:.38} .lrow.off .ldot{box-shadow:none;filter:grayscale(.85)}
+.credits{bottom:22px;left:34px;font-size:8.5px;letter-spacing:.13em;color:var(--faint);text-transform:uppercase}
+.fps{bottom:22px;right:34px;font-size:9px;letter-spacing:.1em;color:var(--phos-dim);font-variant-numeric:tabular-nums}
+@media (max-width:760px){ .clockwrap{padding:9px 14px} .bigclock{font-size:22px} .searchwrap{display:none} .layers{width:210px;bottom:50px} }
+
+/* ground station + passes */
+.obs{top:84px;right:34px;width:238px;background:linear-gradient(180deg,rgba(8,14,26,.85),rgba(5,9,18,.85));
+  border:1px solid var(--line2);border-radius:4px;backdrop-filter:blur(7px);overflow:hidden}
+.obs-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 13px;border-bottom:1px solid var(--line)}
+.obs-h b{font-size:9px;letter-spacing:.2em;color:var(--phos)}
+.obs-h span{font-size:9px;letter-spacing:.06em;color:var(--faint);font-variant-numeric:tabular-nums}
+.obs-in{display:flex;gap:5px;padding:10px 13px 8px}
+.obs-in input{flex:1;min-width:0;background:var(--void2);border:1px solid var(--line2);border-radius:3px;color:var(--ink);
+  font-family:var(--mono);font-size:11px;padding:7px 8px}
+.obs-in input:focus{outline:none;border-color:var(--phos-dim)}
+.obs-b{background:transparent;border:1px solid var(--line2);color:var(--mute);border-radius:3px;font-family:var(--mono);
+  font-size:9px;letter-spacing:.08em;padding:7px 9px;cursor:pointer;transition:.13s}
+.obs-b:hover{color:var(--phos);border-color:var(--phos-dim)}
+.obs-b.geo{padding:7px 8px;font-size:12px;line-height:1}
+.obs-t{font-size:8px;letter-spacing:.18em;color:var(--faint);padding:6px 13px 7px;border-top:1px solid var(--line)}
+#passList{max-height:172px;overflow-y:auto;padding:0 0 6px}
+#passList::-webkit-scrollbar{width:5px} #passList::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+.prow{display:flex;align-items:baseline;gap:8px;padding:7px 13px;border-bottom:1px solid rgba(120,180,200,.07)}
+.prow:last-child{border-bottom:0}
+.pt{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums;min-width:42px}
+.pel{font-size:10px;color:var(--phos);min-width:52px}
+.pdur{font-size:9px;color:var(--faint);margin-left:auto;text-align:right}
+.pnote{font-size:9.5px;color:var(--faint);padding:9px 13px;line-height:1.6}
+/* timeline scrubber */
+.scrub{-webkit-appearance:none;appearance:none;width:250px;height:3px;margin-top:11px;background:var(--line2);border-radius:2px;outline:none;cursor:pointer}
+.scrub::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--phos);box-shadow:0 0 9px var(--phos);cursor:grab}
+.scrub::-moz-range-thumb{width:11px;height:11px;border:0;border-radius:50%;background:var(--phos);box-shadow:0 0 9px var(--phos)}
+.scrub-l{display:flex;justify-content:space-between;width:250px;margin-top:5px;font-size:7.5px;letter-spacing:.14em;color:var(--faint)}
+#scrubNow{color:var(--phos-dim)}
+@media (max-width:760px){ .obs{display:none} .scrub,.scrub-l{width:190px} }
+
+/* tabs */
+.tabs{top:26px;left:50%;transform:translateX(-50%);display:flex;gap:0;z-index:14;
+  background:rgba(6,11,20,.7);border:1px solid var(--line2);border-radius:4px;overflow:hidden;backdrop-filter:blur(6px)}
+.tab{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:var(--mute);background:transparent;border:0;
+  padding:10px 20px;cursor:pointer;transition:.14s}
+.tab:hover{color:var(--phos)}
+.tab.on{background:var(--phos);color:var(--void);font-weight:600}
+body.mode-artemis .clockwrap{display:none}
+body.mode-artemis .layers,body.mode-artemis .obs,body.mode-artemis .searchwrap,
+body.mode-artemis .sel,body.mode-artemis .liveiss,body.mode-artemis #issLabel{display:none!important}
+body.mode-orbit .art-hud{display:none}
+.clockwrap{top:74px}
+/* ISS live */
+.liveiss{bottom:22px;left:50%;transform:translateX(-50%)}
+.livebtn{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:#ff5d6c;background:rgba(255,93,108,.1);
+  border:1px solid rgba(255,93,108,.45);border-radius:4px;padding:9px 16px;cursor:pointer;transition:.14s;backdrop-filter:blur(6px)}
+.livebtn:hover{background:rgba(255,93,108,.2);color:#fff}
+#issStream{position:fixed;right:34px;bottom:96px;width:392px;z-index:40;background:linear-gradient(180deg,rgba(8,14,26,.95),rgba(5,9,18,.95));
+  border:1px solid var(--line2);border-radius:5px;overflow:hidden;backdrop-filter:blur(9px);box-shadow:0 20px 50px -18px #000}
+.st-h{display:flex;align-items:center;gap:9px;padding:10px 13px;border-bottom:1px solid var(--line)}
+.st-h b{font-size:9.5px;letter-spacing:.2em;color:#ff5d6c}
+.st-src{font-size:8px;letter-spacing:.16em;color:var(--faint)}
+.st-x{margin-left:auto;background:transparent;border:1px solid var(--line2);color:var(--mute);border-radius:2px;width:22px;height:22px;cursor:pointer}
+.st-x:hover{color:var(--phos);border-color:var(--phos-dim)}
+.st-body{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+.st-body iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.st-fb{position:absolute;inset:0;display:block;text-decoration:none;overflow:hidden}
+.st-fb img{width:100%;height:100%;object-fit:cover;opacity:.42;filter:saturate(.85)}
+.st-play{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font-size:34px;color:#fff;
+  text-shadow:0 0 18px rgba(0,0,0,.9);pointer-events:none}
+.st-fbmsg{position:absolute;left:0;right:0;bottom:12px;text-align:center;font-family:var(--mono);font-size:9px;
+  letter-spacing:.1em;color:var(--mute);line-height:1.8;pointer-events:none}
+.st-fbmsg b{color:var(--phos)}
+.st-pick{display:flex;flex-wrap:wrap;gap:5px;padding:9px 11px;border-top:1px solid var(--line)}
+.stb{font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--mute);background:transparent;
+  border:1px solid var(--line2);border-radius:3px;padding:6px 8px;cursor:pointer;transition:.13s}
+.stb:hover{color:var(--phos);border-color:var(--phos-dim)}
+.stb.on{background:var(--phos);color:var(--void);border-color:var(--phos);font-weight:600}
+.stb.alt{color:var(--faint)}
+.st-f{padding:9px 13px;font-size:8.5px;line-height:1.65;color:var(--faint);border-top:1px solid var(--line)}
+.st-f a{color:var(--phos-dim);text-decoration:none} .st-f a:hover{color:var(--phos)}
+/* artemis hud */
+.art-hud{left:34px;bottom:22px;width:290px;background:linear-gradient(180deg,rgba(8,14,26,.88),rgba(5,9,18,.88));
+  border:1px solid var(--line2);border-radius:4px;backdrop-filter:blur(7px);overflow:hidden}
+.art-top{padding:13px 15px;border-bottom:1px solid var(--line)}
+.art-phase{font-size:10px;letter-spacing:.2em;color:var(--amber);margin-bottom:8px}
+.art-met span{font-family:var(--mono);font-size:23px;letter-spacing:.06em;color:var(--ink);font-variant-numeric:tabular-nums}
+.art-met small{display:block;font-size:7.5px;letter-spacing:.18em;color:var(--faint);margin-top:3px}
+.art-met small b{color:var(--phos);font-weight:500}
+.art-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.art-grid .cell{background:rgba(7,13,26,.7);padding:10px 14px}
+.art-events{max-height:132px;overflow-y:auto;border-top:1px solid var(--line)}
+.art-events::-webkit-scrollbar{width:5px} .art-events::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+.aev{display:flex;gap:9px;align-items:baseline;padding:7px 14px;border-bottom:1px solid rgba(120,180,200,.06);opacity:.45;transition:.2s}
+.aev:last-child{border-bottom:0}
+.aev.done{opacity:1}
+.aev.now{opacity:1;background:rgba(255,180,84,.1)}
+.aev i{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:none}
+.aev.done i{background:var(--phos)} .aev.now i{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.aev .at{font-size:9.5px;color:var(--mute);min-width:74px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:2px}
+.aev .at b{font-weight:400;font-size:7.5px;color:var(--faint);letter-spacing:.04em}
+.aev .an{font-size:10.5px;color:var(--ink);display:flex;flex-direction:column;gap:2px}
+.aev .an em{font-style:normal;font-size:8px;letter-spacing:.06em;color:var(--faint)}
+.art-ctl{padding:11px 14px;border-top:1px solid var(--line)}
+#artScrub{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:var(--line2);border-radius:2px;outline:none;cursor:pointer}
+#artScrub::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--amber);box-shadow:0 0 9px var(--amber)}
+#artScrub::-moz-range-thumb{width:11px;height:11px;border:0;border-radius:50%;background:var(--amber)}
+.art-btns{display:flex;gap:5px;margin-top:10px}
+.art-next{display:flex;align-items:baseline;gap:8px;padding:9px 14px;border-top:1px solid var(--line);background:rgba(255,180,84,.05)}
+.art-next span{font-size:9px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
+.art-next b{margin-left:auto;font-size:12px;color:var(--amber);font-variant-numeric:tabular-nums}
+.art-btns.cams{margin-top:6px}
+.art-facts{padding:9px 14px;font-size:8.5px;line-height:1.75;color:var(--mute);border-top:1px solid var(--line)}
+.art-facts b{color:var(--phos)}
+.artlbl{position:fixed;z-index:9;font-family:var(--mono);font-size:8.5px;letter-spacing:.2em;color:var(--phos);
+  text-shadow:0 0 8px #000,0 0 3px #000;pointer-events:none;transform:translate(-50%,-50%);display:none;white-space:nowrap}
+.artlbl.craft{color:var(--amber)} .artlbl.dim{color:var(--faint);font-size:7.5px}
+body.mode-orbit .artlbl{display:none!important}
+.art-note{padding:9px 14px;font-size:8px;line-height:1.7;color:var(--faint);border-top:1px solid var(--line)}
+@media (max-width:760px){ #issStream{width:calc(100vw - 28px);right:14px} .art-hud{width:250px} }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div class="frame"></div><div class="cnr tr"></div><div class="cnr bl"></div>
+
+<div class="hud tabs">
+  <button class="tab on" id="tabOrbit">ORBIT</button>
+  <button class="tab" id="tabArt">ARTEMIS II</button>
+</div>
+
+<div class="hud brand">
+  <h1>ORACLE</h1>
+  <div class="objline"><span id="objCount">—</span> OBJECTS TRACKED · TLE @ CELESTRAK</div>
+  <div class="live"><span class="dot"></span> LIVE · SGP4 PROPAGATION</div>
+  <div class="tag" id="tileNote"></div>
+</div>
+
+<div class="hud clockwrap">
+  <div class="bigclock" id="bigClk">--:--:--</div>
+  <div class="clockmeta"><span id="clkDate">—</span> UTC · <span class="livemk"><span class="dot"></span>LIVE</span></div>
+  <div class="clockist"><b id="clkIst">--:--:--</b> IST · <span id="clkIstDate">—</span></div>
+  <div class="spd" id="spd">
+    <button class="sbtn on" data-s="1">1×</button>
+    <button class="sbtn" data-s="10">10×</button>
+    <button class="sbtn" data-s="100">100×</button>
+    <button class="sbtn" data-s="1000">1000×</button>
+    <button class="sbtn" id="playBtn" title="Pause">❚❚</button>
+    <button class="sbtn" id="nowBtn" title="Now">NOW</button>
+  </div>
+  <input type="range" id="scrub" class="scrub" min="-720" max="720" value="0" step="1" title="Scrub time (±12 h)">
+  <div class="scrub-l"><span>−12 h</span><span id="scrubNow">live</span><span>+12 h</span></div>
+</div>
+
+<div class="hud searchwrap">
+  <input class="search" id="searchBox" placeholder="Search satellite or NORAD id…" autocomplete="off" spellcheck="false">
+</div>
+
+<div class="hud obs" id="obs">
+  <div class="obs-h"><b>GROUND STATION</b><span id="obsPos">not set</span></div>
+  <div class="obs-in">
+    <input id="obsLat" placeholder="lat" inputmode="decimal">
+    <input id="obsLon" placeholder="lon" inputmode="decimal">
+    <button class="obs-b" id="obsSet">SET</button>
+    <button class="obs-b geo" id="obsGeo" title="Use my location">◎</button>
+  </div>
+  <div class="obs-t">NEXT PASSES · ABOVE 10°</div>
+  <div id="passList"><div class="pnote">Set a location to see overhead passes.</div></div>
+</div>
+
+<div id="issLabel">ISS</div>
+
+<div class="hud layers" id="layers">
+  <div class="lyr-title">LAYERS</div>
+  <div id="lyrList"></div>
+</div>
+
+<div class="hud sel" id="sel">
+  <div class="sel-h"><b id="selName">—</b><button class="sel-x" onclick="clearSel()">✕</button></div>
+  <div class="sel-id" id="selId">—</div>
+  <div class="grid">
+    <div class="cell"><k>Altitude</k><v id="selAlt">—</v></div>
+    <div class="cell"><k>Velocity</k><v id="selVel">—</v></div>
+    <div class="cell"><k>Latitude</k><v id="selLat">—</v></div>
+    <div class="cell"><k>Longitude</k><v id="selLon">—</v></div>
+    <div class="cell full"><k>Orbital period</k><v id="selPer">—</v></div>
+  </div>
+</div>
+
+<div class="hud liveiss" id="liveBtnWrap"><button class="livebtn" id="issLiveBtn">▶ ISS LIVE</button></div>
+
+<div class="artlbl" id="lblEarth">EARTH</div>
+<div class="artlbl" id="lblMoon">MOON</div>
+<div class="artlbl craft" id="lblCraft">ORION</div>
+<div class="artlbl dim" id="lblCA">CLOSEST APPROACH</div>
+
+<div id="issStream" hidden>
+  <div class="st-h"><b>ISS · LIVE DOWNLINK</b>
+    <span class="st-src">NASA</span>
+    <button class="st-x" id="issClose">✕</button></div>
+  <div class="st-body"><iframe id="issFrame" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen frameborder="0"></iframe></div>
+  <div class="st-pick" id="issPick"></div>
+  <div class="st-f">A blue screen or still image means the station is between relay satellites or the crew is
+    asleep — it resumes on its own. YouTube only allows embedded playback when this page is served over
+    http(s); opened straight from disk it will offer the stream externally instead.
+    <a id="issOpen" href="https://www.youtube.com/@NASA/streams" target="_blank" rel="noopener">Open on YouTube ↗</a></div>
+</div>
+
+<div class="hud art-hud" id="artHud">
+  <div class="art-top">
+    <div class="art-phase" id="artPhase">TRANS-LUNAR INJECTION</div>
+    <div class="art-met"><span id="artMet">T+00d 00:00</span><small><b id="artUtc">—</b> · MISSION ELAPSED FROM TLI</small></div>
+  </div>
+  <div class="art-grid">
+    <div class="cell"><k>Earth range</k><v id="artDE">—</v></div>
+    <div class="cell"><k>Moon range</k><v id="artDM">—</v></div>
+    <div class="cell"><k>Geocentric speed</k><v id="artV">—</v></div>
+    <div class="cell"><k>Speed vs Moon</k><v id="artVM">—</v></div>
+    <div class="cell"><k>Lunar altitude</k><v id="artAM">—</v></div>
+    <div class="cell"><k>Mission day</k><v id="artDay">—</v></div>
+  </div>
+  <div class="art-next"><span id="artNextN">—</span><b id="artNextT">—</b></div>
+  <div class="art-events" id="artEvents"></div>
+  <div class="art-ctl">
+    <input type="range" id="artScrub" min="0" max="1000" value="0" step="1">
+    <div class="art-btns">
+      <button class="sbtn" id="artPlay">❚❚</button>
+      <button class="sbtn on" data-as="1">1×</button>
+      <button class="sbtn" data-as="4">4×</button>
+      <button class="sbtn" data-as="12">12×</button>
+      <button class="sbtn" id="artReset">RESTART</button>
+    </div>
+    <div class="art-btns cams">
+      <button class="sbtn on" data-ac="over">OVERVIEW</button>
+      <button class="sbtn" data-ac="follow">FOLLOW</button>
+      <button class="sbtn" data-ac="moon">MOON</button>
+    </div>
+  </div>
+  <div class="art-facts" id="artFacts">—</div>
+  <div class="art-note">Reconstruction of the flown mission: RK4 integration of the Earth–Moon three-body
+    problem, with the TLI solved so pericynthion and maximum range match NASA's reported values. Planar
+    two-body-plus-Moon model — real timings differ by a few hours.</div>
+</div>TLE CelesTrak · SGP4 satellite.js · Imagery Esri / NASA</div>
+<div class="hud fps" id="fps">— fps</div>
+
+<div id="load"><div class="ring"></div><div class="lt">Acquiring orbital elements…</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
+<script>
+"use strict";
+/* Live TLEs: CelesTrak blocks direct browser fetch (CORS). Deploy the tiny
+   celestrak-proxy worker and paste its URL here to get live data, e.g.
+   const PROXY = "https://celestrak-proxy.yourname.workers.dev/?url=";
+   Left empty, ORACLE runs on a built-in demo TLE (position is approximate). */
+const PROXY = "https://celestrak-proxy.jhrishi7.workers.dev/?url=";
+const R_KM = 6371;                 // earth radius (km) for altitude scaling
+const D2R = Math.PI/180;
+const oracle = window.__oracle = { ready:false, texLoaded:false, tleSource:null, iss:{} };
+
+/* lat/lon(deg)/radius -> scene xyz, aligned to an equirectangular texture on a
+   default three.js sphere (lon 0 -> +x, lon 90E -> -z, lat 90 -> +y). */
+function llv(lat, lon, r){
+  const la=lat*D2R, lo=lon*D2R, cl=Math.cos(la);
+  return new THREE.Vector3(r*cl*Math.cos(lo), r*Math.sin(la), -r*cl*Math.sin(lo));
+}
+/* approximate sub-solar point for the day/night terminator */
+function sunDirection(date){
+  const dayOfYear = (Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate())
+                    - Date.UTC(date.getUTCFullYear(),0,0)) / 86400000;
+  const dec = 23.44*Math.sin(2*Math.PI*(dayOfYear-80)/365.25);      // solar declination
+  const utcH = date.getUTCHours()+date.getUTCMinutes()/60+date.getUTCSeconds()/3600;
+  const lon = 180 - utcH/24*360;                                    // sub-solar longitude
+  return llv(dec, lon, 1).normalize();
+}
+
+/* ---------- scene ---------- */
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1, 2.5));
+renderer.setSize(innerWidth, innerHeight);
+if('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
+const maxAniso = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.01, 200);
+camera.position.set(0.2, 1.15, 3.1);
+
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.minDistance = 1.012; controls.maxDistance = 12; controls.enablePan = false;
+controls.zoomSpeed = 0.85;
+controls.rotateSpeed = 0.6; controls.autoRotate = true; controls.autoRotateSpeed = 0.32;
+let _idle=null;
+function resetIdle(){ controls.autoRotate=false; clearTimeout(_idle); _idle=setTimeout(()=>{ controls.autoRotate = camera.position.length() > 1.9; }, 4500); }
+canvas.addEventListener('pointerdown', resetIdle);
+canvas.addEventListener('wheel', resetIdle, {passive:true});
+
+/* stars */
+function softSprite(core, falloff){
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  const g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)');
+  g.addColorStop(core,'rgba(255,255,255,.9)');
+  g.addColorStop(falloff,'rgba(190,225,255,.30)');
+  g.addColorStop(1,'rgba(140,190,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c);
+}
+const twinkleUniforms = { uTime:{value:0}, uScale:{value:innerHeight*Math.min(devicePixelRatio||1,2.5)/2}, uSun:{value:new THREE.Vector3(1,0,0)} };
+/* procedural star-point: white-hot core + tight coloured halo + fine diffraction
+   spikes. Drawn in the shader, so it stays pixel-sharp at any size or zoom. */
+function twinkleMaterial(size, speed, depth, minTw, spike, core, eclipse){
+  return new THREE.ShaderMaterial({
+    uniforms:{ uSize:{value:size}, uSpeed:{value:speed}, uMin:{value:minTw},
+               uSpike:{value:spike===undefined?0.35:spike}, uCore:{value:core===undefined?26.0:core},
+               uEclipse:{value:eclipse?1.0:0.0}, uSun:twinkleUniforms.uSun,
+               uTime:twinkleUniforms.uTime, uScale:twinkleUniforms.uScale },
+    vertexShader:`attribute vec3 aCol; attribute float aPhase; attribute float aMag;
+      uniform float uTime,uSize,uScale,uSpeed,uMin,uEclipse; uniform vec3 uSun;
+      varying vec3 vCol; varying float vTw; varying float vMag; varying float vEcl;
+      void main(){ vCol=aCol; vMag=aMag;
+        vEcl=1.0;
+        if(uEclipse>0.5){                                 // cylindrical earth-shadow test
+          float along=dot(position,uSun);
+          if(along<0.0 && length(position-uSun*along)<1.0) vEcl=0.0;
+        }
+        float p=aPhase*6.2831853;
+        float t=sin(uTime*uSpeed+p)*0.5+0.5;
+        t=mix(t, sin(uTime*uSpeed*2.17+p*1.7)*0.5+0.5, 0.45);   // irregular, star-like
+        t=mix(t, sin(uTime*uSpeed*0.61+p*2.9)*0.5+0.5, 0.25);   // slow drift on top
+        vTw=uMin+(1.0-uMin)*t;
+        vec4 mv=modelViewMatrix*vec4(position,1.0);
+        gl_PointSize=clamp(uSize*aMag*uScale*(0.82+0.36*vTw)/max(0.001,-mv.z), 2.0, 30.0);
+        gl_Position=projectionMatrix*mv; }`,
+    fragmentShader:`uniform float uSpike,uCore;
+      varying vec3 vCol; varying float vTw; varying float vMag; varying float vEcl;
+      void main(){
+        vec2 q=(gl_PointCoord-0.5)*2.0;
+        float d2=dot(q,q); if(d2>1.0) discard;
+        float core=exp(-d2*uCore);                       // tiny brilliant centre
+        core+=smoothstep(0.16,0.0,d2)*0.55;              // hard pin-sharp nucleus
+        float halo=exp(-d2*7.5)*0.20;                    // tight bloom, minimal bleed
+        float sp=0.0;
+        if(uSpike>0.0){                                  // fine cross flare on bright ones
+          float ax=abs(q.x), ay=abs(q.y);
+          sp=(exp(-ax*44.0-ay*3.4)+exp(-ay*44.0-ax*3.4))*uSpike*smoothstep(1.3,2.6,vMag);
+        }
+        float inten=(core+halo+sp)*vTw;
+        if(inten<0.004) discard;
+        vec3 col=mix(vCol, vec3(1.0), core*0.86);        // white-hot core = shiny
+        col=mix(vec3(0.30,0.36,0.62)*vCol, col, vEcl);   // eclipsed = cold and dim
+        inten*=mix(0.30, 1.0, vEcl);
+        gl_FragColor=vec4(col*(0.85+0.55*vTw), inten);
+      }`,
+    transparent:true, depthWrite:depth, blending:THREE.AdditiveBlending
+  });
+}
+const starTex = softSprite(0.18, 0.5);
+(function stars(){
+  const n=7000, pos=new Float32Array(n*3), col=new Float32Array(n*3), ph=new Float32Array(n), mg=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const th=2*Math.PI*Math.random(), phi=Math.acos(2*Math.random()-1);
+    // cluster a little toward a galactic band for depth
+    const band=Math.random()<0.35 ? 0.55 : 1.0;
+    const rr=62+Math.random()*46;
+    const sp=Math.sin(phi)*band + (1-band)*0.25;
+    pos[i*3]=rr*sp*Math.cos(th); pos[i*3+1]=rr*Math.cos(phi)*band; pos[i*3+2]=rr*sp*Math.sin(th);
+    // stellar colours: mostly blue-white, some warm
+    const w=Math.random(); let r,g,b;
+    if(w<0.62){ r=0.80;g=0.88;b=1.00; } else if(w<0.85){ r=1.00;g=0.97;b=0.90; }
+    else if(w<0.95){ r=1.00;g=0.86;b=0.68; } else { r=0.72;g=0.83;b=1.00; }
+    const lum=0.55+Math.random()*0.45; col[i*3]=r*lum; col[i*3+1]=g*lum; col[i*3+2]=b*lum;
+    ph[i]=Math.random(); mg[i]=0.5+Math.pow(Math.random(),2.2)*2.4;     // few bright, many faint
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('aCol',new THREE.BufferAttribute(col,3));
+  g.setAttribute('aPhase',new THREE.BufferAttribute(ph,1));
+  g.setAttribute('aMag',new THREE.BufferAttribute(mg,1));
+  scene.add(new THREE.Points(g, twinkleMaterial(0.044, 1.35, false, 0.30, 0.55, 34.0)));
+})();
+
+/* earth with day/night shader */
+const sunUniform = { value: new THREE.Vector3(1,0,0) };
+const earthGeo = new THREE.SphereGeometry(1, 96, 96);
+const earthMat = new THREE.ShaderMaterial({
+  uniforms:{ dayTex:{value:null}, dayTex2:{value:null}, nightTex:{value:null}, nightTex2:{value:null}, specTex:{value:null},
+             blendDay:{value:0}, blendNight:{value:0}, hasTex:{value:0}, hasSpec:{value:0}, sunDir:sunUniform, camPos:{value:new THREE.Vector3()} },
+  vertexShader:`varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+    void main(){ vUv=uv; vN=normalize(mat3(modelMatrix)*normal);
+      vec4 wp=modelMatrix*vec4(position,1.0); vW=wp.xyz;
+      gl_Position=projectionMatrix*viewMatrix*wp; }`,
+  fragmentShader:`uniform sampler2D dayTex,dayTex2,nightTex,nightTex2,specTex; uniform float hasTex,hasSpec,blendDay,blendNight; uniform vec3 sunDir,camPos;
+    varying vec2 vUv; varying vec3 vN; varying vec3 vW;
+    void main(){
+      vec3 N=normalize(vN), L=normalize(sunDir), V=normalize(camPos-vW);
+      float I=dot(N,L), m=smoothstep(-0.12,0.30,I);
+      vec3 col;
+      if(hasTex>0.5){
+        vec3 day=mix(texture2D(dayTex,vUv).rgb, texture2D(dayTex2,vUv).rgb, blendDay);
+        vec3 night=mix(texture2D(nightTex,vUv).rgb, texture2D(nightTex2,vUv).rgb, blendNight);
+        night=night*vec3(1.7,1.45,1.05)*1.7;
+        col=mix(night, day*(0.58+0.72*max(I,0.0)), m);
+        if(hasSpec>0.5){ float water=texture2D(specTex,vUv).r;
+          vec3 H=normalize(L+V); float spec=pow(max(dot(N,H),0.0),55.0)*water*max(I,0.0);
+          col+=vec3(0.75,0.85,1.0)*spec*0.85; }
+      } else { col=mix(vec3(0.02,0.05,0.11), vec3(0.10,0.30,0.42), m); }
+      col=(col-0.5)*1.10+0.5;                                 // contrast
+      float lum=dot(col,vec3(0.299,0.587,0.114));
+      col=clamp(mix(vec3(lum),col,1.16),0.0,2.0);             // saturation
+      float term=smoothstep(-0.06,0.16,I);
+      col += vec3(0.11,0.06,0.02)*(1.0-abs(I))*term;
+      float fres=pow(1.0-max(dot(N,V),0.0),3.0);
+      col += vec3(0.26,0.46,0.92)*fres*(0.20+0.30*m);
+      gl_FragColor=vec4(col,1.0);
+    }`
+});
+const earth = new THREE.Mesh(earthGeo, earthMat);
+scene.add(earth);
+
+/* atmosphere glow */
+const atmo = new THREE.Mesh(new THREE.SphereGeometry(1.14, 64, 64), new THREE.ShaderMaterial({
+  uniforms:{ c:{value:new THREE.Color(0x3f8cff)} },
+  vertexShader:`varying vec3 vN; void main(){ vN=normalize(normalMatrix*normal);
+    gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`varying vec3 vN; uniform vec3 c;
+    void main(){ float i=pow(0.58 - dot(vN, vec3(0.,0.,1.)), 3.6); gl_FragColor=vec4(c,1.0)*i*1.15; }`,
+  side:THREE.BackSide, blending:THREE.AdditiveBlending, transparent:true
+}));
+scene.add(atmo);
+
+/* iss marker + orbit ring + ground track */
+const iss = new THREE.Mesh(new THREE.SphereGeometry(0.016, 16, 16),
+  new THREE.MeshBasicMaterial({color:0xffb454}));
+const issHalo = new THREE.Mesh(new THREE.SphereGeometry(0.032, 16, 16),
+  new THREE.MeshBasicMaterial({color:0xffb454, transparent:true, opacity:0.22}));
+iss.add(issHalo); scene.add(iss);
+
+function glowTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  const g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.28,'rgba(175,235,255,.85)'); g.addColorStop(1,'rgba(120,200,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c);
+}
+let shell=null, shellCount=0, worker=null, propBusy=false, shellOn=true;
+
+const orbitLine = new THREE.Line(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0xffb454, transparent:true, opacity:0.55}));
+const trackLine = new THREE.Line(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0x4de1d6, transparent:true, opacity:0.65}));
+scene.add(orbitLine); scene.add(trackLine);
+
+/* ---------- data ---------- */
+const FALLBACK = { name:'ISS (ZARYA)', id:25544,
+  l1:'1 25544U 98067A   24012.50000000  .00016717  00000-0  30150-3 0  9008',
+  l2:'2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.49814556 10000', epoch:null };
+
+async function getTLE(){
+  const target='https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE';
+  const tries=[];
+  if(PROXY) tries.push([PROXY+encodeURIComponent(target),'proxy']);
+  tries.push([target,'celestrak']);
+  for(const [u,src] of tries){
+    try{
+      const r = await fetch(u, {cache:'no-store'}); if(!r.ok) continue;
+      const lines = (await r.text()).trim().split('\n').map(s=>s.trim()).filter(Boolean);
+      if(lines.length>=3 && lines[1][0]==='1' && lines[2][0]==='2'){
+        oracle.tleSource=src; return { name:lines[0], id:25544, l1:lines[1], l2:lines[2] };
+      }
+    }catch(e){}
+  }
+  oracle.tleSource='fallback'; return FALLBACK;
+}
+
+let satrec=null, periodMin=92, lastSample=0;
+function initSat(tle){
+  satrec = satellite.twoline2satrec(tle.l1, tle.l2);
+  periodMin = (2*Math.PI)/satrec.no;
+  if(oracle.tleSource==='fallback'){ const live=document.querySelector('.brand .live');
+    if(live) live.innerHTML='<span class="dot" style="background:#ff6b6b;box-shadow:0 0 10px #ff6b6b"></span> DEMO TLE · POSITION APPROXIMATE'; }
+}
+
+/* build orbit ring + ground track from one period of propagation */
+function sampleTrack(base){
+  if(!satrec) return;
+  const N=200, per=periodMin*60*1000, op=[], gp=[];
+  for(let i=0;i<=N;i++){
+    const t=new Date(base.getTime() - per*0.35 + (i/N)*per);
+    const pv=satellite.propagate(satrec, t); if(!pv.position) continue;
+    const g=satellite.eciToGeodetic(pv.position, satellite.gstime(t));
+    const lat=satellite.degreesLat(g.latitude), lon=satellite.degreesLong(g.longitude), alt=g.height;
+    op.push(llv(lat, lon, 1+alt/R_KM));
+    gp.push(llv(lat, lon, 1.003));
+  }
+  orbitLine.geometry.setFromPoints(op);
+  trackLine.geometry.setFromPoints(gp);
+  oracle.orbitPts=op.length; oracle.trackPts=gp.length;
+}
+
+/* ---------- imagery tile layer (Esri World Imagery draped on the globe) ---------- */
+const tileGroup = new THREE.Group(); scene.add(tileGroup);
+const tiles = new Map();                     // "z/x/y" -> {mesh}
+const fading = [];                           // materials fading in
+const tileLoader = new THREE.TextureLoader(); tileLoader.setCrossOrigin('anonymous');
+let lastTileKey='', lastTileT=0, tilesActive=false;
+
+const T = z=>Math.pow(2,z);
+const lonTileX=(lon,z)=>Math.floor((lon+180)/360*T(z));
+const latTileY=(lat,z)=>{ const r=lat*Math.PI/180; return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*T(z)); };
+const tileYLat=(y,z)=>{ const n=Math.PI-2*Math.PI*y/T(z); return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))); };
+function zoomForDist(d){ const alt=Math.max(1e-4,d-1); return Math.max(2, Math.min(17, Math.round(3.5 - Math.log2(alt)))); }
+
+function buildTileGeo(z,x,y){
+  const SEG=10, m=T(z);
+  const lon0=x/m*360-180, lon1=(x+1)/m*360-180, lat1=tileYLat(y,z), lat0=tileYLat(y+1,z);
+  const pos=[], uv=[], idx=[];
+  for(let j=0;j<=SEG;j++) for(let i=0;i<=SEG;i++){
+    const lon=lon0+(lon1-lon0)*(i/SEG), lat=lat1+(lat0-lat1)*(j/SEG);
+    const p=llv(lat,lon,1.0009); pos.push(p.x,p.y,p.z); uv.push(i/SEG, j/SEG);
+  }
+  for(let j=0;j<SEG;j++) for(let i=0;i<SEG;i++){ const a=j*(SEG+1)+i,b=a+1,c=a+SEG+1,d=c+1; idx.push(a,c,b,b,c,d); }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx); return g;
+}
+function loadTile(z,x,y,key){
+  tiles.set(key,{mesh:null});
+  const url='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/'+z+'/'+y+'/'+x;
+  tileLoader.load(url, tex=>{
+    tex.flipY=false; if('encoding' in tex) tex.encoding=THREE.sRGBEncoding; tex.anisotropy=maxAniso;
+    tex.minFilter=THREE.LinearMipmapLinearFilter; tex.generateMipmaps=true;
+    const mat=new THREE.MeshBasicMaterial({map:tex, transparent:true, opacity:0, side:THREE.DoubleSide,
+      depthWrite:true, polygonOffset:true, polygonOffsetFactor:-1});
+    const mesh=new THREE.Mesh(buildTileGeo(z,x,y), mat); mesh.renderOrder=2;
+    const rec=tiles.get(key); if(rec===undefined){ mat.dispose(); mesh.geometry.dispose(); return; } // removed while loading
+    tileGroup.add(mesh); tiles.set(key,{mesh}); fading.push(mat);
+    document.getElementById('tileNote').textContent='IMAGERY · Esri';
+  }, undefined, ()=>{ if(tiles.get(key) && !tiles.get(key).mesh) tiles.delete(key); });
+}
+function clearTiles(){
+  for(const [k,t] of tiles){ if(t.mesh){ tileGroup.remove(t.mesh); t.mesh.geometry.dispose(); if(t.mesh.material.map)t.mesh.material.map.dispose(); t.mesh.material.dispose(); } }
+  tiles.clear(); lastTileKey=''; if(tilesActive){ tilesActive=false; document.getElementById('tileNote').textContent=''; }
+}
+function updateTiles(){
+  const d = camera.position.length();
+  atmo.visible = d > 1.28;
+  if(d > 2.3){ if(tiles.size) clearTiles(); return; }
+  tilesActive=true;
+  const dir = camera.position.clone().normalize();
+  const lat = Math.asin(THREE.MathUtils.clamp(dir.y,-1,1))*180/Math.PI;
+  const lon = Math.atan2(-dir.z, dir.x)*180/Math.PI;
+  const z = zoomForDist(d);
+  const cx = lonTileX(lon,z), cy = latTileY(lat,z), key=z+'/'+cx+'/'+cy;
+  if(key===lastTileKey) return; lastTileKey=key;
+  const R=2, m=T(z), need=new Set();
+  for(let dx=-R;dx<=R;dx++) for(let dy=-R;dy<=R;dy++){
+    let tx=cx+dx, ty=cy+dy; if(ty<0||ty>=m) continue; tx=((tx%m)+m)%m;
+    const k=z+'/'+tx+'/'+ty; need.add(k); if(!tiles.has(k)) loadTile(z,tx,ty,k);
+  }
+  for(const [k,t] of tiles){ if(!need.has(k)){ if(t.mesh){ tileGroup.remove(t.mesh); t.mesh.geometry.dispose(); if(t.mesh.material.map)t.mesh.material.map.dispose(); t.mesh.material.dispose(); } tiles.delete(k); } }
+  oracle.tileZ=z; oracle.tileCount=tiles.size;
+}
+
+/* ---------- constellation (Starlink shell) ---------- */
+const WORKER_SRC = `
+importScripts('https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js');
+let sats=[];
+onmessage=function(e){
+  const d=e.data;
+  if(d.type==='load'){
+    sats=d.tles.map(function(t){ try{ return satellite.twoline2satrec(t.l1,t.l2); }catch(_){ return null; } });
+    postMessage({type:'loaded', count:sats.filter(Boolean).length});
+  } else if(d.type==='propagate'){
+    var date=new Date(d.time), gmst=satellite.gstime(date), n=sats.length, pos=new Float32Array(n*3), ok=0;
+    for(var i=0;i<n;i++){ var s=sats[i]; if(!s){ continue; }
+      var pv=satellite.propagate(s,date); if(!pv.position){ continue; }
+      var g=satellite.eciToGeodetic(pv.position,gmst);
+      var lat=satellite.degreesLat(g.latitude), lon=satellite.degreesLong(g.longitude), alt=g.height;
+      var la=lat*Math.PI/180, lo=lon*Math.PI/180, cl=Math.cos(la), r=1+alt/6371;
+      pos[i*3]=r*cl*Math.cos(lo); pos[i*3+1]=r*Math.sin(la); pos[i*3+2]=-r*cl*Math.sin(lo); ok++;
+    }
+    postMessage({type:'positions', pos:pos.buffer, count:ok}, [pos.buffer]);
+  }
+};`;
+const STARNOTE=id=>{ const e=document.getElementById('starNote'); if(e)e.textContent=id; };
+function parseTLE(text){
+  const L=text.trim().split('\n').map(x=>x.trim()); const out=[];
+  for(let i=0;i+2<L.length;i+=3){ if(L[i+1] && L[i+1][0]==='1' && L[i+2] && L[i+2][0]==='2') out.push({name:L[i],l1:L[i+1],l2:L[i+2]}); }
+  return out;
+}
+async function getGroup(group){
+  const KEY='oracle_'+group+'_tle', TS='oracle_'+group+'_ts', MAX=2*3600*1000;
+  let cached=null, ts=0; try{ cached=localStorage.getItem(KEY); ts=+localStorage.getItem(TS)||0; }catch(_){}
+  if(cached && Date.now()-ts < MAX) return {text:cached, cached:true, ageMin:Math.round((Date.now()-ts)/60000)};
+  const target='https://celestrak.org/NORAD/elements/gp.php?GROUP='+group+'&FORMAT=TLE';
+  const url = PROXY ? PROXY+encodeURIComponent(target) : target;
+  try{
+    const r=await fetch(url,{cache:'no-store'}); const text=await r.text();
+    if(text && text.length>200 && /\n1 /.test(text)){
+      try{ localStorage.setItem(KEY,text); localStorage.setItem(TS,Date.now()); }catch(_){}
+      return {text, cached:false, ageMin:0};
+    }
+  }catch(e){}
+  if(cached) return {text:cached, cached:true, ageMin:Math.round((Date.now()-ts)/60000)};
+  throw new Error('no data');
+}
+const GROUPS=[
+  {id:'stations',           label:'Space Stations',       color:0xffb454, on:true, tles:null},
+  {id:'gps-ops',            label:'GPS',                  color:0x7dff9b, on:true, tles:null},
+  {id:'glo-ops',            label:'GLONASS',              color:0x5fe6bf, on:true, tles:null},
+  {id:'galileo',            label:'Galileo',              color:0x54cfe0, on:true, tles:null},
+  {id:'weather',            label:'Weather',              color:0xff8fd0, on:true, tles:null},
+  {id:'oneweb',             label:'OneWeb',               color:0xc9a0ff, on:true, tles:null},
+  {id:'starlink',           label:'Starlink',             color:0x8fbfff, on:true, tles:null},
+  {id:'visual',             label:'Brightest',            color:0xffffff, on:true, tles:null},
+  {id:'cosmos-2251-debris', label:'Debris · Cosmos-2251', color:0xff8a5c, on:true, tles:null},
+  {id:'iridium-33-debris',  label:'Debris · Iridium-33',  color:0xffc061, on:true, tles:null},
+  {id:'fengyun-1c-debris',  label:'Debris · Fengyun-1C',  color:0xff5d6c, on:true, tles:null},
+  {id:'active',             label:'Other Active',         color:0x93a7bb, on:true, tles:null},
+];
+let shellTLE=[];
+function initWorker(){
+  worker=new Worker(URL.createObjectURL(new Blob([WORKER_SRC],{type:'text/javascript'})));
+  worker.onmessage=(e)=>{ const m=e.data;
+    if(m.type==='positions' && shell){ const arr=new Float32Array(m.pos); const a=shell.geometry.attributes.position;
+      if(arr.length===a.array.length){ a.array.set(arr); a.needsUpdate=true; } propBusy=false; oracle.shellVisible=m.count; }
+  };
+}
+async function ensureGroup(g){ if(g.tles) return;
+  try{ const d=await getGroup(g.id); g.tles=parseTLE(d.text); }catch(e){ g.tles=[]; } renderLayers(); }
+function buildShell(){
+  const seen=new Set(); shellTLE=[]; const cols=[]; GROUPS.forEach(g=>g._u=0);
+  for(const g of GROUPS){ if(!g.on||!g.tles) continue; const c=new THREE.Color(g.color);
+    for(const t of g.tles){ const id=t.l1.slice(2,7); if(seen.has(id)) continue; seen.add(id);
+      g._u++; shellTLE.push(t); cols.push(c.r,c.g,c.b); } }
+  shellCount=shellTLE.length;
+  if(shell){ scene.remove(shell); shell.geometry.dispose(); shell=null; }
+  if(shellCount){
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(shellCount*3),3));
+    geo.setAttribute('aCol', new THREE.Float32BufferAttribute(cols,3));
+    const ph=new Float32Array(shellCount), mg=new Float32Array(shellCount);
+    for(let i=0;i<shellCount;i++){ ph[i]=Math.random(); mg[i]=0.85+Math.random()*0.5; }
+    geo.setAttribute('aPhase', new THREE.BufferAttribute(ph,1));
+    geo.setAttribute('aMag',   new THREE.BufferAttribute(mg,1));
+    shell=new THREE.Points(geo, twinkleMaterial(0.0092, 3.4, false, 0.38, 0.30, 44.0, true));
+    scene.add(shell);
+    if(!worker) initWorker(); propBusy=false; worker.postMessage({type:'load', tles:shellTLE});
+  }
+  oracle.shellCount=shellCount;
+  const oc=document.getElementById('objCount'); if(oc) oc.textContent=shellCount.toLocaleString();
+  renderLayers();
+}
+async function loadAll(){
+  await Promise.all(GROUPS.map(g=> g.on ? ensureGroup(g) : Promise.resolve()));
+  buildShell();
+}
+function renderLayers(){
+  const list=document.getElementById('lyrList'); if(!list) return;
+  list.innerHTML = GROUPS.map(g=>{ const col='#'+new THREE.Color(g.color).getHexString();
+    let cnt; if(!g.tles) cnt=(g.on?'…':'—'); else if(g.on && g._u!=null && shellCount) cnt=g._u.toLocaleString(); else cnt=g.tles.length.toLocaleString();
+    return `<button class="lrow ${g.on?'':'off'}" onclick="toggleGroup('${g.id}')"><span class="ldot" style="background:${col};color:${col}"></span><span class="lname">${g.label}</span><span class="lcount">${cnt}</span></button>`;
+  }).join('');
+}
+async function toggleGroup(id){ const g=GROUPS.find(x=>x.id===id); if(!g) return; g.on=!g.on; renderLayers();
+  if(g.on && !g.tles) await ensureGroup(g); buildShell(); }
+
+/* ---- selection + search ---- */
+const raycaster=new THREE.Raycaster(); raycaster.params.Points.threshold=0.02;
+let selSat=null, selPeriod=92, lastSelSample=0;
+const selMarker=new THREE.Mesh(new THREE.SphereGeometry(0.02,16,16),
+  new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.95}));
+selMarker.visible=false; scene.add(selMarker);
+const selRing=new THREE.Mesh(new THREE.RingGeometry(0.028,0.036,28),
+  new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.DoubleSide, transparent:true, opacity:0.6}));
+selMarker.add(selRing);
+/* ground-coverage footprint of the selected satellite */
+const fpRing=new THREE.Line(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0x4de1d6, transparent:true, opacity:0.85}));
+const fpDisc=new THREE.Mesh(new THREE.BufferGeometry(),
+  new THREE.MeshBasicMaterial({color:0x4de1d6, transparent:true, opacity:0.11, side:THREE.DoubleSide, depthWrite:false}));
+fpRing.visible=fpDisc.visible=false; scene.add(fpRing); scene.add(fpDisc);
+function updateFootprint(lat,lon,altKm){
+  const lam=Math.acos(R_KM/(R_KM+Math.max(altKm,1)));      // horizon half-angle
+  const c=llv(lat,lon,1).normalize();
+  let u=new THREE.Vector3(0,1,0); if(Math.abs(c.dot(u))>0.92) u.set(1,0,0);
+  const e1=new THREE.Vector3().crossVectors(c,u).normalize();
+  const e2=new THREE.Vector3().crossVectors(c,e1).normalize();
+  const N=96, ring=[], fan=[];
+  const cl=Math.cos(lam), sl=Math.sin(lam);
+  for(let i=0;i<=N;i++){ const th=i/N*Math.PI*2;
+    const p=c.clone().multiplyScalar(cl).add(e1.clone().multiplyScalar(Math.cos(th)*sl)).add(e2.clone().multiplyScalar(Math.sin(th)*sl));
+    ring.push(p.clone().multiplyScalar(1.006)); fan.push(p.clone().multiplyScalar(1.003)); }
+  fpRing.geometry.setFromPoints(ring);
+  const pos=[], ctr=c.clone().multiplyScalar(1.003);
+  for(let i=0;i<N;i++){ pos.push(ctr.x,ctr.y,ctr.z, fan[i].x,fan[i].y,fan[i].z, fan[i+1].x,fan[i+1].y,fan[i+1].z); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  fpDisc.geometry.dispose(); fpDisc.geometry=g;
+  fpRing.visible=fpDisc.visible=true;
+  oracle.footprintRadiusKm=Math.round(lam*R_KM);
+}
+
+/* observer / ground station */
+let OBS=null, passes=[], passT=0;
+const obsMarker=new THREE.Mesh(new THREE.SphereGeometry(0.012,12,12), new THREE.MeshBasicMaterial({color:0xffb454}));
+const obsRing=new THREE.Mesh(new THREE.RingGeometry(0.018,0.024,24), new THREE.MeshBasicMaterial({color:0xffb454,side:THREE.DoubleSide,transparent:true,opacity:0.75}));
+obsMarker.add(obsRing); obsMarker.visible=false; scene.add(obsMarker);
+function setObserver(lat,lon){
+  OBS={lat,lon,gd:{longitude:lon*D2R, latitude:lat*D2R, height:0.05}};
+  obsMarker.position.copy(llv(lat,lon,1.012)); obsMarker.visible=true;
+  document.getElementById('obsPos').textContent=lat.toFixed(2)+'°, '+lon.toFixed(2)+'°';
+  try{ localStorage.setItem('oracle_obs', JSON.stringify({lat,lon})); }catch(_){}
+  computePasses();
+}
+function computePasses(){
+  const box=document.getElementById('passList'); if(!box) return;
+  if(!OBS){ box.innerHTML='<div class="pnote">Set a location to see overhead passes.</div>'; return; }
+  if(!selSat){ box.innerHTML='<div class="pnote">Select a satellite to predict its passes over you.</div>'; return; }
+  const out=[], start=simTime.getTime(), STEP=20000, HOURS=24;
+  let cur=null;
+  for(let t=0;t<HOURS*3600000;t+=STEP){
+    const d=new Date(start+t); const pv=satellite.propagate(selSat,d);
+    if(!pv.position) continue;
+    const ecf=satellite.eciToEcf(pv.position, satellite.gstime(d));
+    const la=satellite.ecfToLookAngles(OBS.gd, ecf);
+    const el=la.elevation*180/Math.PI;
+    if(el>10){ if(!cur) cur={start:d, max:el, maxAz:la.azimuth*180/Math.PI, end:d};
+               else { cur.end=d; if(el>cur.max){ cur.max=el; cur.maxAz=la.azimuth*180/Math.PI; } } }
+    else if(cur){ out.push(cur); cur=null; if(out.length>=6) break; }
+  }
+  if(cur) out.push(cur);
+  passes=out;
+  box.innerHTML = out.length ? out.map(p=>{
+    const mins=Math.max(1,Math.round((p.end-p.start)/60000));
+    const inMin=Math.round((p.start-simTime.getTime())/60000);
+    const when = inMin<60 ? ('in '+inMin+' min') : ('in '+(inMin/60).toFixed(1)+' h');
+    const dir=['N','NE','E','SE','S','SW','W','NW'][Math.round(((p.maxAz%360)+360)%360/45)%8];
+    return `<div class="prow"><span class="pt">${p.start.toISOString().slice(11,16)}</span>
+      <span class="pel">${Math.round(p.max)}° ${dir}</span><span class="pdur">${mins} min · ${when}</span></div>`;
+  }).join('') : '<div class="pnote">No passes above 10° in the next 24 h.</div>';
+}
+
+const selOrbit=new THREE.Line(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0xffffff, transparent:true, opacity:0.5}));
+scene.add(selOrbit);
+
+let downXY=null;
+canvas.addEventListener('pointerdown', e=>{ downXY=[e.clientX,e.clientY]; });
+canvas.addEventListener('pointerup', e=>{
+  if(!downXY) return; const moved=Math.hypot(e.clientX-downXY[0], e.clientY-downXY[1]); downXY=null;
+  if(moved>6 || !shell || !shell.visible || !shellCount) return;
+  // screen-space pick: nearest satellite (front-most) within a pixel radius of the click
+  const rect=canvas.getBoundingClientRect();
+  const px=e.clientX-rect.left, py=e.clientY-rect.top;
+  const pos=shell.geometry.attributes.position.array;
+  const v=new THREE.Vector3(); let best=-1, bestCamD=Infinity;
+  for(let i=0;i<shellCount;i++){
+    v.set(pos[i*3], pos[i*3+1], pos[i*3+2]);
+    const camD=v.distanceTo(camera.position);
+    v.project(camera); if(v.z>1) continue;                 // behind camera
+    const sx=(v.x*0.5+0.5)*rect.width, sy=(-v.y*0.5+0.5)*rect.height;
+    if(Math.hypot(sx-px, sy-py) < 15 && camD < bestCamD){ bestCamD=camD; best=i; }
+  }
+  if(best>=0) selectSat(best);
+});
+canvas.style.cursor='crosshair';
+function selectSat(i){
+  const t=shellTLE[i]; if(!t) return;
+  selSat=satellite.twoline2satrec(t.l1,t.l2); selPeriod=(2*Math.PI)/selSat.no;
+  document.getElementById('selName').textContent=t.name;
+  document.getElementById('selId').textContent='NORAD '+t.l1.slice(2,7).trim();
+  document.getElementById('selPer').textContent=selPeriod.toFixed(1)+' min';
+  sampleSelOrbit(); selMarker.visible=true; if(typeof resetIdle==='function') resetIdle(); computePasses();
+  document.getElementById('sel').classList.add('show');
+}
+function clearSel(){ selSat=null; selMarker.visible=false; selOrbit.geometry.setFromPoints([]);
+  fpRing.visible=fpDisc.visible=false; computePasses();
+  document.getElementById('sel').classList.remove('show'); }
+function sampleSelOrbit(){ if(!selSat) return; const N=170, per=selPeriod*60*1000, pts=[];
+  for(let i=0;i<=N;i++){ const t=new Date(simTime.getTime()-per*0.3+(i/N)*per);
+    const pv=satellite.propagate(selSat,t); if(!pv.position) continue;
+    const g=satellite.eciToGeodetic(pv.position, satellite.gstime(t));
+    pts.push(llv(satellite.degreesLat(g.latitude), satellite.degreesLong(g.longitude), 1+g.height/R_KM)); }
+  selOrbit.geometry.setFromPoints(pts); }
+function flyTo(pos){ const dist=Math.max(1.7, camera.position.length()); camera.position.copy(pos.clone().normalize().multiplyScalar(dist)); controls.update(); }
+addEventListener('keydown', e=>{});
+/* observer controls */
+document.getElementById('obsSet').onclick=()=>{
+  const la=parseFloat(document.getElementById('obsLat').value), lo=parseFloat(document.getElementById('obsLon').value);
+  if(isNaN(la)||isNaN(lo)||Math.abs(la)>90||Math.abs(lo)>180){ document.getElementById('obsPos').textContent='invalid'; return; }
+  setObserver(la,lo);
+};
+document.getElementById('obsGeo').onclick=()=>{
+  if(!navigator.geolocation){ document.getElementById('obsPos').textContent='unavailable'; return; }
+  document.getElementById('obsPos').textContent='locating…';
+  navigator.geolocation.getCurrentPosition(
+    p=>{ document.getElementById('obsLat').value=p.coords.latitude.toFixed(3);
+         document.getElementById('obsLon').value=p.coords.longitude.toFixed(3);
+         setObserver(p.coords.latitude, p.coords.longitude); },
+    ()=>{ document.getElementById('obsPos').textContent='denied'; });
+};
+document.getElementById('obsLon').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('obsSet').click(); });
+document.getElementById('obsLat').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('obsSet').click(); });
+
+/* timeline scrubber (±12 h from real now) */
+const scrub=document.getElementById('scrub');
+let scrubbing=false;
+scrub.addEventListener('input', ()=>{
+  scrubbing=true; const m=+scrub.value;
+  simTime=new Date(Date.now()+m*60000);
+  document.getElementById('scrubNow').textContent = m===0 ? 'live' : (m>0?'+':'−')+Math.floor(Math.abs(m)/60)+'h '+(Math.abs(m)%60)+'m';
+  sampleTrack(simTime); if(selSat){ sampleSelOrbit(); computePasses(); }
+});
+scrub.addEventListener('change', ()=>{ scrubbing=false; });
+
+document.getElementById('searchBox').addEventListener('keydown', e=>{
+  if(e.key!=='Enter') return; const q=e.target.value.trim().toLowerCase(); if(!q) return;
+  let i=shellTLE.findIndex(t=> t.name.toLowerCase().includes(q) || t.l1.slice(2,7).trim()===q.replace(/^0+/,''));
+  if(i>=0){ selectSat(i); flyTo(selMarker.position); e.target.blur(); }
+  else { e.target.value=''; e.target.placeholder='not found — try another'; }
+});
+
+/* ---------- time control ---------- */
+let simTime = new Date(), speed = 1, paused = false;
+let fpsFrames=0, fpsLast=performance.now();
+document.getElementById('playBtn').onclick = e=>{ paused=!paused; e.target.textContent = paused?'▶':'❚❚'; };
+document.getElementById('nowBtn').onclick = ()=>{ simTime = new Date(); sampleTrack(simTime);
+  const sc=document.getElementById('scrub'); if(sc){ sc.value=0; document.getElementById('scrubNow').textContent='live'; }
+  if(selSat){ sampleSelOrbit(); computePasses(); } };
+document.getElementById('spd').addEventListener('click', e=>{
+  const b=e.target.closest('[data-s]'); if(!b) return;
+  speed=+b.dataset.s; [...document.querySelectorAll('#spd [data-s]')].forEach(x=>x.classList.toggle('on',x===b));
+});
+
+
+/* ═════════ STAGE 5 · ARTEMIS II — Earth–Moon free return ═════════
+   The path below is genuinely integrated: RK4 on the Earth+Moon three-body
+   problem, with a TLI solution solved offline to give a free return whose
+   lunar flyby altitude and re-entry perigee match the published profile. */
+const ART = { muE:398600.4418, muM:4902.800066, aM:398500, TM:27.321661*86400,
+              RE:6371, RM:1737.4, r0:6556, vTLI:10.9455, phase0:2.125, dt:30,
+              tliEpoch: Date.UTC(2026,3,2,23,49,0) };      // TLI burn, 2 Apr 2026 23:49 UTC
+ART.w = 2*Math.PI/ART.TM;
+const AS = 1/ART.RE;                       // scene units: 1 = one Earth radius
+function artMoon(t){ const a=ART.w*t+ART.phase0; return {x:ART.aM*Math.cos(a), y:ART.aM*Math.sin(a)}; }
+function artAcc(x,y,t){
+  const m=artMoon(t), rE=Math.hypot(x,y)||1e-9, dx=m.x-x, dy=m.y-y, rM=Math.hypot(dx,dy)||1e-9;
+  return [ -ART.muE*x/(rE*rE*rE) + ART.muM*dx/(rM*rM*rM),
+           -ART.muE*y/(rE*rE*rE) + ART.muM*dy/(rM*rM*rM) ];
+}
+const artPath={x:[],y:[],vx:[],vy:[],t:[]};
+let artFlybyI=0, artEndI=0, artDur=0;
+function artIntegrate(){
+  let x=ART.r0, y=0, vx=0, vy=ART.vTLI, t=0;
+  const dt=ART.dt, maxT=11*86400;
+  let minM=1e9, flyI=0, sawFlyby=false, i=0;
+  while(t<maxT){
+    artPath.x.push(x); artPath.y.push(y); artPath.vx.push(vx); artPath.vy.push(vy); artPath.t.push(t);
+    const m=artMoon(t), rM=Math.hypot(m.x-x,m.y-y), rE=Math.hypot(x,y);
+    if(rM<minM){ minM=rM; flyI=i; }
+    if(!sawFlyby && t>3*86400 && rM>minM*1.6) sawFlyby=true;
+    if(sawFlyby && rE<ART.RE+130){ break; }            // atmospheric interface
+    const [a1x,a1y]=artAcc(x,y,t);
+    const k1x=vx,k1y=vy;
+    const [a2x,a2y]=artAcc(x+0.5*dt*k1x, y+0.5*dt*k1y, t+0.5*dt);
+    const k2x=vx+0.5*dt*a1x, k2y=vy+0.5*dt*a1y;
+    const [a3x,a3y]=artAcc(x+0.5*dt*k2x, y+0.5*dt*k2y, t+0.5*dt);
+    const k3x=vx+0.5*dt*a2x, k3y=vy+0.5*dt*a2y;
+    const [a4x,a4y]=artAcc(x+dt*k3x, y+dt*k3y, t+dt);
+    const k4x=vx+dt*a3x, k4y=vy+dt*a3y;
+    x+=dt/6*(k1x+2*k2x+2*k3x+k4x); y+=dt/6*(k1y+2*k2y+2*k3y+k4y);
+    vx+=dt/6*(a1x+2*a2x+2*a3x+a4x); vy+=dt/6*(a1y+2*a2y+2*a3y+a4y);
+    t+=dt; i++;
+  }
+  artFlybyI=flyI; artEndI=artPath.t.length-1; artDur=artPath.t[artEndI];
+  oracle.artFlybyAltKm=Math.round(minM-ART.RM);
+  oracle.artDurationDays=+(artDur/86400).toFixed(2);
+  oracle.artPoints=artPath.t.length;
+}
+function artStateAt(sec){
+  const f=Math.max(0, Math.min(artEndI, sec/ART.dt));
+  const i=Math.floor(f), j=Math.min(artEndI,i+1), a=f-i;
+  const lerp=(p,q)=>p+(q-p)*a;
+  return { x:lerp(artPath.x[i],artPath.x[j]), y:lerp(artPath.y[i],artPath.y[j]),
+           vx:lerp(artPath.vx[i],artPath.vx[j]), vy:lerp(artPath.vy[i],artPath.vy[j]) };
+}
+
+/* ---- artemis scene ---- */
+const sceneA=new THREE.Scene();
+const cameraA=new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.05, 4000);
+cameraA.position.set(16, 46, 92);
+const controlsA=new THREE.OrbitControls(cameraA, canvas);
+controlsA.enableDamping=true; controlsA.dampingFactor=0.06;
+controlsA.minDistance=3; controlsA.maxDistance=400; controlsA.enablePan=true;
+controlsA.target.set(28,0,-14); controlsA.enabled=false; controlsA.update();
+
+(function artStars(){
+  const g=new THREE.BufferGeometry(), n=3600, p=new Float32Array(n*3), c=new Float32Array(n*3), ph=new Float32Array(n), mg=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const th=2*Math.PI*Math.random(), z=2*Math.random()-1, r=900+Math.random()*500, sp=Math.sqrt(1-z*z);
+    p[i*3]=r*sp*Math.cos(th); p[i*3+1]=r*z; p[i*3+2]=r*sp*Math.sin(th);
+    const warm=Math.random()<0.24, t=Math.random();
+    c[i*3]=warm?1.0:0.72+0.28*t; c[i*3+1]=warm?0.86-0.2*t:0.82+0.18*t; c[i*3+2]=warm?0.66-0.25*t:1.0;
+    ph[i]=Math.random(); mg[i]=Math.random()<0.05?1.7+Math.random()*1.5:0.5+Math.random()*0.85;
+  }
+  g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  g.setAttribute('aCol',new THREE.BufferAttribute(c,3));
+  g.setAttribute('aPhase',new THREE.BufferAttribute(ph,1));
+  g.setAttribute('aMag',new THREE.BufferAttribute(mg,1));
+  sceneA.add(new THREE.Points(g, twinkleMaterial(4.2, 1.3, false, 0.30, 0.55, 24.0)));
+})();
+
+const artEarth=new THREE.Mesh(earthGeo, earthMat); sceneA.add(artEarth);
+const artAtmo=new THREE.Mesh(new THREE.SphereGeometry(1.15,48,48), new THREE.ShaderMaterial({
+  uniforms:{c:{value:new THREE.Color(0x3f8cff)}},
+  vertexShader:`varying vec3 vN; void main(){ vN=normalize(normalMatrix*normal);
+    gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`varying vec3 vN; uniform vec3 c;
+    void main(){ float i=pow(0.62-dot(vN,vec3(0.,0.,1.)),3.0); gl_FragColor=vec4(c,1.0)*i*1.3; }`,
+  side:THREE.BackSide, blending:THREE.AdditiveBlending, transparent:true }));
+sceneA.add(artAtmo);
+
+const moonMesh=new THREE.Mesh(new THREE.SphereGeometry(ART.RM*AS, 48, 48),
+  new THREE.MeshLambertMaterial({color:0xbfbfbf}));
+sceneA.add(moonMesh);
+sceneA.add(new THREE.AmbientLight(0x223344, 1.0));
+const artSun=new THREE.DirectionalLight(0xfff2e0, 1.5); artSun.position.set(1,0.2,0.4); sceneA.add(artSun);
+new THREE.TextureLoader().load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/moon_1024.jpg',
+  t=>{ if('encoding' in t) t.encoding=THREE.sRGBEncoding; t.anisotropy=maxAniso;
+       moonMesh.material.map=t; moonMesh.material.color.set(0xffffff); moonMesh.material.needsUpdate=true; oracle.moonTex=true; });
+
+// moon orbit ring
+(function(){ const pts=[]; for(let i=0;i<=256;i++){ const a=i/256*Math.PI*2;
+    pts.push(new THREE.Vector3(ART.aM*AS*Math.cos(a), 0, -ART.aM*AS*Math.sin(a))); }
+  const g=new THREE.BufferGeometry().setFromPoints(pts);
+  sceneA.add(new THREE.LineLoop(g, new THREE.LineBasicMaterial({color:0x4de1d6, transparent:true, opacity:0.16})));
+})();
+
+// distance reference rings around Earth (100/200/300 ×10³ km)
+[100000,200000,300000].forEach(r=>{ const pts=[];
+  for(let i=0;i<=180;i++){ const a=i/180*Math.PI*2; pts.push(new THREE.Vector3(r*AS*Math.cos(a),0,-r*AS*Math.sin(a))); }
+  const ln=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0x4de1d6, transparent:true, opacity:0.07}));
+  sceneA.add(ln); });
+// lunar sphere of influence
+const soiMesh=new THREE.Mesh(new THREE.SphereGeometry(66183*AS, 28, 20),
+  new THREE.MeshBasicMaterial({color:0x8fbfff, wireframe:true, transparent:true, opacity:0.07}));
+sceneA.add(soiMesh);
+const caMark=new THREE.Mesh(new THREE.SphereGeometry(0.10,10,10),
+  new THREE.MeshBasicMaterial({color:0x4de1d6})); caMark.visible=false; sceneA.add(caMark);
+
+const artFull=new THREE.Line(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0x4de1d6, transparent:true, opacity:0.30}));
+const artFlown=new THREE.Line(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0xffb454, transparent:true, opacity:0.95}));
+sceneA.add(artFull); sceneA.add(artFlown);
+const artCraft=new THREE.Mesh(new THREE.SphereGeometry(0.16,14,14), new THREE.MeshBasicMaterial({color:0xffffff}));
+const artGlow=new THREE.Mesh(new THREE.SphereGeometry(0.34,14,14), new THREE.MeshBasicMaterial({color:0xffb454,transparent:true,opacity:0.3}));
+artCraft.add(artGlow); sceneA.add(artCraft);
+const P3=(x,y)=>new THREE.Vector3(x*AS, 0, -y*AS);
+
+function artBuildLines(){
+  const pts=[]; for(let i=0;i<=artEndI;i+=4) pts.push(P3(artPath.x[i],artPath.y[i]));
+  artFull.geometry.setFromPoints(pts);
+  caMark.position.copy(P3(artPath.x[artFlybyI], artPath.y[artFlybyI])); caMark.visible=true;
+}
+let ART_EV=[];
+const R_SOI=66183;                                  // lunar sphere of influence (km)
+function artBuildEvents(){
+  const tf=artPath.t[artFlybyI];
+  let soiIn=null, soiOut=null, apoI=0, apoR=0;
+  for(let i=0;i<=artEndI;i++){
+    const m=artMoon(artPath.t[i]);
+    const rM=Math.hypot(m.x-artPath.x[i], m.y-artPath.y[i]);
+    const rE=Math.hypot(artPath.x[i], artPath.y[i]);
+    if(soiIn===null && rM<R_SOI) soiIn=artPath.t[i];
+    if(soiIn!==null && soiOut===null && artPath.t[i]>tf && rM>R_SOI) soiOut=artPath.t[i];
+    if(rE>apoR){ apoR=rE; apoI=i; }
+  }
+  const flyAlt=oracle.artFlybyAltKm;
+  ART_EV=[
+    {t:0,            n:'Trans-lunar injection', d:'2 Apr 23:49Z · '+ART.vTLI.toFixed(3)+' km/s'},
+    {t:tf*0.22,      n:'Outbound correction',   d:'OTC-1 · trajectory trim'},
+    {t:soiIn!==null?soiIn:tf*0.8, n:'Enter lunar sphere of influence', d:'Moon gravity dominates'},
+    {t:tf-1800,      n:'Loss of signal',        d:'~40 min behind the far side'},
+    {t:tf,           n:'Pericynthion',          d:flyAlt.toLocaleString()+' km above far side'},
+    {t:artPath.t[apoI], n:'Distance record',    d:Math.round(apoR).toLocaleString()+' km — beat Apollo 13'},
+    {t:soiOut!==null?soiOut:tf*1.2, n:'Depart lunar SOI', d:'Free return confirmed'},
+    {t:tf+(artDur-tf)*0.7, n:'Return correction', d:'RTC · entry corridor'},
+    {t:artDur,       n:'Entry interface',       d:'~11 km/s · splashdown off San Diego'},
+  ].sort((a,b)=>a.t-b.t);
+  oracle.artApogeeKm=Math.round(apoR);
+  document.getElementById('artEvents').innerHTML=ART_EV.map((e,i)=>
+    `<div class="aev" id="aev${i}"><i></i><span class="at">${artMET(e.t)}<b>${artUTC(e.t)}</b></span>
+      <span class="an">${e.n}<em>${e.d}</em></span></div>`).join('');
+  document.getElementById('artFacts').innerHTML=
+    `<b>FLOWN 1–11 APRIL 2026</b> · Orion CM-003 “Integrity” · Wiseman, Glover, Koch, Hansen<br>
+     Model: pericynthion <b>${flyAlt.toLocaleString()} km</b> (actual 6,545) · max range
+     <b>${Math.round(apoR).toLocaleString()} km</b> (actual 406,771) · TLI→entry
+     <b>${(artDur/86400).toFixed(2)} d</b> (actual 8.18)`;
+}
+function artMET(sec){ const d=Math.floor(sec/86400), h=Math.floor(sec%86400/3600), m=Math.floor(sec%3600/60);
+  return 'T+'+String(d).padStart(2,'0')+'d '+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+function artUTC(sec){ const d=new Date(ART.tliEpoch+sec*1000);
+  return d.toISOString().slice(5,10).replace('-',' ')+' '+d.toISOString().slice(11,16)+'Z'; }
+
+let artT=0, artSpeed=1, artPaused=false;
+const ART_RATE=3600;                        // 1 s of real time = 1 h of mission at 1x
+function artUpdate(dt){
+  if(!artPaused) artT=Math.min(artDur, artT+dt*ART_RATE*artSpeed);
+  const st=artStateAt(artT), m=artMoon(artT);
+  moonMesh.position.copy(P3(m.x,m.y));
+  artCraft.position.copy(P3(st.x,st.y));
+  artSun.position.copy(P3(m.x,m.y)).normalize().multiplyScalar(-1).add(new THREE.Vector3(0,0.15,0));
+  // flown path
+  const pts=[]; const upto=Math.min(artEndI, Math.floor(artT/ART.dt));
+  for(let i=0;i<=upto;i+=4) pts.push(P3(artPath.x[i],artPath.y[i]));
+  pts.push(P3(st.x,st.y)); artFlown.geometry.setFromPoints(pts);
+  // telemetry
+  const dE=Math.hypot(st.x,st.y), dM=Math.hypot(m.x-st.x,m.y-st.y), v=Math.hypot(st.vx,st.vy);
+  const mv={x:-ART.aM*ART.w*Math.sin(ART.w*artT+ART.phase0), y:ART.aM*ART.w*Math.cos(ART.w*artT+ART.phase0)};
+  const vRelM=Math.hypot(st.vx-mv.x, st.vy-mv.y);
+  document.getElementById('artDE').innerHTML=(dE>=10000?(dE/1000).toFixed(1)+' <small>×10³ KM</small>':Math.round(dE)+' <small>KM</small>');
+  document.getElementById('artDM').innerHTML=(dM/1000).toFixed(1)+' <small>×10³ KM</small>';
+  document.getElementById('artV').innerHTML=v.toFixed(2)+' <small>KM/S</small>';
+  document.getElementById('artVM').innerHTML=vRelM.toFixed(2)+' <small>KM/S</small>';
+  const alt=dM-ART.RM;
+  document.getElementById('artAM').innerHTML=(alt>=10000?(alt/1000).toFixed(1)+' <small>×10³ KM</small>':Math.round(alt)+' <small>KM</small>');
+  document.getElementById('artDay').innerHTML=(artT/86400).toFixed(2);
+  document.getElementById('artMet').textContent=artMET(artT);
+  const au=document.getElementById('artUtc'); if(au) au.textContent=artUTC(artT);
+  // next milestone countdown
+  const nx=ART_EV.find(e=>e.t>artT+1);
+  if(nx){ const rem=nx.t-artT, hh=Math.floor(rem/3600), mm=Math.floor(rem%3600/60);
+    document.getElementById('artNextN').textContent='NEXT · '+nx.n;
+    document.getElementById('artNextT').textContent=(hh>=24?Math.floor(hh/24)+'d ':'')+(hh%24)+'h '+mm+'m'; }
+  else { document.getElementById('artNextN').textContent='MISSION COMPLETE';
+         document.getElementById('artNextT').textContent='—'; }
+  // labels + camera modes
+  artLabel('lblEarth', new THREE.Vector3(0,1.35,0), true);
+  artLabel('lblMoon', moonMesh.position.clone().add(new THREE.Vector3(0,0.7,0)), true);
+  artLabel('lblCraft', artCraft.position.clone().add(new THREE.Vector3(0,0.9,0)), true);
+  artLabel('lblCA', caMark.position.clone().add(new THREE.Vector3(0,0.6,0)), artT<artPath.t[artFlybyI]);
+  if(artCam==='follow'){ controlsA.target.lerp(artCraft.position, 0.16); }
+  else if(artCam==='moon'){ controlsA.target.lerp(moonMesh.position, 0.16); }
+  // phase + events
+  let phase='OUTBOUND COAST';
+  const tf=artPath.t[artFlybyI];
+  if(artT<900) phase='TRANS-LUNAR INJECTION';
+  else if(Math.abs(artT-tf)<6*3600) phase='LUNAR FAR-SIDE FLYBY';
+  else if(artT>tf) phase = (artDur-artT<2*3600) ? 'ENTRY INTERFACE' : 'INBOUND COAST';
+  document.getElementById('artPhase').textContent=phase;
+  ART_EV.forEach((e,i)=>{ const el=document.getElementById('aev'+i); if(!el)return;
+    el.className='aev'+(artT>=e.t?' done':'')+(Math.abs(artT-e.t)<4*3600?' now':''); });
+  const sc=document.getElementById('artScrub'); if(sc && !artScrubbing) sc.value=Math.round(artT/artDur*1000);
+}
+let artCam='over';
+document.querySelectorAll('[data-ac]').forEach(b=>b.onclick=()=>{ artCam=b.dataset.ac;
+  document.querySelectorAll('[data-ac]').forEach(x=>x.classList.toggle('on',x===b));
+  if(artCam==='over'){ cameraA.position.set(16,46,92); controlsA.target.set(28,0,-14); }
+  else if(artCam==='follow'){ controlsA.target.copy(artCraft.position);
+    cameraA.position.copy(artCraft.position.clone().add(new THREE.Vector3(6,7,12))); }
+  else if(artCam==='moon'){ controlsA.target.copy(moonMesh.position);
+    cameraA.position.copy(moonMesh.position.clone().add(new THREE.Vector3(4,5,8))); }
+  controlsA.update();
+});
+function artLabel(el, v3, show){
+  const e=document.getElementById(el); if(!e) return;
+  if(!show){ e.style.display='none'; return; }
+  const p=v3.clone().project(cameraA);
+  if(p.z>1){ e.style.display='none'; return; }
+  e.style.display='block';
+  e.style.left=(p.x*0.5+0.5)*innerWidth+'px';
+  e.style.top=(-p.y*0.5+0.5)*innerHeight+'px';
+}
+let artScrubbing=false;
+document.getElementById('artScrub').addEventListener('input',e=>{
+  artScrubbing=true; artPaused=true; document.getElementById('artPlay').textContent='▶';
+  artT=(+e.target.value/1000)*artDur; });
+document.getElementById('artScrub').addEventListener('change',()=>{ artScrubbing=false; });
+document.getElementById('artPlay').onclick=e=>{ artPaused=!artPaused; e.target.textContent=artPaused?'▶':'❚❚'; };
+document.getElementById('artReset').onclick=()=>{ artT=0; };
+document.querySelectorAll('[data-as]').forEach(b=>b.onclick=()=>{ artSpeed=+b.dataset.as;
+  document.querySelectorAll('[data-as]').forEach(x=>x.classList.toggle('on',x===b)); });
+
+/* ---- mode switching ---- */
+let mode='orbit';
+function setMode(m){
+  mode=m;
+  document.body.classList.toggle('mode-artemis', m==='artemis');
+  document.body.classList.toggle('mode-orbit', m==='orbit');
+  document.getElementById('tabOrbit').classList.toggle('on', m==='orbit');
+  document.getElementById('tabArt').classList.toggle('on', m==='artemis');
+  controls.enabled = m==='orbit'; controlsA.enabled = m==='artemis';
+  if(m==='artemis' && !artPath.t.length){ artIntegrate(); artBuildLines(); artBuildEvents(); }
+}
+document.getElementById('tabOrbit').onclick=()=>setMode('orbit');
+document.getElementById('tabArt').onclick=()=>setMode('artemis');
+
+/* ---- ISS live stream ---- */
+function issStop(){ const fr=document.getElementById('issFrame');
+  if(fr){ fr.src='about:blank'; fr.removeAttribute('src'); }
+  document.getElementById('issStream').hidden=true; }
+const ISS_SOURCES=[
+  {id:'awQzjn72bI0', n:'NASA · ISS HD (OFFICIAL)'},
+  {id:'P9C25Un7xaM', n:'NASA · ISS HD VIEWS'},
+  {id:'21X5lGlDOfg', n:'NASA TV'},
+  {id:'RtU_mdL2vBM', n:'ISS LIVE FEED'},
+  {id:'DDU-rZs-Ic4', n:'EARTH VIEWS'},
+];
+/* YouTube refuses to play when the page has no real web origin — which is the case
+   when this file is opened straight from disk (file://). That is what produces the
+   "Video player configuration error". Detect it and offer the stream externally. */
+const ISS_EMBEDDABLE = location.protocol==='http:' || location.protocol==='https:';
+let issSrcI=0;
+function issEmbed(id){
+  return 'https://www.youtube.com/embed/'+id+'?autoplay=1&mute=1&playsinline=1&rel=0&enablejsapi=1&origin='+encodeURIComponent(location.origin);
+}
+function issFallback(v){
+  const body=document.querySelector('.st-body');
+  body.innerHTML=`<a class="st-fb" href="https://www.youtube.com/watch?v=${v.id}" target="_blank" rel="noopener">
+      <img src="https://img.youtube.com/vi/${v.id}/hqdefault.jpg" alt="">
+      <span class="st-play">▶</span>
+      <span class="st-fbmsg">${ISS_EMBEDDABLE?'Player blocked here':'Opened from a local file'}<br>
+        <b>Tap to watch ${v.n} on YouTube</b></span></a>`;
+}
+function issRenderPick(){
+  document.getElementById('issPick').innerHTML =
+    ISS_SOURCES.map((v,i)=>`<button class="stb ${i===issSrcI?'on':''}" data-si="${i}">${v.n}</button>`).join('')
+    + '<button class="stb alt" id="issCustom">PASTE LINK</button>'
+    + '<button class="stb alt" id="issExt">NOT PLAYING?</button>';
+  document.getElementById('issExt').onclick=()=>issFallback(ISS_SOURCES[issSrcI]);
+  document.querySelectorAll('[data-si]').forEach(b=>b.onclick=()=>{ issSrcI=+b.dataset.si; issPlay(); });
+  document.getElementById('issCustom').onclick=()=>{
+    const u=prompt('Paste a YouTube link or video id:'); if(!u) return;
+    const m=u.match(/(?:v=|youtu\.be\/|embed\/|live\/)([A-Za-z0-9_-]{6,})/);
+    const id=m?m[1]:u.trim();
+    document.getElementById('issFrame').src=issEmbed(id);
+    document.getElementById('issOpen').href='https://www.youtube.com/watch?v='+id;
+  };
+}
+function issPlay(){
+  const v=ISS_SOURCES[issSrcI];
+  document.getElementById('issOpen').href='https://www.youtube.com/watch?v='+v.id;
+  const body=document.querySelector('.st-body');
+  if(!ISS_EMBEDDABLE){ issFallback(v); }
+  else {
+    body.innerHTML='<iframe id="issFrame" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen frameborder="0"></iframe>';
+    document.getElementById('issFrame').src=issEmbed(v.id);
+  }
+  issRenderPick();
+}
+document.getElementById('issLiveBtn').onclick=()=>{
+  const w=document.getElementById('issStream'), fr=document.getElementById('issFrame');
+  if(w.hidden){ w.hidden=false; issPlay(); } else issStop();
+};
+document.getElementById('issClose').onclick=issStop;
+
+/* ---------- render loop ---------- */
+const issLabel = document.getElementById('issLabel');
+const clock = new THREE.Clock();
+function fmt(n,d){ return (n>=0?' ':'')+n.toFixed(d); }
+
+function tick(){
+  requestAnimationFrame(tick);
+  const dt = clock.getDelta();
+  if(!paused) simTime = new Date(simTime.getTime() + dt*1000*speed);
+
+  // sun / terminator
+  sunUniform.value.copy(sunDirection(simTime));
+  earthMat.uniforms.camPos.value.copy(camera.position);
+  twinkleUniforms.uSun.value.copy(sunUniform.value);
+  if(fadeDay>=0){ fadeDay+=dt/1.1; const v=Math.min(1,fadeDay); earthMat.uniforms.blendDay.value=v;
+    if(v>=1){ earthMat.uniforms.dayTex.value=earthMat.uniforms.dayTex2.value; earthMat.uniforms.blendDay.value=0; fadeDay=-1; } }
+  if(fadeNight>=0){ fadeNight+=dt/1.1; const v=Math.min(1,fadeNight); earthMat.uniforms.blendNight.value=v;
+    if(v>=1){ earthMat.uniforms.nightTex.value=earthMat.uniforms.nightTex2.value; earthMat.uniforms.blendNight.value=0; fadeNight=-1; } }
+  if(obsMarker.visible) obsRing.lookAt(camera.position);
+  if(OBS && selSat && performance.now()-passT>30000){ passT=performance.now(); computePasses(); }
+  twinkleUniforms.uTime.value += dt;
+  // imagery tiles (throttled)
+  if(camera.position.length() < 1.9 && controls.autoRotate) controls.autoRotate=false;
+  if(performance.now()-lastTileT > 180){ updateTiles(); lastTileT=performance.now(); }
+  for(let i=fading.length-1;i>=0;i--){ const mt=fading[i]; mt.opacity=Math.min(1,mt.opacity+dt*2.5); if(mt.opacity>=1) fading.splice(i,1); }
+
+  if(satrec){
+    const pv = satellite.propagate(satrec, simTime);
+    if(pv.position && pv.velocity){
+      const gmst = satellite.gstime(simTime);
+      const g = satellite.eciToGeodetic(pv.position, gmst);
+      const lat = satellite.degreesLat(g.latitude), lon = satellite.degreesLong(g.longitude), alt = g.height;
+      const vel = Math.sqrt(pv.velocity.x**2 + pv.velocity.y**2 + pv.velocity.z**2);
+      iss.position.copy(llv(lat, lon, 1+alt/R_KM));
+      oracle.iss = {lat,lon,alt,vel};
+      const sp = iss.position.clone().project(camera);
+      if(sp.z < 1){
+        issLabel.style.display='block';
+        issLabel.style.left = (sp.x*0.5+0.5)*innerWidth+'px';
+        issLabel.style.top  = (-sp.y*0.5+0.5)*innerHeight+'px';
+      } else issLabel.style.display='none';
+
+      if(performance.now()-lastSample > 700){ sampleTrack(simTime); lastSample=performance.now(); }
+    }
+  }
+  if(selSat){ const pv=satellite.propagate(selSat, simTime);
+    if(pv.position && pv.velocity){ const g=satellite.eciToGeodetic(pv.position, satellite.gstime(simTime));
+      const lat=satellite.degreesLat(g.latitude), lon=satellite.degreesLong(g.longitude), alt=g.height;
+      const vel=Math.sqrt(pv.velocity.x**2+pv.velocity.y**2+pv.velocity.z**2);
+      selMarker.position.copy(llv(lat,lon,1+alt/R_KM)); selRing.lookAt(camera.position);
+      updateFootprint(lat,lon,alt);
+      document.getElementById('selAlt').innerHTML=alt.toFixed(1)+' <small>KM</small>';
+      document.getElementById('selVel').innerHTML=vel.toFixed(2)+' <small>KM/S</small>';
+      document.getElementById('selLat').innerHTML=lat.toFixed(2)+'<small>°</small>';
+      document.getElementById('selLon').innerHTML=lon.toFixed(2)+'<small>°</small>';
+    }
+    if(performance.now()-lastSelSample>1500){ sampleSelOrbit(); lastSelSample=performance.now(); }
+  }
+  if(shell && shellOn && worker && !propBusy){ propBusy=true; worker.postMessage({type:'propagate', time:simTime.getTime()}); }
+
+  const iso=simTime.toISOString();
+  const bc=document.getElementById('bigClk'); if(bc) bc.textContent=iso.slice(11,19);
+  const cd=document.getElementById('clkDate'); if(cd) cd.textContent=iso.slice(0,10);
+  const istIso=new Date(simTime.getTime()+5.5*3600000).toISOString();   // IST = UTC+05:30
+  const ci=document.getElementById('clkIst'); if(ci) ci.textContent=istIso.slice(11,19);
+  const cid=document.getElementById('clkIstDate'); if(cid) cid.textContent=istIso.slice(0,10);
+  fpsFrames++; const nowp=performance.now(); if(nowp-fpsLast>500){ const ff=document.getElementById('fps'); if(ff) ff.textContent=Math.round(fpsFrames*1000/(nowp-fpsLast))+' fps'; fpsFrames=0; fpsLast=nowp; }
+  if(mode==='artemis'){ artUpdate(dt); controlsA.update(); renderer.render(sceneA, cameraA); }
+  else { controls.update(); renderer.render(scene, camera); }
+}
+
+/* ---------- boot ---------- */
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  if(typeof cameraA!=='undefined'){ cameraA.aspect=innerWidth/innerHeight; cameraA.updateProjectionMatrix(); }
+  renderer.setSize(innerWidth, innerHeight);
+  twinkleUniforms.uScale.value = innerHeight*Math.min(devicePixelRatio||1,2.5)/2;
+});
+
+function loadTextures(){
+  return new Promise(res=>{
+    const L = new THREE.TextureLoader(); L.setCrossOrigin('anonymous');
+    const base='https://cdn.jsdelivr.net/npm/three-globe/example/img/';
+    let day=null, night=null, water=null, pending=3, failed=false;
+    const done=()=>{ if(--pending<=0){
+      if(!failed){ earthMat.uniforms.dayTex.value=day; earthMat.uniforms.dayTex2.value=day;
+        earthMat.uniforms.nightTex.value=night; earthMat.uniforms.nightTex2.value=night; earthMat.uniforms.hasTex.value=1;
+        if(water){ earthMat.uniforms.specTex.value=water; earthMat.uniforms.hasSpec.value=1; } oracle.texLoaded=true; }
+      res();
+    }};
+    day = L.load(base+'earth-blue-marble.jpg', t=>{ if('encoding' in t) t.encoding=THREE.sRGBEncoding; t.anisotropy=maxAniso; done(); }, undefined, ()=>{failed=true;done();});
+    night = L.load(base+'earth-night.jpg', t=>{ if('encoding' in t) t.encoding=THREE.sRGBEncoding; t.anisotropy=maxAniso; done(); }, undefined, ()=>{failed=true;done();});
+    water = L.load(base+'earth-water.png', t=>{ t.anisotropy=maxAniso; oracle.specLoaded=true; done(); }, undefined, ()=>{ water=null; done(); });
+    setTimeout(()=>{ if(pending>0){ pending=0; res(); } }, 9000);   // don't hang on the loader
+  });
+}
+
+let fadeDay=-1, fadeNight=-1;      // cross-fade progress for the NASA texture swap
+function upgradeNASA(){
+  const maxTex = (renderer.capabilities && renderer.capabilities.maxTextureSize) || 4096;
+  const W = Math.min(8192, maxTex), H = W/2;
+  const NW = Math.min(4096, maxTex), NH = NW/2;
+  const WMS='https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
+  const q=(layer,w,h,time)=>WMS+'?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS='+layer+
+    '&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH='+w+'&HEIGHT='+h+'&FORMAT=image/jpeg&TIME='+time;
+  const L=new THREE.TextureLoader(); L.setCrossOrigin('anonymous');
+  L.load(q('BlueMarble_NextGeneration',W,H,'2004-01-01'), t=>{
+    if('encoding' in t) t.encoding=THREE.sRGBEncoding; t.anisotropy=maxAniso;
+    earthMat.uniforms.dayTex2.value=t; earthMat.uniforms.hasTex.value=1; fadeDay=0;
+    oracle.nasaDay=true; const c=document.querySelector('.credits');
+    if(c) c.textContent='TLE CelesTrak · SGP4 satellite.js · Imagery NASA Blue Marble · VIIRS';
+  });
+  L.load(q('VIIRS_CityLights_2012',NW,NH,'2012-01-01'), t=>{
+    if('encoding' in t) t.encoding=THREE.sRGBEncoding; t.anisotropy=maxAniso;
+    earthMat.uniforms.nightTex2.value=t; fadeNight=0; oracle.nasaNight=true;
+  });
+}
+(async function(){
+  const [tle] = await Promise.all([ getTLE(), loadTextures() ]);
+  initSat(tle);
+  simTime = new Date();
+  sampleTrack(simTime);
+  oracle.ready = true;
+  const l = document.getElementById('load'); l.style.opacity='0'; setTimeout(()=>l.remove(), 700);
+  document.body.classList.add('mode-orbit');
+  tick();
+  loadAll();
+  try{ const o=JSON.parse(localStorage.getItem('oracle_obs')||'null'); if(o){ 
+    document.getElementById('obsLat').value=o.lat; document.getElementById('obsLon').value=o.lon; setObserver(o.lat,o.lon); } }catch(_){}
+  upgradeNASA();
+})();
+</script>
+</body>
+</html>
