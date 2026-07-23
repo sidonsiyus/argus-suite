@@ -1,9 +1,9 @@
 # GARGANTUA — Schwarzschild Black Hole Raytracer
 
-**Stage 1 · physics core.** Every pixel integrates a real null geodesic of the
+**Stage 2 · accretion disk.** Every pixel integrates a real null geodesic of the
 Schwarzschild metric in a full-screen fragment shader. There is no mesh, no
-texture, no sprite and no video anywhere in the image — the shadow, its radius
-and the photon ring are all consequences of the integration.
+texture, no sprite and no video anywhere in the image — the shadow, the photon
+ring, the lensed disk and its beaming are all consequences of the integration.
 
 ---
 
@@ -49,8 +49,8 @@ gargantua/
 |---|---|
 | 0 | beauty pass |
 | 1 | capture mask — black = photon crossed the horizon |
-| 2 | deflection α, heat ramp |
-| 3 | closest approach r_min |
+| 2 | redshift factor g on the disk |
+| 3 | equatorial-plane crossings per ray (linear, decodable) |
 | 4 | deflection α scaled to π |
 | 5 | integrator step count |
 | 6 | impact parameter b |
@@ -68,6 +68,7 @@ Geometric units, `G = c = 1`, mass `M = 1`, so every length is in units of M.
 |---|---|
 | event horizon | `r = 2M` |
 | photon sphere | `r = 3M` |
+| ISCO (disk inner edge) | `r = 6M` |
 | critical impact parameter | `b_c = 3√3 M = 5.196152…M` |
 
 Each ray defines a plane through the origin. In that plane the null geodesic
@@ -90,6 +91,27 @@ Two details matter more than they look:
    sample. Terminating on the step grid instead leaves up to one step of false
    bending — which showed up as a spurious 0.048 rad deflection *in flat space*
    until it was fixed.
+
+### The disk
+
+The geodesic is watched for sign changes of its height above the equatorial
+plane, so a single ray can strike the disk more than once. That is where the arc
+over the top of the hole and the sliver underneath come from — they are the far
+side of the disk, lifted into view by gravity.
+
+Each crossing is shaded with
+
+| quantity | form |
+|---|---|
+| Keplerian rate | `Ω = √(M/r³)` |
+| redshift + beaming | `g = √(1 − 3M/r) / (1 − Ω·b_z)` |
+| intensity boost | `I_obs = g⁴ · I_emit` |
+| observed colour | `T_obs = g · T_emit`, through the Planckian locus |
+| temperature profile | `T ∝ r^(−3/4)·[1 − √(r_in/r)]^(1/4)`, peaking at `1.361 r_in` |
+| turbulence | fbm advected at the local `Ω`, so the disk shears as it turns |
+
+`b_z = L_z/E` is the photon's angular momentum about the disk axis — constant
+along the whole geodesic, and the only quantity the Doppler term needs.
 
 ---
 
@@ -132,6 +154,49 @@ pixels — at 64 px a single pixel is already 0.35 % of the radius.
 At r = 8M the shadow (34.2°) is wider than the frustum, so the edge leaves the
 screen and the HUD reports that instead of reporting a wrong number.
 
+### Stage 2 — the disk
+
+| check | result |
+|---|---|
+| disk inner edge | `6.0 M` — exactly the ISCO |
+| temperature normalisation | peak of `x^(3/4)(1−√x)^(1/4)` = 0.487871 at `x = 0.73469`, i.e. `r = 1.3611 r_in` |
+| colour gradient (beaming off) | R/B rises **1.061 → 1.204** from inner to outer disk: hot inside, cool outside |
+| peak brightness | 191/255 — no clipping |
+
+**Multi-crossing.** Counting equatorial-plane crossings per ray:
+
+| crossings | share of frame |
+|---|---|
+| 0 | 8.5 % |
+| 1 | 80.7 % |
+| 2 | **10.7 %** |
+| 3 | 0.2 % |
+
+Over a tenth of the image is light that crossed the disk plane more than once.
+The band just above the shadow reads **223.9** against a background sky of
+**59.1** — the far side of the disk really is lifted over the hole.
+
+**Doppler beaming**, measured below the tonemap knee so nothing clips:
+
+| configuration | left | right | L/R |
+|---|---|---|---|
+| rotation **+** | 26.27 | 44.40 | **0.592** |
+| rotation **−** | 43.84 | 26.48 | **1.655** |
+| beaming **off** | 39.78 | 40.11 | 0.992 |
+
+The asymmetry is 1.69× and it **mirrors exactly when the rotation is reversed**,
+then vanishes when the term is switched off. That three-way test is what makes
+it beaming rather than a lighting accident.
+
+### Stage 1 invariants, re-checked with the disk in
+
+| check | result |
+|---|---|
+| shadow radius at r = 20M | 14.2801° vs 14.2690° — **0.077 %** |
+| horizon black level | **0** — still pure black |
+| debug views 0–9 | all distinct and non-degenerate |
+| console errors | **none** |
+
 ### Image quality
 
 | check | result |
@@ -162,9 +227,17 @@ far higher.
 
 ## Known limits of this stage
 
-- The sky is a deliberate placeholder — a lat/long cage that makes the lensing
-  legible and measurable. The procedural starfield and Milky Way arrive in
-  Stage 3.
+- The sky is still a deliberate placeholder — a lat/long cage that makes the
+  lensing legible and measurable. The procedural starfield and Milky Way arrive
+  in Stage 3.
+- Tone mapping is a provisional `x/(1+x)` knee plus a gamma curve. Stage 4
+  replaces it with manual ACES, bloom, vignette, grain and chromatic aberration.
+- The disk is razor thin: emission is evaluated exactly at the plane crossing
+  rather than integrated through a vertical profile. A thickness model would
+  soften the edge-on silhouette.
+- `uTempScale` (4700 K at the profile peak) sets the disk's absolute
+  temperature. It is a free parameter in reality — accretion rate and hole mass
+  fix it — so it is tuned here for legibility rather than derived.
 - The photon ring is about a pixel wide, which is physically right (it is a
   caustic) but reads thin until Stage 4's bloom spreads it.
 - Anti-aliasing is off by default (`uAA = 1`). `GARGANTUA.uniforms.uAA.value = 2`

@@ -15,6 +15,7 @@ window.GARGANTUA = G;
 const M = 1.0;                      // mass in geometric units; sets all lengths
 const R_HORIZON = 2 * M;
 const R_PHOTON = 3 * M;
+const R_ISCO = 6 * M;                  // innermost stable circular orbit
 const B_CRIT = 3 * Math.sqrt(3) * M;   // 5.196152...M
 
 // Angular radius of the shadow for a *static* observer at radius r:
@@ -25,12 +26,13 @@ function shadowAngle(r) {
     return Math.asin(Math.min(1, s));
 }
 G.shadowAngle = shadowAngle;
-G.consts = { M, R_HORIZON, R_PHOTON, B_CRIT };
+G.consts = { M, R_HORIZON, R_PHOTON, R_ISCO, B_CRIT };
 
 const DEBUG_NAMES = [
-    '0 · beauty', '1 · capture mask', '2 · winding φ', '3 · closest approach',
-    '4 · deflection α', '5 · step count', '6 · impact parameter b',
-    '7 · escape direction', '8 · photon ring', '9 · unlensed sky'
+    '0 · beauty', '1 · capture mask', '2 · redshift factor g',
+    '3 · plane crossings', '4 · deflection α', '5 · step count',
+    '6 · impact parameter b', '7 · escape direction', '8 · photon ring',
+    '9 · unlensed sky'
 ];
 
 function fail(msg) {
@@ -79,7 +81,7 @@ async function boot() {
     // The fragment shader builds its own rays, so this camera exists purely to
     // be driven by OrbitControls and read back as a frame.
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1e6);
-    camera.position.set(0, 4.5, 26);
+    camera.position.set(0, 5.0, 30);
 
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
@@ -100,9 +102,21 @@ async function boot() {
         uMaxSteps:   { value: 1000 },
         uDebug:      { value: 0 },
         uAA:         { value: 1 },
-        uSkyGrid:    { value: 0.85 },
+        uSkyGrid:    { value: 0.30 },
         uRingGain:   { value: 0.32 },
-        uExposure:   { value: 1.0 }
+        uExposure:   { value: 1.0 },
+        uTime:       { value: 0 },
+
+        // ── accretion disk ──────────────────────────────────────────────────
+        uDiskIn:      { value: R_ISCO },   // ISCO: no stable orbits inside 6M
+        uDiskOut:     { value: 18 * M },
+        uDiskOpacity: { value: 1.0 },
+        uDiskBright:  { value: 1.15 },
+        uTempScale:   { value: 4700 },     // kelvin at the profile peak
+        uTurb:        { value: 0.75 },
+        uFlowSpeed:   { value: 1.0 },
+        uDoppler:     { value: 1 },        // 0 disables beaming + redshift
+        uSpinSign:    { value: 1 }         // flip to reverse the rotation
     };
     G.uniforms = uniforms;
 
@@ -187,7 +201,7 @@ async function boot() {
             hudHidden = !hudHidden;
             document.querySelectorAll('.hud').forEach(el => el.style.display = hudHidden ? 'none' : '');
         } else if (k === 'r') {
-            camera.position.set(0, 4.5, 26); controls.target.set(0, 0, 0); controls.update();
+            camera.position.set(0, 5.0, 30); controls.target.set(0, 0, 0); controls.update();
         } else if (k === 'v') {
             console.log('[GARGANTUA] shadow verification', showMeasurement());
         }
@@ -200,6 +214,12 @@ async function boot() {
     // compared against the analytic value.
     function verifyShadow() {
         const prevDebug = uniforms.uDebug.value;
+        // Sync the camera into the uniforms first: callers may have moved it
+        // without a frame having been drawn, and measuring a stale frame gives
+        // a confidently wrong answer.
+        camera.updateMatrixWorld();
+        uniforms.uCamPos.value.copy(camera.position);
+        uniforms.uCamMat.value.copy(camera.matrixWorld);
         uniforms.uDebug.value = 1;                 // capture mask: black in, white out
         renderer.render(scene, camera);
 
@@ -247,6 +267,10 @@ async function boot() {
     el('tH').textContent = R_HORIZON.toFixed(2) + ' M';
     el('tP').textContent = R_PHOTON.toFixed(2) + ' M';
     el('tB').textContent = B_CRIT.toFixed(4) + ' M';
+    const iscoEl = el('tI'); if (iscoEl) iscoEl.textContent = R_ISCO.toFixed(2) + ' M';
+    const dEl = el('tD');
+    if (dEl) dEl.textContent = uniforms.uDiskIn.value.toFixed(1) + '–'
+                             + uniforms.uDiskOut.value.toFixed(0) + ' M';
     el('tSt').textContent = String(uniforms.uMaxSteps.value);
 
     let fFrames = 0, fLast = performance.now(), hudLast = 0;
@@ -292,9 +316,11 @@ async function boot() {
     }
 
     // ── frame ────────────────────────────────────────────────────────────────
+    const t0 = performance.now();
     function frame(now) {
         requestAnimationFrame(frame);
         if (G.contextLost) return;
+        uniforms.uTime.value = (now - t0) * 0.001;
         controls.update();
         camera.updateMatrixWorld();
         uniforms.uCamPos.value.copy(camera.position);
