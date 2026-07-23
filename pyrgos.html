@@ -273,6 +273,51 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
   .strips{display:none}
   .rt{display:none}
 }
+.strip.veh{opacity:.95}
+.strip.veh .sTag{font-size:9px;opacity:.7}
+.strip.veh.hot{animation:vehpulse 1.1s infinite}
+@keyframes vehpulse{50%{background:rgba(255,210,63,.14)}}
+/* interphone */
+#phoneWrap{margin-top:8px;border:1px solid rgba(120,180,200,.22);border-radius:6px;background:rgba(6,16,20,.55);overflow:hidden}
+#phoneWrap.ringing{border-color:rgba(90,217,255,.7);animation:phring 1.2s infinite}
+@keyframes phring{50%{box-shadow:0 0 12px rgba(90,217,255,.35) inset}}
+.phhdr{display:flex;align-items:center;justify-content:space-between;padding:6px 9px;font:600 9px ui-monospace,monospace;
+  letter-spacing:.18em;color:#5ad9ff;border-bottom:1px solid rgba(120,180,200,.18)}
+.phhint{font-weight:400;letter-spacing:.06em;opacity:.5;text-transform:none}
+#phoneStack{max-height:180px;overflow-y:auto;padding:5px}
+.phnone{padding:8px 9px;font:400 10px ui-monospace,monospace;opacity:.4}
+.phcall{background:rgba(10,24,30,.75);border-radius:4px;padding:7px 9px;margin-bottom:5px}
+.phhead{display:flex;justify-content:space-between;font:600 9px ui-monospace,monospace;letter-spacing:.12em}
+.phhead span{opacity:.6}
+.phtxt{font:400 10.5px ui-monospace,monospace;margin:4px 0 6px;line-height:1.45;opacity:.9}
+.phbtns{display:flex;gap:5px}
+.phbtns button{flex:1;font:600 9px ui-monospace,monospace;letter-spacing:.08em;padding:5px;border-radius:3px;cursor:pointer;
+  border:1px solid rgba(120,180,200,.3);background:transparent;color:#cfe}
+.phbtns .ok:hover{background:rgba(126,231,135,.2);border-color:#7ee787;color:#7ee787}
+.phbtns .no:hover{background:rgba(255,120,120,.18);border-color:#ff8a8a;color:#ff8a8a}
+/* broken radio */
+.rtline.broken{color:#ff9f6b;letter-spacing:.06em;opacity:.95}
+/* strip physicality */
+.strip.cocked{transform:translateX(16px) rotate(-1.1deg);box-shadow:-3px 0 0 #ffd23f}
+.strip .snote{display:block;font:400 9px ui-monospace,monospace;color:#ffd23f;opacity:.85;margin-top:2px}
+.strip .scock{position:absolute;right:4px;top:3px;font-size:9px;opacity:.35;cursor:pointer}
+.strip .scock:hover{opacity:1;color:#ffd23f}
+.strip{position:relative}
+.strip.req{box-shadow:inset 0 0 0 1px rgba(90,217,255,.55)}
+#repExtra{margin-top:10px;text-align:left}
+.rsec{margin-bottom:12px}
+.rsec h4{font:600 10px ui-monospace,monospace;letter-spacing:.16em;color:#5ad9ff;margin:0 0 6px}
+.rsec h4 span{opacity:.5;font-weight:400;letter-spacing:.04em}
+.errrow{display:grid;grid-template-columns:150px 40px 1fr;gap:8px;align-items:baseline;
+  padding:5px 7px;border-radius:3px;background:rgba(255,120,120,.07);margin-bottom:3px}
+.errrow b{font:600 10px ui-monospace,monospace;color:#ff9f9f}
+.errrow span{font:600 11px ui-monospace,monospace;color:#ffd23f}
+.errrow em{font:400 9px ui-monospace,monospace;font-style:normal;opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.errnone{font:400 10px ui-monospace,monospace;opacity:.5;padding:4px 7px}
+.tape{max-height:150px;overflow-y:auto;background:rgba(4,12,14,.6);border-radius:4px;padding:5px}
+.tprow{display:grid;grid-template-columns:44px 34px 1fr;gap:6px;font:400 9.5px ui-monospace,monospace;padding:2px 4px;opacity:.85}
+.tprow span{opacity:.5} .tprow b{font-weight:600;opacity:.7}
+.tprow.TX b{color:#7ee787} .tprow.RX b{color:#5ad9ff} .tprow.ERR b{color:#ff8a8a} .tprow.ERR{background:rgba(255,120,120,.08)}
 </style>
 </head>
 <body>
@@ -355,7 +400,11 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
       <input id="cmdInput" placeholder='Type a clearance —  e.g. "United 328 cleared to land"  ·  press ↵' autocomplete="off" spellcheck="false">
       <button class="mic" id="micBtn" title="Push to talk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M8 21h8"/></svg></button>
     </div>
-    <div class="hintline" id="hintLine">Tip: click an aircraft, then use the buttons — or speak/type real phraseology.</div>
+    <div id="phoneWrap">
+  <div class="phhdr">☎ INTERPHONE<span class="phhint">coordination lines</span></div>
+  <div id="phoneStack"><div class="phnone">Lines quiet</div></div>
+</div>
+<div class="hintline" id="hintLine">Tip: click an aircraft, then use the buttons — or speak/type real phraseology.</div>
   </div>
 </div>
 
@@ -432,7 +481,7 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
     <h2 id="repTitle">Shift Report</h2>
     <p class="lead" id="repLead"></p>
     <div class="grade"><div class="gletter" id="repGrade">A</div>
-      <div class="gbreak" id="repBreak"></div></div>
+      <div class="gbreak" id="repBreak"></div><div id="repExtra"></div></div>
     <div class="mbtns"><button class="mbtn" id="repClose">Review board</button><button class="mbtn gold" id="repAgain">New shift</button></div>
   </div>
 </div>
@@ -609,7 +658,17 @@ function pickDepRwy(){ const d=depRunways(); if(!d.length) return RUNWAYS[RUNWAY
 /* ---- taxi node graph routing (Dijkstra) ---- */
 function nearestNode(x,y){ let best=null,bd=1e18; for(const id in LZ.nodes){ const n=LZ.nodes[id],d=(n.x-x)**2+(n.y-y)**2; if(d<bd){bd=d;best=id;} } return best; }
 function nodePath(a,b){
-  const dist={},prev={},Q=new Set(Object.keys(LZ.nodes));
+  // closed taxiways are simply not in the graph, so routes bend around them
+  const blocked = (typeof G!=="undefined" && G && G.notams)
+    ? new Set(G.notams.filter(n=>n.kind==="TWY"&&G.t<n.until&&n.id!==a&&n.id!==b).map(n=>n.id)) : new Set();
+  let path = nodePathEx(a,b,blocked);
+  // a closed node can be a cut vertex; rather than strand the traffic, route
+  // through it and let the controller deal with it
+  if(!path.length && blocked.size) path = nodePathEx(a,b,new Set());
+  return path;
+}
+function nodePathEx(a,b,blocked){
+  const dist={},prev={},Q=new Set(Object.keys(LZ.nodes).filter(k=>!blocked.has(k)));
   Q.forEach(k=>dist[k]=1e18); dist[a]=0;
   while(Q.size){ let u=null,ud=1e18; for(const k of Q) if(dist[k]<ud){ud=dist[k];u=k;} if(u==null)break; Q.delete(u); if(u===b)break;
     for(const [p,q] of LZ.edges){ let v=null; if(p===u)v=q; else if(q===u)v=p; else continue; if(!Q.has(v))continue;
@@ -671,9 +730,13 @@ function freshState(){
   return {
     running:false, paused:false, t:0, spawnT:2, depT:5, score:0, handled:0,
     safeEvents:0, totalEvents:0, pressure:0, wind:{dir:270,spd:8},
-    pos:"TWR", aircraft:[], nextId:1, conflicts:[], conflictShown:"", log:[],
+    pos:"TWR", aircraft:[], vehicles:[], notams:[], phone:[], tape:[], errs:{}, restrict:null, rwycc:null, nextId:1, conflicts:[], conflictShown:"", log:[],
     replay:[], replayActive:false, replayIdx:0, lastIncidentBuf:null, over:false,
-    grades:{arr:0,dep:0,goAround:0,incursion:0,separation:0,incident:0,emergencies:0,wake:0,sequenced:0,sidbust:0,ground:0},
+    grades:{arr:0,dep:0,goAround:0,incursion:0,separation:0,incident:0,emergencies:0,wake:0,sequenced:0,sidbust:0,ground:0,
+            vehCross:0,vehIncursion:0,deiced:0,holdover:0,pushConflict:0,notams:0,
+            coord:0,coordDeny:0,coordMissed:0,pilotEvents:0,progressive:0,simplified:0,
+            reqApproved:0,reqDenied:0,reqIgnored:0,sayAgain:0,noncompliance:0,
+            slotMet:0,slotMissed:0,restrictions:0,brakingReports:0,lahso:0,intersection:0,backtrack:0,curfew:0},
     relT:{}, totalDelay:0, delayN:0, seqNo:0, showMetrics:false
   };
 }
@@ -971,6 +1034,735 @@ function spawnDeparture(atStart){
   return ac;
 }
 
+
+
+
+/* ============================================================ FLOW · PROCEDURES · ASSESSMENT
+   Departure slots, missed-approach coordination, temporary restrictions, runway
+   condition and braking action, intersection departures, LAHSO, backtrack,
+   curfew — plus the record-keeping and assessment layer that turns a shift into
+   something you can actually mark a student on.
+   ============================================================ */
+
+/* ---------- 1 · departure slots (CTOT) ---------- */
+/* A slot is a two-minute window. Airborne inside it is free; outside it costs,
+   and the crew has to go back to flow for a new one. */
+function assignSlot(a){
+  if(a.slot) return a.slot;
+  a.slot={ t:G.t+70+Math.random()*90, win:60, used:false };
+  return a.slot;
+}
+function slotState(a){
+  if(!a.slot) return null;
+  const d=G.t-a.slot.t;
+  if(d < -a.slot.win/2) return "EARLY";
+  if(d >  a.slot.win/2) return "MISSED";
+  return "OPEN";
+}
+function slotClock(a){ return a.slot? Math.round(a.slot.t-G.t) : null; }
+function checkSlotOnDeparture(a){
+  if(!a.slot) return;
+  const st=slotState(a);
+  a.slot.used=true;
+  if(st==="OPEN"){ G.grades.slotMet=(G.grades.slotMet||0)+1; score(25,""); }
+  else{
+    G.grades.slotMissed=(G.grades.slotMissed||0)+1;
+    score(-40,"Departure slot missed ("+st.toLowerCase()+")");
+    logErr("FLOW","Slot missed for "+spoken(a)+" ("+st+")");
+  }
+}
+
+/* ---------- 2 · temporary restrictions (VIP / danger area) ---------- */
+function raiseRestriction(){
+  const kinds=[
+    {t:"VIP MOVEMENT",  txt:"VIP movement — all departures held", dur:45+Math.random()*35, dep:true},
+    {t:"DANGER AREA",   txt:"Temporary danger area active — departures held", dur:40+Math.random()*30, dep:true},
+    {t:"AIRSPACE FLOW", txt:"Flow restriction from area control", dur:50+Math.random()*40, dep:true}
+  ];
+  const k=kinds[Math.floor(Math.random()*kinds.length)];
+  G.restrict={kind:k.t, txt:k.txt, until:G.t+k.dur};
+  G.grades.restrictions=(G.grades.restrictions||0)+1;
+  ringPhone("ADJ", k.txt+". Confirm you are holding departures.", "restrict", null, 40);
+  toast("▲ "+k.t+" — departures held");
+}
+function depsHeld(){ return G.restrict && G.t<G.restrict.until; }
+
+/* ---------- 3 · runway condition & braking action ---------- */
+/* RWYCC 6 (dry) down to 1 (poor). Wet and contaminated runways lengthen the
+   rollout, which lengthens runway occupancy, which is what you actually feel. */
+const BRAKING=["NIL","POOR","MEDIUM/POOR","MEDIUM","MEDIUM/GOOD","GOOD","DRY"];
+function rwyCC(){
+  if(G.rwycc!=null) return G.rwycc;
+  G.rwycc = CFG.wx==="LOWVIS"?3 : CFG.wx==="RAIN"?4 : 6;
+  return G.rwycc;
+}
+function brakingLabel(){ return BRAKING[clamp(rwyCC(),0,6)]; }
+function rolloutFactor(){ const c=rwyCC(); return 1 + (6-c)*0.16; }   // 1.0 dry → 1.8 at CC1
+function pilotBrakingReport(a){
+  if(rwyCC()>=6 || Math.random()>0.30) return;
+  const reported=clamp(rwyCC()+(Math.random()<0.5?-1:0),1,6);
+  pilot(a,"Braking action "+BRAKING[reported]+", "+spoken(a));
+  if(reported<rwyCC()){ G.rwycc=reported; toast("▲ Braking action downgraded to "+BRAKING[reported]); }
+  G.grades.brakingReports=(G.grades.brakingReports||0)+1;
+}
+
+/* ---------- 4 · intersection departures ---------- */
+/* Shorter take-off run available. Fine for a light or medium, not for a heavy. */
+function intersectionOk(a){
+  const act=rActive(a.rwy);
+  const tora=act.L*0.62;
+  const need = a.wake==="J"?0.95 : a.wake==="H"?0.85 : a.wake==="M"?0.62 : 0.45;
+  return {ok: tora >= act.L*need, tora:Math.round(tora), need:Math.round(act.L*need)};
+}
+
+/* ---------- 5 · LAHSO ---------- */
+/* Only worth anything where a second runway crosses — Chennai's 12/30 does. */
+function crossingRunwayOf(r){
+  for(const o of RUNWAYS){ if(o===r) continue;
+    if(segCross({x:r.ax,y:r.ay},{x:r.bx,y:r.by},{x:o.ax,y:o.ay},{x:o.bx,y:o.by})) return o; }
+  return null;
+}
+function lahsoAvailable(a){
+  if(a.kind!=="arr") return false;
+  if(rwyCC()<5) return false;                 // never on a contaminated runway
+  return !!crossingRunwayOf(a.rwy);
+}
+
+/* ---------- 6 · curfew / noise abatement ---------- */
+function curfewActive(){ return !!CFG.night; }
+function sidNoiseOk(a){
+  if(!curfewActive()||!a.sid) return true;
+  // SID names run like LATID5A — the digit sits before the trailing letter
+  return !/([13579])[A-Z]?$/.test(a.sid.name); // odd-numbered SIDs are noise-restricted at night
+}
+
+/* ---------- 7 · the log: radio, telephone, and every event ---------- */
+function tstamp(t){ const m=Math.floor(t/60), s=Math.floor(t%60);
+  return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); }
+function logLine(kind,txt){
+  G.tape=G.tape||[];
+  G.tape.push({t:G.t, kind, txt});
+  if(G.tape.length>600) G.tape.shift();
+}
+/* ---------- 8 · error taxonomy ---------- */
+const ERR_CLASS={
+  SEP:"Separation", INC:"Runway incursion", FLOW:"Flow & slots", COORD:"Coordination",
+  PHRAS:"Phraseology & readback", GND:"Ground movement", PROC:"Procedure", WAKE:"Wake turbulence"
+};
+function logErr(cls,txt){
+  G.errs=G.errs||{};
+  G.errs[cls]=G.errs[cls]||[];
+  G.errs[cls].push({t:G.t, txt});
+  logLine("ERR","["+cls+"] "+txt);
+}
+/* ---------- 9 · workload ---------- */
+/* Concurrent demands, how long strips sit unactioned, and how quickly you answer.
+   Not eye tracking, but the same idea: where did the attention go. */
+function stepWorkload(dt){
+  G.wl=G.wl||{samples:0, sum:0, peak:0, unactioned:0, latSum:0, latN:0};
+  G.wl._t=(G.wl._t||0)+dt;
+  if(G.wl._t<1) return;
+  G.wl._t=0;
+  const openReq=G.aircraft.filter(a=>a.req).length;
+  const phone=(G.phone||[]).length;
+  const holding=G.aircraft.filter(a=>["HOLD_SHORT","HOLD","WAITTAXI"].includes(a.state)).length;
+  const veh=(G.vehicles||[]).filter(v=>v.state==="HOLD_SHORT").length;
+  const load=G.aircraft.length*0.5 + openReq*2 + phone*2.5 + holding*0.8 + veh*1.5;
+  G.wl.samples++; G.wl.sum+=load; if(load>G.wl.peak) G.wl.peak=load;
+  // strips left sitting
+  for(const a of G.aircraft){
+    if(["HOLD_SHORT","HOLD","WAITTAXI"].includes(a.state)){ a.dwell=(a.dwell||0)+1;
+      if(a.dwell===45){ G.wl.unactioned++; logErr("GND","Strip unactioned 45s: "+spoken(a)); } }
+    else a.dwell=0;
+  }
+}
+function workloadAvg(){ return G.wl&&G.wl.samples? (G.wl.sum/G.wl.samples):0; }
+
+/* ---------- 10 · export a shift to ARGUS ---------- */
+function exportShift(grade){
+  try{
+    const key="pyrgos_sessions";
+    const list=JSON.parse(localStorage.getItem(key)||"[]");
+    const errCounts={}; for(const k in (G.errs||{})) errCounts[k]=G.errs[k].length;
+    list.push({
+      when:new Date().toISOString(), airport:LZ.icao||LKEY, grade,
+      score:Math.round(G.score), shiftLen:Math.round(G.t),
+      arr:G.grades.arr, dep:G.grades.dep,
+      separation:G.grades.separation, incursion:G.grades.incursion, wake:G.grades.wake,
+      coordMissed:G.grades.coordMissed||0, slotMissed:G.grades.slotMissed||0,
+      workloadAvg:+workloadAvg().toFixed(1), workloadPeak:+(G.wl?G.wl.peak:0).toFixed(1),
+      unactioned:G.wl?G.wl.unactioned:0, errors:errCounts
+    });
+    while(list.length>60) list.shift();
+    localStorage.setItem(key, JSON.stringify(list));
+    return list.length;
+  }catch(_){ return 0; }
+}
+function stepFlow(dt){
+  // slots for departures that are getting close to the runway
+  for(const a of G.aircraft){
+    if(a.kind==="dep" && !a.slot && ["TAXI_OUT","HOLD_SHORT","WAITTAXI"].includes(a.state)) assignSlot(a);
+  }
+  // restrictions come and go
+  if(G.restrict && G.t>G.restrict.until){ toast("✓ "+G.restrict.kind+" lifted"); G.restrict=null; }
+  G.restrictT=(G.restrictT==null?150:G.restrictT)-dt;
+  if(G.restrictT<=0){ G.restrictT=170+Math.random()*160; if(!G.restrict) raiseRestriction(); }
+}
+
+/* ============================================================ EQUIPMENT REALISM + HUMAN FACTORS
+   The parts of the job that are invisible in most simulators: a radio that is
+   not always readable, a telephone that will not stop ringing, a pair of
+   binoculars, strips you physically arrange — and pilots who are hesitant,
+   confused, argumentative, or who read back perfectly and then do something else.
+   ============================================================ */
+
+/* ---------- A · radio readability ---------- */
+/* 1.0 is armchair-clear; below about 0.75 you start losing words. Distance from
+   the tower, weather and a slow random fade all eat into it. */
+function rxQuality(a){
+  if(!a) return 1;
+  const c=fieldCentre(); const d=Math.hypot((a.x-c.x),(a.y-c.y));
+  const far=clamp(1-(d/1400),0,1);                       // range fade
+  const wx = CFG.wx==="LOWVIS"?0.86 : CFG.wx==="RAIN"?0.92 : 1.0;
+  const fade = 0.86+0.14*Math.sin(G.t*0.23+(a.id||0)*1.7);
+  let q = (0.55+0.45*far)*wx*fade;
+  if(a.airborne||a.alt>2500) q*=0.96;
+  return clamp(q*(CFG.rxQuality==null?1:CFG.rxQuality),0,1);
+}
+const STATIC_CH="▒▓░#*~";
+function garble(txt,q){
+  if(q>=0.86) return txt;
+  const bad=clamp((0.86-q)*2.1,0,0.72);                  // fraction of words lost
+  return txt.split(" ").map(w=>{
+    if(Math.random()>bad) return w;
+    let out=""; for(let i=0;i<Math.max(2,w.length);i++)
+      out+=STATIC_CH[Math.floor(Math.random()*STATIC_CH.length)];
+    return out;
+  }).join(" ");
+}
+/* two aircraft keying the mic together and neither is readable */
+function blockedTx(){ return G._lastTxT!=null && (G.t-G._lastTxT)<0.55; }
+
+/* ---------- B · the interphone ---------- */
+/* Coordination calls from the other positions. They ring, they wait, and if you
+   leave them ringing it costs you — which is exactly what the landline is like. */
+const PHONE_LINES={APP:{name:"APPROACH",col:"#5ad9ff"},GND:{name:"GROUND",col:"#7ee787"},ADJ:{name:"AREA CONTROL",col:"#ffd23f"}};
+function ringPhone(line,txt,kind,ac,secs){
+  G.phone=G.phone||[];
+  if(G.phone.length>3) return null;
+  const c={id:G.nextId++, line, txt, kind, acId:ac?ac.id:null, until:G.t+(secs||40), ring:0};
+  G.phone.push(c);
+  blip(520,.10,.05); blip(660,.10,.05);
+  log("strip","☎ "+PHONE_LINES[line].name+": "+txt);
+  return c;
+}
+function answerPhone(id,ok){
+  const i=(G.phone||[]).findIndex(c=>c.id===id); if(i<0) return;
+  const c=G.phone[i]; G.phone.splice(i,1);
+  const a=c.acId?findAircraft(c.acId):null;
+  if(ok){
+    G.grades.coord=(G.grades.coord||0)+1; score(18,"");
+    if(c.kind==="release" && a){ a.released=true; toast("✓ Release approved — "+spoken(a)); }
+    if(c.kind==="inbound"){ toast("✓ Inbound accepted"); }
+    if(c.kind==="handback" && a){ toast("✓ Handed back to "+PHONE_LINES[c.line].name); }
+    pushRadio("you","☎ "+PHONE_LINES[c.line].name+": approved.");
+  } else {
+    G.grades.coordDeny=(G.grades.coordDeny||0)+1;
+    if(c.kind==="release" && a) a.released=false;
+    pushRadio("you","☎ "+PHONE_LINES[c.line].name+": unable at this time.");
+  }
+  renderPhone();
+}
+function renderPhone(){
+  const el=document.getElementById("phoneStack"); if(!el) return;
+  const list=G&&G.phone?G.phone:[];
+  document.getElementById("phoneWrap").classList.toggle("ringing", list.length>0);
+  el.innerHTML = list.length? list.map(c=>{
+    const L=PHONE_LINES[c.line], left=Math.max(0,Math.ceil(c.until-G.t));
+    return `<div class="phcall" style="border-left:3px solid ${L.col}">
+      <div class="phhead"><b style="color:${L.col}">☎ ${L.name}</b><span>${left}s</span></div>
+      <div class="phtxt">${c.txt}</div>
+      <div class="phbtns"><button class="ok" data-ph="${c.id}" data-ok="1">Approve</button>
+        <button class="no" data-ph="${c.id}" data-ok="0">Unable</button></div></div>`;
+  }).join("") : '<div class="phnone">Lines quiet</div>';
+  el.querySelectorAll("button[data-ph]").forEach(b=>{
+    b.onclick=()=>answerPhone(+b.dataset.ph, b.dataset.ok==="1"); });
+}
+function stepPhone(dt){
+  G.phone=G.phone||[];
+  for(let i=G.phone.length-1;i>=0;i--){
+    const c=G.phone[i];
+    if(G.t>c.until){
+      G.phone.splice(i,1);
+      G.grades.coordMissed=(G.grades.coordMissed||0)+1;
+      score(-35,"Unanswered coordination call");
+      toast("☎ Missed call — "+PHONE_LINES[c.line].name);
+    }
+  }
+  // generate coordination traffic
+  G.phoneT=(G.phoneT==null?30:G.phoneT)-dt;
+  if(G.phoneT<=0){
+    G.phoneT=42+Math.random()*45;
+    const deps=G.aircraft.filter(a=>a.kind==="dep"&&!a.released&&["HOLD_SHORT","TAXI_OUT","WAITTAXI"].includes(a.state));
+    const arrs=G.aircraft.filter(a=>a.kind==="arr"&&a.state==="HOLD");
+    const roll=Math.random();
+    if(deps.length && roll<0.45){
+      const a=deps[0];
+      ringPhone("ADJ","Request departure release for "+spoken(a)+", "+(a.sid?a.sid.name:"standard")+".","release",a,40);
+    } else if(arrs.length && roll<0.75){
+      const a=arrs[0];
+      ringPhone("APP","Inbound "+spoken(a)+", 12 miles, accept for tower?","inbound",a,38);
+    } else {
+      ringPhone("GND","Request to cross the active with a tug at the hold — approve?","cross",null,34);
+    }
+  }
+}
+
+/* ---------- C · binoculars ---------- */
+let BINO={on:false, mx:0, my:0};
+function drawBinoculars(){
+  if(!BINO.on) return;
+  const r=cvs.getBoundingClientRect();
+  const a=findAircraft(selected);
+  let cx,cy;
+  if(a){ const p=W2S(a.x,a.y); cx=p.x; cy=p.y; } else { cx=BINO.mx||r.width/2; cy=BINO.my||r.height/2; }
+  const R=Math.min(r.width,r.height)*0.24, Z=3.2;
+  ctx.save();
+  // darken everything outside the eyepiece
+  ctx.fillStyle="rgba(0,0,0,.72)";
+  ctx.beginPath(); ctx.rect(0,0,r.width,r.height);
+  ctx.arc(cx,cy,R,0,Math.PI*2,true); ctx.fill();
+  // magnified content
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
+  ctx.translate(cx,cy); ctx.scale(Z,Z); ctx.translate(-cx,-cy);
+  ctx.drawImage(cvs, 0,0, r.width, r.height);
+  ctx.restore();
+  // eyepiece furniture
+  ctx.save();
+  ctx.strokeStyle="rgba(180,220,210,.55)"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle="rgba(180,220,210,.30)"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(cx-R*0.5,cy); ctx.lineTo(cx+R*0.5,cy);
+  ctx.moveTo(cx,cy-R*0.5); ctx.lineTo(cx,cy+R*0.5); ctx.stroke();
+  ctx.fillStyle="rgba(180,220,210,.75)"; ctx.font="10px ui-monospace,monospace"; ctx.textAlign="center";
+  ctx.fillText("BINOCULARS  ×"+Z.toFixed(1)+(a?"  ·  "+spoken(a)+"  ·  "+TYPES[a.type].name:""), cx, cy+R+16);
+  ctx.restore();
+}
+
+/* ---------- D · strip physicality ---------- */
+function cockStrip(id){ const a=findAircraft(id); if(!a)return; a.cocked=!a.cocked; renderStrips(); }
+function noteStrip(id){
+  const a=findAircraft(id); if(!a)return;
+  const v=prompt("Strip annotation for "+spoken(a)+":", a.note||"");
+  if(v!=null){ a.note=v.slice(0,26); renderStrips(); }
+}
+
+/* ---------- E–H · pilot behaviour ---------- */
+/* One request object per aircraft, rendered as extra buttons on the strip and in
+   the action panel. Types:
+     SAYAGAIN   the transmission was unreadable, they want it again
+     UNSURE     lost on the ground, wants progressive taxi
+     CONFUSED   did not understand — needs plain, simplified phraseology
+     REQUEST    wants something you may refuse, and may argue once
+*/
+const REQ_KINDS=["rwychange","direct","speed","level"];
+function reqText(a,kind){
+  switch(kind){
+    case "rwychange": return "request the other runway, we're closer to it";
+    case "direct":    return "request direct routing after departure";
+    case "speed":     return "request high speed on final, we're behind schedule";
+    default:          return "request a higher initial level";
+  }
+}
+function askPilot(a,type,extra){
+  if(a.req||a.emg) return;
+  a.req={type, kind:extra||null, until:G.t+38, argued:false};
+  const line = type==="SAYAGAIN" ? "say again, you were broken and unreadable"
+             : type==="UNSURE"   ? "we're unsure of our position, request progressive taxi"
+             : type==="CONFUSED" ? "say again slowly please, we did not fully copy"
+             : reqText(a,a.req.kind);
+  pilot(a, spoken(a)+", "+line+".");
+  G.grades.pilotEvents=(G.grades.pilotEvents||0)+1;
+}
+const PROCCMDS={
+  intersection:(a)=>{
+    const q=intersectionOk(a);
+    a.intersection=true;
+    if(!q.ok){
+      G.grades.intersection=(G.grades.intersection||0)+1;
+      score(-60,"Intersection departure too short for this type");
+      logErr("PROC","Intersection departure issued to a "+TYPES[a.type].name+" needing "+q.need+"m");
+      toast("⚠ TORA "+q.tora+"m is short for a "+TYPES[a.type].name);
+    } else { G.grades.intersection=(G.grades.intersection||0)+1; score(20,""); }
+    you(a,"cleared for an intersection departure runway "+rName(a.rwy));
+    pilot(a,"Intersection departure, "+spoken(a));
+    renderActions(); renderStrips(); },
+  lahso:(a)=>{
+    const x=crossingRunwayOf(a.rwy);
+    if(!x) return warn("No crossing runway here — LAHSO does not apply.");
+    if(rwyCC()<5){ score(-55,"LAHSO on a contaminated runway");
+      logErr("PROC","LAHSO issued with braking action "+brakingLabel()); }
+    else { score(22,""); }
+    a.lahso=x.id; G.grades.lahso=(G.grades.lahso||0)+1;
+    you(a,"cleared to land runway "+rName(a.rwy)+", hold short of runway "+x.dir);
+    pilot(a,"Cleared to land, hold short of "+x.dir+", "+spoken(a));
+    CMDS.land(a); renderActions(); renderStrips(); },
+  backtrack:(a)=>{
+    a.backtrack=true; G.grades.backtrack=(G.grades.backtrack||0)+1;
+    a.btT=14+Math.random()*6;
+    you(a,"backtrack runway "+rName(a.rwy)+", report lined up");
+    pilot(a,"Backtracking "+rName(a.rwy)+", "+spoken(a));
+    renderActions(); renderStrips(); }
+};
+const HFCMDS={
+  holdpos:(a)=>{
+    a.holding=true; a.spd=0;
+    if(a.noncomply||a.creeping){
+      G.grades.noncompliance=(G.grades.noncompliance||0)+1;
+      score(45,""); toast("✓ Caught it — "+spoken(a)+" stopped short");
+      log("strip","Caught non-compliance: "+spoken(a)+" stopped");
+    }
+    a.noncomply=false; a.creeping=false; a.creepT=null;
+    you(a,"hold position"); pilot(a,"Holding position, "+spoken(a));
+    renderActions(); renderStrips(); },
+  sayagain:(a)=>{ if(a.lastTx){ pushRadio("pilot","(repeat) "+a.lastTx); if(CFG.voice) speak(a.lastTx); }
+    a.req=null; score(6,""); renderActions(); renderStrips(); },
+  progressive:(a)=>{ you(a,"progressive taxi: follow the greens, left on Alpha, hold short");
+    pilot(a,"Following the greens, "+spoken(a)); a.req=null; a.holding=false;
+    G.grades.progressive=(G.grades.progressive||0)+1; score(14,""); renderActions(); renderStrips(); },
+  simplify:(a)=>{ you(a,"simplified: taxi straight ahead, then hold");
+    pilot(a,"Straight ahead then hold, "+spoken(a)); a.req=null;
+    G.grades.simplified=(G.grades.simplified||0)+1; score(14,""); renderActions(); renderStrips(); },
+  approve:(a)=>{ you(a,"approved"); pilot(a,"Thank you, "+spoken(a));
+    if(a.req&&a.req.kind==="rwychange"){ const alt=RUNWAYS.find(r=>r!==a.rwy&&r.role!=="OFF"); if(alt) a.rwy=alt; }
+    a.req=null; G.grades.reqApproved=(G.grades.reqApproved||0)+1; score(10,""); renderActions(); renderStrips(); },
+  deny:(a)=>{
+    if(a.req && !a.req.argued && Math.random()<0.55){
+      a.req.argued=true; a.req.until=G.t+30;
+      pilot(a, spoken(a)+", we'd really appreciate it, can you reconsider?");
+      renderActions(); renderStrips(); return;
+    }
+    you(a,"unable"); pilot(a,"Roger, unable, "+spoken(a));
+    a.req=null; G.grades.reqDenied=(G.grades.reqDenied||0)+1; score(8,""); renderActions(); renderStrips(); }
+};
+function reqActions(a){
+  if(!a.req) return [];
+  if(a.req.type==="SAYAGAIN")   return [["Say Again","sayagain","act go"]];
+  if(a.req.type==="UNSURE")     return [["Progressive Taxi","progressive","act go"],["Say Again","sayagain","act"]];
+  if(a.req.type==="CONFUSED")   return [["Simplify Phraseology","simplify","act go"],["Say Again","sayagain","act"]];
+  return [["Approve Request","approve","act go"],["Unable","deny","act warn"]];
+}
+/* pilots who read back correctly and then do something else */
+function maybeNoncompliance(a){
+  const p = CFG.diff==="expert"?0.16 : CFG.diff==="standard"?0.09 : 0.05;
+  if(Math.random()<p){ a.noncomply=true; }
+}
+/* A pilot who read back "holding short" and then rolls anyway. The controller
+   has to notice the movement and stop them — that is the whole exercise. */
+function stepNoncompliance(dt){
+  for(const a of G.aircraft){
+    if(!a.noncomply) continue;
+    if(a.state!=="HOLD_SHORT"){ continue; }
+    if(a.cleared.lineup||a.cleared.takeoff){ a.noncomply=false; a.creepT=null; continue; }
+    if(a.creepT==null) a.creepT=7;
+    a.creepT-=dt;
+    if(a.creepT<=0){
+      // edging over the hold line
+      const act=rActive(a.rwy), thr=act.thr;
+      const dx=thr.x-a.x, dy=thr.y-a.y, d=Math.hypot(dx,dy)||1;
+      a.x+=dx/d*9*dt; a.y+=dy/d*9*dt; a.creeping=true; a.flash=1;
+      const onR=ptSegDist(a,{x:a.rwy.ax,y:a.rwy.ay},{x:a.rwy.bx,y:a.rwy.by})<24;
+      if(onR && !a.incLogged){
+        a.incLogged=true; G.grades.incursion++;
+        score(-160,"RUNWAY INCURSION — aircraft entered without clearance");
+        toast("⛔ INCURSION — "+spoken(a)+" entered "+rName(a.rwy)+" without clearance");
+        log("strip","INCURSION: "+spoken(a)+" rolled past the hold line");
+        a.noncomply=false; a.creeping=false;
+      }
+    }
+  }
+}
+function stepHumanFactors(dt){
+  stepNoncompliance(dt);
+  // expire stale requests
+  for(const a of G.aircraft){
+    if(a.req && G.t>a.req.until){
+      a.req=null; G.grades.reqIgnored=(G.grades.reqIgnored||0)+1;
+      score(-18,"Pilot request ignored");
+    }
+  }
+  G.hfT=(G.hfT==null?26:G.hfT)-dt;
+  if(G.hfT<=0){
+    G.hfT=30+Math.random()*36;
+    const pool=G.aircraft.filter(a=>!a.req&&!a.emg&&!a.dead);
+    if(pool.length){
+      const a=pool[Math.floor(Math.random()*pool.length)];
+      const ground=["TAXI_OUT","TAXI_IN","HOLD_TAXI","WAITTAXI"].includes(a.state);
+      const r=Math.random();
+      if(ground && r<0.30)      askPilot(a,"UNSURE");
+      else if(r<0.50)           askPilot(a,"CONFUSED");
+      else if(r<0.72)           askPilot(a,"SAYAGAIN");
+      else                      askPilot(a,"REQUEST", REQ_KINDS[Math.floor(Math.random()*REQ_KINDS.length)]);
+    }
+  }
+}
+
+/* ============================================================ GROUND OPERATIONS
+   Airside vehicles, runway closures / NOTAMs, de-icing with holdover, and
+   pushback conflicts. Vehicles route on the same Dijkstra taxi graph as the
+   aircraft and must ask you before they cross a runway — which is the point,
+   because most real runway incursions involve a vehicle, not an aeroplane.
+   ============================================================ */
+const VEHTYPES={
+  FOLLOWME:{name:"Follow Me",        tag:"FM",   spd:30, col:"#ffd23f", pre:"FOLLOW ME"},
+  FUEL:    {name:"Fuel Truck",       tag:"FUEL", spd:17, col:"#ff9f43", pre:"FUEL"},
+  BIRD:    {name:"Bird Patrol",      tag:"BIRD", spd:26, col:"#7ee787", pre:"WILDLIFE"},
+  INSPECT: {name:"Runway Inspection",tag:"INSP", spd:24, col:"#5ad9ff", pre:"OPS"}
+};
+const VEH_STATE={TAXI:"TAXI",HOLD_SHORT:"HOLD_SHORT",CROSS:"CROSS",ONRWY:"ONRWY",DONE:"DONE"};
+
+/* -- geometry: does segment p1→p2 cross segment p3→p4? -- */
+function segCross(p1,p2,p3,p4){
+  const d=(p2.x-p1.x)*(p4.y-p3.y)-(p2.y-p1.y)*(p4.x-p3.x);
+  if(Math.abs(d)<1e-9) return null;
+  const t=((p3.x-p1.x)*(p4.y-p3.y)-(p3.y-p1.y)*(p4.x-p3.x))/d;
+  const u=((p3.x-p1.x)*(p2.y-p1.y)-(p3.y-p1.y)*(p2.x-p1.x))/d;
+  if(t<0||t>1||u<0||u>1) return null;
+  return {x:p1.x+t*(p2.x-p1.x), y:p1.y+t*(p2.y-p1.y), t};
+}
+/* the next runway this entity's leg would take it across, if any */
+function crossingAhead(e){
+  const wp=e.route&&e.route[0]; if(!wp) return null;
+  for(const r of RUNWAYS){
+    const hit=segCross({x:e.x,y:e.y}, wp, {x:r.ax,y:r.ay}, {x:r.bx,y:r.by});
+    if(hit) return {r, at:hit};
+  }
+  return null;
+}
+function vehSpoken(v){ return VEHTYPES[v.vtype].pre+" "+v.num; }
+function findVehicle(id){ return G.vehicles? G.vehicles.find(v=>v.id===id):null; }
+function findEntity(id){ return findAircraft(id) || findVehicle(id); }
+
+/* -- is a runway currently occupied by a vehicle? -- */
+function rwyVehicleOn(r){
+  return (G.vehicles||[]).some(v=> (v.state===VEH_STATE.ONRWY||v.state===VEH_STATE.CROSS) && v.onR===r.id);
+}
+/* -- NOTAM / closure -- */
+function rwyClosed(r){ return (G.notams||[]).some(n=>n.kind==="RWY"&&n.id===r.id&&G.t<n.until); }
+function nodeClosed(id){ return (G.notams||[]).some(n=>n.kind==="TWY"&&n.id===id&&G.t<n.until); }
+function fileNotam(kind,id,secs,reason){
+  G.notams=G.notams||[];
+  G.notams.push({kind,id,until:G.t+secs,reason});
+  const what = kind==="RWY" ? ("Runway "+(RUNWAYS.find(r=>r.id===id)||{dir:id}).dir) : ("Taxiway "+id);
+  toast("▲ NOTAM — "+what+" closed: "+reason);
+  log("strip","NOTAM: "+what+" closed ("+reason+")");
+}
+
+/* -- vehicle spawning -- */
+function vehNodes(){ return Object.keys(LZ.nodes).filter(n=>!nodeClosed(n)); }
+/* pick a target well away from here — adjacent nodes make for a one-second trip */
+function farNode(from,ns){
+  const a=LZ.nodes[from]; let best=ns[0], bd=-1;
+  for(let i=0;i<9;i++){
+    const c=ns[Math.floor(Math.random()*ns.length)]; if(c===from) continue;
+    const n=LZ.nodes[c], d=Math.hypot(n.x-a.x,n.y-a.y);
+    if(d>bd){ bd=d; best=c; }
+  }
+  return best;
+}
+/* Would closing this node disconnect the field? Checked against the routes that
+   actually matter — every gate to every runway hold — before a NOTAM is filed. */
+function isCutVertex(id){
+  const test=new Set([id]);
+  for(const g of GATES){
+    for(const r of RUNWAYS){
+      const hold=nearestNode(rActive(r).thr.x, rActive(r).thr.y);
+      if(g.node===id||hold===id) continue;
+      if(!nodePathEx(g.node, hold, test).length) return true;
+    }
+  }
+  return false;
+}
+function spawnVehicle(force){
+  G.vehicles=G.vehicles||[];
+  if(G.vehicles.length>=3 && !force) return null;
+  const keys=Object.keys(VEHTYPES);
+  const vt = force || keys[Math.floor(Math.random()*keys.length)];
+  const ns=vehNodes(); if(ns.length<2) return null;
+  const from=ns[Math.floor(Math.random()*ns.length)];
+  const to=farNode(from,ns);
+  const n=LZ.nodes[from];
+  const v={
+    id:G.nextId++, veh:true, vtype:vt, num:100+Math.floor(Math.random()*80),
+    x:n.x, y:n.y, hdg:0, spd:0, state:VEH_STATE.TAXI,
+    route:routeCoords(from,to).slice(1), target:to,
+    crossOk:null, onR:null, askT:0, born:G.t, waited:0, work:0, flash:0,
+    legs:2+Math.floor(Math.random()*3)      // how many errands before it goes home
+  };
+  G.vehicles.push(v);
+  log("strip", vehSpoken(v)+" on the move to "+to);
+  return v;
+}
+/* an inspection actually occupies the runway for a while */
+function sendInspection(r){
+  const v=spawnVehicle("INSPECT"); if(!v) return null;
+  const thr=rActive(r).thr;
+  const near=nearestNode(thr.x,thr.y);
+  v.route=routeCoords(nearestNode(v.x,v.y),near).slice(1);
+  v.inspect=r.id; v.target=near;
+  return v;
+}
+
+/* -- vehicle update -- */
+function updateVehicle(v,dt){
+  const T=VEHTYPES[v.vtype];
+  if(v.flash>0) v.flash-=dt;
+
+  if(v.state===VEH_STATE.DONE){ v.dead=true; return; }
+
+  // running an inspection: drive the runway, then clear it
+  if(v.state===VEH_STATE.ONRWY){
+    v.work-=dt;
+    const r=RUNWAYS.find(x=>x.id===v.onR);
+    if(r){ const a={x:r.ax,y:r.ay}, b={x:r.bx,y:r.by};
+      const k=1-Math.max(0,v.work)/Math.max(v.workTotal,1);
+      v.x=a.x+(b.x-a.x)*k; v.y=a.y+(b.y-a.y)*k;
+      v.hdg=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI+90; }
+    if(v.work<=0){
+      toast("✓ "+vehSpoken(v)+" — runway inspection complete, runway vacated");
+      log("strip", vehSpoken(v)+" reports runway "+(r?r.dir:"")+" clear");
+      v.onR=null; v.inspect=null; v.state=VEH_STATE.TAXI;
+      const back=vehNodes()[0]; v.route=routeCoords(nearestNode(v.x,v.y),back).slice(1);
+    }
+    return;
+  }
+
+  // waiting at a hold for a crossing clearance
+  if(v.state===VEH_STATE.HOLD_SHORT){
+    v.spd=0; v.waited+=dt; v.askT-=dt;
+    if(v.askT<=0){ v.askT=14;
+      const r=v.holdR;
+      pushRadio("pilot", vehSpoken(v)+", holding short runway "+(r?r.dir:"")+", request crossing.");
+      if(CFG.voice) speak(vehSpoken(v)+" holding short runway "+(r?r.dir:"")+", request crossing");
+    }
+    if(v.waited>75){ score(-8,"Vehicle held too long"); v.waited=0; }
+    return;
+  }
+
+  // normal taxi, but stop at a runway edge unless cleared
+  const cr=crossingAhead(v);
+  if(cr && v.crossOk!==cr.r.id && v.state!==VEH_STATE.CROSS){
+    const dx=cr.at.x-v.x, dy=cr.at.y-v.y, d=Math.hypot(dx,dy)||1;
+    if(d<30){
+      v.x=cr.at.x-dx/d*26; v.y=cr.at.y-dy/d*26;
+      v.state=VEH_STATE.HOLD_SHORT; v.holdR=cr.r; v.spd=0; v.askT=0; v.waited=0;
+      return;
+    }
+  }
+  if(v.state===VEH_STATE.CROSS){
+    // still on the runway?
+    const r=RUNWAYS.find(x=>x.id===v.crossOk);
+    if(r){ const dd=ptSegDist(v, {x:r.ax,y:r.ay},{x:r.bx,y:r.by});
+      v.onR = dd<26 ? r.id : null;
+      if(dd>34 && v.wasOn){ v.state=VEH_STATE.TAXI; v.crossOk=null; v.wasOn=false; v.onR=null;
+        pushRadio("pilot", vehSpoken(v)+", runway vacated."); }
+      if(dd<26) v.wasOn=true;
+    }
+  }
+  followRoute(v,dt,T.spd);
+  if(!v.route || v.route.length===0){
+    if(v.inspect){                      // arrived at the runway to inspect it
+      const r=RUNWAYS.find(x=>x.id===v.inspect);
+      if(r && v.crossOk===r.id){ v.state=VEH_STATE.ONRWY; v.onR=r.id; v.workTotal=26; v.work=26;
+        pushRadio("pilot", vehSpoken(v)+" entering runway "+r.dir+" for inspection."); }
+      else if(r){ v.state=VEH_STATE.HOLD_SHORT; v.holdR=r; v.askT=0; }
+      return;
+    }
+    // out of route: take another errand, or leave the manoeuvring area
+    if(v.legs>0){
+      v.legs--;
+      const here=nearestNode(v.x,v.y), ns=vehNodes();
+      v.target=farNode(here,ns);
+      v.route=routeCoords(here,v.target).slice(1);
+      if(!v.route.length) v.state=VEH_STATE.DONE;
+    } else v.state=VEH_STATE.DONE;
+  }
+}
+function ptSegDist(p,a,b){
+  const vx=b.x-a.x, vy=b.y-a.y, wx=p.x-a.x, wy=p.y-a.y;
+  const L=vx*vx+vy*vy||1; let t=(wx*vx+wy*vy)/L; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*vx), p.y-(a.y+t*vy));
+}
+
+/* -- vehicle commands -- */
+const VEHCMDS={
+  cross:(v)=>{
+    const r=v.holdR || (crossingAhead(v)||{}).r || (v.inspect?RUNWAYS.find(x=>x.id===v.inspect):null);
+    if(!r) return warn(vehSpoken(v)+" is not at a runway.");
+    // THE point of the feature: check the runway before you clear anything onto it
+    const busy=G.aircraft.some(o=>o.rwy===r && ["LAND","TKOF","LINEUP"].includes(o.state));
+    const short=G.aircraft.some(o=>o.rwy===r && o.kind==="arr" && o.state==="FINAL" &&
+                 Math.hypot(o.x-rActive(r).thr.x,o.y-rActive(r).thr.y)<420);
+    v.crossOk=r.id; v.state=VEH_STATE.CROSS; v.holdR=null; v.wasOn=false;
+    you(v,"cross runway "+r.dir);
+    pushRadio("pilot","Crossing runway "+r.dir+", "+vehSpoken(v));
+    if(busy||short){
+      G.grades.incursion++; G.grades.vehIncursion=(G.grades.vehIncursion||0)+1;
+      score(-140,"RUNWAY INCURSION — vehicle cleared onto an active runway");
+      toast("⛔ INCURSION — "+vehSpoken(v)+" crossed "+r.dir+" with traffic on it");
+      log("strip","INCURSION: "+vehSpoken(v)+" cleared across active runway "+r.dir);
+      v.flash=3;
+    } else { score(12,""); G.grades.vehCross=(G.grades.vehCross||0)+1; }
+  },
+  vhold:(v)=>{ v.crossOk=null; if(v.state===VEH_STATE.CROSS) v.state=VEH_STATE.TAXI;
+    v.state=VEH_STATE.HOLD_SHORT; v.holdR=v.holdR||(crossingAhead(v)||{}).r||null; v.askT=20;
+    you(v,"hold short"); pushRadio("pilot","Holding short, "+vehSpoken(v)); },
+  vgo:(v)=>{ v.state=VEH_STATE.TAXI; v.askT=20; you(v,"continue"); pushRadio("pilot","Continuing, "+vehSpoken(v)); },
+  vclear:(v)=>{ v.state=VEH_STATE.DONE; you(v,"clear of the manoeuvring area"); }
+};
+function vehActions(v){
+  const L=[];
+  if(v.state===VEH_STATE.HOLD_SHORT){
+    L.push(["Cross Runway "+(v.holdR?v.holdR.dir:""),"cross","act go"]);
+    L.push(["Continue Holding","vhold","act"]);
+  } else if(v.state===VEH_STATE.ONRWY){
+    L.push(["On runway — inspecting…","","act dim"]);
+  } else if(v.state===VEH_STATE.CROSS){
+    L.push(["Crossing…","","act dim"]);
+  } else {
+    L.push(["Hold Position","vhold","act warn"]);
+    L.push(["Continue","vgo","act"]);
+    L.push(["Clear the Area","vclear","act"]);
+  }
+  return L;
+}
+function runVehCommand(v,name){ const f=VEHCMDS[name]; if(f){ f(v); renderActions(); renderStrips(); } }
+
+/* -- de-icing with holdover time -- */
+function deiceNeeded(){ return CFG.wx==="RAIN"||CFG.wx==="LOWVIS"; }
+const DEICE_DUR=22, HOLDOVER=95;
+const DEICECMDS={
+  deice:(a)=>{
+    if(!deiceNeeded()) return warn("De-icing not required in these conditions.");
+    if(a.deiceState==="DONE"&&G.t<a.holdUntil) return warn(spoken(a)+" is already treated.");
+    a.deiceState="WORKING"; a.deiceT=DEICE_DUR;
+    you(a,"cleared to the de-icing pad"); pilot(a,"To de-icing, "+spoken(a));
+  }
+};
+function updateDeice(a,dt){
+  if(!a.deiceState) return;
+  if(a.deiceState==="WORKING"){
+    a.deiceT-=dt;
+    if(a.deiceT<=0){ a.deiceState="DONE"; a.holdUntil=G.t+HOLDOVER;
+      pilot(a,"De-icing complete, holdover running, "+spoken(a));
+      G.grades.deiced=(G.grades.deiced||0)+1; }
+  } else if(a.deiceState==="DONE" && G.t>a.holdUntil){
+    a.deiceState=null; a.holdUntil=0;
+    pilot(a,"Holdover expired, we need another de-icing run, "+spoken(a));
+    score(-25,"Holdover time expired"); G.grades.holdover=(G.grades.holdover||0)+1;
+  }
+}
+
 /* ============================================================ COMMANDS ============================================================ */
 function findAircraft(id){ return G.aircraft.find(a=>a.id===id); }
 function selectAircraft(id){ selected=id; renderActions(); renderStrips(); }
@@ -995,7 +1787,20 @@ const CMDS={
   slow:(a)=>{ if(a.kind==="arr"){ a.spdCmd=135; you(a,"reduce speed 135 knots"); pilot(a,"Reduce 135, "+spoken(a)); } },
   resume:(a)=>{ if(a.kind==="arr"){ a.spdCmd=165; you(a,"resume normal speed"); pilot(a,"Resume speed, "+spoken(a)); } },
   push:(a)=>{ if(a.kind!=="dep"||a.state!=="GATE"){return warn("Can't push back now.");}
-    a.cleared.push=true; a.state="PUSH"; a.pushGoal={x:LZ.nodes[a.gate.node].x,y:LZ.nodes[a.gate.node].y}; you(a,"pushback approved"); pilot(a,"Push approved, "+spoken(a)); },
+    // congested stands: pushing two aircraft into the same space is a real conflict
+    const goal={x:LZ.nodes[a.gate.node].x,y:LZ.nodes[a.gate.node].y};
+    const clash=G.aircraft.find(o=>o!==a && o.state==="PUSH" &&
+      Math.hypot((o.pushGoal?o.pushGoal.x:o.x)-goal.x,(o.pushGoal?o.pushGoal.y:o.y)-goal.y)<58);
+    const blocker=G.aircraft.find(o=>o!==a && ["TAXI_OUT","TAXI_IN","EXIT"].includes(o.state) &&
+      Math.hypot(o.x-goal.x,o.y-goal.y)<42);
+    if(clash||blocker){
+      G.grades.pushConflict=(G.grades.pushConflict||0)+1;
+      score(-45,"Pushback conflict on the stand");
+      toast("⚠ Pushback conflict — "+spoken(a)+" pushed into "+spoken(clash||blocker));
+      log("strip","Pushback conflict: "+spoken(a)+" vs "+spoken(clash||blocker));
+      a.flash=2;
+    }
+    a.cleared.push=true; a.state="PUSH"; a.pushGoal=goal; you(a,"pushback approved"); pilot(a,"Push approved, "+spoken(a)); },
   taxiout:(a)=>{ if(a.kind!=="dep"){return warn("Not a departure.");}
     a.holding=false;
     if(a.state==="GATE"){ CMDS.push(a); } a.cleared.taxi=true; const rn=rName(a.rwy);
@@ -1017,6 +1822,11 @@ const CMDS={
     if(!runwayClear(a)){ return warn("Runway occupied — hold."); }
     if(a.sid && !a.sid.rwys.includes(rName(a.rwy)) && !a._sidWarned){ a._sidWarned=true;
       G.grades.sidbust=(G.grades.sidbust||0)+1; score(-40,"SID/runway mismatch ("+a.sid.name+")"); }
+    if(depsHeld()){ score(-50,"Departure released during a restriction");
+      logErr("FLOW","Takeoff issued while "+G.restrict.kind+" active"); }
+    if(!sidNoiseOk(a)){ G.grades.curfew=(G.grades.curfew||0)+1; score(-35,"Noise-abatement violation");
+      logErr("PROC","Curfew: "+(a.sid?a.sid.name:"SID")+" not permitted at night"); }
+    checkSlotOnDeparture(a);
     a.cleared.takeoff=true; if(a.state==="HOLD_SHORT"){ a.route=[lineupPt(a)]; } a.state="LINEUP"; a.wantTakeoff=true; const rn=rName(a.rwy);
     you(a,"cleared for takeoff runway "+rn+(a.sid?", "+a.sid.name:"")); pilot(a,"Cleared for takeoff "+rn+", "+spoken(a)); },
   taxigate:(a)=>{ if(a.kind!=="arr"){return warn("Not an arrival.");}
@@ -1083,7 +1893,9 @@ const ATC_MSG={
   taxigate:a=>"taxi to the gate",
   hold:    a=>"hold position"
 };
-function runCommand(a, name){ if(!a){return warn("Select an aircraft first.");} const f=CMDS[name];
+function runCommandBind(btn,a,c){ btn.onclick=()=>runCommand(a,c); }
+function runCommand(a, name){ if(!a){return warn("Select an aircraft first.");}
+  const f=CMDS[name]||DEICECMDS[name]||HFCMDS[name]||PROCCMDS[name];
   if(f){ f(a);
     if(a.ody && ATC_MSG[name]) pushATC(a, name, ATC_MSG[name](a));   // ← tell ODYSSEY what it was just told
     updateHUD(); renderStrips(); renderActions(); } }
@@ -1098,6 +1910,7 @@ function actionsFor(a){
       L.push([a.spdCmd>150?"Reduce Speed":"Resume Speed", a.spdCmd>150?"slow":"resume","act"]); }
     else if(a.state==="INTERCEPT"){ L.push(["Cleared to Land","land","act go"]); L.push(["Go Around","goaround","act warn"]); }
     else if(a.state==="FINAL"){ L.push(["Cleared to Land","land","act go"]);
+      if(lahsoAvailable(a)) L.push(["Land + Hold Short","lahso","act"]);
       L.push([a.spdCmd>150?"Reduce Speed":"Resume Speed", a.spdCmd>150?"slow":"resume","act"]);
       L.push(["Go Around","goaround","act warn"]); }
     else if(a.state==="GOAROUND"){ L.push(["Re-sequencing…","","act dim"]); }
@@ -1105,11 +1918,21 @@ function actionsFor(a){
     else L.push(["Parking…","","act dim"]);
   } else {
     if(a.sid && !a.cleared.sid && ["GATE","PUSH","WAITTAXI","TAXI_OUT","HOLD_TAXI"].includes(a.state)) L.push(["Cleared "+a.sid.name,"clearance","act"]);
+    if(deiceNeeded() && a.state!=="TKOF" && !a.airborne){
+      if(!a.deiceState) L.push(["Send to De-Icing","deice","act"]);
+      else if(a.deiceState==="WORKING") L.push(["De-icing…","","act dim"]);
+      else L.push(["Holdover "+Math.max(0,Math.ceil(a.holdUntil-G.t))+"s","","act dim"]);
+    }
     if(a.state==="GATE") L.push(["Pushback","push","act"]);
     if(a.state==="PUSH"||a.state==="WAITTAXI") L.push(["Taxi to Runway","taxiout","act"]);
     if(a.state==="TAXI_OUT"||a.state==="HOLD_TAXI") L.push(["Continue Taxi","taxiout","act dim"]);
     if(a.yielding) L.push(["Giving way…","","act dim"]);
-    if(a.state==="HOLD_SHORT"){ L.push(["Line Up & Wait","lineup","act"]); L.push(["Cleared Takeoff","takeoff","act go"]); }
+    if(a.state==="HOLD_SHORT"){ L.push(["Line Up & Wait","lineup","act"]); L.push(["Cleared Takeoff","takeoff","act go"]);
+      L.push([a.creeping?"⚠ HOLD POSITION":"Hold Position","holdpos",a.creeping?"act warn":"act"]);
+      if(!a.intersection) L.push(["Intersection Departure","intersection","act"]);
+      if(!a.backtrack) L.push(["Backtrack","backtrack","act"]);
+      const sl=slotState(a);
+      if(sl) L.push(["Slot "+(slotClock(a)>0?("in "+slotClock(a)+"s"):(Math.abs(slotClock(a))+"s ago"))+" · "+sl,"","act dim"]); }
     if(a.state==="LINEUP"&&!a.wantTakeoff) L.push(["Cleared Takeoff","takeoff","act go"]);
     if(a.state==="TKOF"||a.state==="CLIMB") L.push([a.sid?("Flying "+a.sid.name):"Departing…","","act dim"]);
   }
@@ -1184,14 +2007,27 @@ function parseCommand(raw){
 /* ============================================================ RADIO LOG ============================================================ */
 function log(kind,txt){ G.log.push({kind,txt,t:G.t}); }
 function you(a,phrase){ pushRadio("you", spoken(a)+", "+phrase); }
-function pilot(a,phrase){ pushRadio("pilot", phrase); if(CFG.voice) speak(phrase); }
-function pushRadio(kind,txt){
+function pilot(a,phrase){
+  a.lastTx=phrase;                                   // kept clean for "say again"
+  const q=rxQuality(a);
+  const blocked=blockedTx();
+  G._lastTxT=G.t;
+  const shown = blocked ? garble(phrase,0.35) : garble(phrase,q);
+  pushRadio("pilot", shown, blocked?0.35:q);
+  if(blocked){ toast("⛌ Blocked transmission — two aircraft at once"); }
+  if(CFG.voice) speak(phrase);
+}
+function pushRadio(kind,txt,q){
+  if(typeof logLine==="function" && typeof G!=="undefined" && G) logLine(kind==="you"?"TX":"RX", txt);
   const st=document.getElementById("rtStack"); if(!st) return;
-  const d=document.createElement("div"); d.className="rtline "+kind; d.textContent=(kind==="you"?"▲ ":"◂ ")+txt;
+  const d=document.createElement("div");
+  d.className="rtline "+kind+((q!=null&&q<0.7)?" broken":"");
+  d.textContent=(kind==="you"?"▲ ":"◂ ")+txt;
   st.prepend(d); while(st.children.length>6) st.removeChild(st.lastChild);
   setTimeout(()=>{ d.style.transition="opacity .6s"; d.style.opacity="0"; setTimeout(()=>d.remove(),700); }, 5200);
 }
-function spoken(a){ const nm=(AIRLINES[a.pre]||[a.pre])[0]; return nm+" "+a.num; }
+function spoken(a){ if(a&&a.veh) return VEHTYPES[a.vtype].pre+" "+a.num;
+  const nm=(AIRLINES[a.pre]||[a.pre])[0]; return nm+" "+a.num; }
 function hand(a,who,freq){ const line=spoken(a)+", contact "+(LZ.icao||"")+" "+who+(freq?" "+freq:"")+", "+(who==="Departure"?"good day.":"bye.");
   pushRadio("you", line); if(!CFG.silent && CFG.voice && Math.random()<0.5) speak("Contact "+who+(freq?" on "+freq:"")); }
 
@@ -1249,7 +2085,40 @@ function stepGame(dt){
   G.depT-=dt*CFG.traffic*wave;
   if(G.depT<=0){ if(GATES.some(g=>!g.occ)&&G.aircraft.filter(a=>a.kind==="dep").length<maxDep) spawnDeparture(); G.depT=8+Math.random()*6; }
 
-  for(const a of G.aircraft){ updateAircraft(a,dt); if(a.flash>0)a.flash-=dt; }
+  for(const a of G.aircraft){ updateAircraft(a,dt); if(a.flash>0)a.flash-=dt; updateDeice(a,dt); }
+
+  /* ---- ground operations ---- */
+  G.vehicles=G.vehicles||[]; G.notams=G.notams||[];
+  G.vehT=(G.vehT==null? 25 : G.vehT)-dt;
+  if(G.vehT<=0){ G.vehT=38+Math.random()*40; if(Math.random()<0.85) spawnVehicle(); }
+  for(const v of G.vehicles) updateVehicle(v,dt);
+  for(let i=G.vehicles.length-1;i>=0;i--) if(G.vehicles[i].dead) G.vehicles.splice(i,1);
+
+  // an occasional closure, and an inspection to go with it
+  G.notamT=(G.notamT==null? 120 : G.notamT)-dt;
+  if(G.notamT<=0){
+    let filed=false;
+    if(Math.random()<0.5 && RUNWAYS.length>1){
+      const r=RUNWAYS[Math.floor(Math.random()*RUNWAYS.length)];
+      if(!rwyClosed(r) && !G.aircraft.some(a=>a.rwy===r&&["LAND","TKOF","LINEUP"].includes(a.state))){
+        fileNotam("RWY", r.id, 70, "surface inspection"); G.grades.notams=(G.grades.notams||0)+1;
+        sendInspection(r); filed=true;
+      }
+    } else {
+      const ns=Object.keys(LZ.nodes); const n=ns[Math.floor(Math.random()*ns.length)];
+      if(!nodeClosed(n) && !isCutVertex(n)){
+        fileNotam("TWY", n, 80, "works in progress"); G.grades.notams=(G.grades.notams||0)+1; filed=true; }
+    }
+    // a rejected roll should not push the next attempt minutes away
+    G.notamT = filed ? (150+Math.random()*160) : (12+Math.random()*10);
+  }
+  G.notams=G.notams.filter(n=>G.t<n.until);
+
+  /* ---- equipment + human factors ---- */
+  stepPhone(dt);
+  stepHumanFactors(dt);
+  stepFlow(dt);
+  stepWorkload(dt);
   // remove finished
   for(let i=G.aircraft.length-1;i>=0;i--){ if(G.aircraft[i].dead){ const a=G.aircraft[i]; if(a.gate)a.gate.occ=null; G.aircraft.splice(i,1); } }
 
@@ -1296,6 +2165,7 @@ function updateAircraft(a,dt){
       const act=rActive(r); a.spd=Math.max(26, a.spd-46*dt);
       a.x+=act.ux*a.spd*KTS*dt; a.y+=act.uy*a.spd*KTS*dt; a.hdg=act.hdg;
       const rolled=(a.x-act.thr.x)*act.ux+(a.y-act.thr.y)*act.uy;
+      if(!a._brkRep && rolled>act.L*0.4){ a._brkRep=1; pilotBrakingReport(a); }
       if(!a.route && (a.spd<=46 || rolled>act.L-60)){ a.route=buildTaxiIn(a); a.state="TAXI_IN"; a.waited=0; score(120,"Arrival "+a.cs); markArrival(a); hand(a,"Ground",LZ.gnd); }
       break; }
     case "EXIT": case "TAXI_IN":{
@@ -1308,7 +2178,11 @@ function updateAircraft(a,dt){
       break; }
     case "WAITTAXI": break;
     case "TAXI_OUT":{ followRoute(a,dt,64);
-      if(!a.route || a.route.length===0){ a.state="HOLD_SHORT"; a.waited=0; pilot(a,"Holding short "+rName(r)+", "+spoken(a)); }
+      if(!a.route || a.route.length===0){ a.state="HOLD_SHORT"; a.waited=0;
+        pilot(a,"Holding short "+rName(r)+", "+spoken(a));
+        // read back correctly... and then some of them do not actually stop
+        maybeNoncompliance(a);
+        if(a.noncomply){ a.creepT=6+Math.random()*5; } }
       break; }
     case "HOLD_TAXI": break;
     case "HOLD_SHORT": break;
@@ -1383,6 +2257,8 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 /* --- runway clear check --- */
 function runwayClear(a, forTakeoff){
   const r=a.rwy, act=rActive(r);
+  if(rwyVehicleOn(r)) return false;         // a vehicle is on it
+  if(rwyClosed(r)) return false;            // NOTAM'd closed
   for(const o of G.aircraft){ if(o===a || o.rwy!==r) continue;
     if(["LAND","TKOF"].includes(o.state)) return false;
     if(o.state==="LINEUP") return false;
@@ -1433,7 +2309,8 @@ function detectConflicts(dt){
     const a=grd[i],b=grd[j]; const moving=isMovingTaxi(a)||isMovingTaxi(b); if(!moving) continue;
     const d=Math.hypot(a.x-b.x,a.y-b.y);
     if(d<24){ C.push({type:(d<13?"GROUND CONFLICT":"GIVE WAY"),a,b,sev:d<13?2:1}); if(d<20){a.flash=b.flash=.5;}
-      if(d<13 && (G.t-(a._gcT||-99)>6)){ a._gcT=b._gcT=G.t; G.grades.ground=(G.grades.ground||0)+1; score(-40,"Ground conflict"); }
+      if(d<13 && (G.t-(a._gcT||-99)>6)){ a._gcT=b._gcT=G.t; G.grades.ground=(G.grades.ground||0)+1; score(-40,"Ground conflict");
+        logErr("GND","Ground conflict: "+spoken(a)+" / "+spoken(b)); }
     }
   }
   G.conflicts=C;
@@ -1677,6 +2554,7 @@ function fieldLayer(rw,rh,night){
 }
 
 let lastFitSig="";
+function renderWithOptics(){ render(); drawBinoculars(); }
 function render(){
   if(CFG.pvec==null)CFG.pvec=60; if(CFG.stca==null)CFG.stca=1;
   const sig=RUNWAYS.map(r=>r.dir+r.role).join(",")+"|"+(G?G.pos:"");
@@ -2358,7 +3236,51 @@ function drawPlanform(c, a, col, scope){
   }
 }
 
+function drawVehiclesAll(night,scope){
+  if(!G||!G.vehicles) return;
+  // closed runways get hatched out first, so the NOTAM is visible not just announced
+  for(const r of RUNWAYS){
+    if(!rwyClosed(r)) continue;
+    const A=W2S(r.ax,r.ay), B=W2S(r.bx,r.by);
+    ctx.save(); ctx.strokeStyle="rgba(255,90,90,.75)"; ctx.lineWidth=2; ctx.setLineDash([9,7]);
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); ctx.setLineDash([]);
+    const mx=(A.x+B.x)/2, my=(A.y+B.y)/2;
+    ctx.fillStyle="rgba(255,90,90,.9)"; ctx.font="700 11px ui-monospace,monospace"; ctx.textAlign="center";
+    ctx.fillText("RWY "+r.dir+" CLOSED", mx, my-8); ctx.restore();
+  }
+  for(const n of (G.notams||[])){
+    if(n.kind!=="TWY"||!LZ.nodes[n.id]) continue;
+    const p=W2S(LZ.nodes[n.id].x, LZ.nodes[n.id].y);
+    ctx.save(); ctx.strokeStyle="rgba(255,170,60,.85)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(p.x-6,p.y-6); ctx.lineTo(p.x+6,p.y+6);
+    ctx.moveTo(p.x+6,p.y-6); ctx.lineTo(p.x-6,p.y+6); ctx.stroke(); ctx.restore();
+  }
+  for(const v of G.vehicles){
+    const T=VEHTYPES[v.vtype], p=W2S(v.x,v.y), sel=(v.id===selected);
+    ctx.save(); ctx.translate(p.x,p.y);
+    // incursion flash
+    if(v.flash>0){ ctx.beginPath(); ctx.arc(0,0,16+Math.sin(G.t*18)*3,0,7);
+      ctx.strokeStyle="rgba(255,70,70,.9)"; ctx.lineWidth=2; ctx.stroke(); }
+    ctx.rotate((v.hdg||0)*Math.PI/180);
+    ctx.fillStyle=T.col; ctx.fillRect(-3.4,-5,6.8,10);
+    ctx.fillStyle="rgba(0,0,0,.45)"; ctx.fillRect(-3.4,-1,6.8,2);
+    ctx.restore();
+    // rotating beacon
+    if(Math.sin(G.t*7+v.id)>0){ ctx.save(); ctx.fillStyle="rgba(255,220,90,.95)";
+      ctx.beginPath(); ctx.arc(p.x,p.y-8,2.1,0,7); ctx.fill(); ctx.restore(); }
+    // label
+    ctx.save();
+    ctx.font=(sel?"700 ":"")+"9px ui-monospace,monospace"; ctx.textAlign="left";
+    ctx.fillStyle= v.state===VEH_STATE.HOLD_SHORT ? "#ffd23f"
+                 : (v.state===VEH_STATE.ONRWY||v.state===VEH_STATE.CROSS) ? "#ff7a7a" : T.col;
+    const tag=T.tag+" "+v.num+(v.state===VEH_STATE.HOLD_SHORT?" ◄HOLDING":v.state===VEH_STATE.ONRWY?" ◄ON RWY":"");
+    ctx.fillText(tag, p.x+9, p.y-9);
+    if(sel){ ctx.strokeStyle="#7ee787"; ctx.lineWidth=1.2; ctx.strokeRect(p.x-9,p.y-11,ctx.measureText(tag).width+20,20); }
+    ctx.restore();
+  }
+}
 function drawAircraftAll(night,scope){
+  drawVehiclesAll(night,scope);
   pushTrails();
   drawWakeAll(scope);                  // beneath the symbols, where a wake belongs
   const blocks=[];                     // for datablock collision avoidance
@@ -2524,13 +3446,34 @@ function renderMetrics(){
     <div class="lbl">In hold</div><b>${G.aircraft.filter(a=>a.state==="HOLD").length}</b>
     <div class="lbl">Wake busts</div><b>${G.grades.wake}</b>`;
 }
+function vehStripHTML(v){
+  const T=VEHTYPES[v.vtype];
+  const hot = v.state===VEH_STATE.HOLD_SHORT || v.state===VEH_STATE.ONRWY;
+  return `<div class="strip veh${hot?" hot":""}" data-veh="${v.id}" style="border-left:3px solid ${T.col}">
+    <div class="sTop"><b>${T.tag} ${v.num}</b><span class="sTag">${T.name}</span></div>
+    <div class="sBot">${v.state===VEH_STATE.HOLD_SHORT?("HOLDING SHORT "+(v.holdR?v.holdR.dir:"")):
+      v.state===VEH_STATE.ONRWY?("ON RUNWAY "+(RUNWAYS.find(r=>r.id===v.onR)||{dir:""}).dir):
+      v.state===VEH_STATE.CROSS?"CROSSING":"taxiing"}</div></div>`;
+}
 function renderStrips(){
   const bays={APPROACH:[],RUNWAY:[],GROUND:[]};
   G.aircraft.forEach(a=>bays[stripBay(a)].push(a));
   for(const b in bays){
     const el=document.getElementById("list"+b); document.getElementById("c"+b).textContent=bays[b].length;
-    el.innerHTML = bays[b].length? bays[b].map(a=>stripHTML(a)).join("") : '<div class="emptybay">—</div>';
+    let html = bays[b].length? bays[b].map(a=>stripHTML(a)).join("") : "";
+    if(b==="GROUND" && G.vehicles && G.vehicles.length) html += G.vehicles.map(vehStripHTML).join("");
+    el.innerHTML = html || '<div class="emptybay">—</div>';
+    if(b==="GROUND") document.getElementById("cGROUND").textContent = bays[b].length + (G.vehicles?G.vehicles.length:0);
   }
+  document.querySelectorAll(".strip[data-veh]").forEach(el=>{
+    el.onclick=()=>{ selected=+el.dataset.veh; renderActions(); };
+  });
+  document.querySelectorAll("[data-cock]").forEach(el=>{
+    el.onclick=(ev)=>{ ev.stopPropagation(); cockStrip(+el.dataset.cock); };
+  });
+  document.querySelectorAll(".strip[data-id]").forEach(el=>{
+    el.ondblclick=(ev)=>{ ev.stopPropagation(); noteStrip(+el.dataset.id); };
+  });
   // wire
   document.querySelectorAll(".strip").forEach(s=>{
     const id=+s.dataset.id;
@@ -2541,6 +3484,7 @@ function renderStrips(){
 }
 function stripHTML(a){
   const sel=a.id===selected?" sel":""; const kind=a.kind==="dep"?" dep":""; const emg=a.emg?" emg":"";
+  const cock=a.cocked?" cocked":""; const reqf=a.req?" req":"";
   let stt=stateLabel(a), cls="st";
   if(["HOLD_SHORT","WAITTAXI","HOLD_TAXI"].includes(a.state)){cls+=" warn";}
   if(a.yielding){ stt="GIVE WAY"; cls+=" warn"; }
@@ -2566,7 +3510,9 @@ function stripHTML(a){
   const o=a.ody;
   const odyRow = o ? `<div class="r2 odyrow"><span>${o.from}→${o.to}${o.tow?" · "+(o.tow/1000).toFixed(1)+"t":""}${o.mac?" · "+o.mac+"%MAC":""}</span>
       <span>${a.kind==="arr" ? (o.vref?"VREF "+o.vref:"") : (o.v1?"V1 "+o.v1+"/V2 "+o.v2:"")}</span></div>` : "";
-  return `<div class="strip${sel}${kind}${emg}${a.ody?' ody':''}" data-id="${a.id}">
+  return `<div class="strip${sel}${kind}${emg}${cock}${reqf}${a.ody?' ody':''}" data-id="${a.id}">
+    <span class="scock" data-cock="${a.id}" title="cock the strip (C)">${a.cocked?"◤":"◜"}</span>
+    ${a.note?`<span class="snote">✎ ${a.note}</span>`:""}
     <div class="r1"><span class="cs">${a.cs}</span><span class="ty">${a.type}</span></div>
     <div class="r2"><span>${line2}</span><span class="${cls}">${stt}</span></div>
     <div class="r2"><span>${clr}</span><span>${a.alt>60?Math.round(a.alt/100)*100+"ft":Math.round(a.spd)+"kt"}</span></div>
@@ -2590,19 +3536,35 @@ function dropClearance(a,to){
 
 /* ============================================================ ACTIONS UI ============================================================ */
 function renderActions(){
-  const a=findAircraft(selected);
+  const a=findEntity(selected);
   const cs=document.getElementById("selCs"), info=document.getElementById("selInfo"), act=document.getElementById("actions");
   if(!a){ cs.innerHTML='<span class="none">No aircraft selected — click a target or strip</span>'; info.innerHTML=""; act.innerHTML=""; return; }
+  if(a.veh){
+    const T=VEHTYPES[a.vtype];
+    cs.innerHTML = T.tag+" "+a.num + (a.state===VEH_STATE.ONRWY?' <span class="emgtag">⚠ ON RUNWAY</span>':"");
+    info.innerHTML = `<b>${T.name}</b> · surface vehicle · ${a.state.replace("_"," ").toLowerCase()}`
+                   + (a.holdR?` · holding short ${a.holdR.dir}`:"");
+    act.innerHTML = vehActions(a).map(b=>`<button class="${b[2]}" data-cmd="${b[1]}" ${b[1]?"":"disabled"}>${b[0]}</button>`).join("");
+    act.querySelectorAll("button[data-cmd]").forEach(btn=>{ const c=btn.dataset.cmd; if(c) btn.onclick=()=>runVehCommand(a,c); });
+    return;
+  }
   cs.innerHTML = a.cs + (a.emg?' <span class="emgtag">⚠ '+a.emgType+'</span>':'');
-  info.innerHTML = `<b>${TYPES[a.type].name}</b> · ${a.kind==="arr"?"arrival":"departure"} · ${stateLabel(a)} · ${a.alt>60?Math.round(a.alt/100)*100+"ft":Math.round(a.spd)+"kt"}`;
-  act.innerHTML = actionsFor(a).map((b,i)=>`<button class="${b[2]}" data-cmd="${b[1]}" ${b[1]?"":"disabled"}>${b[0]}</button>`).join("");
-  act.querySelectorAll("button[data-cmd]").forEach(btn=>{ const c=btn.dataset.cmd; if(c) btn.onclick=()=>runCommand(a,c); });
+  info.innerHTML = `<b>${TYPES[a.type].name}</b> · ${a.kind==="arr"?"arrival":"departure"} · ${stateLabel(a)} · ${a.alt>60?Math.round(a.alt/100)*100+"ft":Math.round(a.spd)+"kt"}`
+                 + (a.deiceState==="WORKING"?` · <span style="color:#5ad9ff">de-icing ${Math.ceil(a.deiceT)}s</span>`
+                   : a.deiceState==="DONE"?` · <span style="color:#7ee787">holdover ${Math.max(0,Math.ceil(a.holdUntil-G.t))}s</span>`:"");
+  const reqL=reqActions(a);
+  act.innerHTML = reqL.concat(actionsFor(a))
+    .map((b,i)=>`<button class="${b[2]}" data-cmd="${b[1]}" ${b[1]?"":"disabled"}>${b[0]}</button>`).join("");
+  act.querySelectorAll("button[data-cmd]").forEach(btn=>{ const c=btn.dataset.cmd; if(c) runCommandBind(btn,a,c); });
 }
 
 /* ============================================================ INPUT ============================================================ */
+cvs.addEventListener("pointermove",(e)=>{ const r=cvs.getBoundingClientRect();
+  BINO.mx=e.clientX-r.left; BINO.my=e.clientY-r.top; });
 cvs.addEventListener("pointerdown",(e)=>{
   const r=cvs.getBoundingClientRect(); const w=S2W(e.clientX-r.left,e.clientY-r.top);
   let best=null,bd=26*26; for(const a of G.aircraft){ const dx=a.x-w.x,dy=a.y-w.y,d=dx*dx+dy*dy; if(d<bd){bd=d;best=a;} }
+  for(const v of (G.vehicles||[])){ const dx=v.x-w.x,dy=v.y-w.y,d=dx*dx+dy*dy; if(d<bd){bd=d;best=v;} }
   if(best){ selectAircraft(best.id); blip(880,.05,.03); } else selected=null, renderActions();
 });
 document.getElementById("cmdInput").addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ const v=e.target.value.trim(); if(v){ parseCommand(v); e.target.value=""; } } });
@@ -2717,9 +3679,36 @@ function endShift(){ G.over=true; G.running=false;
     ["Arrivals landed",g.arr],["Departures away",g.dep],["Approaches sequenced",g.sequenced],["Go-arounds",g.goAround],
     ["Separation losses",g.separation],["Runway incursions",g.incursion],["Wake-spacing busts",g.wake],
     ["SID/runway mismatches",g.sidbust||0],["Ground conflicts",g.ground||0],
+    ["Vehicle crossings cleared",g.vehCross||0],["Vehicle incursions",g.vehIncursion||0],
+    ["Pushback conflicts",g.pushConflict||0],["NOTAMs issued",g.notams||0],
+    ["De-icing runs",g.deiced||0],["Holdover expiries",g.holdover||0],
+    ["Coordination calls answered",g.coord||0],["Calls missed",g.coordMissed||0],
+    ["Slots met",g.slotMet||0],["Slots missed",g.slotMissed||0],
+    ["Restrictions in force",g.restrictions||0],["Curfew violations",g.curfew||0],
+    ["Intersection departures",g.intersection||0],["LAHSO clearances",g.lahso||0],
+    ["Backtracks",g.backtrack||0],["Braking action reports",g.brakingReports||0],
+    ["Mean workload",(typeof workloadAvg==="function"?workloadAvg().toFixed(1):"—")],
+    ["Peak workload",(G.wl?G.wl.peak.toFixed(1):"—")],
+    ["Strips left unactioned",(G.wl?G.wl.unactioned:0)],
+    ["Pilot events handled",(g.progressive||0)+(g.simplified||0)+(g.reqApproved||0)+(g.reqDenied||0)],
+    ["Requests ignored",g.reqIgnored||0],["Non-compliance caught",g.noncompliance||0],
     ["Emergencies handled",g.emergencies],["Avg delay",Math.round(G.delayN?G.totalDelay/G.delayN:0)+"s"],["Final score",Math.max(0,Math.round(G.score))],
     ["— Career rating",CAREER.rating],["Career best score",CAREER.bestScore],["Shifts flown",CAREER.shifts],["S/A streak",CAREER.streak]
   ].map(r=>`<div class="gr"><span>${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
+  const errs=G.errs||{};
+  const rows=Object.keys(ERR_CLASS).filter(k=>errs[k]&&errs[k].length)
+    .sort((a,b)=>errs[b].length-errs[a].length)
+    .map(k=>`<div class="errrow"><b>${ERR_CLASS[k]}</b><span>${errs[k].length}</span>
+       <em>${errs[k].slice(-2).map(e=>tstamp(e.t)+" "+e.txt).join(" · ")}</em></div>`).join("");
+  const tape=(G.tape||[]).slice(-40).map(l=>
+    `<div class="tprow ${l.kind}"><span>${tstamp(l.t)}</span><b>${l.kind}</b>${l.txt}</div>`).join("");
+  const extra=document.getElementById("repExtra");
+  if(extra) extra.innerHTML =
+    `<div class="rsec"><h4>Error pattern</h4>${rows||'<div class="errnone">No errors logged — a clean watch.</div>'}</div>
+     <div class="rsec"><h4>Radio &amp; telephone log <span>(last 40 · for investigation)</span></h4>
+       <div class="tape">${tape||'<div class="errnone">—</div>'}</div></div>`;
+  const nSess=exportShift(grade);
+  if(nSess) log("strip","Shift exported to ARGUS ("+nSess+" on file)");
   document.getElementById("repTitle").textContent="Shift Report · Grade "+grade;
   document.getElementById("repScrim").classList.add("show");
 }
@@ -2910,7 +3899,7 @@ document.getElementById("rExit").onclick=closeRadar;
 let lastT=performance.now(), uiT=0;
 function loop(now){
   const dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
-  if(G){ stepGame(dt); render(); uiT+=dt; if(uiT>0.25){ uiT=0; renderStrips(); renderSeqPanel(); renderMetrics(); if(document.getElementById("actions").children.length===0||findAircraft(selected)) renderActions(); } }
+  if(G){ stepGame(dt); renderWithOptics(); uiT+=dt; renderPhone(); if(uiT>0.25){ uiT=0; renderStrips(); renderSeqPanel(); renderMetrics(); if(document.getElementById("actions").children.length===0||findAircraft(selected)) renderActions(); } }
   requestAnimationFrame(loop);
 }
 
@@ -3109,6 +4098,10 @@ document.getElementById("startBtn").onclick=()=>{
 boot();
 
 window.addEventListener("keydown",(e)=>{ const t=e.target; if(t&&/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))return;
+  const kk=(e.key||"").toLowerCase();
+  if(kk==="b"){ BINO.on=!BINO.on; toast(BINO.on?"\u{1F53D} Binoculars up":"Binoculars down"); return; }
+  if(kk==="c" && selected){ cockStrip(selected); return; }
+  if(kk==="m" && selected){ noteStrip(selected); return; }
   const k=(e.key||"").toLowerCase();
   if(k==="p"){ CFG.pvec = (CFG.pvec===0)?30:(CFG.pvec===30)?60:(CFG.pvec===60)?120:0; if(typeof toast==="function")toast("Prediction vector "+(CFG.pvec?CFG.pvec+"s":"off")); }
   else if(k==="o"){ CFG.stca = CFG.stca?0:1; if(typeof toast==="function")toast("Conflict alerts "+(CFG.stca?"on":"off")); }
