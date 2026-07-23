@@ -184,7 +184,7 @@
         <div class="word">ARGUS</div>
         <div class="wsub">SUITE</div>
         <div class="htag">Interactive aviation &amp; aerospace engineering — flight ops, tower control,
-          aerodynamics, CAD, NDT, and live trackers from the runway to orbit.</div>
+          aerodynamics, CAD, NDT, and live trackers from the runway to a black hole.</div>
         <div class="hhint">SELECT A MODULE</div>
       </div>
       <div class="face fRead" id="fRead">
@@ -217,7 +217,7 @@
     </a>
   </div>
 </div>
-<footer>ARGUS SUITE · <b>nine browser-based modules</b> + research · made by sid</footer>
+<footer>ARGUS SUITE · <b>ten browser-based modules</b> + research · made by sid</footer>
 <script>
 /* favicon injected as a Blob — no data-URI escaping to get wrong */
 (function(){
@@ -241,7 +241,8 @@ const ICON={
   catia:  '<path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>',
   ndt:    '<circle cx="11" cy="11" r="6.2"/><path d="M20 20l-3.8-3.8"/><path d="M8 11h1.5l1-2.6 1.7 4.8 1.1-2.2H15"/>',
   hangar: '<path d="M3 20.5V11l9-6 9 6v9.5"/><path d="M2 20.5h20"/><path d="M8.5 20.5v-5.5h7v5.5"/><path d="M12 8.8v2.4"/>',
-  oracle: '<circle cx="12" cy="12" r="5.6"/><path d="M12 6.4c-2.1 1.7-2.1 9.5 0 11.2M12 6.4c2.1 1.7 2.1 9.5 0 11.2"/><path d="M6.4 12h11.2"/><ellipse cx="12" cy="12" rx="10.4" ry="4" transform="rotate(-27 12 12)"/><circle cx="20.6" cy="8.9" r="1"/>'
+  oracle: '<circle cx="12" cy="12" r="5.6"/><path d="M12 6.4c-2.1 1.7-2.1 9.5 0 11.2M12 6.4c2.1 1.7 2.1 9.5 0 11.2"/><path d="M6.4 12h11.2"/><ellipse cx="12" cy="12" rx="10.4" ry="4" transform="rotate(-27 12 12)"/><circle cx="20.6" cy="8.9" r="1"/>',
+  gargantua: '<circle cx="12" cy="12" r="4.1"/><circle cx="12" cy="12" r="6.6"/><ellipse cx="12" cy="12" rx="10.6" ry="3.1" transform="rotate(-18 12 12)"/><path d="M2.4 8.6c2.6 1.5 6 2.3 9.6 2.3s7-.8 9.6-2.3"/>'
 };
 
 /* ═══ the module previews — these play INSIDE the hub on hover ═══ */
@@ -422,6 +423,55 @@ const PREV={
     c.fillStyle=hg; c.beginPath(); c.arc(cx,cy,R*1.4,0,7); c.fill();
     if(!behind) sat();
   },
+  gargantua(c,W,H,t){
+    const cx=W*.5, cy=H*.5, R=Math.min(W,H)*.20;      // shadow radius
+    const RP=R*1.045;                                  // photon ring
+    // background: faint lensed grid — straight lines bent around the hole
+    c.strokeStyle='rgba(120,150,220,.30)'; c.lineWidth=.7;
+    const bend=(x,y)=>{                                // cheap deflection field
+      const dx=x-cx, dy=y-cy, r=Math.max(Math.hypot(dx,dy),R*.6);
+      const k=(R*R*2.35)/(r*r);                        // ~ 1/r falloff
+      return [x+dx/r*k*R, y+dy/r*k*R];
+    };
+    for(let i=-6;i<=6;i++){
+      c.beginPath();
+      for(let s=0;s<=48;s++){
+        const x=cx+(s/48-.5)*W*1.25, y=cy+i*H*.115;
+        const [bx,by]=bend(x,y); s?c.lineTo(bx,by):c.moveTo(bx,by);
+      }
+      c.stroke();
+      c.beginPath();
+      for(let s=0;s<=48;s++){
+        const y=cy+(s/48-.5)*H*1.35, x=cx+i*W*.085;
+        const [bx,by]=bend(x,y); s?c.lineTo(bx,by):c.moveTo(bx,by);
+      }
+      c.stroke();
+    }
+    // a few lensed stars swept round the ring
+    for(let i=0;i<14;i++){
+      const a=t*.28+i*.449, rr=RP*(1.35+((i*53)%100)/100*1.9);
+      const x=cx+Math.cos(a)*rr, y=cy+Math.sin(a)*rr*.72;
+      const tw=.35+.65*Math.abs(Math.sin(t*2.1+i));
+      c.fillStyle='rgba(215,230,255,'+tw.toFixed(3)+')';
+      c.beginPath(); c.arc(x,y,1.15,0,7); c.fill();
+    }
+    // the shadow: genuinely black, punched out of everything behind it
+    c.globalCompositeOperation='destination-out';
+    c.beginPath(); c.arc(cx,cy,R,0,7); c.fill();
+    c.globalCompositeOperation='source-over';
+    c.fillStyle='#000'; c.beginPath(); c.arc(cx,cy,R,0,7); c.fill();
+    // photon ring: thin, hot, with a soft halo either side
+    const g=c.createRadialGradient(cx,cy,R*.93,cx,cy,RP*1.5);
+    g.addColorStop(0,'rgba(255,190,110,0)');
+    g.addColorStop(.42,'rgba(255,208,140,.85)');
+    g.addColorStop(.52,'rgba(255,246,225,1)');
+    g.addColorStop(.72,'rgba(190,150,255,.28)');
+    g.addColorStop(1,'rgba(150,120,255,0)');
+    c.strokeStyle=g; c.lineWidth=R*.50;
+    c.beginPath(); c.arc(cx,cy,RP*1.10,0,7); c.stroke();
+    c.strokeStyle='rgba(255,252,240,.95)'; c.lineWidth=1.25;
+    c.beginPath(); c.arc(cx,cy,RP,0,7); c.stroke();
+  },
   hangar(c,W,H,t){
     const gy=H*.76, bob=Math.sin(t*1.2)*1.2;
     c.strokeStyle='rgba(49,197,106,.22)'; c.lineWidth=1;
@@ -472,7 +522,10 @@ const MODULES=[
    d:"Five NDT units across eight method visualisers — ultrasonic, eddy current, radiography and more."},
   {f:"aircraft-maintenance-hangar.html",acc:"#31c56a",k:"hangar",  n:"HANGAR",
    tag:"MAINTENANCE",
-   d:"A virtual hangar floor — work a 100-hour inspection work pack at the task bench, through to sign-off."}
+   d:"A virtual hangar floor — work a 100-hour inspection work pack at the task bench, through to sign-off."},
+  {f:"gargantua/index.html",           acc:"#b98cff", k:"gargantua", n:"GARGANTUA",
+   tag:"RELATIVITY &middot; RAYTRACER",
+   d:"A Schwarzschild black hole integrated per pixel — real null geodesics, the shadow at 3&radic;3 M, and the photon ring."}
 ];
 const N=MODULES.length;
 
