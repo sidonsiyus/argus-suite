@@ -298,7 +298,7 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
 /* broken radio */
 .rtline.broken{color:#ff9f6b;letter-spacing:.06em;opacity:.95}
 /* strip physicality */
-.strip.cocked{transform:translateX(16px) rotate(-1.1deg);box-shadow:-3px 0 0 #ffd23f}
+.strip.cocked{transform:translateX(9px);box-shadow:-4px 0 0 #ffd23f;background:rgba(255,210,63,.05)}
 .strip .snote{display:block;font:400 9px ui-monospace,monospace;color:#ffd23f;opacity:.85;margin-top:2px}
 .strip .scock{position:absolute;right:4px;top:3px;font-size:9px;opacity:.35;cursor:pointer}
 .strip .scock:hover{opacity:1;color:#ffd23f}
@@ -318,6 +318,72 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
 .tprow{display:grid;grid-template-columns:44px 34px 1fr;gap:6px;font:400 9.5px ui-monospace,monospace;padding:2px 4px;opacity:.85}
 .tprow span{opacity:.5} .tprow b{font-weight:600;opacity:.7}
 .tprow.TX b{color:#7ee787} .tprow.RX b{color:#5ad9ff} .tprow.ERR b{color:#ff8a8a} .tprow.ERR{background:rgba(255,120,120,.08)}
+/* ── interphone, restyled ────────────────────────────────────────── */
+#phoneWrap{position:relative}
+.phcall{position:relative;background:linear-gradient(180deg,rgba(12,28,36,.9),rgba(8,18,24,.9));
+  border:1px solid rgba(120,180,200,.16);border-left:3px solid var(--line,#5ad9ff);
+  border-radius:5px;padding:8px 10px 9px;margin-bottom:6px;overflow:hidden}
+.phcall::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 60% at 0% 0%, color-mix(in srgb, var(--line) 18%, transparent), transparent 70%)}
+.phcall .phhead b{color:var(--line)}
+.phclock{font-variant-numeric:tabular-nums;opacity:.6}
+.phclock.urgent{color:#ff8a8a;opacity:1;animation:phtick .9s infinite}
+@keyframes phtick{50%{opacity:.35}}
+/* the signal trace that makes it feel like a live line */
+.phwave{display:flex;align-items:flex-end;gap:2px;height:13px;margin:5px 0 7px;opacity:.85}
+.phwave i{flex:1;background:linear-gradient(180deg,var(--line),transparent);border-radius:1px;
+  height:20%;animation:phw 1.05s ease-in-out infinite}
+.phwave i:nth-child(1){animation-delay:0s}    .phwave i:nth-child(2){animation-delay:.09s}
+.phwave i:nth-child(3){animation-delay:.18s}  .phwave i:nth-child(4){animation-delay:.27s}
+.phwave i:nth-child(5){animation-delay:.36s}  .phwave i:nth-child(6){animation-delay:.45s}
+.phwave i:nth-child(7){animation-delay:.54s}
+@keyframes phw{0%,100%{height:18%}50%{height:100%}}
+.phbtns button{transition:.12s;font-weight:600}
+.phbtns .ok:hover{transform:translateY(-1px)}
+.phbtns .no:hover{transform:translateY(-1px)}
+#phoneWrap.ringing .phhdr{color:#8fe9ff}
+/* vehicle strips inherit the aircraft strip layout, tinted by type */
+.strip.veh{border-left:3px solid var(--veh,#5ad9ff)}
+.strip.veh .cs{color:var(--veh,#5ad9ff)}
+.strip.veh .wk{background:rgba(120,180,200,.18);color:#cfe}
+/* ── comms console ───────────────────────────────────────────── */
+#comms{margin-top:8px;border:1px solid rgba(120,180,200,.2);border-radius:6px;
+  background:linear-gradient(180deg,rgba(8,20,26,.9),rgba(5,12,16,.9));padding:8px 10px}
+.cmRow{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.cmStack{display:flex;gap:5px;flex-wrap:wrap}
+.cmFreq{border:1px solid rgba(120,180,200,.25);border-radius:4px;padding:5px 9px;cursor:pointer;
+  background:rgba(4,12,16,.8);transition:.14s;min-width:74px}
+.cmFreq:hover{border-color:#5ad9ff}
+.cmFreq.on{border-color:#5ad9ff;background:rgba(90,217,255,.12);box-shadow:0 0 10px rgba(90,217,255,.18) inset}
+.cmFreq b{display:block;font:600 8px ui-monospace,monospace;letter-spacing:.18em;color:#7fb8cc}
+.cmFreq span{display:block;font:600 13px ui-monospace,monospace;color:#cfe;letter-spacing:.03em;
+  text-shadow:0 0 8px rgba(90,217,255,.35)}
+.cmFreq.on span{color:#8fe9ff}
+.cmMid{flex:1;min-width:230px;display:flex;align-items:center;gap:10px}
+.cmLights{display:flex;flex-direction:column;gap:4px}
+.cmLed{display:flex;align-items:center;gap:5px;font:600 8px ui-monospace,monospace;letter-spacing:.14em;color:#5e7a86}
+.cmLed i{width:7px;height:7px;border-radius:50%;background:#22323a;transition:.1s}
+.cmLed.on i{box-shadow:0 0 8px currentColor}
+#ledTx.on{color:#7ee787} #ledTx.on i{background:#7ee787}
+#ledRx.on{color:#ffb454} #ledRx.on i{background:#ffb454}
+#cmScope{flex:1;height:34px;background:rgba(3,10,12,.9);border:1px solid rgba(120,180,200,.16);border-radius:3px}
+.cmSig{display:flex;align-items:center;gap:5px;font:600 8px ui-monospace,monospace;letter-spacing:.14em;color:#5e7a86}
+.cmBars{display:flex;gap:2px;align-items:flex-end;height:14px}
+.cmBars i{width:4px;background:#22323a;border-radius:1px}
+.cmBars i.lit{background:#5ad9ff;box-shadow:0 0 5px rgba(90,217,255,.6)}
+.cmBars i.weak{background:#ffb454;box-shadow:0 0 5px rgba(255,180,84,.5)}
+.cmSig b{color:#cfe;font-weight:600;min-width:30px}
+.cmKnobs{display:flex;gap:9px;align-items:center}
+.cmKnobs label{display:flex;align-items:center;gap:5px;font:600 8px ui-monospace,monospace;letter-spacing:.14em;color:#5e7a86}
+.cmKnobs input[type=range]{-webkit-appearance:none;appearance:none;width:62px;height:2px;background:rgba(120,180,200,.3);
+  border-radius:2px;outline:none;cursor:pointer}
+.cmKnobs input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:9px;height:9px;border-radius:50%;background:#5ad9ff}
+.cmKnobs input[type=range]::-moz-range-thumb{width:9px;height:9px;border:0;border-radius:50%;background:#5ad9ff}
+.cmBtn{font:600 8px ui-monospace,monospace;letter-spacing:.12em;background:transparent;
+  border:1px solid rgba(120,180,200,.3);color:#7fb8cc;border-radius:3px;padding:6px 9px;cursor:pointer}
+.cmBtn.off{opacity:.4}
+.cmBtn:hover{border-color:#5ad9ff;color:#5ad9ff}
+@media (max-width:900px){ #cmScope{display:none} .cmKnobs{flex-basis:100%} }
 </style>
 </head>
 <body>
@@ -403,6 +469,24 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
     <div id="phoneWrap">
   <div class="phhdr">☎ INTERPHONE<span class="phhint">coordination lines</span></div>
   <div id="phoneStack"><div class="phnone">Lines quiet</div></div>
+</div>
+<div id="comms">
+  <div class="cmRow">
+    <div class="cmStack" id="cmStack"></div>
+    <div class="cmMid">
+      <div class="cmLights">
+        <span class="cmLed" id="ledTx"><i></i>TX</span>
+        <span class="cmLed" id="ledRx"><i></i>RX</span>
+      </div>
+      <canvas id="cmScope" width="360" height="34"></canvas>
+      <div class="cmSig"><span>SIG</span><div class="cmBars" id="cmBars"></div><b id="cmSigTxt">—</b></div>
+    </div>
+    <div class="cmKnobs">
+      <label>SQL<input type="range" id="cmSql" min="0" max="1" step="0.01" value="0.45"></label>
+      <label>VOL<input type="range" id="cmVol" min="0" max="1" step="0.01" value="0.7"></label>
+      <button class="cmBtn" id="cmMute" title="Radio audio on/off">◉ RADIO</button>
+    </div>
+  </div>
 </div>
 <div class="hintline" id="hintLine">Tip: click an aircraft, then use the buttons — or speak/type real phraseology.</div>
   </div>
@@ -1037,6 +1121,157 @@ function spawnDeparture(atStart){
 
 
 
+
+/* ============================================================ RADIO AUDIO + COMMS CONSOLE
+   What a VHF set actually sounds like: the mic click as the carrier opens, a
+   hiss bed whose level tracks how readable the signal is, and the squelch tail
+   when the carrier drops. The console below shows the frequency stack, TX/RX
+   lamps, a live trace and a signal-strength meter.
+   ============================================================ */
+const RADIO={ on:true, sql:0.45, vol:0.7, tx:0, rx:0, level:0, target:0, sig:1, noiseBuf:null };
+
+function noiseBuffer(){
+  if(RADIO.noiseBuf||!audioCtx) return RADIO.noiseBuf;
+  const n=audioCtx.sampleRate*2;
+  const b=audioCtx.createBuffer(1,n,audioCtx.sampleRate);
+  const d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+  RADIO.noiseBuf=b; return b;
+}
+/* a burst of filtered noise — the raw material for clicks, hiss and squelch */
+function noiseBurst(dur, level, f0, f1, q){
+  if(!RADIO.on||!soundOn||CFG.silent||!audioCtx) return;
+  try{
+    const src=audioCtx.createBufferSource(); src.buffer=noiseBuffer(); src.loop=true;
+    const bp=audioCtx.createBiquadFilter(); bp.type="bandpass";
+    bp.frequency.value=f0; bp.Q.value=q||1.2;
+    const g=audioCtx.createGain();
+    const t=audioCtx.currentTime;
+    src.connect(bp); bp.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, level*RADIO.vol), t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    if(f1&&f1!==f0) bp.frequency.exponentialRampToValueAtTime(f1, t+dur);
+    src.start(t); src.stop(t+dur+0.03);
+  }catch(_){}
+}
+function micClick(open){                       // the PTT transient
+  noiseBurst(open?0.045:0.03, 0.16, open?1600:2400, open?900:600, 0.9);
+  blip(open?1400:900, 0.02, 0.03);
+}
+function squelchTail(){ noiseBurst(0.13, 0.10, 2600, 700, 0.7); }
+
+/* Hiss under an incoming transmission. The worse the signal, the louder and
+   wider the bed — which is what makes a distant aircraft hard to read. */
+function rxHiss(quality, dur){
+  const q=Math.max(0, Math.min(1, quality));
+  const base=(1-q);                            // 0 clean, 1 unreadable
+  const lvl=(0.012 + base*0.085) * (1-RADIO.sql*0.55);
+  if(lvl<=0.004) return;
+  noiseBurst(Math.max(0.25,dur), lvl, 900+base*1400, 700, 0.8);
+}
+/* Estimate how long the synthesised voice will run, so the hiss sits under it */
+function speechDur(txt){ return Math.max(0.6, Math.min(6, (txt||"").length*0.052)); }
+
+/* the whole receive event: carrier opens, voice + hiss, carrier drops */
+function radioRx(txt, quality){
+  RADIO.rx=1; RADIO.sig=quality;
+  const d=speechDur(txt);
+  micClick(true);
+  rxHiss(quality, d);
+  RADIO.target=1;
+  clearTimeout(RADIO._rxT);
+  RADIO._rxT=setTimeout(()=>{ RADIO.rx=0; RADIO.target=0; squelchTail(); }, d*1000);
+}
+function radioTx(txt){
+  RADIO.tx=1; micClick(true); RADIO.target=0.75;
+  clearTimeout(RADIO._txT);
+  RADIO._txT=setTimeout(()=>{ RADIO.tx=0; RADIO.target=0; micClick(false); },
+    speechDur(txt)*1000*0.7);
+}
+
+/* ---- the console ---- */
+function commsFreqs(){
+  return [
+    {k:"TWR",  n:"TOWER",    f:LZ.twr||"—"},
+    {k:"GND",  n:"GROUND",   f:LZ.gnd||"—"},
+    {k:"APP",  n:"APPROACH", f:LZ.dep||"—"},
+    {k:"ATIS", n:"ATIS",     f:LZ.atis||"128.4"}
+  ];
+}
+function buildComms(){
+  const st=document.getElementById("cmStack"); if(!st) return;
+  st.innerHTML=commsFreqs().map(x=>
+    `<div class="cmFreq" data-bay="${x.k}"><b>${x.n}</b><span>${x.f}</span></div>`).join("");
+  st.querySelectorAll("[data-bay]").forEach(el=>{
+    el.onmousedown=()=>{
+      const pos=el.dataset.bay;
+      if(pos!=="ATIS"){
+        const t=document.querySelector('.postab[data-pos="'+pos+'"]');
+        if(t) t.click();
+        G._commsBay=pos;
+      } else {
+        G._commsBay="ATIS";
+        const ab=document.getElementById("atisBar"); if(ab) ab.click();
+      }
+      paintComms();
+      micClick(true); setTimeout(()=>micClick(false),130);
+    };
+  });
+  const bars=document.getElementById("cmBars");
+  if(bars) bars.innerHTML="<i></i><i></i><i></i><i></i><i></i>";
+  const sql=document.getElementById("cmSql"), vol=document.getElementById("cmVol"),
+        mute=document.getElementById("cmMute");
+  if(sql) sql.oninput=()=>{ RADIO.sql=parseFloat(sql.value); };
+  if(vol) vol.oninput=()=>{ RADIO.vol=parseFloat(vol.value); };
+  if(mute) mute.onclick=()=>{ RADIO.on=!RADIO.on; mute.classList.toggle("off",!RADIO.on);
+    mute.textContent=(RADIO.on?"◉ RADIO":"◌ RADIO"); };
+  paintComms();
+}
+function paintComms(){
+  const active=G&&G._commsBay?G._commsBay:(G?G.pos:"TWR");
+  document.querySelectorAll(".cmFreq").forEach(el=>
+    el.classList.toggle("on", el.dataset.bay===active));
+}
+/* the trace: a scrolling line that lifts while the carrier is open */
+let cmCtx=null, cmHist=[];
+function drawComms(dt){
+  const cv=document.getElementById("cmScope"); if(!cv) return;
+  cmCtx=cmCtx||cv.getContext("2d");
+  const W=cv.width,H=cv.height;
+  // level chases the target so the trace has some inertia
+  RADIO.level += (RADIO.target-RADIO.level)*Math.min(1,dt*7);
+  const noiseFloor=(1-(G?RADIO.sig:1))*0.35*(1-RADIO.sql*0.6);
+  cmHist.push(RADIO.level*(0.55+Math.random()*0.45) + noiseFloor*Math.random());
+  while(cmHist.length>W/2) cmHist.shift();
+  cmCtx.clearRect(0,0,W,H);
+  cmCtx.strokeStyle="rgba(90,217,255,.10)"; cmCtx.lineWidth=1;
+  cmCtx.beginPath(); cmCtx.moveTo(0,H/2); cmCtx.lineTo(W,H/2); cmCtx.stroke();
+  cmCtx.beginPath();
+  for(let i=0;i<cmHist.length;i++){
+    const x=i*2, a=cmHist[i]*(H*0.46);
+    if(i===0) cmCtx.moveTo(x,H/2-a); else cmCtx.lineTo(x,H/2-a);
+  }
+  cmCtx.strokeStyle= RADIO.tx? "rgba(126,231,135,.95)" : RADIO.rx? "rgba(255,180,84,.95)" : "rgba(90,217,255,.5)";
+  cmCtx.lineWidth=1.4; cmCtx.stroke();
+  cmCtx.beginPath();
+  for(let i=0;i<cmHist.length;i++){ const x=i*2, a=cmHist[i]*(H*0.46);
+    if(i===0) cmCtx.moveTo(x,H/2+a); else cmCtx.lineTo(x,H/2+a); }
+  cmCtx.strokeStyle="rgba(90,217,255,.22)"; cmCtx.lineWidth=1; cmCtx.stroke();
+
+  document.getElementById("ledTx").classList.toggle("on", RADIO.tx>0);
+  document.getElementById("ledRx").classList.toggle("on", RADIO.rx>0);
+  // signal meter follows the selected aircraft
+  const a=findAircraft(selected);
+  const q=a? rxQuality(a) : RADIO.sig;
+  const bars=document.querySelectorAll("#cmBars i");
+  const lit=Math.round(q*5);
+  bars.forEach((b,i)=>{ b.style.height=(5+i*2)+"px";
+    b.className = i<lit ? (q<0.8?"weak":"lit") : ""; });
+  const txt=document.getElementById("cmSigTxt");
+  if(txt) txt.textContent = a ? (q>=0.9?"5/5":q>=0.8?"4/5":q>=0.65?"3/5":q>=0.5?"2/5":"1/5") : "—";
+}
+
 /* ============================================================ FLOW · PROCEDURES · ASSESSMENT
    Departure slots, missed-approach coordination, temporary restrictions, runway
    condition and braking action, intersection departures, LAHSO, backtrack,
@@ -1224,19 +1459,21 @@ function rxQuality(a){
   const c=fieldCentre(); const d=Math.hypot((a.x-c.x),(a.y-c.y));
   const far=clamp(1-(d/1400),0,1);                       // range fade
   const wx = CFG.wx==="LOWVIS"?0.86 : CFG.wx==="RAIN"?0.92 : 1.0;
-  const fade = 0.86+0.14*Math.sin(G.t*0.23+(a.id||0)*1.7);
-  let q = (0.55+0.45*far)*wx*fade;
-  if(a.airborne||a.alt>2500) q*=0.96;
+  const fade = 0.94+0.06*Math.sin(G.t*0.23+(a.id||0)*1.7);
+  let q = (0.74+0.26*far)*wx*fade;
+  if(a.airborne||a.alt>2500) q*=0.98;
   return clamp(q*(CFG.rxQuality==null?1:CFG.rxQuality),0,1);
 }
-const STATIC_CH="▒▓░#*~";
+const STATIC_CH="▒▓░";
 function garble(txt,q){
-  if(q>=0.86) return txt;
-  const bad=clamp((0.86-q)*2.1,0,0.72);                  // fraction of words lost
+  if(q>=0.80) return txt;
+  // at most a third of the words, and digits survive more often than words
+  // because losing the numbers entirely just makes the call useless
+  const bad=clamp((0.80-q)*1.5,0,0.34);
   return txt.split(" ").map(w=>{
-    if(Math.random()>bad) return w;
-    let out=""; for(let i=0;i<Math.max(2,w.length);i++)
-      out+=STATIC_CH[Math.floor(Math.random()*STATIC_CH.length)];
+    const isNum=/\d/.test(w);
+    if(Math.random() > (isNum ? bad*0.45 : bad)) return w;
+    let out=""; for(let i=0;i<w.length;i++) out+=STATIC_CH[Math.floor(Math.random()*STATIC_CH.length)];
     return out;
   }).join(" ");
 }
@@ -1271,22 +1508,36 @@ function answerPhone(id,ok){
     if(c.kind==="release" && a) a.released=false;
     pushRadio("you","☎ "+PHONE_LINES[c.line].name+": unable at this time.");
   }
-  renderPhone();
+  renderPhone(true);
 }
-function renderPhone(){
+function renderPhone(force){
   const el=document.getElementById("phoneStack"); if(!el) return;
   const list=G&&G.phone?G.phone:[];
-  document.getElementById("phoneWrap").classList.toggle("ringing", list.length>0);
-  el.innerHTML = list.length? list.map(c=>{
-    const L=PHONE_LINES[c.line], left=Math.max(0,Math.ceil(c.until-G.t));
-    return `<div class="phcall" style="border-left:3px solid ${L.col}">
-      <div class="phhead"><b style="color:${L.col}">☎ ${L.name}</b><span>${left}s</span></div>
-      <div class="phtxt">${c.txt}</div>
-      <div class="phbtns"><button class="ok" data-ph="${c.id}" data-ok="1">Approve</button>
-        <button class="no" data-ph="${c.id}" data-ok="0">Unable</button></div></div>`;
-  }).join("") : '<div class="phnone">Lines quiet</div>';
-  el.querySelectorAll("button[data-ph]").forEach(b=>{
-    b.onclick=()=>answerPhone(+b.dataset.ph, b.dataset.ok==="1"); });
+  // Rebuilding the markup every frame destroyed the buttons before a click
+  // could land on them. Only redraw when the set of calls changes; the
+  // countdown is updated in place.
+  const sig=list.map(c=>c.id).join(",");
+  if(force || sig!==G._phoneSig){
+    G._phoneSig=sig;
+    document.getElementById("phoneWrap").classList.toggle("ringing", list.length>0);
+    el.innerHTML = list.length? list.map(c=>{
+      const L=PHONE_LINES[c.line];
+      return `<div class="phcall" data-call="${c.id}" style="--line:${L.col}">
+        <div class="phhead"><b>☎ ${L.name}</b><span class="phclock" data-clock="${c.id}">--</span></div>
+        <div class="phtxt">${c.txt}</div>
+        <div class="phwave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="phbtns"><button class="ok" data-ph="${c.id}" data-ok="1">Approve</button>
+          <button class="no" data-ph="${c.id}" data-ok="0">Unable</button></div></div>`;
+    }).join("") : '<div class="phnone">Lines quiet</div>';
+    el.querySelectorAll("button[data-ph]").forEach(b=>{
+      b.onclick=(ev)=>{ ev.stopPropagation(); answerPhone(+b.dataset.ph, b.dataset.ok==="1"); }; });
+  }
+  // live countdown without touching the buttons
+  for(const c of list){
+    const t=el.querySelector('[data-clock="'+c.id+'"]');
+    if(t){ const left=Math.max(0,Math.ceil(c.until-G.t));
+      t.textContent=left+"s"; t.classList.toggle("urgent", left<=10); }
+  }
 }
 function stepPhone(dt){
   G.phone=G.phone||[];
@@ -2006,10 +2257,11 @@ function parseCommand(raw){
 
 /* ============================================================ RADIO LOG ============================================================ */
 function log(kind,txt){ G.log.push({kind,txt,t:G.t}); }
-function you(a,phrase){ pushRadio("you", spoken(a)+", "+phrase); }
+function you(a,phrase){ radioTx(phrase); pushRadio("you", spoken(a)+", "+phrase); }
 function pilot(a,phrase){
   a.lastTx=phrase;                                   // kept clean for "say again"
   const q=rxQuality(a);
+  radioRx(phrase, q);                                // carrier, hiss, squelch tail
   const blocked=blockedTx();
   G._lastTxT=G.t;
   const shown = blocked ? garble(phrase,0.35) : garble(phrase,q);
@@ -3449,15 +3701,27 @@ function renderMetrics(){
 function vehStripHTML(v){
   const T=VEHTYPES[v.vtype];
   const hot = v.state===VEH_STATE.HOLD_SHORT || v.state===VEH_STATE.ONRWY;
-  return `<div class="strip veh${hot?" hot":""}" data-veh="${v.id}" style="border-left:3px solid ${T.col}">
-    <div class="sTop"><b>${T.tag} ${v.num}</b><span class="sTag">${T.name}</span></div>
-    <div class="sBot">${v.state===VEH_STATE.HOLD_SHORT?("HOLDING SHORT "+(v.holdR?v.holdR.dir:"")):
-      v.state===VEH_STATE.ONRWY?("ON RUNWAY "+(RUNWAYS.find(r=>r.id===v.onR)||{dir:""}).dir):
-      v.state===VEH_STATE.CROSS?"CROSSING":"taxiing"}</div></div>`;
+  const sel = v.id===selected ? " sel" : "";
+  const st  = v.state===VEH_STATE.HOLD_SHORT ? "HOLD SHORT "+(v.holdR?v.holdR.dir:"")
+            : v.state===VEH_STATE.ONRWY      ? "ON RWY "+((RUNWAYS.find(r=>r.id===v.onR)||{}).dir||"")
+            : v.state===VEH_STATE.CROSS      ? "CROSSING" : "TAXI";
+  const cls = hot ? "st warn" : "st";
+  return `<div class="strip veh${hot?" hot":""}${sel}" data-veh="${v.id}" style="--veh:${T.col}">
+    <div class="r1"><span class="cs">${T.tag} ${v.num}</span><span class="ty">${T.name}</span></div>
+    <div class="r2"><span>${v.state===VEH_STATE.HOLD_SHORT&&v.holdR?("awaiting crossing "+v.holdR.dir):"surface vehicle"}</span><span class="${cls}">${st}</span></div>
+    <span class="wk">V</span></div>`;
 }
-function renderStrips(){
+function renderStrips(force){
   const bays={APPROACH:[],RUNWAY:[],GROUND:[]};
   G.aircraft.forEach(a=>bays[stripBay(a)].push(a));
+  // A rebuild wipes the element out from under a half-finished click, so only
+  // do it when something that changes the markup has actually changed.
+  const sig = G.aircraft.map(a=>a.id+stripBay(a)+a.state+(a.cocked?"c":"")+(a.req?"q":"")+(a.note||"")+
+                (a.cleared?[a.cleared.push,a.cleared.taxi,a.cleared.lineup,a.cleared.takeoff,a.cleared.sid,a.cleared.land,a.cleared.appr].join(""):"")).join("|")
+            + "#" + (G.vehicles||[]).map(v=>v.id+v.state+(v.holdR?v.holdR.dir:"")).join("|")
+            + "#" + selected;
+  if(!force && sig===G._stripSig) return;
+  G._stripSig=sig;
   for(const b in bays){
     const el=document.getElementById("list"+b); document.getElementById("c"+b).textContent=bays[b].length;
     let html = bays[b].length? bays[b].map(a=>stripHTML(a)).join("") : "";
@@ -3466,18 +3730,19 @@ function renderStrips(){
     if(b==="GROUND") document.getElementById("cGROUND").textContent = bays[b].length + (G.vehicles?G.vehicles.length:0);
   }
   document.querySelectorAll(".strip[data-veh]").forEach(el=>{
-    el.onclick=()=>{ selected=+el.dataset.veh; renderActions(); };
+    el.onmousedown=(ev)=>{ if(ev.button!==0) return;
+      selected=+el.dataset.veh; renderActions(); };
   });
   document.querySelectorAll("[data-cock]").forEach(el=>{
-    el.onclick=(ev)=>{ ev.stopPropagation(); cockStrip(+el.dataset.cock); };
+    el.onmousedown=(ev)=>{ ev.stopPropagation(); ev.preventDefault(); cockStrip(+el.dataset.cock); };
   });
   document.querySelectorAll(".strip[data-id]").forEach(el=>{
     el.ondblclick=(ev)=>{ ev.stopPropagation(); noteStrip(+el.dataset.id); };
   });
   // wire
-  document.querySelectorAll(".strip").forEach(s=>{
+  document.querySelectorAll(".strip[data-id]").forEach(s=>{
     const id=+s.dataset.id;
-    s.onclick=()=>{ selectAircraft(id); const a=findAircraft(id); if(a){ const p=W2S(a.x,a.y); } };
+    s.onmousedown=(e)=>{ if(e.button===0) selectAircraft(id); };
     s.setAttribute("draggable","true");
     s.ondragstart=(e)=>{ e.dataTransfer.setData("text",""+id); selectAircraft(id); };
   });
@@ -3575,7 +3840,8 @@ micBtn.addEventListener("pointerleave",()=>{ if(listening)stopListen(); });
 
 /* position tabs */
 document.getElementById("posTabs").addEventListener("click",(e)=>{ const b=e.target.closest(".postab"); if(!b)return;
-  document.querySelectorAll(".postab").forEach(x=>x.classList.remove("on")); b.classList.add("on"); G.pos=b.dataset.pos; if(G)G._crtAt=performance.now(); fit();
+  document.querySelectorAll(".postab").forEach(x=>x.classList.remove("on")); b.classList.add("on"); G.pos=b.dataset.pos;
+  if(G){ G._commsBay=b.dataset.pos; if(typeof paintComms==="function") paintComms(); } if(G)G._crtAt=performance.now(); fit();
   document.getElementById("hintLine").textContent = G.pos==="APP"?"Approach: space the arrivals — Reduce Speed or Go Around to fix separation."
     : G.pos==="GND"?"Ground: Pushback → Taxi to Runway. Keep taxiways flowing." : "Tower: clear arrivals to land and departures for takeoff. Mind the runway."; });
 /* runway buttons */
@@ -3899,7 +4165,7 @@ document.getElementById("rExit").onclick=closeRadar;
 let lastT=performance.now(), uiT=0;
 function loop(now){
   const dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
-  if(G){ stepGame(dt); renderWithOptics(); uiT+=dt; renderPhone(); if(uiT>0.25){ uiT=0; renderStrips(); renderSeqPanel(); renderMetrics(); if(document.getElementById("actions").children.length===0||findAircraft(selected)) renderActions(); } }
+  if(G){ stepGame(dt); renderWithOptics(); uiT+=dt; renderPhone(); drawComms(dt); if(uiT>0.25){ uiT=0; renderStrips(); renderSeqPanel(); renderMetrics(); if(document.getElementById("actions").children.length===0||findEntity(selected)) renderActions(); } }
   requestAnimationFrame(loop);
 }
 
@@ -4085,6 +4351,7 @@ window.addEventListener("keydown",(e)=>{
 function boot(){
   fit(); initSpeech(); wireBays(); buildRadarUI();
   resetGame(false);         // build a scene but don't run until "Assume the watch"
+  try{ buildComms(); }catch(_){}
   render();
   requestAnimationFrame(loop);
   setTimeout(()=>pingServer(false), 800);
