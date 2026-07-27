@@ -505,10 +505,19 @@ select{appearance:none;cursor:pointer;
           </div>
           <div>
             <label>Status</label>
-            <select id="fStatus">
-              <option value="informed">Informed</option>
-              <option value="unauthorized">Unauthorized</option>
-              <option value="od">On Duty (OD)</option>
+            <select id="fStatus" onchange="onStatusChange()">
+              <option value="informed">AUTH — Authorized (Informed)</option>
+              <option value="unauthorized">UNAUTH — Unauthorized</option>
+              <option value="groom">GROOM — Grooming</option>
+              <option value="od">OD — On Duty</option>
+              <option value="susp">SUSP — Suspended</option>
+            </select>
+          </div>
+          <div>
+            <label>Parent contacted?</label>
+            <select id="fParent" onchange="parentTouched=true">
+              <option value="N">N — Not contacted</option>
+              <option value="Y">Y — Contacted</option>
             </select>
           </div>
         </div>
@@ -577,6 +586,22 @@ select{appearance:none;cursor:pointer;
         <div class="row">
           <div><label>Subtitle line</label><input type="text" id="pSub" value="Prepared for the Office of the Chief Executive Officer"></div>
         </div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--acc);margin-bottom:8px">MH COCKPIT SUBMISSION FORM</div>
+          <div class="row r2">
+            <div><label>Institution / College</label><input type="text" id="mhInst" value="MH Cockpit Aviation Academy"></div>
+            <div><label>Programme</label><input type="text" id="mhProg" value="B.Sc Aeronautical Science"></div>
+          </div>
+          <div class="row r2">
+            <div><label>Year &amp; Batch</label><input type="text" id="mhBatch" value="II Year - A"></div>
+            <div><label>Class In Charge</label><input type="text" id="mhIncharge" value="Class Coordinator"></div>
+          </div>
+          <div class="row r2">
+            <div><label>Coordinator (sign-off)</label><input type="text" id="mhCoord" value="Class Coordinator"></div>
+            <div><label>Submission time</label><input type="text" id="mhTime" value="12:30 PM"></div>
+          </div>
+          <div style="font-family:var(--mono);font-size:9.5px;color:var(--faint);margin-top:8px">These details fill Section A &amp; E of the submission form shown in the live preview →</div>
+        </div>
       </div>
 
       <div class="card">
@@ -613,13 +638,12 @@ select{appearance:none;cursor:pointer;
     <!-- RIGHT -->
     <div class="paperwrap">
       <div class="papertop">
-        <span>Live document preview</span>
+        <span>MH Cockpit submission — live preview</span>
         <span class="f" id="fileName">—</span>
       </div>
       <div id="paper"></div>
       <div class="acts">
-        <button class="btn" onclick="exportDocx()">Download .docx</button>
-        <button class="btn line" onclick="copySummary()">Copy summary</button>
+        <button class="btn" onclick="exportMHDocx()">Download MH COCKPIT .docx</button>
       </div>
       <div class="acts">
         <button class="btn line" onclick="clearDay()">Clear today's log</button>
@@ -833,11 +857,17 @@ const REASONS = [
   'Placement Drive / Campus Recruitment',
   'Mental Health / Stress-Related Reason',
   'Religious Observance',
+  'Grooming',
   'RNR (Ringing No Response)',
 ];
 const OTHER = 'Other (Please Specify)';
 
 function onReasonChange(){ const other=$('fReasonSel').value===OTHER; $('otherRow').hidden=!other; if(other)$('fReason').focus(); else $('fReason').value=''; if(byName(($('fName').value||'').trim())) showContact(); }
+let parentTouched=false;
+function onStatusChange(){
+  const st=$('fStatus').value;
+  if(!parentTouched){ $('fParent').value=(st==='unauthorized'||st==='susp')?'Y':'N'; }
+}
 function reasonValue(){ const sel=$('fReasonSel').value; if(!sel)return null; if(sel!==OTHER)return sel; return $('fReason').value.trim()||null; }
 function fmtPh(v){ return v.length===10 ? v.slice(0,5)+' '+v.slice(5) : v; }
 function copyNum(v){ navigator.clipboard.writeText(v).then(()=>toast(v+' copied'),()=>toast('Copy failed')); }
@@ -988,7 +1018,7 @@ function tick() {
 }
 
 /* ═══════════════ ENTRY ═══════════════ */
-const DEF_REMARK = s => s === 'informed' ? 'Prior notification given' : s === 'od' ? 'On official duty (counted present)' : 'No prior notification';
+const DEF_REMARK = s => s === 'informed' ? 'Prior notification given' : s === 'od' ? 'On official duty (counted present)' : s === 'groom' ? 'Grooming' : s === 'susp' ? 'Suspended' : 'No prior notification';
 
 function addAbsentee() {
   const name = $('fName').value.trim();
@@ -998,9 +1028,10 @@ function addAbsentee() {
   if (!S.logDay) S.logDay = today();
   pushUndo();
   const r = byName(name);
-  S.absentees.push({ name, status, reason, remark: DEF_REMARK(status), reg: r?r.reg:'', ph: r?r.ph:'', pa: r?r.pa:'' });
+  const parent = ($('fParent') ? $('fParent').value : '') || ((status==='unauthorized'||status==='susp')?'Y':'N');
+  S.absentees.push({ name, status, reason, parent, remark: DEF_REMARK(status), reg: r?r.reg:'', ph: r?r.ph:'', pa: r?r.pa:'' });
   if (!S.roster.includes(name)) S.roster.push(name);
-  $('fName').value = ''; $('fReasonSel').value = ''; $('otherRow').hidden = true; $('fReason').value = ''; $('fStatus').value = 'informed'; if($('fFilter'))$('fFilter').value=''; if(typeof populateNames==='function')populateNames();
+  $('fName').value = ''; $('fReasonSel').value = ''; $('otherRow').hidden = true; $('fReason').value = ''; $('fStatus').value = 'informed'; if($('fParent'))$('fParent').value='N'; parentTouched=false; if($('fFilter'))$('fFilter').value=''; if(typeof populateNames==='function')populateNames();
   showContact();
   $('fName').focus();
   save(); render();
@@ -1210,32 +1241,8 @@ function shareMsg() {
 }
 
 function renderPaper() {
-  const d = data();
-  const inf = d.absentees.filter(a => a.status === 'informed');
-  const una = d.absentees.filter(a => a.status === 'unauthorized');
-  const od  = d.absentees.filter(a => a.status === 'od');
-  const tally = l => l.length ? `${l.length} (${l.map(a => esc(a.name)).join(', ')})` : '0';
-  const rows = [
-    ['Date', esc(d.dateText)], ['Total Students Present', d.present], ['Total Absentees', inf.length + una.length],
-    ['Informed Absences', tally(inf)], ['Unauthorized Absences', tally(una)],
-    ['On Duty (counted present)', tally(od)],
-    ['Late Arrivals (~10:30 AM)', d.late], ['Half Day (Informed)', d.halfDay],
-    ['Report Prepared By', esc(d.preparedBy)], ['Submitted To', esc(d.submittedTo)],
-  ];
-  $('fileName').textContent = fileStem() + '.docx';
-  $('paper').innerHTML = `
-    <h1>${esc(d.title)}</h1>
-    <div class="sub">${esc(d.subtitle)}</div>
-    <h3>Report Summary</h3>
-    <table>${rows.map(r => `<tr><td class="lbl">${r[0]}</td><td class="val">${r[1]}</td></tr>`).join('')}</table>
-    <h3>Detailed Attendance Log</h3>
-    <table><thead><tr><th>#</th><th>Student Name</th><th>Status</th><th>Remarks</th></tr></thead>
-      <tbody>${d.absentees.length ? d.absentees.map((a, i) => `<tr>
-        <td>${i + 1}</td><td>${esc(a.name)}</td>
-        <td class="st">${a.status === 'od' ? 'On Duty (Present)' : 'Absent (' + (a.status === 'informed' ? 'Informed' : 'Unauthorized') + ')'}</td>
-        <td>${esc(a.remark)}</td></tr>`).join('')
-      : `<tr><td colspan="4" style="text-align:center;color:#888">No absentees recorded</td></tr>`}</tbody></table>
-    ${d.observations.length ? `<h3>Observations &amp; Notes</h3><ol>${d.observations.map(o => `<li>${esc(o)}</li>`).join('')}</ol>` : ''}`;
+  $('fileName').textContent = 'MH-COCKPIT-Attendance-' + ($('pDate').value || new Date().toISOString().slice(0,10)) + '.docx';
+  const box = $('paper'); if(box) box.innerHTML = mhPreviewHTML();
 }
 
 function renderHist() {
@@ -1807,6 +1814,147 @@ function renderBanner(){
   el.innerHTML = viewingDate
     ? `<div class="vbanner">Viewing archived log for <b>${fmtDate(viewingDate)}</b> — any edits save to that day.<button onclick="backToToday()">Return to today</button></div>`
     : '';
+}
+
+/* ═══════════════ MH COCKPIT SUBMISSION FORM ═══════════════ */
+const MH_CODE = { informed:'AUTH', unauthorized:'UNAUTH', groom:'GROOM', od:'OD', susp:'SUSP' };
+const MH_CODES = ['AUTH','UNAUTH','GROOM','OD','SUSP'];
+function mhCode(status){ return MH_CODE[status] || 'UNAUTH'; }
+function mhVal(id, d){ const el=$(id); return el ? (el.value||'').trim() : ''; }
+function mhData(){
+  const abs = S.absentees || [];
+  const strength = +$('pStrength').value || 0;
+  const absentRows = abs.filter(a => a.status !== 'od'); /* OD counts present */
+  const present = Math.max(0, strength - absentRows.length);
+  const rows = abs.map((a,i) => ({
+    sno: i+1,
+    name: a.name || '',
+    code: mhCode(a.status),
+    reason: a.reason || (a.status==='groom'?'Grooming':a.status==='susp'?'Suspended':''),
+    parent: (a.parent!==undefined && a.parent!=='') ? a.parent : ((a.status==='unauthorized' || a.status==='susp') ? 'Y' : 'N'),
+    remark: a.remark || ''
+  }));
+  const tally = { AUTH:0, UNAUTH:0, GROOM:0, OD:0, SUSP:0 };
+  abs.forEach(a => { tally[mhCode(a.status)]++; });
+  const notes = (S.specialNotes || (abs.filter(a=>a.status==='susp'||a.status==='groom').map(a=>a.name+' — '+mhCode(a.status)))) || [];
+  return {
+    inst: mhVal('mhInst'), prog: mhVal('mhProg'), batch: mhVal('mhBatch'),
+    incharge: mhVal('mhIncharge'), coord: mhVal('mhCoord'), time: mhVal('mhTime'),
+    date: ($('pDate').value || new Date().toISOString().slice(0,10)),
+    datePretty: longDate($('pDate').value || new Date().toISOString().slice(0,10)),
+    onRoll: strength, present, absent: absentRows.length,
+    rows, tally, notes
+  };
+}
+function mhPreviewHTML(){
+  const d = mhData();
+  const th = (t)=>'<th style="background:#1F3864;color:#fff;padding:6px 8px;font-size:12px;font-family:\'Times New Roman\',serif;text-align:center;border:1px solid #BFBFBF">'+esc(t)+'</th>';
+  const td = (t,o)=>{o=o||{};return '<td style="padding:6px 8px;font-size:12px;font-family:\'Times New Roman\',serif;border:1px solid #BFBFBF'+(o.bg?';background:'+o.bg:'')+(o.b?';font-weight:700':'')+(o.c?';color:'+o.c:'')+(o.center?';text-align:center':'')+'">'+esc(t==null?'':String(t))+'</td>';};
+  const secH=(t,fill)=>'<div style="font-weight:700;font-size:12px;font-family:\'Times New Roman\',serif;color:'+(fill||'#2E75B6')+';margin:12px 0 5px">'+esc(t)+'</div>';
+  let h='<div style="background:#fff;color:#000;font-family:\'Times New Roman\',serif;padding:20px 22px">';
+  h+='<div style="text-align:center;font-weight:700;font-size:15px">MH COCKPIT \u2014 DAILY ATTENDANCE SUBMISSION FORM</div>';
+  h+='<div style="text-align:center;font-size:11px;color:#444;margin-bottom:12px">For Class In Charges &amp; CPL Instructors \u00b7 Submit by 12:30 PM daily</div>';
+  /* Section A */
+  h+=secH('SECTION A \u2014 SUBMISSION DETAILS');
+  h+='<table style="border-collapse:collapse;width:100%"><tbody>'+
+     '<tr>'+td('Institution / College Name:',{bg:'#D6E4F0',b:true})+td(d.inst)+td('Date (DD/MM/YYYY):',{bg:'#D6E4F0',b:true})+td(d.datePretty)+'</tr>'+
+     '<tr>'+td('Programme:',{bg:'#D6E4F0',b:true})+td(d.prog)+td('Year & Batch:',{bg:'#D6E4F0',b:true})+td(d.batch)+'</tr>'+
+     '<tr>'+td('Class In Charge Name:',{bg:'#D6E4F0',b:true})+td(d.incharge)+td('Submission Time:',{bg:'#D6E4F0',b:true})+td(d.time)+'</tr>'+
+     '<tr>'+td('Total Students on Roll:',{bg:'#D6E4F0',b:true})+td(d.onRoll)+td('Total Present / Absent:',{bg:'#D6E4F0',b:true})+td(d.present+' / '+d.absent)+'</tr>'+
+     '</tbody></table>';
+  /* Section B */
+  h+=secH('SECTION B \u2014 ABSENT STUDENTS');
+  h+='<div style="font-size:12px;font-family:\'Times New Roman\',serif;color:#C00000;margin-bottom:5px">Absence Type Codes:  AUTH = Authorized | UNAUTH = Unauthorized | GROOM = Grooming | OD = On Duty | SUSP = Suspended</div>';
+  h+='<table style="border-collapse:collapse;width:100%"><thead><tr>'+th('S.No')+th('Student Full Name')+th('Absence Type')+th('Reason for Absence')+th('Parent Contacted? (Y/N)')+th('Remarks / Additional Notes')+'</tr></thead><tbody>';
+  if(d.rows.length){ d.rows.forEach((r,i)=>{ const bg=i%2?'#F2F2F2':'#FFFFFF'; h+='<tr>'+td(r.sno,{bg:bg,center:true})+td(r.name,{bg:bg})+td(r.code,{bg:bg,center:true})+td(r.reason,{bg:bg})+td(r.parent,{bg:bg,center:true})+td(r.remark,{bg:bg})+'</tr>'; }); }
+  else h+='<tr>'+td('\u2014',{center:true})+td('No absentees logged')+td('')+td('')+td('')+td('')+'</tr>';
+  h+='</tbody></table>';
+  /* Section C */
+  h+=secH('SECTION C \u2014 TOTALS VERIFICATION');
+  h+='<div style="font-size:12px;font-family:\'Times New Roman\',serif;color:#1F1F1F;margin-bottom:5px">Before submitting, check: Total Present + Total Absent = Total Students on Roll</div>';
+  const ok=(d.present+d.absent===d.onRoll);
+  h+='<table style="border-collapse:collapse;width:100%"><thead><tr>'+th('Total on Roll')+th('Total Present')+th('Total Absent')+th('AUTH')+th('UNAUTH')+th('GROOM')+th('OD')+th('SUSP')+'</tr></thead><tbody><tr>'+
+     td(d.onRoll,{center:true})+td(d.present,{center:true})+td(d.absent,{center:true})+td(d.tally.AUTH,{center:true})+td(d.tally.UNAUTH,{center:true})+td(d.tally.GROOM,{center:true})+td(d.tally.OD,{center:true})+td(d.tally.SUSP,{center:true})+'</tr></tbody></table>';
+  h+='<div style="font-size:11px;margin-top:5px;font-family:\'Times New Roman\',serif;color:'+(ok?'#137333':'#C00000')+'">'+(ok?'\u2713 Present + Absent = Total on Roll':'\u26a0 Present + Absent \u2260 Total on Roll \u2014 check the numbers')+'</div>';
+  /* Section D */
+  h+=secH('SECTION D \u2014 SPECIAL NOTES (If Any)');
+  h+='<div style="font-size:11px;font-family:\'Times New Roman\',serif;color:#444;margin-bottom:5px">For anything needing Quality Department attention \u2014 welfare concerns, suspension confirmations, multi-day absences, students mentioning leaving the programme, etc.</div>';
+  h+='<table style="border-collapse:collapse;width:100%"><thead><tr>'+
+     '<th style="background:#2E75B6;color:#fff;padding:6px 8px;font-size:12px;font-family:\'Times New Roman\',serif;text-align:left;border:1px solid #BFBFBF">S.No</th>'+
+     '<th style="background:#2E75B6;color:#fff;padding:6px 8px;font-size:12px;font-family:\'Times New Roman\',serif;text-align:left;border:1px solid #BFBFBF">Note / Observation</th></tr></thead><tbody>';
+  if(d.notes.length){ d.notes.forEach((n,i)=>{ const bg=i%2?'#F2F2F2':'#FFFFFF'; h+='<tr>'+td(i+1,{bg:bg})+td(n,{bg:bg})+'</tr>'; }); }
+  else { h+='<tr>'+td(1)+td('')+'</tr>'+'<tr>'+td(2,{bg:'#F2F2F2'})+td('',{bg:'#F2F2F2'})+'</tr>'+'<tr>'+td(3)+td('')+'</tr>'; }
+  h+='</tbody></table>';
+  /* Section E */
+  h+=secH('SECTION E \u2014 COORDINATOR SIGN-OFF');
+  h+='<table style="border-collapse:collapse;width:100%"><thead><tr>'+th('Coordinator Name')+th('Signature')+th('Date & Time of Submission')+'</tr></thead><tbody><tr>'+
+     td(d.coord,{center:true})+td('')+td(d.datePretty+'  '+d.time,{center:true})+'</tr></tbody></table>';
+  h+='</div>';
+  return h;
+}
+function showMHForm(){ const box=$('mhPreview'); if(box) box.innerHTML=mhPreviewHTML(); if(typeof renderPaper==='function') renderPaper(); toast('MH COCKPIT form updated'); }
+function exportMHDocx(){
+  if (typeof docx === 'undefined') { toast('Document engine offline \u2014 reconnect and reload'); return; }
+  const d = mhData();
+  const P=docx.Paragraph, T=docx.TextRun, Tb=docx.Table, R=docx.TableRow, C=docx.TableCell,
+    W=docx.WidthType, AL=docx.AlignmentType, SH=docx.ShadingType, BS=docx.BorderStyle;
+  const FONT='Times New Roman', SZ=24; /* 12pt, exactly as template */
+  const bd = { style:BS.SINGLE, size:4, color:'BFBFBF' };
+  const borders = { top:bd, bottom:bd, left:bd, right:bd, insideHorizontal:bd, insideVertical:bd };
+  const tr=(txt,o)=>{o=o||{}; return new T({ text:String(txt==null?'':txt), bold:!!o.b, italics:!!o.i, color:o.color||'000000', size:o.size||SZ, font:FONT });};
+  const cell=(runs,o)=>{o=o||{}; return new C({ width:{size:o.w||2000,type:W.DXA},
+    shading:o.fill?{type:SH.CLEAR,fill:o.fill,color:'auto'}:undefined,
+    children:[new P({ alignment:o.center?AL.CENTER:AL.LEFT, children:Array.isArray(runs)?runs:[runs] })] });};
+  const hcell=(t,w,fill)=>cell(tr(t,{b:true,color:'FFFFFF'}),{fill:fill||'1F3864',w:w,center:true});
+  const kv=(k,v)=>[cell(tr(k,{b:true}),{fill:'D6E4F0',w:2340}),cell(tr(v),{w:2340})];
+  const H=(t)=>new P({ spacing:{before:220,after:80}, children:[tr(t,{b:true,color:'2E75B6'})] });
+  const note=(t,color)=>new P({ spacing:{after:80}, children:[tr(t,{color:color||'444444'})] });
+  const kids=[];
+  kids.push(new P({alignment:AL.CENTER,children:[tr('MH COCKPIT \u2014 DAILY ATTENDANCE SUBMISSION FORM',{b:true})]}));
+  kids.push(new P({alignment:AL.CENTER,spacing:{after:160},children:[tr('For Class In Charges & CPL Instructors \u00b7 Submit by 12:30 PM daily')]}));
+  /* Section A */
+  kids.push(H('SECTION A \u2014 SUBMISSION DETAILS'));
+  kids.push(new Tb({ width:{size:9360,type:W.DXA}, borders, rows:[
+    new R({children:[...kv('Institution / College Name:',d.inst),...kv('Date (DD/MM/YYYY):',d.datePretty)]}),
+    new R({children:[...kv('Programme:',d.prog),...kv('Year & Batch:',d.batch)]}),
+    new R({children:[...kv('Class In Charge Name:',d.incharge),...kv('Submission Time:',d.time)]}),
+    new R({children:[...kv('Total Students on Roll:',String(d.onRoll)),...kv('Total Present / Absent:',d.present+' / '+d.absent)]}),
+  ]}));
+  /* Section B */
+  kids.push(H('SECTION B \u2014 ABSENT STUDENTS'));
+  kids.push(note('Absence Type Codes:  AUTH = Authorized | UNAUTH = Unauthorized | GROOM = Grooming | OD = On Duty | SUSP = Suspended','C00000'));
+  const bHead=new R({tableHeader:true,children:[hcell('S.No',700),hcell('Student Full Name',2274),hcell('Absence Type',1837),hcell('Reason for Absence',1417),hcell('Parent Contacted? (Y/N)',1426),hcell('Remarks / Additional Notes',1560)]});
+  const bRows=d.rows.length? d.rows.map((r,i)=>{ const f=i%2?'F2F2F2':'FFFFFF';
+    return new R({children:[cell(tr(r.sno),{w:700,center:true,fill:f}),cell(tr(r.name),{w:2274,fill:f}),cell(tr(r.code),{w:1837,center:true,fill:f}),cell(tr(r.reason),{w:1417,fill:f}),cell(tr(r.parent),{w:1426,center:true,fill:f}),cell(tr(r.remark),{w:1560,fill:f})]}); })
+    : [new R({children:[cell(tr('\u2014'),{w:700,center:true}),cell(tr('No absentees logged'),{w:2274}),cell(tr(''),{w:1837}),cell(tr(''),{w:1417}),cell(tr(''),{w:1426}),cell(tr(''),{w:1560})]})];
+  kids.push(new Tb({width:{size:9360,type:W.DXA},borders,rows:[bHead,...bRows]}));
+  /* Section C */
+  kids.push(H('SECTION C \u2014 TOTALS VERIFICATION'));
+  kids.push(note('Before submitting, check: Total Present + Total Absent = Total Students on Roll','1F1F1F'));
+  kids.push(new Tb({width:{size:9360,type:W.DXA},borders,rows:[
+    new R({tableHeader:true,children:['Total on Roll','Total Present','Total Absent','AUTH','UNAUTH','GROOM','OD','SUSP'].map(t=>hcell(t,1170))}),
+    new R({children:[d.onRoll,d.present,d.absent,d.tally.AUTH,d.tally.UNAUTH,d.tally.GROOM,d.tally.OD,d.tally.SUSP].map(v=>cell(tr(String(v)),{w:1170,center:true}))}),
+  ]}));
+  const ok=(d.present+d.absent===d.onRoll);
+  kids.push(new P({spacing:{before:60},children:[tr(ok?'\u2713 Present + Absent = Total on Roll':'\u26a0 Present + Absent does NOT equal Total on Roll \u2014 verify before submitting',{color:ok?'137333':'C00000'})]}));
+  /* Section D */
+  kids.push(H('SECTION D \u2014 SPECIAL NOTES (If Any)'));
+  kids.push(note('For anything needing Quality Department attention \u2014 welfare concerns, suspension confirmations, multi-day absences, students mentioning leaving the programme, etc.','444444'));
+  const dNotes = d.notes.length ? d.notes : ['','',''];
+  kids.push(new Tb({width:{size:9360,type:W.DXA},borders,rows:[
+    new R({tableHeader:true,children:[hcell('S.No',988,'2E75B6'),new C({width:{size:8372,type:W.DXA},shading:{type:SH.CLEAR,fill:'2E75B6',color:'auto'},children:[new P({children:[tr('Note / Observation',{b:true,color:'FFFFFF'})]})]})]}),
+    ...dNotes.map((n,i)=>{const f=i%2?'F2F2F2':'FFFFFF'; return new R({children:[cell(tr(i+1),{w:988,center:true,fill:f}),cell(tr(n),{w:8372,fill:f})]});})
+  ]}));
+  /* Section E */
+  kids.push(H('SECTION E \u2014 COORDINATOR SIGN-OFF'));
+  kids.push(new Tb({width:{size:9360,type:W.DXA},borders,rows:[
+    new R({tableHeader:true,children:[hcell('Coordinator Name',3120),hcell('Signature',3120),hcell('Date & Time of Submission',3120)]}),
+    new R({children:[cell(tr(d.coord),{w:3120,center:true}),cell(tr(''),{w:3120}),cell(tr(d.datePretty+'  '+d.time),{w:3120,center:true})]}),
+  ]}));
+  const doc=new docx.Document({ styles:{ default:{ document:{ run:{ font:FONT, size:SZ } } } },
+    sections:[{ properties:{ page:{ margin:{top:1152,bottom:1152,left:1440,right:1440} } }, children:kids }] });
+  const file='MH-COCKPIT-Attendance-'+d.date+'.docx';
+  docx.Packer.toBlob(doc).then(blob=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=file; a.click(); toast('Downloaded '+file); });
 }
 
 function exportDocx() {
