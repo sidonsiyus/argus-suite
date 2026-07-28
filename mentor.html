@@ -353,6 +353,17 @@ textarea.field{width:100%;resize:vertical;min-height:70px;line-height:1.55}
   .recActions{display:flex;gap:4px;flex:none}
   .recActions .wpDel{font-size:12px}
 
+
+  /* one-stop quick capture in Log a session */
+  .quickCap{margin-top:20px;padding:16px;border:1px dashed var(--horizon2);border-radius:14px;background:var(--surface2)}
+  .quickCapHead{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:12px}
+  .quickCapHead b{color:var(--cyan);font-weight:600}
+  .qcGoalRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .qcDots{display:flex;align-items:center;gap:5px}
+  .qcExtra{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;padding:8px 11px;border:1px solid var(--horizon);border-radius:9px;margin-bottom:7px;background:var(--surface)}
+  .qcExtra x{cursor:pointer;color:var(--faint);font-size:12px}
+  .qcExtra x:hover{color:var(--descent)}
+
 </style>
 </head>
 <body>
@@ -1018,37 +1029,179 @@ function logView(){
   const opts=DB.students.slice().sort((a,b)=>a.sno-b.sno).map(s=>`<option value="${esc(s.id)}">Roll ${s.sno} · ${esc(tc(s.name))}</option>`).join('');
   return `
     <div class="head"><div>
-      <div class="kicker">Mentoring log</div>
+      <div class="kicker">Mentoring log · one-stop capture</div>
       <h1 class="title">Log a session</h1>
-      <div class="lede">Capture a mentor-mentee session. Consistent fields keep all 43 cadets comparable and feed the analytics.</div>
+      <div class="lede">Record the session and update the cadet in one place — notes, strengths, gaps, skills, goal, internships and achievements all save together.</div>
     </div></div>
-    <div class="panel" style="max-width:640px">
-      <label class="fl">Cadet</label>
-      <select class="field full" id="lStudent">${opts}</select>
-      <label class="fl">Date</label>
-      <input class="field full" id="lDate" type="date" value="${new Date().toISOString().slice(0,10)}">
-      <label class="fl">Session notes — what did you discuss?</label>
+    <div class="panel" style="max-width:680px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:2;min-width:200px"><label class="fl">Cadet</label>
+          <select class="field full" id="lStudent">${opts}</select></div>
+        <div style="flex:1;min-width:130px"><label class="fl">Date</label>
+          <input class="field full" id="lDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <label class="fl" style="margin-top:12px">Session notes — what did you discuss?</label>
       <textarea class="field" id="lNotes" placeholder="Strengths shown, concerns raised, what the cadet said about their goals…"></textarea>
-      <label class="fl" style="margin-top:12px">Progress since last time</label>
-      <input class="field full" id="lProgress" placeholder="e.g. improved in aerodynamics, more confident presenting…">
-      <label class="fl">Focus before next session</label>
-      <input class="field full" id="lFocus" placeholder="e.g. practice mock interview, complete CAD tutorial…">
-      <div style="display:flex;gap:10px;margin-top:16px"><button class="btn go" id="lSave">Save session</button></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+        <div style="flex:1;min-width:200px"><label class="fl">Progress since last time</label>
+          <input class="field full" id="lProgress" placeholder="e.g. improved in aerodynamics…"></div>
+        <div style="flex:1;min-width:200px"><label class="fl">Focus before next session</label>
+          <input class="field full" id="lFocus" placeholder="e.g. practice mock interview…"></div>
+      </div>
+
+      <div class="quickCap" id="quickCap">
+        <div class="quickCapHead">While you\u2019re here — update <b id="qcName">this cadet</b></div>
+
+        <div class="qcGoalRow" id="qcGoalRow"></div>
+
+        <div class="two" style="gap:14px;margin-top:12px">
+          <div>
+            <label class="fl" style="color:var(--climb)">Add a strength</label>
+            <div style="display:flex;gap:6px"><select class="field" id="qcStrength" style="flex:1;font-size:12px"><option value="">＋ strength…</option></select></div>
+            <div class="taglist" id="qcStrTags" style="margin-top:8px"></div>
+          </div>
+          <div>
+            <label class="fl" style="color:var(--amber)">Add a gap</label>
+            <div style="display:flex;gap:6px"><select class="field" id="qcGap" style="flex:1;font-size:12px"><option value="">＋ gap…</option></select></div>
+            <div class="taglist" id="qcGapTags" style="margin-top:8px"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <label class="fl" style="color:var(--violet)">Rate a skill (optional)</label>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select class="field" id="qcSkill" style="flex:1;min-width:150px;font-size:12px"><option value="">＋ skill…</option></select>
+            <div class="qcDots" id="qcSkillDots"></div>
+          </div>
+          <div class="taglist" id="qcSkillTags" style="margin-top:8px"></div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+          <button class="btn sm" id="qcAddIntern" style="border-color:var(--climb);color:var(--climb)">＋ Internship / training</button>
+          <button class="btn sm" id="qcAddAchieve" style="border-color:var(--violet);color:var(--violet)">＋ Achievement</button>
+        </div>
+        <div id="qcExtras" style="margin-top:10px"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:18px"><button class="btn go" id="lSave">Save session &amp; updates</button>
+        <button class="btn" id="lOpenProfile">Open full profile</button></div>
     </div>`;
 }
+/* staging area for quick-capture additions, applied on save */
+let QC={ strengths:[], gaps:[], skills:[], goal:null, interns:[], achieves:[] };
+function resetQC(){ QC={ strengths:[], gaps:[], skills:[], goal:null, interns:[], achieves:[] }; }
+
 function wireLog(){
+  resetQC();
+  const sel=$('#lStudent');
+  const refreshQC=()=>{
+    const s=DB.students.find(x=>x.id===sel.value); if(!s) return;
+    $('#qcName').textContent=tc(s.name);
+    // goal row — show current or offer to set
+    const gr=$('#qcGoalRow');
+    if(s.goal){ gr.innerHTML=`<span class="tag">Goal</span> <span class="chip goal">${esc(shortGoal(s.goal))}</span>`; }
+    else { gr.innerHTML=`<label class="fl" style="color:var(--cyan)">Set a career goal (not set yet)</label>
+      <select class="field full" id="qcGoalSel" style="font-size:12px"><option value="">— pick a goal —</option>${ROLES.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('')}</select>`;
+      $('#qcGoalSel').onchange=e=>{ QC.goal=e.target.value||null; }; }
+    // strengths dropdown (exclude existing + staged)
+    const have=new Set([...(s.strengths||[]),...QC.strengths].map(x=>x.toLowerCase()));
+    $('#qcStrength').innerHTML='<option value="">＋ strength…</option>'+STRENGTH_LIBRARY.filter(x=>!have.has(x.toLowerCase())).map(x=>`<option>${esc(x)}</option>`).join('');
+    const haveG=new Set([...(s.weaknesses||[]),...QC.gaps].map(x=>x.toLowerCase()));
+    $('#qcGap').innerHTML='<option value="">＋ gap…</option>'+GAP_LIBRARY.filter(x=>!haveG.has(x.toLowerCase())).map(x=>`<option>${esc(x)}</option>`).join('');
+    const haveS=new Set([...(s.ratedSkills||[]).map(r=>r.skill),...QC.skills.map(r=>r.skill)]);
+    $('#qcSkill').innerHTML='<option value="">＋ skill…</option>'+SKILL_LIBRARY.filter(x=>!haveS.has(x)).map(x=>`<option>${esc(x)}</option>`).join('');
+    // staged tag lists
+    $('#qcStrTags').innerHTML=QC.strengths.map((t,i)=>`<span class="t strength">${esc(t)} <x data-qcrm="s:${i}">✕</x></span>`).join('');
+    $('#qcGapTags').innerHTML=QC.gaps.map((t,i)=>`<span class="t weak">${esc(t)} <x data-qcrm="g:${i}">✕</x></span>`).join('');
+    $('#qcSkillTags').innerHTML=QC.skills.map((r,i)=>`<span class="t skill">${esc(r.skill)} · ${r.level}/5 <x data-qcrm="k:${i}">✕</x></span>`).join('');
+    // extras summary
+    $('#qcExtras').innerHTML = [
+      ...QC.interns.map((it,i)=>`<div class="qcExtra"><span>🎓 ${esc(it.role||it.org||'Internship')}${it.days?' · '+esc(String(it.days))+'d':''} · ${esc(it.status)}</span><x data-qcrm="i:${i}">✕</x></div>`),
+      ...QC.achieves.map((a,i)=>`<div class="qcExtra"><span>★ ${esc(a.title)}${a.category?' · '+esc(a.category):''}</span><x data-qcrm="a:${i}">✕</x></div>`)
+    ].join('');
+    // rewire removers
+    $$('[data-qcrm]').forEach(x=>x.onclick=()=>{ const [t,idx]=x.dataset.qcrm.split(':'); const i=+idx;
+      const map={s:'strengths',g:'gaps',k:'skills',i:'interns',a:'achieves'}; QC[map[t]].splice(i,1); refreshQC(); });
+  };
+  sel.onchange=()=>{ resetQC(); refreshQC(); };
+  refreshQC();
+
+  // pending skill level for the skill picker
+  let pendingLevel=3;
+  const renderDots=()=>{ $('#qcSkillDots').innerHTML=[1,2,3,4,5].map(n=>`<span class="lvlDot ${n<=pendingLevel?'on':''}" data-qcdot="${n}"></span>`).join('')+`<span class="lvlLabel">${SKILL_LEVELS[pendingLevel]}</span>`;
+    $$('[data-qcdot]').forEach(d=>d.onclick=()=>{ pendingLevel=+d.dataset.qcdot; renderDots(); }); };
+  renderDots();
+
+  $('#qcStrength').onchange=e=>{ if(e.target.value){ QC.strengths.push(e.target.value); refreshQC(); } };
+  $('#qcGap').onchange=e=>{ if(e.target.value){ QC.gaps.push(e.target.value); refreshQC(); } };
+  $('#qcSkill').onchange=e=>{ if(e.target.value){ QC.skills.push({skill:e.target.value,level:pendingLevel,note:''}); refreshQC(); } };
+
+  $('#qcAddIntern').onclick=()=>quickInternForm();
+  $('#qcAddAchieve').onclick=()=>quickAchieveForm();
+
+  $('#lOpenProfile').onclick=()=>{ if(sel.value) openStudent(sel.value); };
+
   $('#lSave').onclick=()=>{
-    const id=$('#lStudent').value; const s=DB.students.find(x=>x.id===id);
+    const id=sel.value; const s=DB.students.find(x=>x.id===id);
     const notes=$('#lNotes').value.trim();
-    if(!notes){ toast('Add some session notes first'); return; }
-    s.sessions.push({ date:new Date($('#lDate').value||Date.now()).toISOString(), notes,
-      progress:$('#lProgress').value.trim(), focus:$('#lFocus').value.trim() });
+    const hasUpdates = QC.strengths.length||QC.gaps.length||QC.skills.length||QC.goal||QC.interns.length||QC.achieves.length;
+    if(!notes && !hasUpdates){ toast('Add session notes, or some updates, first'); return; }
+    // apply staged updates
+    if(QC.goal) s.goal=QC.goal;
+    s.strengths=s.strengths||[]; QC.strengths.forEach(t=>{ if(!s.strengths.some(x=>x.toLowerCase()===t.toLowerCase())) s.strengths.push(t); });
+    s.weaknesses=s.weaknesses||[]; QC.gaps.forEach(t=>{ if(!s.weaknesses.some(x=>x.toLowerCase()===t.toLowerCase())) s.weaknesses.push(t); });
+    s.ratedSkills=s.ratedSkills||[]; QC.skills.forEach(r=>{ if(!s.ratedSkills.some(x=>x.skill===r.skill)) s.ratedSkills.push(r); });
+    s.internships=s.internships||[]; QC.interns.forEach(it=>s.internships.push(it));
+    s.achievements=s.achievements||[]; QC.achieves.forEach(a=>s.achievements.push(a));
+    // log the session (only if notes present; otherwise just updates)
+    if(notes){ s.sessions.push({ date:new Date($('#lDate').value||Date.now()).toISOString(), notes,
+        progress:$('#lProgress').value.trim(), focus:$('#lFocus').value.trim() });
+      s.history=s.history||[]; s.history.push({ ts:new Date().toISOString(), readiness:0, sessions:s.sessions.length, poaDone:s.poa.filter(p=>p.done).length });
+    }
     s.updated=new Date().toISOString();
-    s.history=s.history||[]; s.history.push({ ts:new Date().toISOString(), readiness:progress(s), sessions:s.sessions.length, poaDone:s.poa.filter(p=>p.done).length });
+    // fix history readiness after all updates applied
+    if(notes && s.history.length) s.history[s.history.length-1].readiness=progress(s);
     store.save();
-    toast('Session logged for '+tc(s.name));
+    toast(notes? 'Session + updates saved for '+tc(s.name) : 'Updates saved for '+tc(s.name));
     openStudent(id);
   };
+}
+
+/* quick internship/achievement forms that stage into QC instead of saving immediately */
+function quickInternForm(){
+  modal(`<button class="mClose" data-close>✕</button><div class="kicker">Add to this session</div>
+    <h2 style="font-size:19px;margin-bottom:16px">Internship / training</h2>
+    <label class="fl">Role / title</label><input class="field full" id="qiRole" placeholder="e.g. Ground Ops Intern">
+    <label class="fl">Organisation</label><input class="field full" id="qiOrg" placeholder="e.g. Chennai Airport">
+    <div style="display:flex;gap:10px"><div style="flex:1"><label class="fl">Days</label><input class="field full" id="qiDays" type="number" min="0" placeholder="30"></div>
+    <div style="flex:1"><label class="fl">Status</label><select class="field full" id="qiStatus"><option value="ongoing">Ongoing</option><option value="completed">Completed</option><option value="planned">Planned</option></select></div></div>
+    <label class="fl">Start date (optional)</label><input class="field full" id="qiStart" type="date">
+    <label class="fl">Notes (optional)</label><textarea class="field" id="qiNote"></textarea>
+    <div style="display:flex;gap:10px;margin-top:14px"><button class="btn go" id="qiSave">Add</button><button class="btn" data-close>Cancel</button></div>`);
+  $('#qiSave').onclick=()=>{ const role=$('#qiRole').value.trim(); if(!role && !$('#qiOrg').value.trim()){ toast('Add a role or org'); return; }
+    QC.interns.push({role,org:$('#qiOrg').value.trim(),days:$('#qiDays').value.trim(),status:$('#qiStatus').value,start:$('#qiStart').value,note:$('#qiNote').value.trim()});
+    closeModal(); wireLogRefresh(); toast('Internship staged'); };
+}
+function quickAchieveForm(){
+  const cats=['Competition','Event','Position of responsibility','Certification','Sports','Cultural','Volunteering','Publication','Award','Other'];
+  modal(`<button class="mClose" data-close>✕</button><div class="kicker">Add to this session</div>
+    <h2 style="font-size:19px;margin-bottom:16px">Achievement</h2>
+    <label class="fl">Title</label><input class="field full" id="qaTitle" placeholder="e.g. Won aeromodelling contest">
+    <label class="fl">Category</label><select class="field full" id="qaCat"><option value="">— pick —</option>${cats.map(c=>`<option>${c}</option>`).join('')}</select>
+    <label class="fl">Date (optional)</label><input class="field full" id="qaDate" type="date">
+    <label class="fl">Notes (optional)</label><textarea class="field" id="qaNote"></textarea>
+    <div style="display:flex;gap:10px;margin-top:14px"><button class="btn go" id="qaSave">Add</button><button class="btn" data-close>Cancel</button></div>`);
+  $('#qaSave').onclick=()=>{ const title=$('#qaTitle').value.trim(); if(!title){ toast('Add a title'); return; }
+    QC.achieves.push({title,category:$('#qaCat').value,date:$('#qaDate').value,note:$('#qaNote').value.trim()});
+    closeModal(); wireLogRefresh(); toast('Achievement staged'); };
+}
+/* helper to re-render the quick-capture staged lists without full nav */
+function wireLogRefresh(){ const sel=$('#lStudent'); if(!sel) return; const s=DB.students.find(x=>x.id===sel.value); if(!s) return;
+  $('#qcExtras').innerHTML=[
+    ...QC.interns.map((it,i)=>`<div class="qcExtra"><span>🎓 ${esc(it.role||it.org||'Internship')}${it.days?' · '+esc(String(it.days))+'d':''} · ${esc(it.status)}</span><x data-qcrm="i:${i}">✕</x></div>`),
+    ...QC.achieves.map((a,i)=>`<div class="qcExtra"><span>★ ${esc(a.title)}${a.category?' · '+esc(a.category):''}</span><x data-qcrm="a:${i}">✕</x></div>`)
+  ].join('');
+  $$('[data-qcrm]').forEach(x=>x.onclick=()=>{ const [t,idx]=x.dataset.qcrm.split(':'); const map={s:'strengths',g:'gaps',k:'skills',i:'interns',a:'achieves'}; QC[map[t]].splice(+idx,1); wireLogRefresh(); });
 }
 
 /* used from profile "Log session" button — jump to log view preselected */
