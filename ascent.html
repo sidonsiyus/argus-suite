@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ASCENT · Aviation Careers Board</title>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   ASCENT · Aviation Careers Board  —  part of the ARGUS SUITE
+   Single file. No dependencies. Canvas 2D only. Offline capable.
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  --acc:#ff9e64; --acc2:#ffc48c;
+  --ok:#3ee08f; --warn:#f0b64a; --bad:#ff5a63; --info:#5b8def;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  --r:12px;
+}
+:root[data-theme="dark"]{
+  --bg:#08060d; --bg2:#0d0a14; --card:#120f1b; --card2:#171322;
+  --line:rgba(255,255,255,.085); --line2:rgba(255,255,255,.16);
+  --txt:#ece8f4; --dim:#a49bb8; --faint:#6d6580;
+  --glow:rgba(255,158,100,.14); --shadow:0 18px 50px rgba(0,0,0,.55);
+}
+:root[data-theme="light"]{
+  --bg:#f6f4f1; --bg2:#efece7; --card:#ffffff; --card2:#faf8f5;
+  --line:rgba(20,14,30,.11); --line2:rgba(20,14,30,.2);
+  --txt:#1a1622; --dim:#544c63; --faint:#857d95;
+  --acc:#c2410c; --acc2:#9a3412;
+  --glow:rgba(194,65,12,.09); --shadow:0 12px 34px rgba(40,30,60,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--txt); font-family:var(--sans); max-width:100vw;
+  font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+#bgfx{position:fixed;inset:0;z-index:0;opacity:.55;pointer-events:none}
+:root[data-theme="light"] #bgfx{opacity:.3}
+.wrap{position:relative;z-index:1;max-width:1560px;margin:0 auto;padding:0 22px 90px}
+
+/* ═══ boot ═══ */
+#boot{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .5s}
+#boot .bm{font-family:var(--mono);font-size:26px;letter-spacing:14px;color:var(--acc);font-weight:700}
+#boot .bs{font-family:var(--mono);font-size:10px;letter-spacing:4px;color:var(--faint);text-transform:uppercase}
+#boot .bbar{width:240px;height:2px;background:var(--line);overflow:hidden;border-radius:2px}
+#boot .bfill{height:100%;width:0;background:var(--acc);transition:width .35s}
+
+/* ═══ header ═══ */
+header{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(16px);border-bottom:1px solid var(--line);padding:0 22px;overflow:hidden}
+.hrow{display:flex;align-items:center;gap:16px;height:60px;max-width:1560px;margin:0 auto}
+.brand{display:flex;align-items:baseline;gap:9px;text-decoration:none;flex:0 0 auto}
+.brand b{font-family:var(--mono);font-size:17px;letter-spacing:6px;color:var(--txt);font-weight:700}
+.brand span{font-family:var(--mono);font-size:9px;letter-spacing:2.4px;color:var(--acc);text-transform:uppercase}
+.gsearch{flex:1;position:relative;max-width:520px}
+.gsearch input{width:100%;background:var(--card);border:1px solid var(--line);color:var(--txt);
+  border-radius:999px;padding:9px 15px 9px 38px;font-family:var(--sans);font-size:13px;outline:none;transition:.15s}
+.gsearch input:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--glow)}
+.gsearch svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;
+  stroke:var(--faint);fill:none;stroke-width:2}
+.gsearch kbd{position:absolute;right:11px;top:50%;transform:translateY(-50%);font-family:var(--mono);
+  font-size:9px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:2px 5px}
+.hbtns{display:flex;gap:8px;align-items:center;margin-left:auto}
+.iconb{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--card);
+  color:var(--dim);cursor:pointer;display:grid;place-items:center;transition:.15s}
+.iconb:hover{border-color:var(--acc);color:var(--acc)}
+.iconb svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round}
+.backl{font-family:var(--mono);font-size:10px;letter-spacing:1.6px;color:var(--faint);text-decoration:none;
+  border:1px solid var(--line);border-radius:8px;padding:8px 11px;transition:.15s;white-space:nowrap}
+.backl:hover{color:var(--acc);border-color:var(--acc)}
+
+/* ═══ tabs ═══ */
+nav.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:0 -22px 20px;padding:0 22px;
+  overflow-x:auto;scrollbar-width:none;position:sticky;top:60px;z-index:55;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px)}
+nav.tabs::-webkit-scrollbar{display:none}
+.tab{position:relative;background:none;border:0;color:var(--faint);font-family:var(--mono);font-size:10.5px;
+  letter-spacing:2px;text-transform:uppercase;padding:14px 15px;cursor:pointer;white-space:nowrap;transition:.15s}
+.tab:hover{color:var(--dim)}
+.tab.on{color:var(--acc)}
+.tab.on::after{content:'';position:absolute;left:15px;right:15px;bottom:-1px;height:2px;background:var(--acc)}
+.tab .nb{display:inline-block;min-width:16px;height:16px;line-height:16px;padding:0 4px;margin-left:6px;
+  border-radius:8px;background:var(--acc);color:#170f08;font-size:9px;font-weight:700;text-align:center;
+  vertical-align:1px}
+:root[data-theme="light"] .tab .nb{color:#fff}
+
+/* ═══ generic ═══ */
+.eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:3px;color:var(--faint);text-transform:uppercase;margin-bottom:7px}
+h1.pt{font-size:25px;font-weight:650;letter-spacing:-.4px;margin-bottom:5px}
+h2.st{font-size:16px;font-weight:650;margin-bottom:10px;letter-spacing:-.2px}
+p.lede{color:var(--dim);font-size:13.5px;max-width:760px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.mono{font-family:var(--mono)}
+.hr{height:1px;background:var(--line);margin:18px 0}
+.muted{color:var(--faint)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;
+  text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--dim)}
+.pill.acc{border-color:var(--acc);color:var(--acc);background:var(--glow)}
+.pill.ok{border-color:var(--ok);color:var(--ok)}
+.pill.warn{border-color:var(--warn);color:var(--warn)}
+.pill.bad{border-color:var(--bad);color:var(--bad)}
+.pill.info{border-color:var(--info);color:var(--info)}
+.btn{font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;
+  padding:9px 14px;border-radius:9px;border:1px solid var(--line2);background:var(--card2);
+  color:var(--dim);cursor:pointer;transition:.15s;text-decoration:none;display:inline-flex;
+  align-items:center;gap:7px;justify-content:center}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#160e07;font-weight:700}
+:root[data-theme="light"] .btn.pri{color:#fff}
+.btn.pri:hover{filter:brightness(1.12);color:#160e07}
+:root[data-theme="light"] .btn.pri:hover{color:#fff}
+.btn.on{border-color:var(--acc);color:var(--acc);background:var(--glow)}
+.btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.btn.sm{padding:6px 10px;font-size:9.5px}
+
+/* ═══ filter bar ═══ */
+.fbar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:14px}
+.chip{font-family:var(--mono);font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;
+  padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);
+  color:var(--faint);cursor:pointer;transition:.15s;white-space:nowrap}
+.chip:hover{color:var(--dim);border-color:var(--line2)}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#160e07;font-weight:700}
+:root[data-theme="light"] .chip.on{color:#fff}
+.chip .c{opacity:.65;margin-left:4px}
+.fsep{width:1px;height:20px;background:var(--line);margin:0 4px}
+select.sel{font-family:var(--mono);font-size:10px;letter-spacing:1px;background:var(--card);
+  border:1px solid var(--line);color:var(--dim);border-radius:999px;padding:6px 10px;cursor:pointer;outline:none}
+
+/* ═══ jobs layout ═══ */
+.jgrid{display:grid;grid-template-columns:minmax(300px,400px) 1fr;gap:16px;align-items:start}
+@media(max-width:1050px){.jgrid{grid-template-columns:1fr}.jdetail{position:static!important}}
+.jlist{display:flex;flex-direction:column;gap:9px;max-height:calc(100vh - 190px);overflow-y:auto;padding-right:6px}
+.jlist::-webkit-scrollbar{width:5px}
+.jlist::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+.jcard{background:var(--card);border:1px solid var(--line);border-left:3px solid transparent;
+  border-radius:10px;padding:12px 13px;cursor:pointer;transition:.14s;position:relative}
+.jcard:hover{border-color:var(--line2);transform:translateX(2px)}
+.jcard.on{border-color:var(--acc);border-left-color:var(--acc);background:var(--card2);box-shadow:0 0 0 1px var(--acc)}
+.jcard .jt{font-size:13.5px;font-weight:620;line-height:1.35;margin-bottom:3px;padding-right:52px}
+.jcard .jc{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.4px;margin-bottom:7px}
+.jcard .jm{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.jcard .pay{position:absolute;top:11px;right:12px;font-family:var(--mono);font-size:11px;
+  font-weight:700;color:var(--acc);text-align:right;line-height:1.2}
+.jcard .pay small{display:block;font-size:8px;color:var(--faint);font-weight:400;letter-spacing:.6px}
+.jcard .savedot{position:absolute;bottom:11px;right:12px;font-size:11px;color:var(--acc)}
+.newdot{position:absolute;top:-4px;left:-4px;width:8px;height:8px;border-radius:50%;background:var(--acc);
+  box-shadow:0 0 0 3px var(--bg)}
+
+/* ═══ detail ═══ */
+.jdetail{position:sticky;top:118px;max-height:calc(100vh - 138px);overflow-y:auto}
+.jdetail::-webkit-scrollbar{width:5px}
+.jdetail::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+.dhead{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.dhead .dt{flex:1;min-width:240px}
+.dhead h2{font-size:22px;font-weight:660;line-height:1.25;letter-spacing:-.4px;margin-bottom:6px}
+.dhead .dco{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.5px;
+  cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.dhead .dco:hover{color:var(--acc)}
+.paybox{flex:0 0 auto;text-align:right;background:var(--card2);border:1px solid var(--acc);
+  border-radius:10px;padding:10px 14px;min-width:158px}
+.paybox .pv{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--acc);line-height:1.15;letter-spacing:-.5px}
+.paybox .pl{font-family:var(--mono);font-size:8.5px;letter-spacing:1.8px;color:var(--faint);text-transform:uppercase;margin-top:3px}
+.paybox .pinr{font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:4px}
+.dgrid{display:grid;grid-template-columns:1fr 268px;gap:16px;align-items:start}
+@media(max-width:900px){.dgrid{grid-template-columns:1fr}}
+.kv{display:grid;grid-template-columns:118px 1fr;gap:5px 12px;font-size:12.5px}
+.kv .k{font-family:var(--mono);font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;
+  color:var(--faint);padding-top:2px}
+.kv .v{color:var(--txt)}
+h4.sec{font-family:var(--mono);font-size:9.5px;letter-spacing:2.4px;text-transform:uppercase;
+  color:var(--acc);margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+ul.li{list-style:none;display:flex;flex-direction:column;gap:6px}
+ul.li li{position:relative;padding-left:17px;font-size:12.8px;color:var(--dim);line-height:1.5}
+ul.li li::before{content:'';position:absolute;left:3px;top:8px;width:5px;height:5px;border-radius:50%;
+  background:var(--acc);opacity:.7}
+.skills{display:flex;flex-wrap:wrap;gap:6px}
+.sk{font-family:var(--mono);font-size:10px;padding:4px 9px;border-radius:6px;background:var(--card2);
+  border:1px solid var(--line);color:var(--dim);letter-spacing:.3px}
+.sk.hit{border-color:var(--acc);color:var(--acc)}
+
+/* countdown */
+.cdown{display:flex;gap:8px;margin:12px 0}
+.cdu{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:7px 0;
+  text-align:center;flex:1;min-width:52px}
+.cdu b{display:block;font-family:var(--mono);font-size:17px;font-weight:700;color:var(--txt);line-height:1.1}
+.cdu span{font-family:var(--mono);font-size:8px;letter-spacing:1.4px;color:var(--faint);text-transform:uppercase}
+.cdown.urgent .cdu{border-color:var(--bad)}
+.cdown.urgent .cdu b{color:var(--bad)}
+.cdown.soon .cdu{border-color:var(--warn)}
+.cdown.soon .cdu b{color:var(--warn)}
+
+/* tracker */
+.trk{display:flex;gap:5px;flex-wrap:wrap}
+.trkb{flex:1;min-width:66px;font-family:var(--mono);font-size:9px;letter-spacing:1.1px;text-transform:uppercase;
+  padding:8px 4px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--faint);
+  cursor:pointer;transition:.14s;text-align:center}
+.trkb:hover{border-color:var(--line2);color:var(--dim)}
+.trkb.on{font-weight:700}
+.trkb.on[data-s="applied"]{border-color:var(--info);color:var(--info);background:rgba(91,141,239,.11)}
+.trkb.on[data-s="interviewing"]{border-color:var(--warn);color:var(--warn);background:rgba(240,182,74,.11)}
+.trkb.on[data-s="offer"]{border-color:var(--ok);color:var(--ok);background:rgba(62,224,143,.11)}
+.trkb.on[data-s="rejected"]{border-color:var(--bad);color:var(--bad);background:rgba(255,90,99,.11)}
+textarea.note{width:100%;min-height:74px;background:var(--card2);border:1px solid var(--line);
+  border-radius:9px;color:var(--txt);font-family:var(--sans);font-size:12.5px;padding:10px;
+  outline:none;resize:vertical;transition:.15s}
+textarea.note:focus{border-color:var(--acc)}
+
+/* side rail (CV checklist) */
+.rail{display:flex;flex-direction:column;gap:14px;position:sticky;top:0}
+.railcard{background:var(--card2);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.railcard h5{font-family:var(--mono);font-size:9px;letter-spacing:2.2px;text-transform:uppercase;
+  color:var(--acc);margin-bottom:10px}
+.chk{display:flex;gap:9px;align-items:flex-start;padding:5px 0;cursor:pointer;font-size:12px;
+  color:var(--dim);line-height:1.45;border-bottom:1px solid var(--line)}
+.chk:last-child{border-bottom:0}
+.chk .bx{flex:0 0 15px;width:15px;height:15px;border:1.5px solid var(--line2);border-radius:4px;
+  margin-top:2px;display:grid;place-items:center;font-size:9px;color:transparent;transition:.14s}
+.chk.on .bx{background:var(--acc);border-color:var(--acc);color:#160e07}
+:root[data-theme="light"] .chk.on .bx{color:#fff}
+.chk.on{color:var(--faint);text-decoration:line-through;text-decoration-color:var(--line2)}
+.prog{height:3px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:11px}
+.prog i{display:block;height:100%;background:var(--acc);transition:width .3s}
+
+/* compare tray */
+#tray{position:fixed;left:50%;transform:translateX(-50%) translateY(120%);bottom:18px;z-index:80;
+  background:var(--card);border:1px solid var(--acc);border-radius:13px;padding:11px 14px;
+  display:flex;gap:11px;align-items:center;box-shadow:var(--shadow);transition:transform .3s;max-width:94vw}
+#tray.on{transform:translateX(-50%) translateY(0)}
+#tray .tl{font-family:var(--mono);font-size:9.5px;letter-spacing:1.6px;color:var(--faint);text-transform:uppercase}
+.tchip{display:flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--line);
+  border-radius:999px;padding:4px 6px 4px 10px;font-size:11px;max-width:190px}
+.tchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tchip b{cursor:pointer;color:var(--faint);font-weight:400;padding:0 3px}
+.tchip b:hover{color:var(--bad)}
+
+/* modal */
+#scrim{position:fixed;inset:0;z-index:100;background:rgba(4,2,8,.82);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;padding:22px}
+#scrim.on{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--line2);border-radius:16px;max-width:1180px;width:100%;
+  max-height:88vh;overflow-y:auto;padding:24px;position:relative;box-shadow:var(--shadow)}
+.modal .x{position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);
+  background:var(--card);color:var(--dim);cursor:pointer;font-size:15px;line-height:1}
+.modal .x:hover{color:var(--bad);border-color:var(--bad)}
+table.cmp{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+table.cmp th,table.cmp td{padding:10px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+table.cmp th{font-family:var(--mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--faint);width:130px;white-space:nowrap}
+table.cmp td.best{color:var(--acc);font-weight:600}
+table.cmp thead td{font-weight:650;font-size:13.5px;color:var(--txt)}
+
+/* generic grids */
+.g2{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.g3{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:13px}
+.cocard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:15px;
+  cursor:pointer;transition:.15s}
+.cocard:hover{border-color:var(--acc);transform:translateY(-2px)}
+.logo{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-family:var(--mono);
+  font-weight:700;font-size:14px;letter-spacing:.5px;color:#fff;flex:0 0 42px;margin-bottom:10px}
+.evt{display:flex;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;transition:.15s}
+.evt:hover{border-color:var(--line2)}
+.evd{flex:0 0 58px;text-align:center;background:var(--card2);border:1px solid var(--line);border-radius:9px;
+  padding:7px 0;height:fit-content}
+.evd b{display:block;font-family:var(--mono);font-size:19px;font-weight:700;color:var(--acc);line-height:1}
+.evd span{font-family:var(--mono);font-size:8.5px;letter-spacing:1.6px;color:var(--faint);text-transform:uppercase}
+.brief{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;transition:.15s}
+.brief:hover{border-color:var(--line2)}
+.brief h3{font-size:15px;font-weight:640;margin-bottom:6px;line-height:1.35}
+
+/* history block */
+.hist{background:linear-gradient(135deg,var(--glow),transparent 70%),var(--card);
+  border:1px solid var(--acc);border-radius:var(--r);padding:16px 18px;margin-bottom:18px;position:relative;overflow:hidden}
+.hist canvas{position:absolute;right:0;top:0;height:100%;width:190px;opacity:.4;pointer-events:none}
+.hist .hy{font-family:var(--mono);font-size:31px;font-weight:700;color:var(--acc);line-height:1;letter-spacing:-1px}
+.hist .ht{font-size:14px;font-weight:600;margin:6px 0 3px;max-width:76%}
+.hist .hd{font-size:12.5px;color:var(--dim);max-width:76%}
+
+/* digest */
+.dgcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:17px}
+.dgnum{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--acc);line-height:1}
+.dglab{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--faint);margin-top:4px}
+.empty{text-align:center;padding:52px 20px;color:var(--faint);font-size:13px}
+.empty .e1{font-family:var(--mono);font-size:11px;letter-spacing:2.4px;text-transform:uppercase;margin-bottom:8px;color:var(--dim)}
+.note-bar{background:var(--card2);border:1px solid var(--line);border-left:3px solid var(--warn);
+  border-radius:9px;padding:11px 14px;font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.5}
+.note-bar b{color:var(--txt)}
+.srchres{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
+  cursor:pointer;transition:.14s;margin-bottom:8px}
+.srchres:hover{border-color:var(--acc)}
+.srchres .sk2{font-family:var(--mono);font-size:8.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--acc);margin-bottom:4px}
+mark{background:var(--glow);color:var(--acc);padding:0 2px;border-radius:2px}
+.hide{display:none!important}
+.tfoot{text-align:center;font-family:var(--mono);font-size:9.5px;letter-spacing:1.6px;color:var(--faint);
+  padding:34px 0 10px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<canvas id="bgfx"></canvas>
+
+<div id="boot">
+  <div class="bm">ASCENT</div>
+  <div class="bs" id="bootMsg">initialising careers board</div>
+  <div class="bbar"><div class="bfill" id="bootBar"></div></div>
+</div>
+
+<header>
+  <div class="hrow">
+    <a class="brand" href="index.html"><b>ASCENT</b><span>Aviation Careers</span></a>
+    <div class="gsearch">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="gq" placeholder="Search jobs, companies, events, briefs, your notes…" autocomplete="off">
+      <kbd>/</kbd>
+    </div>
+    <div class="hbtns">
+      <button class="iconb" id="themeB" title="Toggle theme"><svg id="themeIco" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      <a class="backl" href="index.html">← SUITE</a>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+
+<div class="wrap">
+  <div id="view"></div>
+  <div class="tfoot">ASCENT · part of the ARGUS SUITE · all data stored in this browser only</div>
+</div>
+
+<div id="tray">
+  <span class="tl">Compare</span>
+  <div id="trayChips" style="display:flex;gap:7px;flex-wrap:wrap"></div>
+  <button class="btn pri sm" id="cmpGo">Compare →</button>
+  <button class="btn sm" id="cmpClr">Clear</button>
+</div>
+
+<div id="scrim"><div class="modal"><button class="x" id="modalX">✕</button><div id="modalBody"></div></div></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   DATA
+   Salary bands below are researched from public 2026 compensation
+   reporting (Glassdoor / AmbitionBox / PayScale / ERI / recruitment
+   notifications / industry salary guides) and are recorded per listing
+   in `src`. Listings are seeded representative openings for each
+   employer's regular hiring lines — every apply link points at that
+   employer's real careers portal, where the live vacancy must be
+   confirmed. Nothing here is scraped live.
+   ══════════════════════════════════════════════════════════════════════ */
+const TODAY = new Date();
+const FX = {INR:1, USD:87.5, GBP:112, EUR:96, AED:23.8, QAR:24, SGD:65};
+const SYM = {INR:'\u20b9', USD:'$', GBP:'\u00a3', EUR:'\u20ac', AED:'AED ', QAR:'QAR ', SGD:'S$'};
+
+const COS = {
+  indigo:{n:'IndiGo · InterGlobe Aviation', s:'6E', c:'#0a3d91', hq:'Gurugram, India',
+    about:'India\u2019s largest airline by fleet and domestic share, operating an all-Airbus A320-family and ATR fleet with a rapidly growing international network. Runs one of the country\u2019s best-known cadet pilot programmes.',
+    web:'https://careers.goindigo.in/'},
+  airindia:{n:'Air India', s:'AI', c:'#c8102e', hq:'Gurugram, India',
+    about:'The national flag carrier, now Tata-owned and mid-way through the largest fleet renewal in Indian aviation history. Wide-body international operations make it the highest-paying Indian carrier for senior crew.',
+    web:'https://www.airindia.com/in/en/about-us/careers.html'},
+  akasa:{n:'Akasa Air · SNV Aviation', s:'QP', c:'#ff5a1f', hq:'Mumbai, India',
+    about:'India\u2019s newest scheduled carrier, flying an all-Boeing 737 MAX fleet since 2022 and expanding into international sectors. Hires cabin crew and ground operations in regular batches.',
+    web:'https://www.akasaair.com/careers'},
+  spicejet:{n:'SpiceJet', s:'SG', c:'#d0021b', hq:'Gurugram, India',
+    about:'Low-cost carrier operating Boeing 737 and Q400 fleets across domestic and short-haul international routes, with a dedicated cargo arm.',
+    web:'https://corporate.spicejet.com/Careers.aspx'},
+  emirates:{n:'Emirates', s:'EK', c:'#d71921', hq:'Dubai, UAE',
+    about:'The world\u2019s largest A380 and 777 operator, running open days across India several times a year for cabin crew. Pay is tax-free and accommodation and transport are provided.',
+    web:'https://www.emiratesgroupcareers.com/'},
+  qatar:{n:'Qatar Airways', s:'QR', c:'#5c0632', hq:'Doha, Qatar',
+    about:'Five-star full-service carrier with a large wide-body fleet and a global recruitment circuit that regularly includes Indian cities.',
+    web:'https://careers.qatarairways.com/'},
+  aai:{n:'Airports Authority of India', s:'AAI', c:'#1b5e9e', hq:'New Delhi, India',
+    about:'Mini-Ratna Category-I PSU under the Ministry of Civil Aviation. Operates the country\u2019s air navigation services and a majority of its airports. The single largest recruiter of air traffic controllers in India.',
+    web:'https://www.aai.aero/en/careers/recruitment'},
+  aiesl:{n:'AI Engineering Services Ltd (AIESL)', s:'AIESL', c:'#8b1a2b', hq:'Mumbai, India',
+    about:'The MRO subsidiary carved out of Air India, holding DGCA and EASA approvals for base and line maintenance across Airbus and Boeing types. A primary employer of freshly licensed Indian AMEs.',
+    web:'https://www.aiesl.in/'},
+  airworks:{n:'Air Works India', s:'AW', c:'#0f7b6c', hq:'Mumbai, India',
+    about:'India\u2019s largest private MRO group, covering line and base maintenance, avionics, painting and defence support across multiple Indian stations.',
+    web:'https://www.airworks.aero/careers/'},
+  lht:{n:'Lufthansa Technik', s:'LHT', c:'#05164d', hq:'Hamburg, Germany',
+    about:'The world\u2019s largest independent MRO provider, with facilities across Europe and Asia and a standing demand for EASA Part-66 B1 and B2 licensed engineers.',
+    web:'https://www.lufthansa-technik.com/en/jobs'},
+  hal:{n:'Hindustan Aeronautics Limited', s:'HAL', c:'#00579c', hq:'Bengaluru, India',
+    about:'India\u2019s largest aerospace and defence manufacturer \u2014 Tejas, helicopters, engines and structural work packages for global OEMs. Recruits Management Trainees through GATE.',
+    web:'https://hal-india.co.in/Career'},
+  isro:{n:'ISRO · Indian Space Research Organisation', s:'ISRO', c:'#ff6b1a', hq:'Bengaluru, India',
+    about:'India\u2019s national space agency. Recruits Scientist/Engineer \u2018SC\u2019 through the ICRB, and runs large annual apprentice intakes at VSSC, ISTRAC, SAC and SDSC-SHAR.',
+    web:'https://www.isro.gov.in/Careers.html'},
+  drdo:{n:'DRDO', s:'DRDO', c:'#1f6f3f', hq:'New Delhi, India',
+    about:'Defence Research and Development Organisation \u2014 combat aircraft, missiles, avionics and aerospace materials, across more than fifty laboratories.',
+    web:'https://www.drdo.gov.in/drdo/careers'},
+  boeing:{n:'Boeing India', s:'BA', c:'#0033a1', hq:'Bengaluru, India',
+    about:'Boeing\u2019s largest engineering and technology centre outside the United States, working on avionics, structures, software and test across commercial and defence programmes.',
+    web:'https://jobs.boeing.com/'},
+  airbus:{n:'Airbus', s:'AIR', c:'#00205b', hq:'Toulouse, France',
+    about:'European aerospace prime with major engineering centres in Toulouse, Hamburg, Filton, Broughton and Bengaluru. Runs one of the largest structured graduate and internship programmes in the sector.',
+    web:'https://www.airbus.com/en/careers'},
+  ge:{n:'GE Aerospace', s:'GE', c:'#3874d8', hq:'Bengaluru, India',
+    about:'Engine manufacturer behind the CFM LEAP, GE9X and GEnx. Its Bengaluru technology centre is one of GE\u2019s largest multidisciplinary R&D sites.',
+    web:'https://jobs.gecareers.com/aerospace/global/en'},
+  collins:{n:'Collins Aerospace · RTX', s:'RTX', c:'#a4133c', hq:'Hyderabad, India',
+    about:'Avionics, interiors, power and mission systems supplier, with large India engineering centres in Hyderabad and Bengaluru.',
+    web:'https://careers.rtx.com/'},
+  safran:{n:'Safran', s:'SAF', c:'#004a8f', hq:'Paris, France',
+    about:'Propulsion, equipment and interiors group \u2014 CFM engines, landing systems and avionics \u2014 with a fast-growing Hyderabad engineering and MRO footprint.',
+    web:'https://www.safran-group.com/careers'},
+  rr:{n:'Rolls-Royce', s:'RR', c:'#10069f', hq:'Derby, United Kingdom',
+    about:'Civil large-engine manufacturer (Trent family) and defence propulsion supplier, running a long-established UK aerospace graduate programme.',
+    web:'https://careers.rolls-royce.com/'},
+  tasl:{n:'Tata Advanced Systems', s:'TASL', c:'#486aae', hq:'Hyderabad, India',
+    about:'Tata\u2019s aerospace and defence arm \u2014 aerostructures for Boeing and Airbus, the C-295 final assembly line in Vadodara, and defence electronics.',
+    web:'https://www.tataadvancedsystems.com/careers/'},
+  skyroot:{n:'Skyroot Aerospace', s:'SKY', c:'#e63946', hq:'Hyderabad, India',
+    about:'Private launch vehicle developer behind the Vikram series and the first Indian private rocket to reach space. Small teams, wide ownership, ESOP participation.',
+    web:'https://skyroot.in/careers'},
+  agnikul:{n:'Agnikul Cosmos', s:'AGK', c:'#f4a300', hq:'Chennai, India',
+    about:'IIT-Madras incubated launch startup building the Agnilet single-piece 3-D printed engine and the Agnibaan small-satellite launcher.',
+    web:'https://agnikul.in/careers'},
+  menzies:{n:'Menzies Aviation', s:'MZ', c:'#00447c', hq:'London, United Kingdom',
+    about:'Global ground handling, fuelling and cargo group. Holds a fifteen-year ground handling licence at Bengaluru with a multi-year hiring programme attached to it.',
+    web:'https://www.menziesaviation.com/careers/'},
+  aisats:{n:'AISATS', s:'AIS', c:'#c8102e', hq:'Gurugram, India',
+    about:'Air India SATS \u2014 joint venture ground handling and cargo terminal operator across major Indian airports. Runs frequent walk-in drives for freshers.',
+    web:'https://www.aisats.in/careers'},
+  celebi:{n:'\u00c7elebi Aviation India', s:'CLB', c:'#e30613', hq:'Delhi, India',
+    about:'Turkish-origin ground handling and cargo group operating at nine Indian airports across ramp, passenger and cargo services.',
+    web:'https://www.celebiaviation.com/careers'},
+  garuda:{n:'Garuda Aerospace', s:'GRD', c:'#2a9d8f', hq:'Chennai, India',
+    about:'One of India\u2019s largest drone manufacturers and service operators \u2014 agri-spraying, infrastructure survey and defence, with its own DGCA-approved RPTO.',
+    web:'https://garudaaerospace.com/careers'},
+  cyient:{n:'Cyient', s:'CYT', c:'#e4002b', hq:'Hyderabad, India',
+    about:'Engineering R&D services provider with a large aerospace practice \u2014 stress analysis, CAD/CAM, technical publications and certification support for OEMs and tier-ones.',
+    web:'https://www.cyient.com/careers'},
+  honeywell:{n:'Honeywell Aerospace', s:'HON', c:'#e2231a', hq:'Bengaluru, India',
+    about:'Avionics, propulsion, connectivity and cockpit systems supplier with one of the largest aerospace software engineering populations in India.',
+    web:'https://careers.honeywell.com/'},
+  adani:{n:'Adani Airport Holdings', s:'AAHL', c:'#0d5c8c', hq:'Ahmedabad, India',
+    about:'Operates seven Indian airports including Mumbai and the new Navi Mumbai International Airport \u2014 the largest private airport portfolio in the country.',
+    web:'https://www.adaniairports.com/Careers'},
+  bial:{n:'Bangalore International Airport (BIAL)', s:'BIAL', c:'#00693e', hq:'Bengaluru, India',
+    about:'Operator of Kempegowda International Airport, India\u2019s third-busiest, currently expanding terminal and airside capacity.',
+    web:'https://www.bengaluruairport.com/corporate/careers.html'}
+};
+
+const JOBS = [];  /* live-only board: no curated vacancies */
+
+/* ── OFFICIAL NOTIFICATIONS ──────────────────────────────────────────
+   Real government / PSU recruitment windows that do NOT appear on job
+   boards (AAI, ISRO, HAL, DRDO recruit through their own portals), so
+   JSearch and Adzuna cannot surface them. These are kept because they
+   are the roles that matter most to an aviation cohort. Verify every
+   date on the official site before relying on it. */
+const NOTIF = [
+  {id:'n_istrac', org:'ISRO \u00b7 ISTRAC', role:'Apprentice Trainee (Graduate / Diploma / ITI)',
+   where:'ISTRAC stations \u2014 Bengaluru, Lucknow, Port Blair, SHAR & others', country:'IN',
+   closes:'2026-07-31', pay:'Stipend up to \u20b912,300/month',
+   note:'Approximately 93 apprentice positions across ISTRAC. Registration on the relevant apprenticeship portal is required before the closing date; no application fee.',
+   url:'https://www.isro.gov.in/Careers.html', verified:'Found in a live search on 2026-07-27'},
+  {id:'n_vssc', org:'ISRO \u00b7 VSSC', role:'Graduate & Technician Apprentice',
+   where:'Thiruvananthapuram, Kerala', country:'IN',
+   closes:'2026-08-08', pay:'Graduate \u20b912,300/mo \u00b7 Technician \u20b910,900/mo',
+   note:'Walk-in selection drive. Original certificates plus self-attested copies must be carried; applications are accepted only on the day of the drive.',
+   url:'https://www.vssc.gov.in/', verified:'Found in a live search on 2026-07-27'},
+  {id:'n_aai', org:'Airports Authority of India', role:'Junior Executive (ATC & Engineering)',
+   where:'Nationwide postings', country:'IN',
+   closes:'2026-08-31', pay:'Pay Level E-1 \u2014 \u20b940,000\u2013\u20b91,40,000 \u00b7 CTC ~\u20b913 LPA',
+   note:'The principal route into air traffic control in India. Selection by computer-based test, followed by a voice test for ATC candidates. Confirm eligibility and dates on the AAI recruitment page \u2014 windows open only every few years.',
+   url:'https://www.aai.aero/en/careers/recruitment', verified:'Confirm on AAI site \u2014 window per official notification'}
+];
+
+/* ── EVENTS & EXAM CALENDAR ─────────────────────────────────────
+   Dates for recurring industry events are indicative windows based on
+   each event's established cycle. Always confirm on the organiser site. */
+const EVENTS = [
+  {id:'e01',t:'ISRO ISTRAC Apprentice \u2014 application closes',d:'2026-07-31',type:'deadline',
+   loc:'Online',desc:'Last date to submit applications for approximately 93 Graduate, Diploma and ITI apprentice positions across ISTRAC stations. Stipend up to \u20b912,300/month.',url:'https://www.isro.gov.in/Careers.html',added:'2026-07-14'},
+  {id:'e02',t:'VSSC Apprentice Trainee \u2014 walk-in selection',d:'2026-08-08',type:'exam',
+   loc:'Thiruvananthapuram',desc:'Walk-in selection drive for Graduate and Technician Apprentice positions. Original certificates plus self-attested copies must be carried; applications are accepted only on the day.',url:'https://www.vssc.gov.in/',added:'2026-07-20'},
+  {id:'e03',t:'Emirates Cabin Crew Open Day \u2014 Indian metros',d:'2026-08-19',type:'fair',
+   loc:'Mumbai \u00b7 Delhi \u00b7 Kochi \u00b7 Chennai',desc:'Assessment day format: CV drop, height and reach check, group exercises, then final interview for shortlisted candidates. Bring a full-length photograph and an updated CV.',url:'https://www.emiratesgroupcareers.com/',added:'2026-07-15'},
+  {id:'e04',t:'AAI Junior Executive \u2014 application window closes',d:'2026-08-31',type:'deadline',
+   loc:'Online',desc:'Closing date for the Junior Executive recruitment across ATC and Engineering disciplines. Selection is by computer-based test, followed by voice test for ATC candidates.',url:'https://www.aai.aero/en/careers/recruitment',added:'2026-06-28'},
+  {id:'e05',t:'GATE 2027 \u2014 registration opens',d:'2026-08-28',type:'exam',
+   loc:'Online \u00b7 IIT organising institute',desc:'Registration for GATE 2027 typically opens in late August. The Aerospace Engineering (AE) paper is the gateway to ISRO, HAL, DRDO and several PSU technical cadres.',url:'https://gate.iitkgp.ac.in/',added:'2026-07-10'},
+  {id:'e06',t:'Airbus UK Graduate Programme \u2014 applications close',d:'2026-10-31',type:'deadline',
+   loc:'Online',desc:'Closing date for the UK graduate intake. Early application is advised \u2014 the scheme historically closes early when application volume fills the assessment centres.',url:'https://www.airbus.com/en/careers',added:'2026-07-10'},
+  {id:'e07',t:'Rolls-Royce Graduate Programme \u2014 applications close',d:'2026-11-14',type:'deadline',
+   loc:'Online',desc:'Closing date for the civil aerospace graduate intake at Derby. Online assessments follow shortly after submission.',url:'https://careers.rolls-royce.com/',added:'2026-07-06'},
+  {id:'e08',t:'Aero India 2027 \u2014 biennial defence & aerospace show',d:'2027-02-03',type:'fair',
+   loc:'Yelahanka AFS, Bengaluru',desc:'Asia\u2019s largest aerospace and defence exhibition, held in odd years at Bengaluru. Business days carry an active recruitment presence from HAL, DRDO, the primes and the tier-ones. Dates are indicative \u2014 confirm with the organiser.',url:'https://aeroindia.gov.in/',added:'2026-07-01'},
+  {id:'e09',t:'Paris Air Show 2027 \u2014 Le Bourget',d:'2027-06-14',type:'fair',
+   loc:'Le Bourget, Paris',desc:'The largest aerospace trade event in the world, held in odd years. Career-relevant mainly for the graduate and internship recruitment stands during the public days. Dates indicative.',url:'https://www.siae.fr/en/',added:'2026-07-01'},
+  {id:'e10',t:'Webinar \u00b7 Reading the load & trim sheet like a load controller',d:'2026-08-12',type:'webinar',
+   loc:'Online',desc:'Working session on index build-up, envelope checks and Last Minute Changes using a real A320 trim sheet. Pairs directly with the ODYSSEY module in this suite.',url:'index.html',added:'2026-07-24'},
+  {id:'e11',t:'Webinar \u00b7 What a DGCA AME licence is actually worth',d:'2026-08-26',type:'webinar',
+   loc:'Online',desc:'Session on the AME pay curve \u2014 why the first type endorsement is the steepest single step, and how to plan the first three employer moves around it.',url:'index.html',added:'2026-07-25'},
+  {id:'e12',t:'Menzies Aviation Bengaluru \u2014 recruitment drive',d:'2026-08-09',type:'fair',
+   loc:'Bengaluru',desc:'Walk-in recruitment tied to the multi-year hiring programme at Kempegowda International. Ramp, baggage, passenger services and GSE roles.',url:'https://www.menziesaviation.com/careers/',added:'2026-07-22'}
+];
+
+/* ── SECTOR BRIEFS (evergreen career explainers, not live news) ── */
+const BRIEFS = [
+  {id:'b01',t:'The type endorsement is the steepest step in an AME career',cat:'Maintenance',added:'2026-07-24',
+   sum:'A newly licensed AME without a type endorsement sits in the \u20b928,000\u2013\u20b940,000 band at an MRO. Add an A320 or B737 endorsement and the same person moves into the \u20b940,000\u2013\u20b970,000 band, often within the same year.',
+   body:'The AME salary curve is not linear and it is not primarily driven by years served. It is driven by endorsements. Public 2026 salary reporting consistently shows the same shape: a fresh licence holder without a type endorsement starts around \u20b928,000\u2013\u20b940,000 per month at an MRO, and the single largest jump in the whole career arc happens when the first aircraft type is added to the licence \u2014 commonly from around \u20b935,000 to around \u20b970,000 within the first two years.\n\nThe practical implication for a student is that the choice of first employer should be made on the endorsement route it offers, not on the starting figure. An MRO paying \u20b95,000 a month less but putting you on an A320 line within eighteen months is worth substantially more over five years than an employer paying slightly better with no type exposure. Ask about documented on-job training on a specific type before accepting, and get the answer in writing.\n\nDual-category holders \u2014 B1.1 combined with B2 \u2014 are a thinner supply pool and typically command 20\u201325% above single-category peers at entry, particularly in offshore and defence work.'},
+  {id:'b02',t:'Why Gulf cabin crew pay is not comparable to the Indian figure',cat:'Cabin Crew',added:'2026-07-21',
+   sum:'An Emirates fresher on around AED 10,800 a month is not simply earning four times an IndiGo fresher. The comparison has to be made after tax, accommodation, transport and medical cover.',
+   body:'Comparing a domestic Indian cabin crew salary against a Gulf carrier salary using the headline numbers alone gives the wrong answer in both directions.\n\nThe Gulf figure is tax-free, and furnished accommodation, transport to and from the airport, and medical cover are provided. Against a domestic Indian package, where rent in a base city can consume a third of a fresher\u2019s take-home, the effective gap is wider than the raw ratio suggests. On reported 2026 figures, an Emirates fresher\u2019s monthly cash after typical personal expenses lands substantially above what a domestic fresher retains.\n\nWhat the headline figure hides in the other direction is variability and lifestyle cost. Gulf pay is built from a fixed base plus a per-flying-hour rate plus layover per diem \u2014 the base component alone is a much smaller share than most applicants expect. A light roster month is a materially lighter pay month. There is also relocation, distance from family, and a probation period during which termination is straightforward.\n\nThe honest framing for a student: the Gulf route is a savings vehicle, and it works best when treated as a defined three-to-five year plan with a savings target attached, not as a permanent relocation decided on a headline number.'},
+  {id:'b03',t:'CATIA V5 is the single most screened skill in Indian aerospace ER&D',cat:'Engineering',added:'2026-07-25',
+   sum:'For entry-level design roles at the engineering services firms, CATIA proficiency is frequently the first filter applied to a CV \u2014 ahead of the degree classification.',
+   body:'India\u2019s aerospace engineering and R&D services sector \u2014 Cyient, L&T Technology Services, Tata Technologies, HCL and a long tail of tier-twos \u2014 is the largest single employer of fresh aerospace and mechanical graduates in the country. It is also the most accessible: the \u20b94\u20138 LPA entry band is lower than the OEM captive centres, but the volume of hiring is far greater.\n\nThe screening is unusually concrete. For a design or drafting role, the recruiter is checking for demonstrable CATIA V5 capability, GD&T literacy, and enough strength of materials to size a bracket by hand. A portfolio of modelled parts with properly applied constraints and a drawing sheet with correct tolerancing does more than a percentage point of CGPA.\n\nThe advice that follows is unglamorous: build the portfolio before you need it, keep the sketches fully constrained, and be able to talk through the tolerance stack-up on at least one part you modelled yourself. The CATIA V5 module in this suite covers the ten experiments that map onto the syllabus \u2014 the point of doing them is that you can then show them.'},
+  {id:'b04',t:'The GATE paper decides more of an aerospace career than most students realise',cat:'Government',added:'2026-07-18',
+   sum:'ISRO Scientist/Engineer SC, HAL Management Trainee, DRDO Scientist B and several AAI cadres all route through GATE. One exam, four employers, one attempt a year.',
+   body:'The concentration of Indian aerospace public-sector recruitment around a single annual examination is the most important structural fact in a government-track career plan, and it is routinely underweighted by students who treat GATE as an M.Tech admission test.\n\nISRO shortlists for Scientist/Engineer SC using GATE scores in the notified papers. HAL recruits Management Trainees through GATE. DRDO uses GATE alongside its own selection test. Several AAI Junior Executive disciplines require a valid GATE score. The pay outcomes are strong \u2014 Level 10 entry at ISRO and DRDO carries a basic of \u20b956,100 with in-hand typically \u20b970,000\u2013\u20b985,000, and the AAI E-1 scale runs \u20b940,000\u2013\u20b91,40,000 with a CTC around \u20b913 lakh \u2014 but the funnel is narrow and it opens once a year.\n\nTwo planning consequences. First, if the government track is a serious option, GATE preparation has to start in the third year, not after graduation, because the notification cycles do not wait. Second, a GATE score is valid for three years, which means one good score can be used across multiple notification cycles \u2014 the single highest-leverage exam outcome available to an Indian aerospace undergraduate.'},
+  {id:'b05',t:'What a flying-hour allowance actually does to a pilot\u2019s monthly pay',cat:'Flight Crew',added:'2026-07-16',
+   sum:'A First Officer\u2019s pay is a fixed component plus an hourly rate. The same person on the same contract can see a materially different figure between a 50-hour month and a 90-hour month.',
+   body:'Airline pilot compensation in India is not a salary in the ordinary sense. It is a fixed monthly component plus a flying-hour allowance, and in the low-cost model the variable part carries a large share of the total.\n\n2026 reporting puts an IndiGo First Officer flying around 50 hours at approximately \u20b92.6 lakh for the month, with the same person closer to the top of the \u20b91.8L\u2013\u20b93.5L band at around 90 hours. The fixed component alone is far lower than either figure. Layover per diem on international sectors adds \u20b93,000\u2013\u20b98,000 per day on top, which is why wide-body assignment at a full-service carrier changes the picture more than the grade alone suggests.\n\nThe consequences are practical. A quiet season, a medical grounding, a training month or a fleet transition all reduce hours and therefore reduce pay. Financial planning against the top of the published band is a mistake; plan against the fixed component plus a conservative hours assumption, and treat the rest as variable.\n\nThe same structure explains why command upgrade is the dominant financial event in the career. Captain bands of \u20b95\u2013\u20b910 lakh per month reflect both a higher fixed component and a higher hourly rate applied to the same roster.'},
+  {id:'b06',t:'Ground handling is hiring at volume, and it is the fastest route to an airside pass',cat:'Ground Ops',added:'2026-07-22',
+   sum:'A fifteen-year ground handling licence at Bengaluru alone carries a plan for roughly a thousand new hires over three years. Entry pay is modest; access to the industry is immediate.',
+   body:'Ground handling is the least glamorous and most accessible entry point in Indian aviation, and in 2026 it is hiring harder than at any point in recent memory. Menzies Aviation secured a fifteen-year ground handling licence at Kempegowda International Airport Bengaluru effective April 2026, with a stated plan to hire approximately a thousand people over three years and invest over nine million dollars in ground support equipment. AISATS and \u00c7elebi run frequent walk-in drives across major stations, accepting both freshers and experienced candidates.\n\nThe pay is what it is: \u20b915,000\u2013\u20b925,000 a month for freshers, \u20b925,000\u2013\u20b940,000 with a few years, \u20b940,000\u2013\u20b960,000 at supervisory level. Nobody should take this role for the starting figure.\n\nThe reason to take it is the airside pass and the operational literacy. A candidate who has spent eighteen months on a ramp understands turnaround pressure, load instructions, FOD discipline and airside safety in a way that no classroom conveys \u2014 and those are precisely the things airline operations, dispatch and safety departments screen for when they hire internally. The people who do well from a ground handling start are the ones who treat it as an eighteen-month entry ticket with a specific next move already identified.'},
+  {id:'b07',t:'The drone certificate is cheap; the data skill is what gets paid',cat:'Drone / UAV',added:'2026-07-19',
+   sum:'A DGCA Remote Pilot Certificate puts you in the \u20b925,000\u2013\u20b945,000 band. Being able to process what the drone captured is what moves you past \u20b91 lakh a month.',
+   body:'India\u2019s drone sector has moved decisively past the pilot-project stage. The 2021 Drone Rules created a stable regulatory framework, the production-linked incentive scheme built a domestic manufacturing base, and large-corporate adoption in agriculture, infrastructure and logistics crossed into operational deployment. Government schemes are adding thousands of operator roles.\n\nThe certification itself is straightforward: minimum age 18, Class 10 with English literacy, a DGCA Class 2 medical, and training at an approved RPTO. The certificate is valid for ten years.\n\nWhat the 2026 salary reporting shows clearly is that the certificate alone caps you. Freshly certified pilots sit at \u20b925,000\u2013\u20b945,000 a month. The same certificate plus demonstrable data-handling capability \u2014 NDVI mapping, photogrammetry, GIS output, inspection analytics \u2014 starts nearer \u20b960,000, and senior pilots in infrastructure inspection, defence and logistics regularly clear \u20b91 lakh a month.\n\nThe conclusion is uncomfortable for anyone hoping the flying is the job: the flying is the commodity, and the analysis is the product. Budget as much learning time for the processing software as for the airframe.'},
+  {id:'b08',t:'Read the closing date before you read the salary',cat:'Applications',added:'2026-07-26',
+   sum:'Government aviation notifications run on fixed windows that do not reopen. A missed AAI or ISRO deadline costs a year, not a week.',
+   body:'The single most avoidable career mistake in Indian aviation recruitment is missing a window. Private sector openings are rolling and forgiving \u2014 an airline that closes a cabin crew drive in August will run another one. Government and PSU notifications are not.\n\nAAI conducts Junior Executive recruitment every two to three years. ISRO\u2019s ICRB notification is annual and the apprentice intakes have single-day walk-in dates with no alternative submission mode. VSSC states plainly that applications are accepted strictly on the day of the selection drive. A candidate who was eligible, prepared and one day late is simply not in the process.\n\nThe practical discipline is unglamorous: when a notification opens, apply immediately rather than waiting to perfect the application, keep original certificates and self-attested copies in a single physical folder ready to carry, and check whether the drive requires portal registration in advance \u2014 several apprenticeship intakes require prior NATS/BOAT registration that itself takes days to clear.\n\nThe deadline tracker in this module exists for exactly this reason. Save the listings you care about and check the countdown weekly.'}
+];
+
+/* ── ON THIS DAY IN AVIATION ─────────────────────────────────── */
+const HIST = [
+  ['01-01',1914,'The world\u2019s first scheduled airline flight','The St. Petersburg\u2013Tampa Airboat Line flew its first paying passenger across Tampa Bay in a Benoist flying boat \u2014 a 23-minute hop that began scheduled commercial aviation.'],
+  ['02-08',1933,'Boeing 247 first flight','The 247 is generally regarded as the first modern airliner \u2014 all-metal, cantilever monoplane, retractable gear and de-icing boots in one aircraft.'],
+  ['02-15',2017,'PSLV-C37 launches 104 satellites','ISRO placed 104 satellites into orbit on a single PSLV mission, a record for a single launch at the time.'],
+  ['02-18',1911,'The first official airmail flight, at Allahabad','Henri P\u00e9quet flew roughly 6,500 letters across the Ganges from Allahabad to Naini in a Humber-Sommer biplane \u2014 the first officially recognised airmail flight anywhere in the world, and it happened in India.'],
+  ['02-18',2021,'Perseverance lands in Jezero Crater','NASA\u2019s Mars 2020 rover completed the sky-crane descent, carrying the Ingenuity helicopter beneath its belly.'],
+  ['02-01',2003,'Columbia is lost on re-entry','STS-107 broke up over Texas, killing all seven crew including Kalpana Chawla. The cause traced to foam strike damage to the left wing leading edge at launch.'],
+  ['02-06',2018,'Falcon Heavy\u2019s first flight','Two side boosters returned and landed simultaneously at Cape Canaveral \u2014 the clearest public demonstration to that point that orbital-class reuse worked.'],
+  ['03-02',1969,'Concorde 001 first flight','The prototype lifted off from Toulouse for a 27-minute subsonic shakedown. Supersonic passenger flight had a working aircraft.'],
+  ['03-08',2014,'MH370 disappears','Malaysia Airlines Flight 370 vanished from radar en route to Beijing, triggering the largest and most expensive search in aviation history.'],
+  ['03-18',1965,'The first spacewalk','Alexei Leonov left Voskhod 2 for twelve minutes, and then could not fit back through the airlock until he vented suit pressure to deflate it.'],
+  ['03-27',1977,'Tenerife \u2014 the deadliest accident in aviation history','Two 747s collided on a fog-bound runway at Los Rodeos. The 583 deaths reshaped standard phraseology, the meaning of \u201ctake-off\u201d in a clearance, and the entire discipline of CRM.'],
+  ['04-02',1984,'Rakesh Sharma becomes the first Indian in space','Launched aboard Soyuz T-11 to the Salyut 7 station. Asked by the Prime Minister how India looked from orbit, he answered: \u201cSaare jahan se achha.\u201d'],
+  ['04-03',1933,'The first flight over Everest','Two Westland biplanes of the Houston expedition crossed the summit, taking the first aerial photographs of the mountain.'],
+  ['04-12',1961,'Gagarin orbits the Earth','Vostok 1 completed a single orbit in 108 minutes. The first human being to leave the planet.'],
+  ['04-12',1981,'Columbia flies STS-1','The first Space Shuttle mission \u2014 and the first time a crewed spacecraft flew on its maiden test flight.'],
+  ['04-19',2021,'Ingenuity flies on Mars','A 1.8 kg helicopter hovered for 39 seconds in an atmosphere with roughly 1% of Earth\u2019s density \u2014 the first powered controlled flight on another planet.'],
+  ['04-24',1990,'Hubble reaches orbit','Deployed from Discovery, and then famously out of focus until the 1993 servicing mission corrected the primary mirror\u2019s spherical aberration.'],
+  ['04-27',2005,'Airbus A380 first flight','The largest passenger aircraft ever built lifted off from Toulouse with a crew of six and a flight test instrumentation bay where the cabin would go.'],
+  ['05-02',1952,'The first jet airliner service','BOAC flew a de Havilland Comet 1 from London to Johannesburg. Jet travel began \u2014 and the Comet\u2019s later fatigue failures would teach the industry about pressurisation cycles.'],
+  ['05-15',1930,'The first flight attendant','Ellen Church, a registered nurse and licensed pilot, flew as the first stewardess on a Boeing Air Transport service from Oakland to Chicago.'],
+  ['05-21',1927,'Lindbergh lands at Le Bourget','33.5 hours alone from New York in the Spirit of St. Louis, navigating by dead reckoning with no forward windscreen.'],
+  ['05-21',1932,'Amelia Earhart flies the Atlantic solo','Five years to the day after Lindbergh, and the first woman to do it alone.'],
+  ['05-30',2020,'Crew Dragon returns crewed launch to the United States','Demo-2 carried Behnken and Hurley to the ISS, the first crewed orbital launch from American soil since the Shuttle retired in 2011.'],
+  ['06-15',1919,'The first non-stop transatlantic flight','Alcock and Brown landed their Vickers Vimy nose-down in an Irish bog after sixteen hours. They had flown through fog and ice with no radio for most of the crossing.'],
+  ['06-16',1963,'The first woman in space','Valentina Tereshkova spent almost three days in orbit aboard Vostok 6 \u2014 more flight time than every American astronaut to that date combined.'],
+  ['06-21',2004,'The first private crewed spaceflight','SpaceShipOne reached 100 km carrying Mike Melvill, flown from the White Knight carrier aircraft.'],
+  ['07-02',1937,'Earhart disappears over the Pacific','The Electra vanished on the leg to Howland Island. Neither aircraft nor crew has ever been found.'],
+  ['07-14',2023,'Chandrayaan-3 launches','LVM3-M4 lifted off from Sriharikota carrying the lander and rover that would reach the lunar south polar region.'],
+  ['07-15',1954,'The Boeing 367-80 flies','The \u201cDash 80\u201d prototype led to both the 707 and the KC-135 \u2014 the aircraft that made jet travel ordinary.'],
+  ['07-20',1969,'Apollo 11 lands on the Moon','Eagle touched down at Tranquility Base with about 25 seconds of fuel remaining and an unexplained 1202 program alarm still fresh in the crew\u2019s minds.'],
+  ['07-25',2000,'Concorde AF4590','A titanium strip on the runway burst a tyre; debris ruptured a fuel tank. The type never recovered commercially and was retired three years later.'],
+  ['08-06',2012,'Curiosity lands via sky crane','The first use of the powered descent sky-crane system, which would later deliver Perseverance.'],
+  ['08-12',1985,'JAL 123','A faulty pressure-bulkhead repair failed at altitude, destroying the vertical stabiliser and all hydraulics. The crew flew on differential thrust for 32 minutes. 520 died \u2014 the deadliest single-aircraft accident in history.'],
+  ['08-20',1977,'Voyager 2 launches','Launched before Voyager 1, on the slower trajectory that would take it past all four outer planets.'],
+  ['08-23',2023,'Chandrayaan-3 lands near the lunar south pole','India became the fourth country to soft-land on the Moon and the first to land in the south polar region.'],
+  ['08-25',1919,'The first daily scheduled international service','Aircraft Transport and Travel began London\u2013Paris operations, carrying one passenger, newspapers, cream and grouse on the inaugural flight.'],
+  ['09-02',2023,'Aditya-L1 launches','India\u2019s first dedicated solar observatory, headed for a halo orbit around the Sun\u2013Earth L1 point.'],
+  ['09-05',1977,'Voyager 1 launches','It carries the Golden Record, and is now the most distant human-made object from Earth.'],
+  ['09-24',2014,'Mangalyaan enters Mars orbit','India became the first country to reach Mars orbit on its first attempt, on a mission budget widely reported as less than the cost of a feature film.'],
+  ['09-30',1968,'The Boeing 747 rolls out','Built in the largest building in the world by volume, which had to be constructed first.'],
+  ['10-04',1957,'Sputnik 1','An 83 kg sphere with four antennas and a radio beacon, and the beginning of the space age.'],
+  ['10-14',1947,'Yeager breaks the sound barrier','Bell X-1 \u201cGlamorous Glennis\u201d reached Mach 1.06 at 43,000 ft. Yeager flew it with two broken ribs and a sawn-off broom handle to close the hatch.'],
+  ['10-15',1932,'Tata Airlines flies its first service','J.R.D. Tata flew a de Havilland Puss Moth from Karachi to Bombay carrying mail. The airline became Air India.'],
+  ['10-22',2008,'Chandrayaan-1 launches','India\u2019s first lunar mission, whose Moon Mineralogy Mapper produced the definitive evidence of water on the lunar surface.'],
+  ['10-24',2003,'Concorde\u2019s last commercial flight','British Airways flew the final revenue service from New York into Heathrow. Supersonic passenger travel ended after 27 years.'],
+  ['10-26',1958,'The first transatlantic jet passenger service','Pan Am flew a Boeing 707 from New York to Paris, and the ocean liner business ended within a decade.'],
+  ['11-02',2000,'The ISS is permanently crewed','Expedition 1 arrived. The station has not been empty since.'],
+  ['11-05',2013,'Mangalyaan launches','The Mars Orbiter Mission left Sriharikota on a PSLV, using repeated Earth orbit-raising burns to make the escape on a small launcher.'],
+  ['11-16',2022,'Artemis I launches','SLS flew for the first time, sending an uncrewed Orion around the Moon and back.'],
+  ['11-21',1783,'The first manned free flight','Pil\u00e2tre de Rozier and the Marquis d\u2019Arlandes flew a Montgolfier balloon over Paris for 25 minutes. Human flight began.'],
+  ['12-17',1903,'The Wright Flyer','Twelve seconds and 120 feet at Kitty Hawk. The fourth flight of the day managed 852 feet, and then a gust destroyed the aircraft on the ground.'],
+  ['12-21',2015,'The first orbital booster landing','Falcon 9\u2019s first stage returned to Landing Zone 1 after delivering eleven satellites, and reusable orbital rocketry stopped being theoretical.'],
+  ['12-23',1986,'Voyager circles the world non-stop','Rutan and Yeager flew nine days without refuelling in an aircraft that was 72% fuel by weight at take-off.'],
+  ['12-25',2021,'The James Webb Space Telescope launches','344 single-point failures had to work in sequence over the following month. All of them did.'],
+  ['12-31',1968,'Tu-144 first flight','The Soviet supersonic transport flew two months before Concorde \u2014 and would prove far less successful in service.'],
+  ['01-15',2009,'The Miracle on the Hudson','US Airways 1549 lost both engines to a bird strike at 2,800 ft. Sullenberger ditched in the Hudson and all 155 aboard survived.'],
+  ['01-21',1976,'Concorde enters commercial service','British Airways flew London\u2013Bahrain and Air France flew Paris\u2013Rio simultaneously.'],
+  ['01-28',1986,'Challenger','STS-51-L broke apart 73 seconds after launch. The O-ring seal failure had been predicted the night before, and overruled.'],
+  ['06-08',2004,'Transit of Venus observed from orbit','A reminder that a great deal of what we know about atmospheres began with watching one planet cross another star.'],
+  ['09-11',2001,'The day aviation security changed','Four hijackings reshaped cockpit doors, passenger screening, air marshal programmes and international security regulation permanently.'],
+  ['07-29',1958,'NASA is created','President Eisenhower signed the National Aeronautics and Space Act; the agency opened for business that October.'],
+  ['07-27',1949,'The de Havilland Comet flies','The world\u2019s first jet airliner made its maiden flight at Hatfield \u2014 four years before the fatigue failures that would rewrite how the industry thinks about pressurisation cycles.'],
+  ['07-26',1963,'Syncom 2 reaches geosynchronous orbit','The first satellite to hold a fixed position relative to the ground, and the ancestor of every communications satellite since.'],
+  ['07-28',1935,'The Boeing 299 flies','The prototype of the B-17. It crashed on a later test because the crew forgot the gust lock \u2014 which is why the pre-flight checklist was invented.'],
+  ['07-30',1971,'Apollo 15 drives on the Moon','The first use of the Lunar Roving Vehicle, extending the crew\u2019s reach from a few hundred metres to several kilometres.'],
+  ['08-01',1946,'The Indian Air Force gets its wings','Post-war reorganisation set the shape of what would become one of the largest air forces in the world.'],
+  ['08-15',1947,'Indian civil aviation at independence','The carriers that would become Air India and Indian Airlines began operating in a newly independent India, on a network built for empire and rebuilt for a nation.'],
+  ['09-01',1985,'Titanic found by Argo','A reminder that the sensor and autonomy work behind unmanned survey is the same lineage as modern drone inspection.'],
+  ['10-01',1958,'NASA opens for business','Absorbing NACA\u2019s laboratories at Langley, Ames and Lewis, and with them decades of aerodynamic research.'],
+  ['11-09',1967,'Apollo 4 \u2014 the first Saturn V launch','The largest rocket ever flown to that point, tested all-up on its first flight rather than stage by stage.'],
+  ['12-08',2010,'Dragon becomes the first commercial spacecraft recovered from orbit','A private capsule flew, orbited and came back \u2014 the template for everything commercial crew became.'],
+  ['03-14',1994,'The first web-published flight schedules','A small moment that began the collapse of the travel-agency model and the rise of direct airline distribution.'],
+  ['05-25',1961,'\u201cBefore this decade is out\u201d','Kennedy set the Moon goal before Congress. NASA had, at that point, accumulated fifteen minutes of human spaceflight experience.'],
+  ['06-03',1965,'The first American spacewalk','Ed White floated outside Gemini 4 for 23 minutes and said the hardest part was coming back in.'],
+  ['01-09',2007,'Aviation and the smartphone','The device announced that day would within a decade replace the paper chart, the flight bag and much of the cockpit\u2019s reference library.']
+];
+
+/* ══════════════════════════════════════════════════════════════════════
+   STATE & STORAGE   (everything is per-browser; nothing leaves the page)
+   ══════════════════════════════════════════════════════════════════════ */
+const LS='ascent.';
+
+/* ══════════════════════════════════════════════════════════════════════
+   LIVE JOBS  (on-demand — see jobs-proxy.js Cloudflare Worker)
+   Paste your deployed worker URL below. Leave it empty and the module
+   stays fully curated with no live section shown at all.
+   e.g.  const JOBS_PROXY = 'https://jobs-proxy.YOURNAME.workers.dev';
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════
+   RÉSUMÉ FIT  (LLM-powered — see resume-proxy.js Cloudflare Worker)
+   Paste your deployed worker URL below. Empty = the tab shows setup steps.
+   ══════════════════════════════════════════════════════════════════════ */
+const RESUME_PROXY = 'https://resume-proxy.jhrishi7.workers.dev';
+const ROLES = [
+  {id:'pilot',      n:'Pilot / Cadet (CPL/ATPL)',        d:'Flight training, licences, hours, DGCA/CPL track'},
+  {id:'cabin',      n:'Cabin Crew',                       d:'Safety, service, grooming, language, in-flight'},
+  {id:'ame',        n:'Aircraft Maintenance Engineer',    d:'AME licence, B1/B2, line & base maintenance, type ratings'},
+  {id:'avionics',   n:'Avionics Engineer',                d:'Electrical, instruments, embedded, troubleshooting'},
+  {id:'aero_eng',   n:'Aerospace / Design Engineer',      d:'CATIA, CAD, CFD, FEA, stress, structures'},
+  {id:'atc',        n:'Air Traffic Controller',           d:'ATC rating, radar, separation, comms, decision-making'},
+  {id:'ground_ops', n:'Ground Operations & Dispatch',     d:'Ramp, load control, dispatch, turnaround, weight & balance'},
+  {id:'airport_ops',n:'Airport Operations',               d:'Terminal ops, apron, safety, coordination'},
+  {id:'quality',    n:'Quality / Safety / QA',            d:'SMS, DGCA/EASA compliance, audits, documentation'},
+  {id:'drone',      n:'Drone / UAV Operations',           d:'RPAS licence, flight planning, payloads, regulations'},
+  {id:'mgmt',       n:'Aviation Management',              d:'Operations, commercial, planning, leadership'},
+  {id:'aero_mfg',   n:'Aircraft Manufacturing / Production', d:'Assembly, tooling, lean, quality control'},
+];
+let RESUME = { text:'', fileName:'', role:'', loading:false, error:null, result:null, mode:'role' };
+
+const JOBS_PROXY = 'https://jobs-proxy.jhrishi7.workers.dev';
+const LIVE = { on:false, loading:false, error:null, jobs:[], q:'', where:'in', sources:null, ran:false };
+const LIVEQ_KEY='liveq';
+const store={
+  get(k,d){ try{const v=localStorage.getItem(LS+k); return v==null?d:JSON.parse(v);}catch(e){return d;} },
+  set(k,v){ try{localStorage.setItem(LS+k,JSON.stringify(v));}catch(e){} }
+};
+let SAVED = store.get('saved2',{});   /* id -> full live job object */
+let TRACK = store.get('track',{});    /* id -> status */
+let NOTES = store.get('notes',{});    /* id -> note text */
+/* one-time migration away from the old array format */
+if(Array.isArray(SAVED)){ SAVED={}; store.set('saved2',SAVED); }
+let CV    = store.get('cv',{});
+let VISIT = store.get('visits',null);
+const FIRSTRUN = !VISIT;
+try{ const lqv=store.get(LIVEQ_KEY,null); if(lqv){ LIVE.q=lqv.q||''; LIVE.where=lqv.where||'in'; } }catch(e){}
+if(!VISIT){ const back=new Date(Date.now()-8*864e5).toISOString(); VISIT={jobs:back,events:back,briefs:back}; }
+/* badges compare against the PREVIOUS session, held for the life of this page,
+   so opening a tab does not silently erase the count you were meant to see */
+const SEEN={...VISIT};
+let TAB='jobs', SEL=null, CMP=[], GQ='';
+let F={kind:'all',cat:'all',country:'all',flag:'all',sort:'new'};
+
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const D=s=>{const d=new Date(s+'T00:00:00'); return isNaN(d)?new Date(s):d;};
+const days=(a,b)=>Math.floor((D(a)-(b||new Date()))/864e5);
+const fmtD=s=>D(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+const fmtDS=s=>D(s).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+
+/* ── money ───────────────────────────────────────────────────────── */
+function unit(v,cur){
+  if(cur==='INR'){
+    if(v>=1e7) return (v/1e7).toFixed(2).replace(/\.?0+$/,'')+'Cr';
+    if(v>=1e5) return (v/1e5).toFixed(2).replace(/\.?0+$/,'')+'L';
+    if(v>=1000) return Math.round(v/1000)+'K';
+    return String(v);
+  }
+  return v.toLocaleString('en-US');
+}
+function money(j,short){
+  const s=SYM[j.cur], p=j.per==='mo'?'/mo':'/yr';
+  if(j.min===j.max) return s+unit(j.min,j.cur)+p;
+  return s+unit(j.min,j.cur)+'\u2013'+(j.cur==='INR'?'':s)+unit(j.max,j.cur)+p;
+}
+/* comparable annual INR, for sorting and side-by-side */
+function inrYear(j){
+  const min=j.salaryMin, max=j.salaryMax; if(!min&&!max) return 0;
+  const mid=((min||max)+(max||min))/2, mult=j.salaryPer==='mo'?12:j.salaryPer==='hr'?2000:1;
+  return Math.round(mid*mult*(FX[j.salaryCur]||1));
+}
+function inrNote(j){
+  if(j.cur==='INR') return '';
+  return '\u2248 \u20b9'+unit(Math.round(inrYear(j)/12),'INR')+'/mo equivalent';
+}
+
+/* ── job helpers ─────────────────────────────────────────────────── */
+/* resolve a job id to its object, from live results or the saved store */
+const job=id=>LIVE.jobs.find(j=>j.id===id)||SAVED[id]||null;
+const co=k=>COS[k];
+const isSaved=id=>!!SAVED[id];
+const savedList=()=>Object.values(SAVED);
+const closesIn=j=>days(j.closes);
+const isSoon=j=>{const d=closesIn(j); return d>=0&&d<=21;};
+const isNew=j=>days(j.posted)>=-7;
+const isNewer=(iso,since)=>D(iso)>new Date(since);
+const KINDLBL={job:'Full-time',internship:'Internship',graduate:'Graduate',programme:'Programme'};
+const CATLBL={pilot:'Flight Crew',cabin:'Cabin Crew',atc:'ATC',eng:'Engineering',ops:'Operations',
+  ame:'Maintenance',space:'Space',ground:'Ground Ops',drone:'Drone / UAV'};
+const CTRYLBL={IN:'India',AE:'UAE',QA:'Qatar',EU:'Europe',GB:'United Kingdom'};
+
+/* ══════════════════════════════════════════════════════════════════════
+   BACKGROUND CANVAS  — slow drifting waypoints, suite house style
+   ══════════════════════════════════════════════════════════════════════ */
+(function bg(){
+  const cv=$('#bgfx'); const c=cv.getContext('2d'); let W,H,T=0,pts=[];
+  function fit(){ const d=Math.min(2,devicePixelRatio||1);
+    W=cv.width=innerWidth*d; H=cv.height=innerHeight*d;
+    cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px'; c.setTransform(d,0,0,d,0,0);
+    pts=[]; const n=Math.round(innerWidth*innerHeight/26000);
+    for(let i=0;i<n;i++) pts.push({x:Math.random(),y:Math.random(),
+      s:(0.006+Math.random()*0.02)*(Math.random()>.5?1:-1),r:0.6+Math.random()*1.5,a:0.1+Math.random()*0.35});
+  }
+  addEventListener('resize',fit); fit();
+  function draw(){ T+=0.006;
+    const w=innerWidth,h=innerHeight; c.clearRect(0,0,w,h);
+    const acc=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()||'#ff9e64';
+    // horizon arcs
+    c.strokeStyle=acc; c.globalAlpha=.05; c.lineWidth=1;
+    for(let i=1;i<=4;i++){ c.beginPath(); c.arc(w*0.5,h*1.35,h*(0.45+i*0.22),Math.PI*1.15,Math.PI*1.85); c.stroke(); }
+    c.globalAlpha=1;
+    pts.forEach(p=>{ p.x+=p.s*0.0011; if(p.x>1.05)p.x=-.05; if(p.x<-.05)p.x=1.05;
+      const x=p.x*w, y=p.y*h;
+      c.globalAlpha=p.a*(0.55+0.45*Math.sin(T*1.4+p.y*9));
+      c.fillStyle=acc; c.beginPath(); c.arc(x,y,p.r,0,7); c.fill(); });
+    c.globalAlpha=1; requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+
+/* ══════════════════════════════════════════════════════════════════════
+   THEME
+   ══════════════════════════════════════════════════════════════════════ */
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t); store.set('theme',t);
+  $('#themeIco').innerHTML = t==='dark'
+    ? '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'
+    : '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/>';
+}
+applyTheme(store.get('theme','dark'));
+$('#themeB').onclick=()=>applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
+
+/* ══════════════════════════════════════════════════════════════════════
+   TABS
+   ══════════════════════════════════════════════════════════════════════ */
+const TABS=[
+  {k:'jobs',   n:'Live Jobs'},
+  {k:'saved',  n:'Saved & Tracker'},
+  {k:'events', n:'Events'},
+  {k:'briefs', n:'Briefs'},
+  {k:'resume', n:'Résumé Fit'},
+  {k:'digest', n:'Digest'}
+]
+function newCount(k){
+  if(k==='jobs')   return 0;
+  if(k==='events') return EVENTS.filter(e=>isNewer(e.added,SEEN.events)).length;
+  if(k==='briefs') return BRIEFS.filter(b=>isNewer(b.added,SEEN.briefs)).length;
+  return 0;
+}
+function paintTabs(){
+  $('#tabs').innerHTML=TABS.map(t=>{
+    const n=newCount(t.k);
+    return '<button class="tab'+(TAB===t.k?' on':'')+'" data-t="'+t.k+'">'+t.n+
+      (n?'<span class="nb" title="New since your last visit">'+n+'</span>':'')+'</button>';
+  }).join('');
+  $$('#tabs .tab').forEach(b=>b.onclick=()=>go(b.dataset.t));
+}
+function go(k){
+  TAB=k; GQ=''; $('#gq').value='';
+  if(VISIT[k]!==undefined){ VISIT[k]=new Date().toISOString(); store.set('visits',VISIT); }
+  paintTabs(); render(); scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ON THIS DAY
+   ══════════════════════════════════════════════════════════════════════ */
+function todayHist(){
+  const k=String(TODAY.getMonth()+1).padStart(2,'0')+'-'+String(TODAY.getDate()).padStart(2,'0');
+  let hits=HIST.filter(h=>h[0]===k);
+  if(hits.length) return {h:hits[Math.floor(Math.random()*hits.length)],exact:true};
+  /* nearest calendar day, so the block is never empty */
+  const md=s=>{const[m,d]=s.split('-').map(Number); return m*31+d;};
+  const now=md(k);
+  let best=HIST[0],bd=1e9;
+  HIST.forEach(h=>{const d=Math.abs(md(h[0])-now); if(d<bd){bd=d;best=h;}});
+  return {h:best,exact:false};
+}
+function histHTML(){
+  const {h,exact}=todayHist();
+  const dt=D('2000-'+h[0]).toLocaleDateString('en-GB',{day:'numeric',month:'long'});
+  return '<div class="hist"><canvas id="histCv"></canvas>'+
+    '<div class="eyebrow">'+(exact?'On this day in aviation':'Nearest date in aviation history')+' \u00b7 '+dt+'</div>'+
+    '<div class="hy">'+h[1]+'</div><div class="ht">'+esc(h[2])+'</div><div class="hd">'+esc(h[3])+'</div></div>';
+}
+function histCanvas(){
+  const cv=$('#histCv'); if(!cv) return;
+  const c=cv.getContext('2d'); const d=Math.min(2,devicePixelRatio||1);
+  const r=cv.getBoundingClientRect(); if(!r.width) return;
+  cv.width=r.width*d; cv.height=r.height*d; c.setTransform(d,0,0,d,0,0);
+  const W=r.width,H=r.height; let t=0;
+  const acc=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim();
+  (function loop(){ if(!document.body.contains(cv)) return;
+    t+=0.012; c.clearRect(0,0,W,H); c.strokeStyle=acc; c.lineWidth=1.1;
+    for(let k=0;k<4;k++){ c.globalAlpha=.16+k*.07; c.beginPath();
+      for(let x=0;x<=W;x+=4){ const p=x/W;
+        const y=H*0.5 + Math.sin(p*5.2 + t*1.5 + k*1.1)*H*0.14*(1-p*0.35) - k*7 + 12;
+        x?c.lineTo(x,y):c.moveTo(x,y); }
+      c.stroke(); }
+    c.globalAlpha=1; requestAnimationFrame(loop);
+  })();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   FILTERING
+   ══════════════════════════════════════════════════════════════════════ */
+async function runLive(){
+  if(!JOBS_PROXY){ return; }
+  LIVE.loading=true; LIVE.error=null; render();
+  try{
+    const u=JOBS_PROXY.replace(/\/$/,'')+'/jobs?q='+encodeURIComponent(LIVE.q||'aviation')+
+      '&where='+encodeURIComponent(LIVE.where||'in');
+    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),12000);
+    const r=await fetch(u,{signal:ctrl.signal}); clearTimeout(to);
+    if(!r.ok) throw new Error('proxy '+r.status);
+    const d=await r.json();
+    LIVE.jobs=Array.isArray(d.jobs)?d.jobs:[];
+    LIVE.sources=d.sources||null; LIVE.ran=true;
+    if(d.degraded && !LIVE.jobs.length) LIVE.error='No live results came back \u2014 the source may be rate-limited, or nothing matched. Try a broader term or another country.';
+  }catch(e){
+    LIVE.jobs=[]; LIVE.ran=true;
+    LIVE.error='Could not reach the live jobs service. '+
+      '(If you just deployed the worker, check the URL in JOBS_PROXY and that the API keys are set. Try /health on the worker.)';
+  }
+  LIVE.loading=false; render();
+}
+function liveMoney(j){
+  if(!j.salaryMin && !j.salaryMax) return null;
+  const s=SYM[j.salaryCur]||''; const p=j.salaryPer==='mo'?'/mo':j.salaryPer==='hr'?'/hr':'/yr';
+  const u=v=>unit(v,j.salaryCur==='INR'?'INR':'x');
+  const body=(j.salaryMin&&j.salaryMax&&j.salaryMin!==j.salaryMax)
+    ? s+u(j.salaryMin)+'\u2013'+(j.salaryCur==='INR'?'':s)+u(j.salaryMax)
+    : s+u(j.salaryMin||j.salaryMax);
+  return body+p+(j.salaryEstimated?' est.':'');
+}
+function liveCard(j){
+  const pay=liveMoney(j);
+  return '<div class="jcard'+(LIVE_SEL===j.id?' on':'')+'" data-live="'+esc(j.id)+'" style="border-left-color:var(--info)">'+
+    (pay?'<div class="pay">'+pay+'<small>'+(j.salaryEstimated?'estimated':'disclosed')+'</small></div>'
+        :'<div class="pay" style="color:var(--faint);font-size:9px">salary<br>not disclosed</div>')+
+    '<div class="jt">'+esc(j.title)+'</div>'+
+    '<div class="jc">'+esc(j.company)+' \u00b7 '+esc(j.location)+'</div>'+
+    '<div class="jm"><span class="pill info">LIVE \u00b7 '+esc(j.source)+'</span>'+
+    (j.kind&&j.kind!=='job'?'<span class="pill acc">'+(KINDLBL[j.kind]||j.kind)+'</span>':'')+
+    (j.remote?'<span class="pill">Remote</span>':'')+
+    (j.posted?'<span class="pill">'+fmtDS(j.posted)+'</span>':'')+'</div></div>';
+}
+function liveDetail(j){
+  const pay=liveMoney(j);
+  const sv=isSaved(j.id), tr=TRACK[j.id]||'', note=NOTES[j.id]||'';
+  const inCmp=CMP.includes(j.id);
+  let h='<div class="card">';
+  h+='<div class="dhead"><div class="dt">'+
+     '<div class="eyebrow">LIVE \u00b7 '+esc(j.source)+(j.kind&&j.kind!=='job'?' \u00b7 '+(KINDLBL[j.kind]||j.kind):'')+'</div>'+
+     '<h2>'+esc(j.title)+'</h2>'+
+     '<div class="dco" style="cursor:default;text-decoration:none">'+esc(j.company)+'</div></div>'+
+     (pay?'<div class="paybox" style="border-color:var(--info)"><div class="pv" style="color:var(--info)">'+pay+'</div>'+
+        '<div class="pl">'+(j.salaryEstimated?'estimated':'as posted')+'</div></div>'
+      :'<div class="paybox" style="border-color:var(--line2)"><div class="pv" style="color:var(--faint);font-size:14px">Not disclosed</div>'+
+        '<div class="pl">salary</div></div>')+'</div>';
+
+  h+='<div class="note-bar" style="border-left-color:var(--info)"><b>Live listing.</b> Pulled just now from '+esc(j.source)+
+     ' via your jobs proxy. Detail depth depends on what the source published \u2014 verify everything on the employer\u2019s own page before applying.</div>';
+
+  h+='<div class="fbar" style="margin:4px 0 14px">'+
+     (j.apply?'<a class="btn pri" href="'+esc(j.apply)+'" target="_blank" rel="noopener">Open the live posting \u2197</a>'
+             :'<span class="btn" style="opacity:.5">No direct link provided</span>')+
+     '<button class="btn'+(sv?' on':'')+'" id="saveB">'+(sv?'\u2605 Saved':'\u2606 Save')+'</button>'+
+     '<button class="btn'+(inCmp?' on':'')+'" id="cmpB">'+(inCmp?'\u2713 In compare':'\u21c4 Compare')+'</button>'+
+     '</div>';
+
+  h+='<div class="dgrid" style="margin-top:6px"><div>';
+
+  h+='<div class="kv">'+
+    '<div class="k">Employer</div><div class="v">'+esc(j.company)+'</div>'+
+    '<div class="k">Location</div><div class="v">'+esc(j.location)+(j.remote?' \u00b7 remote':'')+'</div>'+
+    (j.kind?'<div class="k">Type</div><div class="v">'+(KINDLBL[j.kind]||j.kind)+'</div>':'')+
+    (j.posted?'<div class="k">Posted</div><div class="v">'+fmtD(j.posted)+'</div>':'')+
+    '<div class="k">Pay</div><div class="v">'+(pay?pay+(j.salaryEstimated?' (source estimate)':' (as posted)'):'Not disclosed by the source')+'</div>'+
+    '<div class="k">Source</div><div class="v">'+esc(j.source)+'</div>'+
+    '</div>';
+
+  if(j.summary){ h+='<h4 class="sec">From the posting</h4>'+
+    '<p style="font-size:12.8px;color:var(--dim);line-height:1.6">'+esc(j.summary)+'</p>'; }
+
+  h+='<h4 class="sec">Your application</h4>'+
+     '<div class="eyebrow" style="margin-bottom:6px">Status \u00b7 saved automatically when you set one</div>'+
+     '<div class="trk">'+[['','Not applied'],['applied','Applied'],['interviewing','Interviewing'],
+        ['offer','Offer'],['rejected','Rejected']]
+       .map(x=>'<button class="trkb'+((tr===x[0]&&x[0])||(!tr&&!x[0])?' on':'')+'" data-s="'+x[0]+'">'+x[1]+'</button>').join('')+
+     '</div>'+
+     '<div class="eyebrow" style="margin:14px 0 6px">Private notes \u00b7 searchable, stored in this browser only</div>'+
+     '<textarea class="note" id="noteBox" placeholder="Referral contact, interview date, what you asked, what they said\u2026">'+esc(note)+'</textarea>';
+
+  h+='<h4 class="sec">Why the detail is thinner than you might expect</h4>'+
+     '<p style="font-size:12px;color:var(--faint);line-height:1.6">Live results come straight from public job boards. '+
+     'They carry whatever the employer chose to publish \u2014 often no salary, and a short description. Always open the live posting for the full picture.</p>';
+  h+='</div>';
+
+  /* right rail — CV checklist */
+  const done=CVLIST.filter(x=>CV[x[0]]).length;
+  h+='<div class="rail"><div class="railcard"><h5>CV checklist \u00b7 '+done+'/'+CVLIST.length+'</h5>'+
+     '<div class="prog"><i style="width:'+(done/CVLIST.length*100)+'%"></i></div>'+
+     CVLIST.map(x=>'<div class="chk'+(CV[x[0]]?' on':'')+'" data-cv="'+x[0]+'">'+
+       '<span class="bx">\u2713</span><span>'+esc(x[1])+'</span></div>').join('')+
+     '</div></div>';
+
+  h+='</div></div>';
+  return h;
+}
+
+let LIVE_SEL=null;
+
+function livePanel(){
+  if(!JOBS_PROXY){
+    return '<div class="note-bar"><b>Live job search is available but not switched on.</b> '+
+      'This board ships fully curated. To pull live postings from JSearch and Adzuna, deploy the '+
+      '<span class="mono">jobs-proxy</span> Cloudflare Worker and paste its URL into '+
+      '<span class="mono">JOBS_PROXY</span> at the top of this file. Until then, the curated listings below stand on their own.</div>';
+  }
+  let h='<div class="card" style="border-color:var(--info);margin-bottom:18px">'+
+    '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'+
+    '<div style="flex:1;min-width:200px">'+
+    '<div class="eyebrow" style="color:var(--info)">Live jobs \u00b7 on demand</div>'+
+    '<div style="font-size:14px;font-weight:640">Search real postings from JSearch + Adzuna</div>'+
+    '<div style="font-size:11.5px;color:var(--faint);margin-top:3px">Loads only when you ask, and results are cached for hours to stay inside the free tiers. Many live listings won\u2019t show a salary \u2014 boards rarely publish one.</div>'+
+    '</div></div>'+
+    '<div class="fbar" style="margin:12px 0 0">'+
+    '<input id="liveQ" class="sel" style="flex:1;min-width:180px;border-radius:9px;padding:8px 12px" '+
+      'placeholder="e.g. aircraft maintenance, cabin crew, aerospace" value="'+esc(LIVE.q)+'">'+
+    '<select class="sel" id="liveWhere">'+
+      [['in','India'],['ae','UAE'],['qa','Qatar'],['gb','UK'],['us','USA'],['sg','Singapore'],['de','Germany'],['au','Australia']]
+        .map(o=>'<option value="'+o[0]+'"'+(LIVE.where===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+
+    '</select>'+
+    '<button class="btn pri" id="liveGo">'+(LIVE.loading?'Searching\u2026':'Search live \u2192')+'</button>'+
+    (LIVE.ran?'<button class="btn" id="liveHide">Hide live</button>':'')+
+    '</div>';
+
+  if(LIVE.loading){
+    h+='<div style="text-align:center;padding:24px;color:var(--faint);font-family:var(--mono);font-size:11px;letter-spacing:1.5px">FETCHING LIVE POSTINGS\u2026</div>';
+  } else if(LIVE.error){
+    h+='<div class="note-bar" style="margin:14px 0 0;border-left-color:var(--warn)">'+esc(LIVE.error)+'</div>';
+  } else if(LIVE.ran && LIVE.jobs.length){
+    const src=LIVE.sources?Object.keys(LIVE.sources).filter(k=>LIVE.sources[k]).join(' + '):'';
+    if(!LIVE_SEL||!LIVE.jobs.find(j=>j.id===LIVE_SEL)) LIVE_SEL=LIVE.jobs[0].id;
+    h+='<div class="eyebrow" style="margin:16px 0 8px;color:var(--info)">'+LIVE.jobs.length+' live result'+
+       (LIVE.jobs.length===1?'':'s')+(src?' \u00b7 '+esc(src):'')+' \u00b7 cached at the edge</div>'+
+       '<div class="jgrid"><div class="jlist" id="livelist" style="max-height:520px">'+
+       LIVE.jobs.map(liveCard).join('')+'</div>'+
+       '<div class="jdetail" id="livedetail" style="top:0;max-height:560px">'+
+       liveDetail(LIVE.jobs.find(j=>j.id===LIVE_SEL))+'</div></div>';
+  } else if(LIVE.ran){
+    h+='<div class="empty" style="padding:28px"><div class="e1">No live results</div>Try a broader term, or a different country.</div>';
+  }
+  h+='</div>';
+  return h;
+}
+
+function jobsView(){
+  let h=histHTML();
+  h+='<div class="eyebrow">Live aviation & aerospace jobs</div>'+
+     '<h1 class="pt">Live vacancies</h1>'+
+     '<p class="lede">Real openings pulled on demand from JSearch and Adzuna the moment you search. '+
+     'Job boards rarely publish pay, so many roles will show \u201csalary not disclosed\u201d \u2014 that is the source being honest, not a gap in the tool. '+
+     'Government and PSU recruitment (AAI, ISRO, HAL, DRDO) runs through official portals that boards cannot see, so those are listed separately below.</p>';
+
+  h+=livePanel();
+
+  if(!LIVE.ran && !LIVE.loading){
+    h+='<div class="empty" style="padding:38px"><div class="e1">Search to see live jobs</div>'+
+       'Type a role above \u2014 try \u201caircraft maintenance\u201d, \u201ccabin crew\u201d, \u201caerospace engineer\u201d \u2014 pick a country, and press Search live.</div>';
+  }
+
+  h+=notifSection();
+  return h;
+}
+
+/* ── OFFICIAL NOTIFICATIONS block ─────────────────────────────────── */
+function notifSection(){
+  const L=NOTIF.slice().sort((a,b)=>D(a.closes)-D(b.closes));
+  let h='<div class="hr"></div>'+
+    '<div class="eyebrow" style="color:var(--acc)">Official notifications \u00b7 not on job boards</div>'+
+    '<h2 class="st">Government & PSU recruitment</h2>'+
+    '<p class="lede" style="margin-bottom:14px">These do not appear in the live search above because AAI, ISRO and the other public employers recruit only through their own portals. '+
+    'Dates are the real notified windows where known \u2014 always confirm on the official page, and note that some open only once every few years.</p>';
+  h+='<div class="g2">'+L.map(n=>{
+    const d=days(n.closes), cls=d<0?'bad':d<=14?'warn':'ok';
+    return '<div class="card" style="border-left:3px solid var(--acc)">'+
+      '<div class="jm" style="margin-bottom:8px"><span class="pill acc">'+esc(n.org)+'</span>'+
+      (d<0?'<span class="pill bad">window passed</span>'
+          :d<=14?'<span class="pill warn">'+d+' days left</span>'
+          :'<span class="pill ok">'+d+' days left</span>')+'</div>'+
+      '<div style="font-size:15px;font-weight:640;margin-bottom:4px">'+esc(n.role)+'</div>'+
+      '<div style="font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-bottom:10px">'+esc(n.where)+'</div>'+
+      '<div class="kv" style="margin-bottom:10px">'+
+        '<div class="k">Closes</div><div class="v">'+fmtD(n.closes)+(d>=0?' \u00b7 <span style="color:var(--acc)">'+d+' days</span>':'')+'</div>'+
+        '<div class="k">Pay</div><div class="v">'+esc(n.pay)+'</div></div>'+
+      '<div style="font-size:12.5px;color:var(--dim);line-height:1.55;margin-bottom:11px">'+esc(n.note)+'</div>'+
+      '<div style="font-family:var(--mono);font-size:9px;color:var(--faint);margin-bottom:10px">'+esc(n.verified)+'</div>'+
+      '<a class="btn pri sm" href="'+esc(n.url)+'" target="_blank" rel="noopener">Official page \u2197</a>'+
+      '</div>';
+  }).join('')+'</div>';
+  return h;
+}
+
+const CVLIST=[
+  ['cv1','One page for under five years of experience. Two only if you are licensed or type-rated.'],
+  ['cv2','Put licences, ratings, endorsements and medical validity in the top third \u2014 above education.'],
+  ['cv3','Quantify everything: hours flown, aircraft types, checks completed, defects cleared, team size.'],
+  ['cv4','Mirror the exact words in the listing. Screening is keyword-first at almost every large employer.'],
+  ['cv5','List software by name and version \u2014 CATIA V5, MATLAB, DOORS \u2014 never \u201cCAD tools\u201d.'],
+  ['cv6','No photograph unless the role is cabin crew or the employer explicitly asks.'],
+  ['cv7','Certificate numbers and issuing authority for every licence. Recruiters verify these.'],
+  ['cv8','Explain any gap over three months in one neutral line. Unexplained gaps get filtered.'],
+  ['cv9','Export as PDF with your name in the filename. Never send a .docx.'],
+  ['cv10','Have one referee from every safety-critical role you have held, contacted in advance.']
+];
+/* ── countdown ticker ────────────────────────────────────────────── */
+setInterval(()=>{
+  $$('.cdown[data-close]').forEach(el=>{
+    const t=D(el.dataset.close).getTime()+864e5-Date.now();
+    if(t<0) return;
+    const dd=Math.floor(t/864e5), hh=Math.floor(t/36e5)%24, mm=Math.floor(t/6e4)%60, ss=Math.floor(t/1e3)%60;
+    const set=(u,v)=>{const b=el.querySelector('[data-u="'+u+'"]'); if(b) b.textContent=String(v).padStart(2,'0');};
+    set('days',dd); set('hrs',hh); set('min',mm); set('sec',ss);
+  });
+},1000);
+
+/* ══════════════════════════════════════════════════════════════════════
+   RENDER · SAVED & TRACKER
+   ══════════════════════════════════════════════════════════════════════ */
+function savedView(){
+  const sv=savedList();
+  const stages=[['applied','Applied'],['interviewing','Interviewing'],['offer','Offer'],['rejected','Rejected']];
+  let h='<div class="eyebrow">Your board</div><h1 class="pt">Saved jobs & application tracker</h1>'+
+    '<p class="lede">Save a live job and it is kept here in full \u2014 title, employer, pay and link \u2014 in this browser only, even after the live search that found it has gone. Nothing is uploaded; clearing site data clears it. Back up before switching machines.</p>';
+
+  h+='<div class="g3" style="margin-bottom:22px">'+
+     '<div class="dgcard"><div class="dgnum">'+sv.length+'</div><div class="dglab">Saved</div></div>'+
+     stages.map(st=>{const n=Object.values(TRACK).filter(v=>v===st[0]).length;
+       return '<div class="dgcard"><div class="dgnum">'+n+'</div><div class="dglab">'+st[1]+'</div></div>';}).join('')+
+     '</div>';
+
+  h+='<h2 class="st">Pipeline</h2>';
+  const tracked=Object.keys(TRACK).map(id=>SAVED[id]).filter(Boolean);
+  if(!tracked.length){
+    h+='<div class="empty"><div class="e1">Nothing tracked yet</div>Open a saved job and set its status to Applied to start the pipeline.</div>';
+  } else {
+    h+='<div class="g2" style="margin-bottom:26px">'+stages.map(st=>{
+      const L=tracked.filter(j=>TRACK[j.id]===st[0]);
+      return '<div class="card"><div class="eyebrow" style="margin-bottom:10px">'+st[1]+' \u00b7 '+L.length+'</div>'+
+        (L.length?L.map(j=>'<div class="chk" data-savedsel="'+esc(j.id)+'" style="cursor:pointer"><span style="flex:1">'+
+          '<b style="color:var(--txt);font-weight:600">'+esc(j.title)+'</b><br>'+
+          '<span style="font-family:var(--mono);font-size:10px;color:var(--faint)">'+esc(j.company)+' \u00b7 '+esc(j.location)+'</span></span></div>').join('')
+          :'<div style="color:var(--faint);font-size:12px">\u2014</div>')+'</div>';
+    }).join('')+'</div>';
+  }
+
+  h+='<h2 class="st">Saved listings</h2>';
+  if(!sv.length){
+    h+='<div class="empty"><div class="e1">No saved jobs</div>Run a live search on the Jobs tab and press \u2606 Save on anything worth keeping.</div>';
+  } else {
+    h+='<div class="g2">'+sv.map(j=>{const pay=liveMoney(j);
+      return '<div class="jcard" data-savedsel="'+esc(j.id)+'" style="border-left-color:var(--acc)">'+
+        (pay?'<div class="pay">'+pay+'</div>':'<div class="pay" style="color:var(--faint);font-size:9px">salary<br>not disclosed</div>')+
+        '<div class="jt">'+esc(j.title)+'</div><div class="jc">'+esc(j.company)+' \u00b7 '+esc(j.location)+'</div>'+
+        '<div class="jm"><span class="pill info">'+esc(j.source)+'</span>'+
+        (TRACK[j.id]?'<span class="pill">'+TRACK[j.id]+'</span>':'')+
+        (NOTES[j.id]?'<span class="pill">has notes</span>':'')+'</div></div>';
+    }).join('')+'</div>';
+  }
+
+  h+='<div class="hr"></div><div class="fbar">'+
+     '<button class="btn" id="bkB">\u2193 Back up my board</button>'+
+     '<button class="btn" id="rsB">\u2191 Restore from file</button>'+
+     '<input type="file" id="rsF" accept="application/json" class="hide">'+
+     '<button class="btn" id="wipeB" style="border-color:var(--bad);color:var(--bad)">Clear everything</button></div>';
+  return h;
+}
+
+const EVT={deadline:['Deadline','bad'],exam:['Exam / drive','info'],fair:['Fair / show','acc'],webinar:['Webinar','ok']};
+function eventsView(){
+  const L=EVENTS.slice().sort((a,b)=>D(a.d)-D(b.d));
+  const up=L.filter(e=>days(e.d)>=0), past=L.filter(e=>days(e.d)<0);
+  let h='<div class="eyebrow">Calendar</div><h1 class="pt">Events, deadlines & exam dates</h1>'+
+    '<p class="lede">Application windows, walk-in drives, career fairs and webinars. Recurring industry show dates follow each event\u2019s established cycle and are indicative \u2014 confirm on the organiser\u2019s site before travelling.</p>';
+  const row=e=>{
+    const dd=days(e.d), k=EVT[e.type];
+    return '<div class="evt">'+
+      '<div class="evd"><b>'+D(e.d).getDate()+'</b><span>'+D(e.d).toLocaleDateString('en-GB',{month:'short'})+'</span></div>'+
+      '<div style="flex:1">'+
+      '<div class="jm" style="margin-bottom:6px"><span class="pill '+k[1]+'">'+k[0]+'</span>'+
+      (dd>=0&&dd<=14?'<span class="pill warn">in '+dd+' day'+(dd===1?'':'s')+'</span>':'')+
+      (dd<0?'<span class="pill">passed</span>':'')+
+      (isNewer(e.added,SEEN.events)?'<span class="pill acc">new</span>':'')+'</div>'+
+      '<div style="font-size:14px;font-weight:620;margin-bottom:4px">'+esc(e.t)+'</div>'+
+      '<div style="font-family:var(--mono);font-size:10px;color:var(--faint);margin-bottom:7px">'+fmtD(e.d)+' \u00b7 '+esc(e.loc)+'</div>'+
+      '<div style="font-size:12.5px;color:var(--dim);line-height:1.55">'+esc(e.desc)+'</div>'+
+      (e.url&&e.url!=='index.html'?'<a class="btn sm" style="margin-top:9px" href="'+e.url+'" target="_blank" rel="noopener">Details \u2197</a>':'')+
+      '</div></div>';
+  };
+  h+='<h2 class="st">Upcoming</h2><div class="g2">'+(up.length?up.map(row).join(''):'<div class="empty">Nothing upcoming.</div>')+'</div>';
+  if(past.length) h+='<div class="hr"></div><h2 class="st">Passed</h2><div class="g2" style="opacity:.55">'+past.map(row).join('')+'</div>';
+  return h;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RENDER · BRIEFS
+   ══════════════════════════════════════════════════════════════════════ */
+function briefsView(){
+  let h='<div class="eyebrow">Sector briefs</div><h1 class="pt">What the numbers actually mean</h1>'+
+    '<p class="lede">Evergreen career explainers built on the same 2026 compensation reporting behind the listings. Not news \u2014 these are the structural facts that decide what you get paid.</p>';
+  h+='<div class="g2">'+BRIEFS.slice().sort((a,b)=>D(b.added)-D(a.added)).map(b=>
+    '<div class="brief" data-brief="'+b.id+'" style="cursor:pointer">'+
+    '<div class="jm" style="margin-bottom:8px"><span class="pill acc">'+esc(b.cat)+'</span>'+
+    (isNewer(b.added,SEEN.briefs)?'<span class="pill ok">new</span>':'')+'</div>'+
+    '<h3>'+esc(b.t)+'</h3>'+
+    '<div style="font-size:12.5px;color:var(--dim);line-height:1.6">'+esc(b.sum)+'</div>'+
+    '<div style="font-family:var(--mono);font-size:9.5px;color:var(--faint);margin-top:10px">'+fmtD(b.added)+' \u00b7 read \u2192</div>'+
+    '</div>').join('')+'</div>';
+  return h;
+}
+function briefModal(id){
+  const b=BRIEFS.find(x=>x.id===id); if(!b) return;
+  modal('<div class="eyebrow">'+esc(b.cat)+' \u00b7 '+fmtD(b.added)+'</div>'+
+    '<h1 class="pt" style="max-width:760px">'+esc(b.t)+'</h1>'+
+    '<p style="font-size:14.5px;color:var(--acc);line-height:1.6;max-width:760px;margin:8px 0 18px">'+esc(b.sum)+'</p>'+
+    b.body.split('\n\n').map(p=>'<p style="font-size:13.5px;color:var(--dim);line-height:1.72;max-width:760px;margin-bottom:14px">'+esc(p)+'</p>').join(''));
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RENDER · DIGEST
+   ══════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════
+   RÉSUMÉ FIT
+   ══════════════════════════════════════════════════════════════════════ */
+function resumeView(){
+  if(!RESUME_PROXY){
+    return '<div class="eyebrow">Career tools</div><h1 class="pt">Résumé fit analysis</h1>'+
+      '<div class="note-bar"><b>This tool is built but not switched on.</b> It uses an AI model to read a résumé and score it against aviation roles. '+
+      'To enable it, deploy the <span class="mono">resume-proxy</span> Cloudflare Worker, add your API key as a secret, and paste the worker URL into '+
+      '<span class="mono">RESUME_PROXY</span> at the top of this file. Setup steps are in <span class="mono">ASCENT-RESUME-SETUP.md</span>.</div>';
+  }
+  let h='<div class="eyebrow">Career tools</div><h1 class="pt">Résumé fit analysis</h1>'+
+    '<p class="lede">Upload your résumé (PDF or DOCX) or paste the text, choose an aviation role, and get an honest fit score with concrete ways to improve. '+
+    'The analysis reads what your résumé actually shows \u2014 it never invents experience. Your file is parsed in your browser; only the extracted text is sent for analysis.</p>';
+
+  h+='<div class="card" style="border-color:var(--info);margin-bottom:18px">';
+  /* upload row */
+  h+='<div class="fbar" style="margin:0 0 12px">'+
+     '<button class="btn pri" id="rzPick">\u2191 Upload PDF / DOCX</button>'+
+     '<input type="file" id="rzFile" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hide">'+
+     '<button class="btn" id="rzPaste">\u270e Paste text instead</button>'+
+     (RESUME.fileName?'<span class="pill info" style="align-self:center">'+esc(RESUME.fileName)+'</span>':'')+
+     (RESUME.text?'<span class="pill" style="align-self:center">'+RESUME.text.length.toLocaleString()+' chars ready</span>':'')+
+     '</div>';
+  /* paste area (hidden unless chosen or already has text via paste) */
+  h+='<div id="rzPasteWrap" style="'+(RESUME.mode==='paste'?'':'display:none')+'">'+
+     '<textarea id="rzText" class="note" style="min-height:150px;width:100%" placeholder="Paste your résumé text here\u2026">'+esc(RESUME.mode==='paste'?RESUME.text:'')+'</textarea></div>';
+
+  /* role selector */
+  h+='<div style="margin-top:8px"><div class="eyebrow" style="margin-bottom:6px">Target role</div>'+
+     '<div class="fbar" style="align-items:center">'+
+     '<select class="sel" id="rzRole" style="flex:1;min-width:220px">'+
+       '<option value="">\u2014 choose a role \u2014</option>'+
+       ROLES.map(r=>'<option value="'+r.id+'"'+(RESUME.role===r.id?' selected':'')+'>'+esc(r.n)+'</option>').join('')+
+     '</select>'+
+     '<button class="btn'+(RESUME.mode==='all'?' on':'')+'" id="rzAll">'+(RESUME.mode==='all'?'\u2713 Scoring all roles':'Or: find my best-fit role')+'</button>'+
+     '</div>'+
+     '<div id="rzRoleHint" style="font-size:11.5px;color:var(--faint);margin-top:5px">'+
+       (RESUME.role?esc((ROLES.find(r=>r.id===RESUME.role)||{}).d||''):'Pick the role you\u2019re aiming for, or let the tool rank all roles for you.')+'</div>';
+  h+='</div>';
+
+  h+='<div class="fbar" style="margin-top:14px">'+
+     '<button class="btn pri" id="rzGo"'+((!RESUME.text||RESUME.loading)?' disabled style="opacity:.5"':'')+'>'+
+       (RESUME.loading?'Analyzing\u2026':'Analyze my résumé \u2192')+'</button>'+
+     (RESUME.result?'<button class="btn" id="rzClear">Clear result</button>':'')+
+     '</div>';
+
+  if(RESUME.loading) h+='<div style="text-align:center;padding:22px;color:var(--faint);font-family:var(--mono);font-size:11px;letter-spacing:1.5px">READING YOUR RÉSUMÉ\u2026</div>';
+  if(RESUME.error) h+='<div class="note-bar" style="margin-top:14px;border-left-color:var(--warn)">'+esc(RESUME.error)+'</div>';
+  h+='</div>';
+
+  if(RESUME.result) h+=resumeResult(RESUME.result);
+  return h;
+}
+
+function scoreColor(n){ return n>=75?'var(--ok)':n>=50?'var(--acc)':'var(--warn)'; }
+
+function resumeResult(r){
+  const fit=Math.max(0,Math.min(100,+r.fit||0));
+  let h='<div class="card">';
+  /* score dial */
+  h+='<div class="dhead"><div class="dt">'+
+     '<div class="eyebrow">Fit assessment</div>'+
+     '<h2>'+esc(r.verdict||'Result')+'</h2>'+
+     '<div style="font-size:13px;color:var(--dim);line-height:1.6;margin-top:6px;max-width:640px">'+esc(r.summary||'')+'</div></div>'+
+     '<div class="paybox" style="border-color:'+scoreColor(fit)+'"><div class="pv" style="color:'+scoreColor(fit)+'">'+fit+'</div><div class="pl">fit / 100</div></div>'+
+     '</div>';
+
+  if(r.bestRole){
+    h+='<div class="note-bar" style="border-left-color:var(--ok)"><b>Best-fit role:</b> '+esc(r.bestRole)+
+       (Array.isArray(r.roleScores)&&r.roleScores.length?' \u2014 '+r.roleScores.slice().sort((a,b)=>b.score-a.score).slice(0,5).map(x=>esc(x.role)+' '+x.score).join(' \u00b7 '):'')+'</div>';
+  }
+
+  const col=(title,items,cls,icon)=> (Array.isArray(items)&&items.length)?
+    '<div style="flex:1;min-width:220px"><div class="eyebrow" style="color:'+cls+';margin-bottom:8px">'+icon+' '+title+'</div>'+
+    '<ul style="margin:0;padding-left:16px;font-size:12.5px;color:var(--dim);line-height:1.7">'+
+    items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>':'';
+
+  h+='<div style="display:flex;gap:26px;flex-wrap:wrap;margin:10px 0 4px">'+
+     col('Strengths for this role',r.strengths,'var(--ok)','\u2714')+
+     col('Gaps to close',r.gaps,'var(--warn)','\u26a0')+
+     '</div>';
+  h+='<div style="display:flex;gap:26px;flex-wrap:wrap;margin:16px 0 4px">'+
+     col('Missing skills / keywords',r.missingSkills,'var(--info)','+')+
+     col('Certifications to hold or pursue',r.certifications,'var(--acc)','\u2691')+
+     '</div>';
+
+  if(Array.isArray(r.improvements)&&r.improvements.length){
+    h+='<h4 class="sec">How to improve your résumé</h4><ol style="margin:0;padding-left:18px;font-size:13px;color:var(--txt);line-height:1.8">'+
+       r.improvements.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol>';
+  }
+
+  h+='<div class="note-bar" style="margin-top:16px;font-size:11.5px;color:var(--faint)">This is AI-generated guidance to help you surface the right signals for the role \u2014 a genuine recruiter or DGCA panel may weigh things differently. Use it to sharpen your résumé, not as a guarantee.</div>';
+  h+='</div>';
+  return h;
+}
+
+/* ---- file parsing (client-side) ---- */
+async function rzExtract(file){
+  const name=(file.name||'').toLowerCase();
+  if(name.endsWith('.docx')) return rzDocx(file);
+  if(name.endsWith('.pdf'))  return rzPdf(file);
+  throw new Error('Unsupported file — upload a PDF or DOCX, or paste the text.');
+}
+async function rzDocx(file){
+  /* DOCX is a zip; pull word/document.xml and strip tags. Uses a tiny inflate via DecompressionStream if present. */
+  const buf=await file.arrayBuffer();
+  const xml=await unzipDocx(buf);
+  if(!xml) throw new Error('Could not read this DOCX. Try “Paste text instead”.');
+  let txt=xml.replace(/<w:p[ >]/g,'\n<w:p ').replace(/<[^>]+>/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  txt=txt.replace(/[ \t]+/g,' ').replace(/\n{2,}/g,'\n').trim();
+  return txt;
+}
+async function unzipDocx(buf){
+  /* minimal zip reader: find word/document.xml, inflate with DecompressionStream('deflate-raw') */
+  const dv=new DataView(buf); const u8=new Uint8Array(buf);
+  const dec=new TextDecoder();
+  // scan local file headers (PK\x03\x04)
+  for(let i=0;i<u8.length-4;i++){
+    if(u8[i]===0x50&&u8[i+1]===0x4b&&u8[i+2]===0x03&&u8[i+3]===0x04){
+      const method=dv.getUint16(i+8,true);
+      const compSize=dv.getUint32(i+18,true);
+      const nameLen=dv.getUint16(i+26,true);
+      const extraLen=dv.getUint16(i+28,true);
+      const name=dec.decode(u8.subarray(i+30,i+30+nameLen));
+      const dataStart=i+30+nameLen+extraLen;
+      if(name==='word/document.xml'){
+        const comp=u8.subarray(dataStart,dataStart+compSize);
+        if(method===0) return dec.decode(comp);
+        if(method===8){
+          try{
+            const ds=new DecompressionStream('deflate-raw');
+            const stream=new Response(comp).body.pipeThrough(ds);
+            const out=await new Response(stream).arrayBuffer();
+            return dec.decode(new Uint8Array(out));
+          }catch(e){ return null; }
+        }
+      }
+    }
+  }
+  return null;
+}
+let PDFJS_READY=null;
+function loadPdfJs(){
+  if(PDFJS_READY) return PDFJS_READY;
+  PDFJS_READY=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload=()=>{ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; res(window.pdfjsLib);}catch(e){rej(e);} };
+    s.onerror=()=>rej(new Error('Could not load the PDF reader (needs internet the first time). Try “Paste text instead”.'));
+    document.head.appendChild(s);
+  });
+  return PDFJS_READY;
+}
+async function rzPdf(file){
+  const pdfjsLib=await loadPdfJs();
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let out='';
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const tc=await page.getTextContent();
+    out+=tc.items.map(it=>it.str).join(' ')+'\n';
+  }
+  out=out.replace(/[ \t]+/g,' ').replace(/\n{2,}/g,'\n').trim();
+  if(out.length<40) throw new Error('This PDF has almost no readable text — it may be a scan or image. Use “Paste text instead”.');
+  return out;
+}
+
+async function runResume(){
+  if(!RESUME.text || RESUME.text.trim().length<40){ RESUME.error='Add your résumé first — upload a file or paste the text (at least a few lines).'; render(); return; }
+  if(RESUME.mode!=='all' && !RESUME.role){ RESUME.error='Choose a target role, or use “find my best-fit role”.'; render(); return; }
+  RESUME.loading=true; RESUME.error=null; render();
+  try{
+    const roleObj=ROLES.find(r=>r.id===RESUME.role);
+    const payload={ resume:RESUME.text.slice(0,24000),
+      role:RESUME.role||'best', roleLabel:roleObj?roleObj.n:'Best-fit aviation role' };
+    if(RESUME.mode==='all') payload.allRoles=ROLES.map(r=>r.n);
+    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),45000);
+    const res=await fetch(RESUME_PROXY.replace(/\/$/,'')+'/analyze',
+      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:ctrl.signal});
+    clearTimeout(to);
+    const d=await res.json();
+    if(!d.ok) throw new Error(d.error||'analysis failed');
+    RESUME.result=d;
+  }catch(e){
+    RESUME.result=null;
+    RESUME.error = /abort/i.test(String(e)) ? 'The analysis timed out — try again.' :
+      'Could not analyze the résumé. '+(String(e.message||e))+' If you just deployed the worker, check RESUME_PROXY and that the API key is set.';
+  }
+  RESUME.loading=false; render();
+}
+
+function digestView(){
+  const ne=EVENTS.filter(e=>{const d=days(e.d); return d>=0&&d<=14;}).sort((a,b)=>D(a.d)-D(b.d));
+  const nb=BRIEFS.filter(b=>days(b.added)>=-7);
+  const notifSoon=NOTIF.filter(n=>{const d=days(n.closes); return d>=0&&d<=21;}).sort((a,b)=>D(a.closes)-D(b.closes));
+  const sv=savedList();
+  const pipe=Object.keys(TRACK).length;
+
+  let h=histHTML();
+  h+='<div class="eyebrow">Week of '+fmtDS(new Date(Date.now()-6*864e5).toISOString().slice(0,10))+' \u2013 '+fmtD(new Date().toISOString().slice(0,10))+'</div>'+
+     '<h1 class="pt">This week</h1>'+
+     '<p class="lede">'+
+     notifSoon.length+' official notification'+(notifSoon.length===1?'':'s')+' closing inside three weeks, '+
+     ne.length+' event'+(ne.length===1?'':'s')+' in the next fortnight, '+
+     sv.length+' job'+(sv.length===1?'':'s')+' on your saved board'+
+     '. Run a live search on the Jobs tab for current vacancies.</p>';
+
+  h+='<div class="g3" style="margin-bottom:24px">'+
+    [[notifSoon.length,'Notifications closing'],[ne.length,'Events \u2264 14 days'],
+     [nb.length,'New briefs'],[sv.length,'You saved'],[pipe,'In your pipeline']]
+    .map(x=>'<div class="dgcard"><div class="dgnum">'+x[0]+'</div><div class="dglab">'+x[1]+'</div></div>').join('')+
+    '</div>';
+
+  if(notifSoon.length){
+    h+='<div class="note-bar" style="border-left-color:var(--acc)"><b>Act on these \u2014 official windows don\u2019t reopen for months.</b> '+
+      notifSoon.map(n=>esc(n.org)+' '+esc(n.role)+' \u2014 '+days(n.closes)+' days').join(' \u00b7 ')+'</div>';
+  }
+
+  const strip=(title,items,fn)=>items.length
+    ? '<h2 class="st">'+title+'</h2><div class="g2" style="margin-bottom:24px">'+items.map(fn).join('')+'</div>' : '';
+
+  h+=strip('Coming up',ne,e=>'<div class="evt"><div class="evd"><b>'+D(e.d).getDate()+'</b><span>'+
+     D(e.d).toLocaleDateString('en-GB',{month:'short'})+'</span></div><div style="flex:1">'+
+     '<div style="font-size:13.5px;font-weight:620;margin-bottom:3px">'+esc(e.t)+'</div>'+
+     '<div style="font-family:var(--mono);font-size:10px;color:var(--faint)">'+esc(e.loc)+' \u00b7 in '+days(e.d)+' days</div></div></div>');
+  h+=strip('Worth reading',nb,b=>'<div class="brief" data-brief="'+b.id+'" style="cursor:pointer">'+
+     '<span class="pill acc" style="margin-bottom:8px">'+esc(b.cat)+'</span><h3>'+esc(b.t)+'</h3>'+
+     '<div style="font-size:12.5px;color:var(--dim);line-height:1.6">'+esc(b.sum)+'</div></div>');
+  if(sv.length){
+    h+=strip('On your saved board',sv.slice(0,6),j=>{const pay=liveMoney(j);
+      return '<div class="jcard" data-savedsel="'+esc(j.id)+'">'+
+        (pay?'<div class="pay">'+pay+'</div>':'<div class="pay" style="color:var(--faint);font-size:9px">salary<br>not disclosed</div>')+
+        '<div class="jt">'+esc(j.title)+'</div><div class="jc">'+esc(j.company)+' \u00b7 '+esc(j.location)+'</div>'+
+        '<div class="jm"><span class="pill info">'+esc(j.source)+'</span></div></div>';});
+  }
+  return h;
+}
+
+function hl(text,q){
+  if(!q) return esc(text);
+  const i=text.toLowerCase().indexOf(q.toLowerCase());
+  if(i<0) return esc(text);
+  return esc(text.slice(0,i))+'<mark>'+esc(text.slice(i,i+q.length))+'</mark>'+esc(text.slice(i+q.length));
+}
+function searchView(q){
+  const Q=q.toLowerCase().trim();
+  const R=[];
+  savedList().forEach(j=>{
+    const hay=[j.title,j.company,j.location,j.summary,j.source].join(' ').toLowerCase();
+    if(hay.includes(Q)) R.push({k:'Saved job',t:j.title,s:j.company+' \u00b7 '+j.location,act:()=>openSaved(j.id)});
+  });
+  NOTIF.forEach(n=>{
+    if((n.org+' '+n.role+' '+n.where+' '+n.note).toLowerCase().includes(Q))
+      R.push({k:'Official notification',t:n.role,s:n.org+' \u00b7 closes '+fmtD(n.closes),act:()=>go('jobs')});
+  });
+  EVENTS.forEach(e=>{
+    if((e.t+' '+e.desc+' '+e.loc).toLowerCase().includes(Q))
+      R.push({k:'Event',t:e.t,s:fmtD(e.d)+' \u00b7 '+e.loc,act:()=>go('events')});
+  });
+  BRIEFS.forEach(b=>{
+    if((b.t+' '+b.sum+' '+b.body+' '+b.cat).toLowerCase().includes(Q))
+      R.push({k:'Brief',t:b.t,s:b.cat+' \u00b7 '+fmtD(b.added),act:()=>briefModal(b.id)});
+  });
+  Object.keys(NOTES).forEach(id=>{
+    const n=NOTES[id]; const j=SAVED[id];
+    if(j&&n&&n.toLowerCase().includes(Q))
+      R.push({k:'Your note',t:j.title,s:n.slice(0,120),act:()=>openSaved(id)});
+  });
+  HIST.forEach(h=>{
+    if((h[2]+' '+h[3]).toLowerCase().includes(Q))
+      R.push({k:'Aviation history \u00b7 '+h[1],t:h[2],s:h[3].slice(0,130),act:null});
+  });
+
+  let out='<div class="eyebrow">Search</div><h1 class="pt">'+R.length+' result'+(R.length===1?'':'s')+' for \u201c'+esc(q)+'\u201d</h1>'+
+    '<p class="lede">Searching your saved jobs, official notifications, events, briefs, aviation history and your own notes. '+
+    'To search live vacancies, use the live search on the Jobs tab.</p>';
+  if(!R.length) return out+'<div class="empty"><div class="e1">Nothing found here</div>Try the live search on the Jobs tab for current openings.</div>';
+  SR=R;
+  out+=R.map((r,i)=>'<div class="srchres" data-r="'+i+'"><div class="sk2">'+esc(r.k)+'</div>'+
+    '<div style="font-size:13.5px;font-weight:620;margin-bottom:3px">'+hl(r.t,q)+'</div>'+
+    '<div style="font-size:12px;color:var(--dim)">'+hl(r.s,q)+'</div></div>').join('');
+  return out;
+}
+let SR=[];
+
+/* ══════════════════════════════════════════════════════════════════════
+   COMPARE
+   ══════════════════════════════════════════════════════════════════════ */
+function paintTray(){
+  const t=$('#tray');
+  t.classList.toggle('on',CMP.length>0);
+  $('#trayChips').innerHTML=CMP.map(id=>{const j=job(id);
+    return '<span class="tchip"><span>'+esc(j.t)+'</span><b data-drop="'+id+'">\u2715</b></span>';}).join('');
+  $$('#trayChips [data-drop]').forEach(b=>b.onclick=()=>{CMP=CMP.filter(x=>x!==b.dataset.drop);paintTray();render();});
+}
+function compareModal(){
+  if(CMP.length<2){ modal('<h2 class="st">Pick at least two</h2><p style="color:var(--dim)">Save or open two or three live jobs and press \u21c4 Compare on each, then come back.</p>'); return; }
+  const L=CMP.map(job).filter(Boolean);
+  if(L.length<2){ modal('<h2 class="st">Those jobs are no longer loaded</h2><p style="color:var(--dim)">Compare works on live results in the current session and your saved jobs. Save the ones you want to keep, then compare.</p>'); return; }
+  const withPay=L.filter(j=>inrYear(j)>0);
+  const bestPay=withPay.length?Math.max(...withPay.map(inrYear)):0;
+  const payCell=j=>{ const p=liveMoney(j); return p?p:'Not disclosed'; };
+  const rows=[
+    ['Employer',   j=>esc(j.company)],
+    ['Location',   j=>esc(j.location)+(j.remote?' \u00b7 remote':'')],
+    ['Source',     j=>esc(j.source||'Saved')],
+    ['Type',       j=>KINDLBL[j.kind]||j.kind||'\u2014'],
+    ['Posted',     j=>j.posted?fmtD(j.posted):'\u2014'],
+    ['Pay',        j=>payCell(j), j=>inrYear(j)>0&&inrYear(j)===bestPay],
+    ['Annual \u20b9 equiv.', j=>inrYear(j)?'\u20b9'+unit(inrYear(j),'INR'):'\u2014', j=>inrYear(j)>0&&inrYear(j)===bestPay],
+    ['Apply',      j=>j.apply?'<a class="btn pri sm" href="'+esc(j.apply)+'" target="_blank" rel="noopener">Open \u2197</a>':'\u2014']
+  ];
+  let h='<div class="eyebrow">Side by side</div><h1 class="pt">Comparing '+L.length+' live listings</h1>'+
+    '<p class="lede">Pay is normalised to an annual rupee equivalent where a figure exists. Many live listings carry no salary, shown as \u201cnot disclosed\u201d. FX is approximate and tax treatment differs \u2014 a Gulf figure is tax-free, an Indian one is not.</p>'+
+    '<table class="cmp"><thead><tr><th></th>'+L.map(j=>'<td>'+esc(j.title)+'</td>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr><th>'+r[0]+'</th>'+L.map(j=>{
+      const best=r[2]&&r[2](j);
+      return '<td'+(best?' class="best"':'')+'>'+r[1](j)+'</td>';}).join('')+'</tr>').join('')+
+    '</tbody></table>';
+  modal(h);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   MODAL
+   ══════════════════════════════════════════════════════════════════════ */
+function modal(html){ $('#modalBody').innerHTML=html; $('#scrim').classList.add('on'); wireDelegates(); }
+function closeModal(){ $('#scrim').classList.remove('on'); }
+$('#modalX').onclick=closeModal;
+$('#scrim').onclick=e=>{ if(e.target.id==='scrim') closeModal(); };
+
+/* ══════════════════════════════════════════════════════════════════════
+   RENDER ROOT
+   ══════════════════════════════════════════════════════════════════════ */
+function render(){
+  const v=$('#view');
+  if(GQ.trim().length>=2){ v.innerHTML=searchView(GQ); }
+  else v.innerHTML = TAB==='jobs'?jobsView()
+    : TAB==='saved' ?savedView()
+    : TAB==='events'?eventsView()
+    : TAB==='briefs'?briefsView()
+    : TAB==='resume'?resumeView()
+    : digestView();
+  histCanvas(); paintTray(); wireDelegates();
+}
+function openSaved(id){
+  const j=SAVED[id]; if(!j) return;
+  SEL=id; closeModal();
+  modal(liveDetail(j));
+}
+
+/* ── event delegation, re-bound after every render ───────────────── */
+function currentJob(){ return job(SEL); }
+function wireDelegates(){
+  /* ---- résumé fit controls ---- */
+  const rzPick=$('#rzPick'), rzFile=$('#rzFile');
+  if(rzPick&&rzFile) rzPick.onclick=()=>rzFile.click();
+  if(rzFile) rzFile.onchange=async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    RESUME.error=null; RESUME.fileName=f.name; RESUME.mode='role'; RESUME.loading=true; render();
+    try{ RESUME.text=await rzExtract(f); RESUME.error=null; }
+    catch(err){ RESUME.text=''; RESUME.error=String(err.message||err); }
+    RESUME.loading=false; render();
+  };
+  const rzPaste=$('#rzPaste'); if(rzPaste) rzPaste.onclick=()=>{ RESUME.mode=(RESUME.mode==='paste'?'role':'paste'); RESUME.fileName=''; render(); setTimeout(()=>{const t=$('#rzText'); if(t)t.focus();},30); };
+  const rzText=$('#rzText'); if(rzText) rzText.oninput=()=>{ RESUME.text=rzText.value; };
+  const rzRole=$('#rzRole'); if(rzRole) rzRole.onchange=()=>{ RESUME.role=rzRole.value; if(RESUME.role) RESUME.mode=(RESUME.mode==='all'?'role':RESUME.mode); const hint=$('#rzRoleHint'); if(hint){ const r=ROLES.find(x=>x.id===RESUME.role); hint.textContent=r?r.d:''; } const go=$('#rzGo'); if(go&&RESUME.text) go.disabled=false; };
+  const rzAll=$('#rzAll'); if(rzAll) rzAll.onclick=()=>{ RESUME.mode=(RESUME.mode==='all'?'role':'all'); render(); };
+  const rzGo=$('#rzGo'); if(rzGo) rzGo.onclick=runResume;
+  const rzClear=$('#rzClear'); if(rzClear) rzClear.onclick=()=>{ RESUME.result=null; RESUME.error=null; render(); };
+
+  /* ---- live jobs controls ---- */
+  const lq=$('#liveQ'); const lw=$('#liveWhere'); const lgo=$('#liveGo');
+  const doLive=()=>{ LIVE.q=(lq?lq.value:'').trim(); LIVE.where=lw?lw.value:'in';
+    store.set(LIVEQ_KEY,{q:LIVE.q,where:LIVE.where}); LIVE.on=true; LIVE_SEL=null; runLive(); };
+  if(lgo) lgo.onclick=doLive;
+  if(lq) lq.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); doLive(); } };
+  const lh=$('#liveHide'); if(lh) lh.onclick=()=>{ LIVE.ran=false; LIVE.jobs=[]; LIVE.error=null; render(); };
+  $$('.jcard[data-live]').forEach(el=>el.onclick=()=>{ LIVE_SEL=el.dataset.live; SEL=el.dataset.live; render(); });
+
+  $$('[data-savedsel]').forEach(el=>el.onclick=()=>openSaved(el.dataset.savedsel));
+  $$('[data-brief]').forEach(el=>el.onclick=()=>briefModal(el.dataset.brief));
+  $$('.srchres[data-r]').forEach(el=>el.onclick=()=>{ const r=SR[+el.dataset.r]; if(r&&r.act) r.act(); });
+
+  /* SEL points at the live-selected job (grid) or the modal-opened saved job */
+  const sel=()=> SEL || LIVE_SEL;
+
+  const sb=$('#saveB'); if(sb) sb.onclick=()=>{
+    const id=sel(); const j=job(id); if(!j) return;
+    if(isSaved(id)) delete SAVED[id]; else SAVED[id]=j;
+    store.set('saved2',SAVED); paintTabs(); render();
+    // if we're in a modal (saved detail), refresh it
+    if($('#scrim').classList.contains('on')) modal(liveDetail(j));
+  };
+  const cb=$('#cmpB'); if(cb) cb.onclick=()=>{
+    const id=sel(); if(!id) return;
+    if(CMP.includes(id)) CMP=CMP.filter(x=>x!==id);
+    else { if(CMP.length>=3){ toast('Compare holds three at a time \u2014 drop one first.'); return; } CMP=[...CMP,id]; }
+    render();
+    if($('#scrim').classList.contains('on')){ const j=job(id); if(j) modal(liveDetail(j)); }
+  };
+  $$('.trkb[data-s]').forEach(b=>b.onclick=()=>{
+    const id=sel(); const j=job(id); if(!j) return;
+    const st=b.dataset.s;
+    if(st){ TRACK[id]=st; if(!SAVED[id]){ SAVED[id]=j; store.set('saved2',SAVED); } }
+    else delete TRACK[id];
+    store.set('track',TRACK); render();
+    if($('#scrim').classList.contains('on')) modal(liveDetail(j));
+  });
+  const nb=$('#noteBox'); if(nb){
+    let tmr; nb.oninput=()=>{ clearTimeout(tmr); tmr=setTimeout(()=>{
+      const id=sel(); const j=job(id); if(!j) return;
+      const v=nb.value.trim();
+      if(v){ NOTES[id]=v; if(!SAVED[id]){ SAVED[id]=j; store.set('saved2',SAVED); } } else delete NOTES[id];
+      store.set('notes',NOTES); },350); };
+  }
+  $$('.chk[data-cv]').forEach(el=>el.onclick=()=>{
+    const k=el.dataset.cv; CV[k]=!CV[k]; if(!CV[k]) delete CV[k];
+    store.set('cv',CV);
+    if($('#scrim').classList.contains('on')){ const j=job(sel()); if(j) modal(liveDetail(j)); } else render();
+  });
+
+  const bk=$('#bkB'); if(bk) bk.onclick=()=>{
+    const blob=new Blob([JSON.stringify({v:2,saved:SAVED,track:TRACK,notes:NOTES,cv:CV,at:new Date().toISOString()},null,2)],
+      {type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='ascent-board-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+    toast('Board backed up.');
+  };
+  const rs=$('#rsB'); if(rs) rs.onclick=()=>$('#rsF').click();
+  const rf=$('#rsF'); if(rf) rf.onchange=e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=()=>{ try{ const d=JSON.parse(r.result);
+      SAVED=(d.saved&&!Array.isArray(d.saved))?d.saved:{}; TRACK=d.track||{}; NOTES=d.notes||{}; CV=d.cv||{};
+      store.set('saved2',SAVED); store.set('track',TRACK); store.set('notes',NOTES); store.set('cv',CV);
+      toast('Board restored.'); paintTabs(); render();
+    }catch(_){ toast('That file could not be read.'); } };
+    r.readAsText(f);
+  };
+  const wp=$('#wipeB'); if(wp) wp.onclick=()=>{
+    if(!confirm('This clears every saved job, application status, note and checklist item in this browser. There is no undo. Continue?')) return;
+    SAVED={}; TRACK={}; NOTES={}; CV={};
+    store.set('saved2',SAVED); ['track','notes','cv'].forEach(k=>store.set(k,{}));
+    toast('Board cleared.'); paintTabs(); render();
+  };
+}
+$('#cmpGo').onclick=compareModal;
+$('#cmpClr').onclick=()=>{ CMP=[]; render(); };
+
+/* ── toast ───────────────────────────────────────────────────────── */
+let tT;
+function toast(msg){
+  let el=$('#toast');
+  if(!el){ el=document.createElement('div'); el.id='toast';
+    el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:92px;z-index:120;'+
+      'background:var(--card);border:1px solid var(--acc);color:var(--txt);border-radius:10px;'+
+      'padding:11px 17px;font-size:12.5px;box-shadow:var(--shadow);transition:opacity .25s;max-width:88vw;text-align:center';
+    document.body.appendChild(el); }
+  el.textContent=msg; el.style.opacity='1';
+  clearTimeout(tT); tT=setTimeout(()=>{el.style.opacity='0';},2600);
+}
+
+/* ── global search input ─────────────────────────────────────────── */
+let sT;
+$('#gq').oninput=e=>{ GQ=e.target.value; clearTimeout(sT); sT=setTimeout(render,180); };
+addEventListener('keydown',e=>{
+  const typing=/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||'');
+  if(e.key==='/'&&!typing){ e.preventDefault(); $('#gq').focus(); return; }
+  if(e.key==='Escape'){
+    if($('#scrim').classList.contains('on')){ closeModal(); return; }
+    if(typing){ document.activeElement.blur(); if(GQ){ GQ=''; $('#gq').value=''; render(); } }
+  }
+  if(typing) return;
+  if(e.key>='1'&&e.key<='5'){ const t=TABS[+e.key-1]; if(t) go(t.k); }
+  if(e.key==='c'&&CMP.length>=2) compareModal();
+  if(e.key==='s'&&LIVE_SEL){ const b=$('#saveB'); if(b) b.click(); }
+  if((e.key==='j'||e.key==='k')&&TAB==='jobs'&&LIVE.jobs.length){
+    const L=LIVE.jobs; const i=L.findIndex(x=>x.id===LIVE_SEL);
+    const n=e.key==='j'?Math.min(L.length-1,i+1):Math.max(0,i-1);
+    if(L[n]){ LIVE_SEL=L[n].id; SEL=L[n].id; render(); const el=document.querySelector('.jcard[data-live].on'); if(el) el.scrollIntoView({block:'nearest'}); }
+  }
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   BOOT
+   ══════════════════════════════════════════════════════════════════════ */
+(function boot(){
+  const steps=[[18,'loading listings'],[42,'indexing salary data'],[66,'restoring your board'],[88,'building calendar'],[100,'ready']];
+  let i=0;
+  const tick=()=>{
+    if(i>=steps.length){
+      paintTabs(); go('jobs');
+      const b=$('#boot'); b.style.opacity='0'; setTimeout(()=>b.remove(),520);
+      if(FIRSTRUN) setTimeout(()=>toast('Press / to search, 1\u20136 for tabs, J/K to move through jobs.'),900);
+      return;
+    }
+    $('#bootBar').style.width=steps[i][0]+'%';
+    $('#bootMsg').textContent=steps[i][1];
+    i++; setTimeout(tick,170);
+  };
+  tick();
+})();
+</script>
+</body>
+</html>
