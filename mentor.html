@@ -1,0 +1,1725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MENTOR · Aviation Mentee Console</title>
+<style>
+:root{
+  --void:#0b0f14; --surface:#121a23; --surface2:#17222e; --raised:#1b2836;
+  --horizon:#1e2c3a; --horizon2:#2a3d4f;
+  --ink:#dde8f0; --dim:#7d94a6; --faint:#546878;
+  --cyan:#38e8d0; --cyan-deep:#1a9d8e; --amber:#ffb84d; --amber-deep:#b8801f;
+  --climb:#4ade80; --descent:#ff6b7a; --violet:#a78bfa;
+  --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,sans-serif;
+}
+[data-theme="light"]{
+  --void:#eef3f7; --surface:#ffffff; --surface2:#f4f8fb; --raised:#ffffff;
+  --horizon:#dbe5ec; --horizon2:#c3d2dd;
+  --ink:#12222e; --dim:#5a7285; --faint:#8ba0b0;
+  --cyan:#0ea89a; --cyan-deep:#0b7d72; --amber:#d98815; --amber-deep:#9c6410;
+  --climb:#18a558; --descent:#e0455a; --violet:#7159d6;
+}
+*{box-sizing:border-box}
+::selection{background:rgba(56,232,208,.25)}
+body{margin:0;background:var(--void);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 15% -5%,rgba(56,232,208,.06),transparent 55%),
+    radial-gradient(ellipse 60% 40% at 95% 0%,rgba(255,184,77,.045),transparent 50%);
+  background-attachment:fixed;}
+[data-theme="light"] body,[data-theme="light"]{background-image:
+    radial-gradient(ellipse 80% 50% at 15% -5%,rgba(14,168,154,.08),transparent 55%),
+    radial-gradient(ellipse 60% 40% at 95% 0%,rgba(217,136,21,.06),transparent 50%);}
+[data-theme="light"] .rail{background:linear-gradient(180deg,#ffffff,#eef3f7)}
+[data-theme="light"] .badge,[data-theme="light"] .pBadge{color:#fff}
+[data-theme="light"] .btn.go{color:#04312c} [data-theme="light"] .btn.amber{color:#3d2600}
+[data-theme="light"] .heatInit{color:rgba(255,255,255,.95)}
+[data-theme="light"] .markName{background:linear-gradient(100deg,#0b7d72,#0ea89a);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0;font-weight:750;letter-spacing:-.015em}
+button{font-family:inherit}
+a{color:inherit}
+
+/* ── app shell ── */
+.app{display:flex;min-height:100vh}
+.rail{width:216px;flex:none;background:linear-gradient(180deg,var(--surface),var(--void));
+  border-right:1px solid var(--horizon);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:10}
+.mark{padding:22px 20px 18px;border-bottom:1px solid var(--horizon)}
+.markName{font-family:var(--mono);font-weight:700;letter-spacing:.3em;font-size:17px;
+  background:linear-gradient(100deg,var(--cyan),#7ff0e2);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.markSub{font-family:var(--mono);font-size:8px;letter-spacing:.16em;color:var(--faint);margin-top:6px;text-transform:uppercase;line-height:1.5}
+.nav{padding:14px 12px;flex:1}
+.navLabel{font-family:var(--mono);font-size:8px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase;padding:8px 12px 6px}
+.navItem{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--dim);
+  font-size:13px;font-weight:560;transition:all .16s;margin-bottom:2px;position:relative}
+.navItem:hover{background:var(--surface2);color:var(--ink)}
+.navItem.on{background:linear-gradient(90deg,rgba(56,232,208,.13),rgba(56,232,208,.02));color:var(--cyan)}
+.navItem.on::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+.navIco{width:17px;text-align:center;font-size:14px}
+.railFoot{padding:12px;border-top:1px solid var(--horizon);display:flex;flex-direction:column;gap:6px}
+.ghost{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;text-align:left;
+  background:none;border:1px solid var(--horizon);border-radius:9px;padding:9px 11px;color:var(--dim);cursor:pointer;transition:.16s}
+.ghost:hover{border-color:var(--cyan-deep);color:var(--cyan)}
+
+.stage{flex:1;min-width:0;padding:28px 34px 70px;max-width:1400px}
+.head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:26px;flex-wrap:wrap;gap:14px}
+.kicker{font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--cyan);text-transform:uppercase;margin-bottom:9px;
+  display:flex;align-items:center;gap:8px}
+.kicker::before{content:"";width:14px;height:1px;background:var(--cyan);display:inline-block}
+.title{font-size:29px;line-height:1.05}
+.lede{color:var(--dim);font-size:13.5px;margin-top:7px;max-width:620px}
+
+/* ── instrument tiles ── */
+.readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:28px}
+.gauge{border:1px solid var(--horizon);border-radius:16px;padding:17px 18px;background:var(--surface);position:relative;overflow:hidden;
+  transition:border-color .2s,transform .2s}
+.gauge:hover{border-color:var(--horizon2);transform:translateY(-1px)}
+.gauge::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accentc,var(--cyan));opacity:.55}
+.gauge.c-amber{--accentc:var(--amber)} .gauge.c-red{--accentc:var(--descent)} .gauge.c-green{--accentc:var(--climb)} .gauge.c-violet{--accentc:var(--violet)}
+.gNum{font-family:var(--mono);font-size:33px;font-weight:700;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.gLab{font-family:var(--mono);font-size:9px;letter-spacing:.11em;color:var(--dim);text-transform:uppercase;margin-top:10px}
+.gSub{font-size:11px;color:var(--faint);margin-top:3px}
+
+/* ── panels ── */
+.panel{border:1px solid var(--horizon);border-radius:16px;background:var(--surface);padding:20px;margin-bottom:18px}
+.panelHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px}
+.panelTitle{font-size:15px;font-weight:680;display:flex;align-items:center;gap:9px}
+.panelTitle .dotc{width:7px;height:7px;border-radius:50%;background:var(--cyan)}
+.tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.09em;color:var(--faint);text-transform:uppercase}
+
+/* ── toolbar / inputs ── */
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+.field{background:var(--surface2);border:1px solid var(--horizon);border-radius:10px;padding:10px 13px;color:var(--ink);font-size:13px;font-family:inherit;transition:border-color .16s}
+.field:focus{outline:none;border-color:var(--cyan)}
+.field::placeholder{color:var(--faint)}
+select.field{cursor:pointer;-webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237d94a6' fill='none' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
+label.fl{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+textarea.field{width:100%;resize:vertical;min-height:70px;line-height:1.55}
+
+.btn{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
+  border:1px solid var(--horizon);border-radius:10px;padding:11px 17px;background:var(--surface2);color:var(--ink);
+  transition:all .16s;font-weight:600}
+.btn:hover{border-color:var(--horizon2)}
+.btn.go{background:linear-gradient(100deg,var(--cyan),#6ceada);color:#052420;border:none;box-shadow:0 6px 20px -8px var(--cyan)}
+.btn.go:hover{filter:brightness(1.07);transform:translateY(-1px)}
+.btn.amber{background:linear-gradient(100deg,var(--amber),#ffce80);color:#3d2600;border:none}
+.btn.sm{padding:7px 12px;font-size:9px}
+.btn.danger:hover{border-color:var(--descent);color:var(--descent)}
+
+/* ── student cards / grid ── */
+.fleet{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:13px}
+.strip{border:1px solid var(--horizon);border-radius:14px;background:var(--surface);padding:15px;cursor:pointer;
+  transition:transform .16s,border-color .16s,box-shadow .16s;position:relative;overflow:hidden}
+.strip:hover{transform:translateY(-2px);border-color:var(--cyan-deep);box-shadow:0 12px 30px -18px var(--cyan)}
+.stripTop{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+.badge{width:40px;height:40px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;font-size:14px;color:var(--void);background:linear-gradient(135deg,var(--cyan),var(--cyan-deep));
+  box-shadow:0 4px 14px -6px var(--cyan)}
+.badge.risk{background:linear-gradient(135deg,var(--descent),#c04352);box-shadow:0 4px 14px -6px var(--descent)}
+.badge.new{background:linear-gradient(135deg,var(--amber),var(--amber-deep));box-shadow:0 4px 14px -6px var(--amber)}
+.sName{font-size:13.5px;font-weight:650;line-height:1.2}
+.sReg{font-family:var(--mono);font-size:9px;color:var(--faint);margin-top:3px;letter-spacing:.04em}
+/* trajectory bar — the signature element */
+.traj{height:5px;border-radius:3px;background:var(--horizon);position:relative;overflow:hidden;margin:12px 0 9px}
+.trajFill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:linear-gradient(90deg,var(--cyan-deep),var(--cyan));transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.trajFill.risk{background:linear-gradient(90deg,#8a3540,var(--descent))}
+.trajFill.new{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
+.trajMeta{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.chip{font-family:var(--mono);font-size:8px;letter-spacing:.05em;padding:3px 8px;border-radius:20px;border:1px solid var(--horizon);color:var(--dim);white-space:nowrap}
+.chip.goal{color:var(--cyan);border-color:var(--cyan-deep)}
+.chip.risk{color:var(--descent);border-color:rgba(255,107,122,.4);background:rgba(255,107,122,.08)}
+.chip.ok{color:var(--climb);border-color:rgba(74,222,128,.35)}
+.chip.new{color:var(--amber);border-color:rgba(255,184,77,.35)}
+
+.empty{text-align:center;padding:44px;color:var(--faint);font-family:var(--mono);font-size:11px}
+.empty .e1{font-size:14px;color:var(--dim);margin-bottom:7px;font-family:var(--sans)}
+
+/* ── toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+  background:var(--raised);border:1px solid var(--horizon2);border-radius:11px;padding:12px 20px;font-size:13px;
+  transition:.25s cubic-bezier(.2,.8,.2,1);z-index:300;pointer-events:none;box-shadow:0 16px 40px -16px #000}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.hidden{display:none!important}
+
+/* ── profile view ── */
+.profileTop{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:22px}
+.pBadge{width:72px;height:72px;border-radius:18px;flex:none;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;font-size:26px;color:var(--void);background:linear-gradient(135deg,var(--cyan),var(--cyan-deep));
+  box-shadow:0 8px 24px -8px var(--cyan)}
+.pBadge.risk{background:linear-gradient(135deg,var(--descent),#c04352)} .pBadge.new{background:linear-gradient(135deg,var(--amber),var(--amber-deep))}
+.pInfo{flex:1;min-width:220px}
+.pName{font-size:24px;font-weight:750;letter-spacing:-.01em}
+.pReg{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:5px;letter-spacing:.04em}
+.pContact{display:flex;gap:16px;margin-top:9px;flex-wrap:wrap}
+.pContact span{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.pContact b{color:var(--dim);font-weight:500}
+.backBtn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+  background:none;border:none;cursor:pointer;padding:6px 0;margin-bottom:14px;display:inline-flex;align-items:center;gap:7px}
+.backBtn:hover{color:var(--cyan)}
+
+/* big trajectory readout on profile */
+.glidepath{border:1px solid var(--horizon);border-radius:16px;background:linear-gradient(180deg,var(--surface2),var(--surface));padding:20px;margin-bottom:18px}
+.glideLabels{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.glideTrack{height:10px;border-radius:6px;background:var(--horizon);position:relative;overflow:hidden}
+.glideFill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:linear-gradient(90deg,var(--cyan-deep),var(--cyan));box-shadow:0 0 16px -2px var(--cyan);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.glideFill.risk{background:linear-gradient(90deg,#8a3540,var(--descent));box-shadow:0 0 16px -2px var(--descent)}
+.glideFill.new{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
+.glideStat{display:flex;justify-content:space-between;margin-top:12px;align-items:center;flex-wrap:wrap;gap:10px}
+.glidePct{font-family:var(--mono);font-size:22px;font-weight:700}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.two{grid-template-columns:1fr}}
+
+/* tags/lists inside profile */
+.taglist{display:flex;flex-wrap:wrap;gap:7px}
+.taglist .t{font-size:12px;padding:5px 11px;border-radius:8px;background:var(--surface2);border:1px solid var(--horizon);display:inline-flex;align-items:center;gap:7px}
+.taglist .t.strength{border-color:rgba(74,222,128,.3);color:#a8f0c4}
+.taglist .t.weak{border-color:rgba(255,184,77,.3);color:#ffd9a0}
+.taglist .t.skill{border-color:rgba(167,139,250,.3);color:#d0c2fc}
+.taglist .t x{cursor:pointer;color:var(--faint);font-size:13px;line-height:1}
+.taglist .t x:hover{color:var(--descent)}
+.addRow{display:flex;gap:8px;margin-top:12px}
+.addRow .field{flex:1}
+
+/* POA waypoints */
+.waypoint{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--horizon)}
+.waypoint:last-child{border-bottom:none}
+.wpCheck{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--horizon2);flex:none;cursor:pointer;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;transition:.16s;color:transparent;font-size:12px}
+.wpCheck:hover{border-color:var(--cyan)}
+.wpCheck.done{background:var(--cyan);border-color:var(--cyan);color:var(--void)}
+.wpBody{flex:1;min-width:0}
+.wpText{font-size:13px;line-height:1.5}
+.wpText.done{color:var(--faint);text-decoration:line-through}
+.wpMeta{font-family:var(--mono);font-size:9px;color:var(--faint);margin-top:4px;display:flex;gap:10px;align-items:center}
+.wpMeta .overdue{color:var(--descent)}
+.wpDel{background:none;border:none;color:var(--faint);cursor:pointer;font-size:13px;flex:none}
+.wpDel:hover{color:var(--descent)}
+
+/* timeline */
+.timeline{position:relative;padding-left:22px}
+.timeline::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--horizon)}
+.tlItem{position:relative;padding:0 0 20px 0}
+.tlItem::before{content:"";position:absolute;left:-22px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--cyan);box-shadow:0 0 0 3px var(--surface)}
+.tlItem:last-child{padding-bottom:0}
+.tlDate{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--cyan);text-transform:uppercase;margin-bottom:5px}
+.tlNotes{font-size:13px;line-height:1.55;color:var(--ink)}
+.tlSub{font-size:12px;color:var(--dim);margin-top:6px;line-height:1.5}
+.tlSub b{color:var(--dim);font-weight:600}
+
+/* ── modal ── */
+.scrim{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:rgba(5,8,11,.75);backdrop-filter:blur(7px)}
+.scrim[hidden]{display:none!important}
+.modal{position:relative;width:min(560px,95vw);max-height:86vh;overflow:auto;border:1px solid var(--horizon2);border-radius:20px;
+  background:linear-gradient(180deg,var(--surface2),var(--surface));padding:26px;box-shadow:0 40px 90px -30px #000;
+  animation:mIn .4s cubic-bezier(.2,.9,.25,1.05)}
+@keyframes mIn{from{opacity:0;transform:translateY(20px) scale(.96)}to{opacity:1;transform:none}}
+.mClose{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--dim);font-size:17px;cursor:pointer;line-height:1}
+.mClose:hover{color:var(--ink)}
+.field.full{width:100%;margin-bottom:12px}
+
+@media(max-width:820px){
+  .app{flex-direction:column}
+  .rail{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
+  .mark{border-bottom:none;border-right:1px solid var(--horizon)}
+  .nav{display:flex;flex:1;padding:8px;overflow-x:auto;align-items:center}
+  .navLabel{display:none} .navItem{white-space:nowrap;margin-bottom:0}
+  .railFoot{flex-direction:row;border-top:none}
+  .stage{padding:18px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  /* Stage 3 analytics */
+  .heatmap{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:6px}
+  .heatCell{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    border:1px solid rgba(255,255,255,.06);transition:transform .12s,box-shadow .12s;position:relative}
+  .heatCell:hover{transform:scale(1.12);box-shadow:0 6px 18px -6px #000;z-index:2;border-color:var(--cyan)}
+  .heatInit{font-family:var(--mono);font-size:10px;font-weight:700;color:rgba(255,255,255,.9);text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .heatKey{display:flex;align-items:center;gap:10px;margin-top:14px;font-family:var(--mono);font-size:9px;color:var(--faint)}
+  .heatGrad{flex:1;height:7px;border-radius:4px;background:linear-gradient(90deg,hsl(0 65% 20%),hsl(65 65% 30%),hsl(130 65% 40%))}
+  .trackRow{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid var(--horizon);cursor:pointer;transition:padding-left .14s}
+  .trackRow:last-child{border-bottom:none}
+  .trackRow:hover{padding-left:6px}
+
+
+  /* rated skills */
+  .skillRow{border:1px solid var(--horizon);border-radius:11px;padding:12px 13px;margin-bottom:10px;background:var(--surface2)}
+  .skillTop{display:flex;align-items:center;gap:12px;margin-bottom:9px}
+  .skillName{flex:1;min-width:0;font-size:13px;font-weight:600}
+  .skillLvl{display:flex;align-items:center;gap:5px}
+  .lvlDot{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--horizon2);cursor:pointer;transition:.14s;background:transparent}
+  .lvlDot:hover{border-color:var(--cyan)}
+  .lvlDot.on{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px -2px var(--cyan)}
+  .lvlLabel{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.05em;margin-left:6px;min-width:64px}
+  .skillNote{width:100%;font-size:12px;padding:8px 10px}
+  .addSkillRow{display:flex;gap:8px;margin-top:12px}
+
+
+  /* AI assist */
+  .aiSpin{width:32px;height:32px;border-radius:50%;border:3px solid var(--horizon);border-top-color:var(--violet);animation:aiSpin .8s linear infinite;margin:0 auto}
+  @keyframes aiSpin{to{transform:rotate(360deg)}}
+  .aiPick{display:flex;align-items:flex-start;gap:10px;padding:11px;border:1px solid var(--horizon);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--surface2)}
+  .aiPick:hover{border-color:var(--violet)}
+  .aiPick input{margin-top:3px;accent-color:var(--violet)}
+  .aiPick span{font-size:13px;line-height:1.5}
+
+
+  /* Stage 5 section dividers */
+  .sectionRule{display:flex;align-items:center;gap:14px;margin:26px 0 16px}
+  .sectionRule::before,.sectionRule::after{content:"";height:1px;background:var(--horizon);flex:1}
+  .sectionRule span{font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan)}
+
+
+  /* Stage 6 · bulk + groups + roadmap + notes */
+  .segmented{display:inline-flex;border:1px solid var(--horizon);border-radius:11px;overflow:hidden}
+  .segBtn{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;background:var(--surface);color:var(--dim);border:none;cursor:pointer;transition:.15s}
+  .segBtn:hover{color:var(--ink)}
+  .segBtn.on{background:linear-gradient(100deg,rgba(56,232,208,.16),rgba(56,232,208,.03));color:var(--cyan)}
+  .bulkHead{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--horizon);font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);background:var(--surface2)}
+  .bulkRow{display:flex;gap:12px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--horizon);transition:background .12s}
+  .bulkRow:last-child{border-bottom:none}
+  .bulkRow:hover{background:var(--surface2)}
+  .groupGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+  .groupChip{display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--horizon);border-radius:10px;background:var(--surface2);cursor:pointer;transition:.14s}
+  .groupChip:hover{border-color:var(--cyan-deep);transform:translateY(-1px)}
+  .roadTrack{height:8px;border-radius:5px;background:var(--horizon);overflow:hidden}
+  .roadFill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--cyan-deep),var(--cyan));box-shadow:0 0 12px -2px var(--cyan);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+  .roadItem .roadDot{position:absolute;left:-22px;top:2px;width:22px;height:22px;border-radius:50%;background:var(--surface);border:2px solid var(--horizon2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--void);transition:.15s;box-shadow:0 0 0 3px var(--surface)}
+  .roadItem .roadDot.done{background:var(--cyan);border-color:var(--cyan)}
+  .roadItem .roadDot:hover{border-color:var(--cyan)}
+  .roadItem::before{display:none}
+  #noteResults mark{background:rgba(56,232,208,.28);color:var(--ink);border-radius:3px;padding:0 2px}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="mark">
+      <div class="markName">MENTOR</div>
+      <div class="markSub">II B.Sc Aeronautical · Sec A<br>VISTAS · AY 2026-27</div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="navLabel">Console</div>
+      <div class="navItem on" data-view="overview"><span class="navIco">◈</span> Overview</div>
+      <div class="navItem" data-view="roster"><span class="navIco">▦</span> Fleet roster</div>
+      <div class="navItem" data-view="log"><span class="navIco">✎</span> Log a session</div>
+      <div class="navItem" data-view="bulk"><span class="navIco">⊞</span> Bulk &amp; groups</div>
+      <div class="navLabel">Planning</div>
+      <div class="navItem" data-view="analytics"><span class="navIco">◐</span> Analytics</div>
+      <div class="navItem" data-view="reports"><span class="navIco">▤</span> Reports</div>
+      <div class="navItem" data-view="roadmap"><span class="navIco">◇</span> Roadmap</div>
+    </nav>
+    <div class="railFoot">
+      <button class="ghost" id="themeBtn">◐ Day / night</button>
+      <button class="ghost" id="exportBtn">↓ Back up data</button>
+      <button class="ghost" id="importBtn">↑ Restore</button>
+      <input type="file" id="importFile" accept="application/json" class="hidden">
+    </div>
+  </aside>
+  <main class="stage" id="stage"></main>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- session / edit modal -->
+<div class="scrim" id="scrim" hidden>
+  <div class="modal" id="modalBody"></div>
+</div>
+
+<script>
+const SEED_STUDENTS=[{"id":"25153101","sno":1,"name":"ABINAYA S","reg":"25153101","phone":"8072876279","parent":"8680090096","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153102","sno":2,"name":"ADHITYA K","reg":"25153102","phone":"9933265007","parent":"8972266792","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153103","sno":3,"name":"AKSHAYA G","reg":"25153103","phone":"7708513049","parent":"9952098145","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153104","sno":4,"name":"ALBERT JANA J","reg":"25153104","phone":"6385048665","parent":"9715909230","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153105","sno":5,"name":"ANJANA M V","reg":"25153105","phone":"8590581370","parent":"9995301555","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153107","sno":6,"name":"BHAKTHI G NICHANI","reg":"25153107","phone":"7498681254","parent":"9884295032","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153109","sno":7,"name":"DURGA M","reg":"25153109","phone":"8778483677","parent":"8056553583","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153110","sno":8,"name":"FAKRUDIN T DHARWAD","reg":"25153110","phone":"8792664302","parent":"9449964302","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153111","sno":9,"name":"FASNA V SHIHAB","reg":"25153111","phone":"9778742751","parent":"7736182904","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153112","sno":10,"name":"GAYATHRI G","reg":"25153112","phone":"9080700557","parent":"9092235349","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153113","sno":11,"name":"GOKUL LIWA S","reg":"25153113","phone":"8903766167","parent":"9444278467","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153114","sno":12,"name":"GUNGUN TAMBOLI","reg":"25153114","phone":"7999117247","parent":"9827174212","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153115","sno":13,"name":"HANA FATHIMA K M","reg":"25153115","phone":"9037461476","parent":"9847228278","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153116","sno":14,"name":"JEEVAN NISANTH K","reg":"25153116","phone":"9790796655","parent":"9952913747","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153117","sno":15,"name":"JOYEL FELIX H","reg":"25153117","phone":"9385577978","parent":"8608871978","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153118","sno":16,"name":"KANISHKA S","reg":"25153118","phone":"9342796598","parent":"8973454199","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153119","sno":17,"name":"KEVIN FRANCIS C R","reg":"25153119","phone":"9500676947","parent":"9962083779","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153120","sno":18,"name":"MATHUMITHA M","reg":"25153120","phone":"7200490407","parent":"9840863113","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153121","sno":19,"name":"MITHUNESH S","reg":"25153121","phone":"7092670206","parent":"9842133206","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153122","sno":20,"name":"MOHAMED SAMEE J","reg":"25153122","phone":"8838407130","parent":"8122855336","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153123","sno":21,"name":"M ROSHNI","reg":"25153123","phone":"9025896571","parent":"8903689497","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153124","sno":22,"name":"MUNAFARSHARIF S","reg":"25153124","phone":"7358201099","parent":"9487760676","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153125","sno":23,"name":"NITHIN R","reg":"25153125","phone":"9342532240","parent":"9750939432","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153126","sno":24,"name":"NIVIN M","reg":"25153126","phone":"9344836769","parent":"","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153127","sno":25,"name":"RAKESH S","reg":"25153127","phone":"9360065409","parent":"9790093016","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153128","sno":26,"name":"RAKSHA NIVASINI","reg":"25153128","phone":"7845789191","parent":"7845779192","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153129","sno":27,"name":"RINO M REJI","reg":"25153129","phone":"9846723677","parent":"9495114423","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153130","sno":28,"name":"ROSHAN JERALD","reg":"25153130","phone":"9902053328","parent":"9884176971","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153131","sno":29,"name":"SAISARAN S","reg":"25153131","phone":"7397305143","parent":"9789763664","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153132","sno":30,"name":"SAI VISHNU A","reg":"25153132","phone":"","parent":"","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153133","sno":31,"name":"S MANASSEH PAUL","reg":"25153133","phone":"9390586304","parent":"9676904233","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153134","sno":32,"name":"SRADHA MANOJ","reg":"25153134","phone":"8304905130","parent":"8848449418","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153135","sno":33,"name":"SYED AHAMED M N","reg":"25153135","phone":"7092525845","parent":"7845540490","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153136","sno":34,"name":"VENKATESAN S","reg":"25153136","phone":"7200024383","parent":"","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153137","sno":35,"name":"VIJAY S","reg":"25153137","phone":"8088622672","parent":"9448009403","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153138","sno":36,"name":"VUPPU BHAVASRI","reg":"25153138","phone":"7981936455","parent":"8639544767","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153139","sno":37,"name":"YESWANTHSIVA R","reg":"25153139","phone":"8939211275","parent":"9080614843","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153140","sno":38,"name":"LENA FATAHIMA BASHEER","reg":"25153140","phone":"7510882066","parent":"8606898494","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153141","sno":39,"name":"MOHAMMED FAIZUDEEN S","reg":"25153141","phone":"8838977579","parent":"9940286374","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153142","sno":40,"name":"NISHAANTH S U","reg":"25153142","phone":"9345441709","parent":"9841959003","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153143","sno":41,"name":"SABARINATHAN R","reg":"25153143","phone":"9025741421","parent":"9445169918","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"25153144","sno":42,"name":"DIBYAJYOTHI SUMAN BARMAN","reg":"25153144","phone":"9832617362","parent":"9832617362","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""},{"id":"23153145","sno":43,"name":"MOHANNED","reg":"23153145","phone":"8589868801","parent":"7356568890","expertise":"","goal":"","standing":"","strengths":[],"weaknesses":[],"skills":[],"sessions":[],"poa":[],"created":""}];
+/* ═══════════════════════ MENTOR · Stage 2 ═══════════════════════ */
+const LS='mentor.v1';
+/* Stage 4 · AI assist — paste your mentor-ai-proxy Groq worker URL to switch on. Empty = AI buttons show a setup hint. */
+const AI_PROXY='https://mentor-ai-proxy.jhrishi7.workers.dev';
+const store={
+  load(){ try{ const v=localStorage.getItem(LS); return v?JSON.parse(v):null; }catch(e){ return null; } },
+  save(){ try{ localStorage.setItem(LS,JSON.stringify(DB)); }catch(e){ toast('Save failed — storage may be full'); } }
+};
+
+/* the full aviation-role taxonomy for career goals */
+const ROLES=[
+  'Pilot — CPL/ATPL track','Cabin Crew','Aircraft Maintenance Engineer (AME)','Avionics Engineer',
+  'Aerospace / Design Engineer','Air Traffic Controller (ATC)','Flight Dispatcher','Ground Operations & Dispatch',
+  'Airport Operations','Aviation Safety / Quality (QA)','Drone / UAV Operations','UAV / Drone Design Engineer',
+  'Aviation Management','Aircraft Manufacturing / Production','MRO Engineer','Airline Cabin Services',
+  'Aviation Meteorology','Aviation Entrepreneur / Startup','Aviation Sales & Marketing','Cargo & Logistics',
+  'Airline Operations Control','Aviation Law & Regulation','Space / Satellite Engineering','Aviation Data / Analytics',
+  'Flight Instructor / Ground Instructor','Airline Customer Experience','Aviation HR & Training','Higher Studies / Research'
+];
+/* what each role most needs — used for gap hints */
+const ROLE_NEEDS={
+  'Pilot — CPL/ATPL track':['Class 1 medical','Strong physics & maths','English proficiency','Discipline & decision-making','DGCA CPL ground subjects'],
+  'Cabin Crew':['Communication & poise','Grooming standards','First-aid awareness','Languages','Customer service'],
+  'Aircraft Maintenance Engineer (AME)':['AME licence path','Practical/hands-on aptitude','Systems knowledge','Attention to detail','Safety discipline'],
+  'Avionics Engineer':['Electronics fundamentals','Instrumentation','Troubleshooting','Embedded/systems basics'],
+  'Aerospace / Design Engineer':['CAD (CATIA)','Aerodynamics/structures','CFD/FEA basics','Maths & mechanics','Projects portfolio'],
+  'Air Traffic Controller (ATC)':['Spatial reasoning','Clear communication','Composure under pressure','English proficiency','Quick decisions'],
+  'Ground Operations & Dispatch':['Load & balance basics','Coordination','Time management','Safety procedures'],
+  'Airport Operations':['Operational awareness','Coordination','Regulatory basics','Communication'],
+  'Aviation Safety / Quality (QA)':['SMS awareness','Documentation','Regulatory knowledge (DGCA/EASA)','Analytical mindset'],
+  'Drone / UAV Operations':['RPAS regulations','Flight planning','Basic electronics','Situational awareness'],
+  'Aviation Management':['Communication & leadership','Commercial awareness','Planning','Analytical skills'],
+  'Aircraft Manufacturing / Production':['Assembly/tooling basics','Quality control','Lean awareness','Practical aptitude'],
+  'Airline Cabin Services':['Service orientation','Communication','Teamwork','Grooming'],
+  'Flight Dispatcher':['Meteorology basics','Flight planning','Regulations','Decision-making'],
+  'Aviation Meteorology':['Physics & maths','Weather systems','Data interpretation','Attention to detail'],
+  'Higher Studies / Research':['Strong fundamentals','Research aptitude','Maths rigor','Writing & analysis']
+};
+
+/* industry skills the mentor can rate a cadet on */
+const SKILL_LIBRARY=[
+  'Communication','Teamwork','Leadership','Discipline','Time management','Problem solving',
+  'English proficiency','Physics fundamentals','Mathematics','Decision-making','Situational awareness',
+  'Aerodynamics','Aircraft systems','Avionics & electronics','CAD / CATIA','CFD / FEA analysis',
+  'Structures & materials','Troubleshooting','Instrumentation','Programming / coding','Data analysis',
+  'Meteorology','Navigation','Air traffic procedures','Load & balance','Flight planning',
+  'Safety & SMS awareness','Regulatory knowledge (DGCA/EASA)','Quality control','Documentation',
+  'Customer service','Grooming & presentation','First aid awareness','Languages','Commercial awareness',
+  'Project management','Presentation skills','Research aptitude','Manufacturing / assembly','Drone operation'
+];
+/* recommended skills per role — surfaced as suggestions on the profile */
+const ROLE_SKILLS={
+  'Pilot — CPL/ATPL track':['Physics fundamentals','Mathematics','Decision-making','Situational awareness','Navigation','Flight planning','English proficiency','Discipline'],
+  'Cabin Crew':['Communication','Customer service','Grooming & presentation','First aid awareness','Languages','Teamwork'],
+  'Aircraft Maintenance Engineer (AME)':['Aircraft systems','Troubleshooting','Safety & SMS awareness','Documentation','Discipline','Regulatory knowledge (DGCA/EASA)'],
+  'Avionics Engineer':['Avionics & electronics','Instrumentation','Troubleshooting','Programming / coding','Problem solving'],
+  'Aerospace / Design Engineer':['CAD / CATIA','CFD / FEA analysis','Aerodynamics','Structures & materials','Mathematics','Project management'],
+  'Air Traffic Controller (ATC)':['Situational awareness','Communication','Decision-making','Air traffic procedures','English proficiency'],
+  'Flight Dispatcher':['Flight planning','Meteorology','Regulatory knowledge (DGCA/EASA)','Decision-making','Load & balance'],
+  'Ground Operations & Dispatch':['Load & balance','Teamwork','Time management','Safety & SMS awareness','Communication'],
+  'Airport Operations':['Situational awareness','Communication','Regulatory knowledge (DGCA/EASA)','Teamwork'],
+  'Aviation Safety / Quality (QA)':['Safety & SMS awareness','Documentation','Regulatory knowledge (DGCA/EASA)','Quality control','Data analysis'],
+  'Drone / UAV Operations':['Drone operation','Flight planning','Situational awareness','Regulatory knowledge (DGCA/EASA)'],
+  'UAV / Drone Design Engineer':['CAD / CATIA','Avionics & electronics','Programming / coding','Aerodynamics','Problem solving'],
+  'Aviation Management':['Leadership','Communication','Commercial awareness','Project management','Data analysis'],
+  'Aircraft Manufacturing / Production':['Manufacturing / assembly','Quality control','Documentation','Teamwork'],
+  'MRO Engineer':['Aircraft systems','Troubleshooting','Quality control','Documentation','Regulatory knowledge (DGCA/EASA)'],
+  'Airline Cabin Services':['Customer service','Communication','Teamwork','Grooming & presentation'],
+  'Aviation Meteorology':['Meteorology','Physics fundamentals','Data analysis','Mathematics'],
+  'Aviation Entrepreneur / Startup':['Leadership','Commercial awareness','Problem solving','Communication','Project management','Presentation skills'],
+  'Aviation Sales & Marketing':['Communication','Commercial awareness','Presentation skills','Customer service'],
+  'Cargo & Logistics':['Load & balance','Time management','Documentation','Commercial awareness'],
+  'Airline Operations Control':['Decision-making','Flight planning','Meteorology','Communication','Situational awareness'],
+  'Aviation Law & Regulation':['Regulatory knowledge (DGCA/EASA)','Documentation','English proficiency','Research aptitude'],
+  'Space / Satellite Engineering':['Mathematics','Physics fundamentals','Programming / coding','Structures & materials','Research aptitude'],
+  'Aviation Data / Analytics':['Data analysis','Programming / coding','Mathematics','Problem solving'],
+  'Flight Instructor / Ground Instructor':['Communication','Presentation skills','Aircraft systems','Discipline','Patience & teaching'],
+  'Airline Customer Experience':['Customer service','Communication','Problem solving','Commercial awareness'],
+  'Aviation HR & Training':['Communication','Leadership','Presentation skills','Documentation'],
+  'Higher Studies / Research':['Research aptitude','Mathematics','Physics fundamentals','Presentation skills','Programming / coding']
+};
+const SKILL_LEVELS=['Not assessed','Beginner','Developing','Competent','Proficient','Expert'];
+
+/* standardized strengths & gaps — consistent terms make batch analytics meaningful */
+const STRENGTH_LIBRARY=[
+  'Strong academics','Physics aptitude','Mathematics aptitude','Communication','Confident speaker',
+  'Leadership','Teamwork','Discipline','Punctuality','Hard-working','Self-motivated','Quick learner',
+  'Practical/hands-on','Attention to detail','Problem solving','Creativity','Curiosity','Well-organised',
+  'Calm under pressure','Good English','Multilingual','Presentation skills','Technical skills','CAD/design skills',
+  'Coding aptitude','Analytical thinking','Professional attitude','Good grooming','Networking','Initiative'
+];
+const GAP_LIBRARY=[
+  'Low confidence','Weak English','Communication gaps','Shy / reserved','Poor time management','Inconsistent attendance',
+  'Weak in maths','Weak in physics','Weak fundamentals','Exam anxiety','Lacks focus','Procrastination','Low participation',
+  'Needs technical depth','Limited practical exposure','Weak presentation skills','Struggles under pressure',
+  'Unclear career direction','Low initiative','Needs discipline','Financial constraints','Health/attendance issues',
+  'Weak general awareness','Limited computer skills','Needs interview prep'
+];
+
+let DB=store.load();
+if(!DB||!DB.students){
+  DB={ students: SEED_STUDENTS.map(s=>({...s, created:new Date().toISOString()})), meta:{created:new Date().toISOString()} };
+  store.save();
+}
+/* migrate: ensure every student has all fields */
+DB.students.forEach(s=>{
+  s.strengths=s.strengths||[]; s.weaknesses=s.weaknesses||[]; s.skills=s.skills||[];
+  s.sessions=s.sessions||[]; s.poa=s.poa||[]; s.expertise=s.expertise||''; s.goal=s.goal||''; s.standing=s.standing||''; s.history=s.history||[];
+  /* rated skills: [{skill, level(0-5), note}] */
+  if(!s.ratedSkills){
+    s.ratedSkills = (s.skills||[]).map(x=> typeof x==='string' ? {skill:x, level:0, note:''} : x);
+  }
+});
+
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tc=s=>String(s).toLowerCase().replace(/\b([a-z])/g,(m,c)=>c.toUpperCase());
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888'; }
+function themeColors(){ return { ink:cssVar('--ink'), dim:cssVar('--dim'), faint:cssVar('--faint'), grid:cssVar('--horizon'),
+  cyan:cssVar('--cyan'), climb:cssVar('--climb'), amber:cssVar('--amber'), descent:cssVar('--descent') }; }
+let TT; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(TT); TT=setTimeout(()=>t.classList.remove('on'),2200); }
+function initials(n){ const p=n.trim().split(/\s+/); return ((p[0]||'')[0]||'')+((p.length>1?p[p.length-1]:'')[0]||''); }
+function fmtDate(iso){ if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
+function daysSince(iso){ if(!iso) return Infinity; return Math.floor((Date.now()-new Date(iso))/864e5); }
+function lastSession(s){ return s.sessions&&s.sessions.length? s.sessions[s.sessions.length-1].date : null; }
+
+/* ── progress + risk model ── */
+function progress(s){
+  /* a simple, transparent 0-100 "readiness" score from what's been captured */
+  let p=0;
+  if(s.goal) p+=18;
+  if(s.expertise) p+=8;
+  if(s.strengths.length) p+=Math.min(12,s.strengths.length*4);
+  const rs=s.ratedSkills||[]; if(rs.length){ const avgLvl=rs.reduce((a,r)=>a+(r.level||0),0)/rs.length; p+=Math.min(10,Math.round(avgLvl/5*10)); }
+  if(s.sessions.length) p+=Math.min(20,s.sessions.length*7);
+  const poaDone=s.poa.filter(x=>x.done).length, poaTot=s.poa.length;
+  if(poaTot) p+=Math.round((poaDone/poaTot)*30);
+  if(!s.weaknesses.length && s.sessions.length) p+=8; /* no open gaps */
+  return Math.max(0,Math.min(100,p));
+}
+function riskReasons(s){
+  const r=[];
+  if(!s.goal) r.push('No career goal set');
+  if(!s.sessions.length) r.push('No session logged yet');
+  else if(daysSince(lastSession(s))>45) r.push('No session in 45+ days');
+  const overdue=s.poa.filter(p=>!p.done && p.due && new Date(p.due)<new Date()).length;
+  if(overdue) r.push(overdue+' overdue action'+(overdue>1?'s':''));
+  if(s.weaknesses.length && !s.poa.length) r.push('Gaps noted, no plan yet');
+  return r;
+}
+function statusOf(s){ if(!s.sessions.length) return 'new'; return riskReasons(s).length?'risk':'ok'; }
+
+let VIEW='overview', CURRENT=null;
+
+function render(){
+  $$('.navItem').forEach(n=>n.classList.toggle('on',n.dataset.view===VIEW && !CURRENT));
+  const st=$('#stage');
+  if(CURRENT){ st.innerHTML=profileView(CURRENT); wireProfile(); return; }
+  if(VIEW==='overview'){ st.innerHTML=overviewView(); wireOverview(); }
+  else if(VIEW==='roster'){ st.innerHTML=rosterView(); wireRoster(); }
+  else if(VIEW==='log'){ st.innerHTML=logView(); wireLog(); }
+  else if(VIEW==='bulk'){ st.innerHTML=bulkView(); wireBulk(); }
+  else if(VIEW==='analytics'){ st.innerHTML=analyticsView(); wireAnalytics(); }
+  else if(VIEW==='reports'){ st.innerHTML=reportsView(); wireReports(); }
+  else if(VIEW==='roadmap'){ st.innerHTML=roadmapView(); wireRoadmap(); }
+}
+
+/* ─────────── OVERVIEW ─────────── */
+function overviewView(){
+  const S=DB.students;
+  const goals=S.filter(s=>s.goal).length;
+  const sess=S.reduce((a,s)=>a+s.sessions.length,0);
+  const risk=S.filter(s=>statusOf(s)==='risk').length;
+  const newc=S.filter(s=>statusOf(s)==='new').length;
+  const poaOpen=S.reduce((a,s)=>a+s.poa.filter(p=>!p.done).length,0);
+  const avg=Math.round(S.reduce((a,s)=>a+progress(s),0)/S.length);
+  /* goal distribution */
+  const dist={}; S.forEach(s=>{ if(s.goal) dist[s.goal]=(dist[s.goal]||0)+1; });
+  const distSorted=Object.entries(dist).sort((a,b)=>b[1]-a[1]);
+  const attention=S.filter(s=>statusOf(s)==='risk').slice(0,6);
+  return `
+    <div class="head"><div>
+      <div class="kicker">Batch command · ${sess} sessions logged</div>
+      <h1 class="title">Cohort overview</h1>
+      <div class="lede">43 cadets on the path from classroom to career. Track where each stands, log every mentoring session, and see the whole batch at a glance.</div>
+    </div>
+    <button class="btn go" id="quickLog">✎ Log a session</button></div>
+
+    <div class="readout">
+      <div class="gauge"><div class="gNum">43</div><div class="gLab">Cadets</div><div class="gSub">full batch</div></div>
+      <div class="gauge c-violet"><div class="gNum">${avg}<span style="font-size:16px;color:var(--faint)">%</span></div><div class="gLab">Avg readiness</div><div class="gSub">across cohort</div></div>
+      <div class="gauge c-green"><div class="gNum">${goals}</div><div class="gLab">Goals set</div><div class="gSub">${43-goals} to define</div></div>
+      <div class="gauge c-amber"><div class="gNum">${sess}</div><div class="gLab">Sessions</div><div class="gSub">logged total</div></div>
+      <div class="gauge c-red"><div class="gNum">${risk}</div><div class="gLab">Need attention</div><div class="gSub">${newc} not yet met</div></div>
+      <div class="gauge"><div class="gNum">${poaOpen}</div><div class="gLab">Open actions</div><div class="gSub">across plans</div></div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc"></span>Where the batch is heading</div><span class="tag">Goal spread</span></div>
+        ${distSorted.length? distSorted.map(([g,n])=>{
+          const pct=Math.round(n/goals*100);
+          return `<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span>${esc(g)}</span><span class="mono" style="color:var(--dim)">${n}</span></div>
+            <div class="traj" style="margin:0"><div class="trajFill" style="width:${pct}%"></div></div></div>`;
+        }).join('') : '<div class="empty" style="padding:24px"><div class="e1">No goals set yet</div>Open a cadet and set their career goal to see the spread.</div>'}
+      </div>
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--descent)"></span>Needs your attention</div><span class="tag">Flagged</span></div>
+        ${attention.length? attention.map(s=>{
+          const r=riskReasons(s);
+          return `<div class="waypoint" data-open="${esc(s.id)}" style="cursor:pointer;border-bottom:1px solid var(--horizon)">
+            <div class="badge risk" style="width:34px;height:34px;font-size:12px">${esc(initials(s.name))}</div>
+            <div class="wpBody"><div class="wpText">${esc(tc(s.name))}</div>
+            <div class="wpMeta"><span class="overdue">${esc(r[0]||'flagged')}</span>${r.length>1?`<span>+${r.length-1} more</span>`:''}</div></div></div>`;
+        }).join('') : '<div class="empty" style="padding:24px"><div class="e1">All clear</div>No cadets flagged right now.</div>'}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc"></span>Recent activity</div><span class="tag">Last sessions</span></div>
+      <div id="recentGrid"></div>
+    </div>`;
+}
+function wireOverview(){
+  $('#quickLog')&&($('#quickLog').onclick=()=>{ VIEW='log'; CURRENT=null; render(); });
+  $$('[data-open]').forEach(el=>el.onclick=()=>openStudent(el.dataset.open));
+  const rg=$('#recentGrid');
+  if(rg){
+    const withS=DB.students.filter(s=>s.sessions.length).sort((a,b)=>new Date(lastSession(b))-new Date(lastSession(a))).slice(0,5);
+    rg.innerHTML = withS.length? withS.map(s=>{
+      const ls=s.sessions[s.sessions.length-1];
+      return `<div class="waypoint" data-open2="${esc(s.id)}" style="cursor:pointer">
+        <div class="badge ${statusOf(s)}" style="width:34px;height:34px;font-size:12px">${esc(initials(s.name))}</div>
+        <div class="wpBody"><div class="wpText">${esc(tc(s.name))}</div>
+        <div class="wpMeta"><span>${esc(fmtDate(ls.date))}</span><span>${esc((ls.notes||'').slice(0,60))}${(ls.notes||'').length>60?'…':''}</span></div></div></div>`;
+    }).join('') : '<div class="empty" style="padding:24px"><div class="e1">No sessions yet</div>Log your first mentoring session to see it here.</div>';
+    $$('[data-open2]').forEach(el=>el.onclick=()=>openStudent(el.dataset.open2));
+  }
+}
+
+/* ─────────── ROSTER ─────────── */
+function rosterView(){
+  return `
+    <div class="head"><div>
+      <div class="kicker">All cadets</div>
+      <h1 class="title">Fleet roster</h1>
+      <div class="lede">Every cadet with a live trajectory bar toward their goal. Search, filter, and open a profile to log sessions or set a plan.</div>
+    </div></div>
+    <div class="bar">
+      <input class="field" id="rSearch" placeholder="Search name, reg, goal, strength, gap, skill…" style="min-width:230px;flex:1">
+      <select class="field" id="rFilter">
+        <option value="all">All cadets</option>
+        <option value="risk">Needs attention</option>
+        <option value="ok">On track</option>
+        <option value="new">Not yet met</option>
+        <option value="nogoal">No goal set</option>
+      </select>
+      <select class="field" id="rSort">
+        <option value="sno">Roll no</option>
+        <option value="name">Name A–Z</option>
+        <option value="prog">Readiness ↓</option>
+        <option value="status">Status</option>
+      </select>
+    </div>
+    <div class="fleet" id="fleet"></div>`;
+}
+function stripHTML(s){
+  const st=statusOf(s), pr=progress(s), r=riskReasons(s);
+  return `<div class="strip" data-id="${esc(s.id)}">
+    <div class="stripTop">
+      <div class="badge ${st}">${esc(initials(s.name))}</div>
+      <div style="min-width:0"><div class="sName">${esc(tc(s.name))}</div><div class="sReg">#${esc(s.reg)} · Roll ${s.sno}</div></div>
+    </div>
+    <div class="traj"><div class="trajFill ${st}" style="width:${pr}%"></div></div>
+    <div class="trajMeta">
+      ${s.goal?`<span class="chip goal">${esc(shortGoal(s.goal))}</span>`:'<span class="chip">no goal yet</span>'}
+      ${st==='risk'?`<span class="chip risk">${r.length} flag${r.length>1?'s':''}</span>`:st==='ok'?`<span class="chip ok">${pr}% ready</span>`:'<span class="chip new">not met</span>'}
+    </div>
+  </div>`;
+}
+function shortGoal(g){ return g.split('—')[0].split('/')[0].split('(')[0].trim(); }
+function paintFleet(){
+  const grid=$('#fleet'); if(!grid) return;
+  const q=($('#rSearch')?.value||'').toLowerCase().trim();
+  const f=$('#rFilter')?.value||'all', sort=$('#rSort')?.value||'sno';
+  let L=DB.students.filter(s=>{
+    if(q){ const hay=(s.name+' '+s.reg+' '+(s.goal||'')+' '+(s.strengths||[]).join(' ')+' '+(s.weaknesses||[]).join(' ')+' '+((s.ratedSkills||[]).map(r=>r.skill).join(' '))).toLowerCase(); if(!hay.includes(q)) return false; }
+    const st=statusOf(s);
+    if(f==='risk') return st==='risk'; if(f==='ok') return st==='ok';
+    if(f==='new') return st==='new'; if(f==='nogoal') return !s.goal;
+    return true;
+  });
+  if(sort==='name') L.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(sort==='prog') L.sort((a,b)=>progress(b)-progress(a));
+  else if(sort==='status'){ const rk={risk:0,new:1,ok:2}; L.sort((a,b)=>rk[statusOf(a)]-rk[statusOf(b)]); }
+  else L.sort((a,b)=>a.sno-b.sno);
+  grid.innerHTML=L.length? L.map(stripHTML).join('') : '<div class="empty"><div class="e1">No cadets match</div>Try clearing the search or filter.</div>';
+  $$('#fleet .strip').forEach(el=>el.onclick=()=>openStudent(el.dataset.id));
+}
+function wireRoster(){
+  paintFleet();
+  $('#rSearch')?.addEventListener('input',paintFleet);
+  $('#rFilter')?.addEventListener('change',paintFleet);
+  $('#rSort')?.addEventListener('change',paintFleet);
+}
+
+/* ─────────── PROFILE ─────────── */
+function openStudent(id){ CURRENT=id; render(); window.scrollTo(0,0); }
+function profileView(id){
+  const s=DB.students.find(x=>x.id===id); if(!s) return '<div class="empty">Not found</div>';
+  const st=statusOf(s), pr=progress(s), reasons=riskReasons(s);
+  const needs=s.goal?(ROLE_NEEDS[s.goal]||[]):[];
+  const skillNames=(s.ratedSkills||[]).map(r=>r.skill);
+  const met=needs.filter(n=>[...s.strengths,...skillNames].some(x=>x.toLowerCase().includes(n.toLowerCase().split(' ')[0])));
+  return `
+    <button class="backBtn" id="backBtn">← Back to roster</button>
+    <div class="profileTop">
+      <div class="pBadge ${st}">${esc(initials(s.name))}</div>
+      <div class="pInfo">
+        <div class="pName">${esc(tc(s.name))}</div>
+        <div class="pReg">#${esc(s.reg)} · Roll ${s.sno} · II B.Sc Aeronautical Sci · Sec A</div>
+        <div class="pContact">
+          <span>☎ <b>${esc(s.phone||'—')}</b></span>
+          <span>parent <b>${esc(s.parent||'—')}</b></span>
+          ${s.standing?`<span>standing <b>${esc(s.standing)}</b></span>`:''}
+        </div>
+      </div>
+      <button class="btn" id="editBtn">✎ Edit profile</button>
+      <button class="btn" id="improveBtn" style="border-color:var(--violet);color:var(--violet)">✦ How to improve</button>
+      <button class="btn go" id="logForBtn">＋ Log session</button>
+    </div>
+
+    <div class="glidepath">
+      <div class="glideLabels"><span>Enrolled</span><span>${s.goal?esc(shortGoal(s.goal)):'Goal not set'}</span></div>
+      <div class="glideTrack"><div class="glideFill ${st}" style="width:${pr}%"></div></div>
+      <div class="glideStat">
+        <div><span class="glidePct" style="color:${st==='risk'?'var(--descent)':st==='new'?'var(--amber)':'var(--cyan)'}">${pr}%</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin-left:8px">readiness</span></div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">${
+          st==='risk'? reasons.map(r=>`<span class="chip risk">${esc(r)}</span>`).join('')
+          : st==='new'? '<span class="chip new">No session logged yet</span>'
+          : '<span class="chip ok">On track</span>'}</div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--climb)"></span>Strengths</div></div>
+        <div class="taglist" id="tlStrength">${tagsHTML(s.strengths,'strength')||emptyTag('No strengths noted')}</div>
+        <div class="addRow"><select class="field" id="pickStrength" style="flex:2;min-width:150px"><option value="">＋ add a strength…</option>${libOptions(STRENGTH_LIBRARY,s.strengths)}<option value="__custom">✎ other (type your own)…</option></select><button class="btn sm" id="addStrengthBtn">Add</button></div>
+        <input class="field" id="addStrength" placeholder="Type a custom strength…" style="width:100%;margin-top:8px;display:none">
+      </div>
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--amber)"></span>Gaps to close</div></div>
+        <div class="taglist" id="tlWeak">${tagsHTML(s.weaknesses,'weak')||emptyTag('No gaps noted')}</div>
+        <div class="addRow"><select class="field" id="pickWeak" style="flex:2;min-width:150px"><option value="">＋ add a gap…</option>${libOptions(GAP_LIBRARY,s.weaknesses)}<option value="__custom">✎ other (type your own)…</option></select><button class="btn sm" id="addWeakBtn">Add</button></div>
+        <input class="field" id="addWeak" placeholder="Type a custom gap…" style="width:100%;margin-top:8px;display:none">
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--violet)"></span>Skills assessment</div><span class="tag">rate 1–5 · note how to improve</span></div>
+        ${s.expertise?`<div style="font-size:12.5px;color:var(--dim);margin-bottom:14px">Area of expertise: <b style="color:var(--ink)">${esc(s.expertise)}</b></div>`:''}
+        <div id="skillList">${ratedSkillsHTML(s)}</div>
+        <div class="addSkillRow">
+          <select class="field" id="skillPick" style="flex:2;min-width:160px"><option value="">＋ add a skill to assess…</option>${skillOptions(s)}</select>
+          <button class="btn sm go" id="addRated">Add</button>
+        </div>
+        ${s.goal&&ROLE_SKILLS[s.goal]?`<div style="margin-top:14px"><div class="tag" style="margin-bottom:8px">Suggested for ${esc(shortGoal(s.goal))} — tap to add</div><div class="taglist" id="skillSuggest">${suggestSkillsHTML(s)}</div></div>`:''}
+      </div>
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc"></span>What the goal needs</div><span class="tag">Gap check</span></div>
+        ${s.goal? `<div style="font-size:12px;color:var(--dim);margin-bottom:12px">For <b style="color:var(--cyan)">${esc(shortGoal(s.goal))}</b>, ${met.length}/${needs.length} typical requirements show up in their profile.</div>
+          <div class="taglist">${needs.map(n=>{ const has=met.includes(n); return `<span class="t ${has?'strength':''}" style="${has?'':'opacity:.6'}">${has?'✓':'○'} ${esc(n)}</span>`; }).join('')}</div>`
+          : '<div class="empty" style="padding:20px"><div class="e1">Set a career goal</div>Edit the profile to pick a goal and see what it typically needs.</div>'}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--cyan)"></span>Plan of action</div><button class="btn sm" id="aiPoaBtn" style="border-color:var(--violet);color:var(--violet)">✦ Suggest with AI</button></div>
+      <div id="poaList">${poaHTML(s)}</div>
+      <div class="addRow" style="margin-top:14px"><input class="field" id="addPoa" placeholder="Add an action step…" style="flex:2"><input class="field" id="addPoaDue" type="date" style="flex:1"><button class="btn sm go" id="addPoaBtn">Add step</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--amber)"></span>Session history</div><span class="tag">${s.sessions.length} logged</span></div>
+      ${s.sessions.length? `<div class="timeline">${s.sessions.slice().reverse().map(sessionHTML).join('')}</div>`
+        : '<div class="empty" style="padding:24px"><div class="e1">No sessions yet</div>Log your first mentoring session with this cadet.</div>'}
+    </div>`;
+}
+function tagsHTML(arr,cls){ return arr.map((t,i)=>`<span class="t ${cls}">${esc(t)} <x data-rm="${cls}:${i}">✕</x></span>`).join(''); }
+function emptyTag(m){ return `<span style="font-size:12px;color:var(--faint)">${esc(m)}</span>`; }
+
+/* rated skills UI */
+function libOptions(lib,have){
+  const set=new Set((have||[]).map(x=>x.toLowerCase()));
+  return lib.filter(x=>!set.has(x.toLowerCase())).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+}
+function skillOptions(s){
+  const have=new Set((s.ratedSkills||[]).map(r=>r.skill));
+  return SKILL_LIBRARY.filter(sk=>!have.has(sk)).map(sk=>`<option value="${esc(sk)}">${esc(sk)}</option>`).join('');
+}
+function suggestSkillsHTML(s){
+  const have=new Set((s.ratedSkills||[]).map(r=>r.skill));
+  const sug=(ROLE_SKILLS[s.goal]||[]).filter(sk=>!have.has(sk));
+  if(!sug.length) return '<span style="font-size:11px;color:var(--faint)">All suggested skills added.</span>';
+  return sug.map(sk=>`<span class="t skill" data-sug="${esc(sk)}" style="cursor:pointer">＋ ${esc(sk)}</span>`).join('');
+}
+function ratedSkillsHTML(s){
+  const R=s.ratedSkills||[];
+  if(!R.length) return '<div class="empty" style="padding:18px"><div class="e1">No skills assessed yet</div>Add a skill below, rate 1–5, and note how they can improve.</div>';
+  return R.map((r,i)=>{
+    const lvl=r.level||0;
+    const dots=[1,2,3,4,5].map(n=>`<span class="lvlDot ${n<=lvl?'on':''}" data-rate="${i}:${n}"></span>`).join('');
+    return `<div class="skillRow">
+      <div class="skillTop">
+        <div class="skillName">${esc(r.skill)}</div>
+        <div class="skillLvl">${dots}<span class="lvlLabel">${SKILL_LEVELS[lvl]}</span></div>
+        <button class="wpDel" data-skdel="${i}">✕</button>
+      </div>
+      <input class="field skillNote" data-note="${i}" placeholder="How can they improve this? (e.g. practice mock ATC calls weekly)" value="${esc(r.note||'')}">
+    </div>`;
+  }).join('');
+}
+function poaHTML(s){
+  if(!s.poa.length) return '<div class="empty" style="padding:20px"><div class="e1">No plan yet</div>Add action steps to guide this cadet toward their goal.</div>';
+  return s.poa.map((p,i)=>{
+    const overdue=!p.done && p.due && new Date(p.due)<new Date();
+    return `<div class="waypoint">
+      <div class="wpCheck ${p.done?'done':''}" data-poa="${i}">${p.done?'✓':''}</div>
+      <div class="wpBody"><div class="wpText ${p.done?'done':''}">${esc(p.text)}</div>
+      <div class="wpMeta">${p.due?`<span class="${overdue?'overdue':''}">◷ due ${esc(fmtDate(p.due))}${overdue?' · overdue':''}</span>`:''}${p.added?`<span>added ${esc(fmtDate(p.added))}</span>`:''}</div></div>
+      <button class="wpDel" data-poadel="${i}">✕</button></div>`;
+  }).join('');
+}
+function sessionHTML(ss){
+  return `<div class="tlItem"><div class="tlDate">${esc(fmtDate(ss.date))}</div>
+    <div class="tlNotes">${esc(ss.notes||'(no notes)')}</div>
+    ${ss.progress?`<div class="tlSub"><b>Progress:</b> ${esc(ss.progress)}</div>`:''}
+    ${ss.focus?`<div class="tlSub"><b>Focus next:</b> ${esc(ss.focus)}</div>`:''}</div>`;
+}
+
+function wireProfile(){
+  const s=DB.students.find(x=>x.id===CURRENT);
+  $('#backBtn').onclick=()=>{ CURRENT=null; VIEW='roster'; render(); };
+  $('#editBtn').onclick=()=>openEdit(s);
+  $('#logForBtn').onclick=()=>openSession(s.id);
+  /* tag adders — dropdown + custom */
+  const addVal=(arr,val)=>{ val=(val||'').trim(); if(!val) return; if(arr.some(x=>x.toLowerCase()===val.toLowerCase())) { toast('Already added'); return; } arr.push(val); s.updated=new Date().toISOString(); store.save(); render(); };
+  const setupPicker=(pickId,customId,btnId,arr)=>{
+    const pick=$('#'+pickId), custom=$('#'+customId), btn=$('#'+btnId);
+    if(pick) pick.onchange=()=>{ if(pick.value==='__custom'){ custom.style.display='block'; custom.focus(); } else custom.style.display='none'; };
+    if(btn) btn.onclick=()=>{ const v = pick.value==='__custom' ? custom.value : pick.value; addVal(arr,v); };
+    if(custom) custom.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addVal(arr,custom.value); } });
+  };
+  setupPicker('pickStrength','addStrength','addStrengthBtn',s.strengths);
+  setupPicker('pickWeak','addWeak','addWeakBtn',s.weaknesses);
+  /* rated skills */
+  const addRated=(name)=>{ if(!name) return; s.ratedSkills=s.ratedSkills||[]; if(s.ratedSkills.some(r=>r.skill===name)) return; s.ratedSkills.push({skill:name,level:0,note:''}); s.updated=new Date().toISOString(); store.save(); render(); };
+  $('#addRated')&&($('#addRated').onclick=()=>addRated($('#skillPick').value));
+  $$('[data-sug]').forEach(el=>el.onclick=()=>addRated(el.dataset.sug));
+  $$('[data-rate]').forEach(d=>d.onclick=()=>{ const [i,n]=d.dataset.rate.split(':').map(Number); const cur=s.ratedSkills[i].level; s.ratedSkills[i].level = (cur===n? n-1 : n); store.save(); render(); });
+  $$('[data-note]').forEach(inp=>inp.addEventListener('change',()=>{ s.ratedSkills[+inp.dataset.note].note=inp.value.trim(); store.save(); }));
+  $$('[data-skdel]').forEach(b=>b.onclick=()=>{ s.ratedSkills.splice(+b.dataset.skdel,1); store.save(); render(); });
+  /* tag removal */
+  $$('[data-rm]').forEach(x=>x.onclick=()=>{ const [cls,idx]=x.dataset.rm.split(':'); const map={strength:'strengths',weak:'weaknesses',skill:'skills'}; s[map[cls]].splice(+idx,1); store.save(); render(); });
+  /* POA */
+  $('#addPoaBtn').onclick=()=>{ const t=$('#addPoa').value.trim(); if(!t) return; s.poa.push({text:t,due:$('#addPoaDue').value||'',done:false,added:new Date().toISOString()}); store.save(); render(); toast('Action added'); };
+  $('#addPoa')?.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#addPoaBtn').click(); } });
+  $$('[data-poa]').forEach(c=>c.onclick=()=>{ const i=+c.dataset.poa; s.poa[i].done=!s.poa[i].done; store.save(); render(); });
+  $$('[data-poadel]').forEach(b=>b.onclick=()=>{ s.poa.splice(+b.dataset.poadel,1); store.save(); render(); });
+  /* AI */
+  $('#aiPoaBtn')&&($('#aiPoaBtn').onclick=()=>aiSuggestPoa(s.id));
+  $('#improveBtn')&&($('#improveBtn').onclick=()=>aiImprove(s.id));
+}
+
+/* ─────────── EDIT PROFILE MODAL ─────────── */
+function openEdit(s){
+  const roleOpts=['<option value="">— set a career goal —</option>'].concat(ROLES.map(r=>`<option value="${esc(r)}"${s.goal===r?' selected':''}>${esc(r)}</option>`)).join('');
+  modal(`
+    <button class="mClose" data-close>✕</button>
+    <div class="kicker">Edit cadet</div>
+    <h2 style="font-size:20px;margin-bottom:18px">${esc(tc(s.name))}</h2>
+    <label class="fl">Career goal</label>
+    <select class="field full" id="eGoal">${roleOpts}</select>
+    <label class="fl">Area of expertise / interest</label>
+    <input class="field full" id="eExp" value="${esc(s.expertise)}" placeholder="e.g. aerodynamics, avionics, ground ops…">
+    <label class="fl">Current standing</label>
+    <input class="field full" id="eStand" value="${esc(s.standing)}" placeholder="e.g. top quartile, needs support in maths…">
+    <div style="display:flex;gap:10px;margin-top:10px"><button class="btn go" id="eSave" style="flex:1">Save changes</button><button class="btn" data-close>Cancel</button></div>
+  `);
+  $('#eSave').onclick=()=>{ s.goal=$('#eGoal').value; s.expertise=$('#eExp').value.trim(); s.standing=$('#eStand').value.trim(); s.updated=new Date().toISOString(); store.save(); closeModal(); render(); toast('Profile updated'); };
+}
+
+/* ─────────── LOG SESSION ─────────── */
+function logView(){
+  const opts=DB.students.slice().sort((a,b)=>a.sno-b.sno).map(s=>`<option value="${esc(s.id)}">Roll ${s.sno} · ${esc(tc(s.name))}</option>`).join('');
+  return `
+    <div class="head"><div>
+      <div class="kicker">Mentoring log</div>
+      <h1 class="title">Log a session</h1>
+      <div class="lede">Capture a mentor-mentee session. Consistent fields keep all 43 cadets comparable and feed the analytics.</div>
+    </div></div>
+    <div class="panel" style="max-width:640px">
+      <label class="fl">Cadet</label>
+      <select class="field full" id="lStudent">${opts}</select>
+      <label class="fl">Date</label>
+      <input class="field full" id="lDate" type="date" value="${new Date().toISOString().slice(0,10)}">
+      <label class="fl">Session notes — what did you discuss?</label>
+      <textarea class="field" id="lNotes" placeholder="Strengths shown, concerns raised, what the cadet said about their goals…"></textarea>
+      <label class="fl" style="margin-top:12px">Progress since last time</label>
+      <input class="field full" id="lProgress" placeholder="e.g. improved in aerodynamics, more confident presenting…">
+      <label class="fl">Focus before next session</label>
+      <input class="field full" id="lFocus" placeholder="e.g. practice mock interview, complete CAD tutorial…">
+      <div style="display:flex;gap:10px;margin-top:16px"><button class="btn go" id="lSave">Save session</button></div>
+    </div>`;
+}
+function wireLog(){
+  $('#lSave').onclick=()=>{
+    const id=$('#lStudent').value; const s=DB.students.find(x=>x.id===id);
+    const notes=$('#lNotes').value.trim();
+    if(!notes){ toast('Add some session notes first'); return; }
+    s.sessions.push({ date:new Date($('#lDate').value||Date.now()).toISOString(), notes,
+      progress:$('#lProgress').value.trim(), focus:$('#lFocus').value.trim() });
+    s.updated=new Date().toISOString();
+    s.history=s.history||[]; s.history.push({ ts:new Date().toISOString(), readiness:progress(s), sessions:s.sessions.length, poaDone:s.poa.filter(p=>p.done).length });
+    store.save();
+    toast('Session logged for '+tc(s.name));
+    openStudent(id);
+  };
+}
+
+/* used from profile "Log session" button — jump to log view preselected */
+function openSession(id){ VIEW='log'; CURRENT=null; render(); const sel=$('#lStudent'); if(sel){ sel.value=id; } $('#lNotes')?.focus(); }
+
+
+/* ═══════════════════════ STAGE 3 · trend + analytics + reports ═══════════════════════ */
+
+/* momentum: compare recent readiness snapshots to see if a cadet is improving, flat, or slipping */
+function momentum(s){
+  const h=s.history||[];
+  if(h.length<2){
+    /* not enough history — infer from recency of engagement */
+    if(!s.sessions.length) return {dir:'none',label:'Not started',delta:0};
+    return {dir:'new',label:'Baseline set',delta:0};
+  }
+  const recent=h[h.length-1].readiness, prev=h[Math.max(0,h.length-3)].readiness;
+  const delta=recent-prev;
+  if(delta>=6) return {dir:'up',label:'Improving',delta};
+  if(delta<=-6) return {dir:'down',label:'Slipping',delta};
+  return {dir:'flat',label:'Holding steady',delta};
+}
+function momentumColor(d){ return d==='up'?'var(--climb)':d==='down'?'var(--descent)':d==='flat'?'var(--amber)':'var(--faint)'; }
+function momentumArrow(d){ return d==='up'?'▲':d==='down'?'▼':d==='flat'?'▬':'○'; }
+
+/* month key helpers */
+function monthKey(iso){ const d=new Date(iso); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function monthLabel(key){ const [y,m]=key.split('-'); return new Date(y,m-1,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'}); }
+
+/* aggregate helpers */
+function goalDistribution(){ const d={}; DB.students.forEach(s=>{ if(s.goal) d[s.goal]=(d[s.goal]||0)+1; }); return Object.entries(d).sort((a,b)=>b[1]-a[1]); }
+function tagFrequency(field){ const f={}; DB.students.forEach(s=>(s[field]||[]).forEach(t=>{ const k=t.trim().toLowerCase(); f[k]=(f[k]||0)+1; })); return Object.entries(f).sort((a,b)=>b[1]-a[1]); }
+function readinessBuckets(){ const b=[0,0,0,0,0]; DB.students.forEach(s=>{ const p=progress(s); b[Math.min(4,Math.floor(p/20))]++; }); return b; }
+
+/* ─────────── ANALYTICS VIEW ─────────── */
+function analyticsView(){
+  const S=DB.students;
+  const avg=Math.round(S.reduce((a,s)=>a+progress(s),0)/S.length);
+  const improving=S.filter(s=>momentum(s).dir==='up').length;
+  const slipping=S.filter(s=>momentum(s).dir==='down').length;
+  const totalSessions=S.reduce((a,s)=>a+s.sessions.length,0);
+  const met=S.filter(s=>s.sessions.length).length;
+  return `
+    <div class="head"><div>
+      <div class="kicker">Batch analytics · live</div>
+      <h1 class="title">Cohort analytics</h1>
+      <div class="lede">The whole batch at a glance — where they're heading, how ready they are, and what patterns cut across all 43 cadets. Hover the charts for detail; click a goal or strength to filter the roster.</div>
+    </div>
+    <button class="btn" id="aiBatchBtn" style="border-color:var(--violet);color:var(--violet)">✦ AI batch summary</button></div>
+
+    <div class="readout">
+      <div class="gauge c-violet"><div class="gNum">${avg}<span style="font-size:15px;color:var(--faint)">%</span></div><div class="gLab">Avg readiness</div><div class="gSub">cohort mean</div></div>
+      <div class="gauge c-green"><div class="gNum">${improving}</div><div class="gLab">Improving</div><div class="gSub">trending up</div></div>
+      <div class="gauge c-red"><div class="gNum">${slipping}</div><div class="gLab">Slipping</div><div class="gSub">need a nudge</div></div>
+      <div class="gauge"><div class="gNum">${met}<span style="font-size:15px;color:var(--faint)">/43</span></div><div class="gLab">Met at least once</div><div class="gSub">${43-met} pending</div></div>
+      <div class="gauge c-amber"><div class="gNum">${totalSessions}</div><div class="gLab">Total sessions</div><div class="gSub">all cadets</div></div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc"></span>Career goal spread</div><span class="tag">click to filter</span></div>
+        <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+          <canvas id="donut" width="200" height="200" style="flex:none"></canvas>
+          <div id="donutLegend" style="flex:1;min-width:160px"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--violet)"></span>Readiness distribution</div><span class="tag">cadets per band</span></div>
+        <canvas id="histo" width="440" height="210" style="width:100%;height:auto"></canvas>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--climb)"></span>Most common strengths</div><span class="tag">across batch</span></div>
+        <div id="strengthBars"></div>
+      </div>
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--amber)"></span>Most common gaps</div><span class="tag">across batch</span></div>
+        <div id="weakBars"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc"></span>Readiness map · all 43</div><span class="tag">hover a cell · click to open</span></div>
+      <div id="heatmap" class="heatmap"></div>
+      <div class="heatKey"><span>0%</span><div class="heatGrad"></div><span>100%</span></div>
+    </div>
+
+    <div class="sectionRule"><span>Engagement &amp; coverage</span></div>
+    <div class="readout" style="margin-bottom:18px">
+      <div class="gauge c-green"><div class="gNum" id="covMet">–</div><div class="gLab">Met this month</div><div class="gSub" id="covMonth"></div></div>
+      <div class="gauge c-amber"><div class="gNum" id="covOverdue">–</div><div class="gLab">Overdue (45d+)</div><div class="gSub">need a check-in</div></div>
+      <div class="gauge c-red"><div class="gNum" id="covNever">–</div><div class="gLab">Never met</div><div class="gSub">no session yet</div></div>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--climb)"></span>Session coverage over time</div><span class="tag">sessions per week</span></div>
+        <canvas id="coverChart" width="440" height="180" style="width:100%;height:auto"></canvas>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid var(--horizon)">
+          <div style="flex:none;text-align:center"><div id="covRing" style="width:78px;height:78px"></div></div>
+          <div style="flex:1"><div style="font-size:12.5px;color:var(--dim);line-height:1.5">Coverage this month — how many of your 43 cadets you've sat with.</div>
+            <div id="covRingLabel" class="mono" style="font-size:11px;color:var(--faint);margin-top:6px"></div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--amber)"></span>Longest unseen</div><span class="tag">check in soon</span></div>
+        <div id="unseenList"></div>
+      </div>
+    </div>
+
+    <div class="sectionRule"><span>Skills across the batch</span></div>
+    <div class="two">
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--violet)"></span>Skill proficiency</div><span class="tag">avg level · rated cadets</span></div>
+        <div id="skillHeat"></div>
+      </div>
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--descent)"></span>Weakest skills</div><span class="tag">workshop targets</span></div>
+        <div id="weakSkills"></div>
+      </div>
+    </div>
+
+    <div class="sectionRule"><span>Momentum &amp; outcomes</span></div>
+    <div class="two">
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--cyan)"></span>Batch readiness trend</div><span class="tag">avg over time</span></div>
+        <canvas id="trendChart" width="440" height="190" style="width:100%;height:auto"></canvas>
+        <div id="trendNote" style="font-size:11.5px;color:var(--faint);margin-top:10px"></div>
+      </div>
+      <div class="panel">
+        <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--climb)"></span>Plan-of-action completion</div><span class="tag">done vs open</span></div>
+        <div id="poaStats"></div>
+      </div>
+    </div>
+
+    <div class="sectionRule"><span>Goal-oriented</span></div>
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--cyan)"></span>Readiness by career goal</div><span class="tag">where each track stands</span></div>
+      <div id="readyByGoal"></div>
+    </div>
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--amber)"></span>Goal-gap matrix</div><span class="tag">what to teach each group</span></div>
+      <div style="font-size:12px;color:var(--dim);margin-bottom:14px">For each goal, the required skills most often missing across cadets aiming for it — your group-teaching priorities.</div>
+      <div id="gapMatrix"></div>
+    </div>`;
+}
+
+function wireAnalytics(){
+  $('#aiBatchBtn')&&($('#aiBatchBtn').onclick=aiBatch);
+  drawDonut(); drawHisto();
+  paintFreqBars('strengthBars', tagFrequency('strengths'), 'var(--climb)');
+  paintFreqBars('weakBars', tagFrequency('weaknesses'), 'var(--amber)');
+  paintHeatmap();
+  /* Stage 5 */
+  paintCoverage(); paintSkillHeat(); paintWeakSkills(); drawTrend(); paintPoaStats(); paintReadyByGoal(); paintGapMatrix();
+}
+
+
+/* ═══════════════════════ STAGE 5 · deeper analytics ═══════════════════════ */
+
+/* ---- engagement & coverage ---- */
+function paintCoverage(){
+  const S=DB.students, now=new Date(), mk=monthKey(now.toISOString());
+  const metThisMonth=S.filter(s=>s.sessions.some(ss=>monthKey(ss.date)===mk)).length;
+  const overdue=S.filter(s=>s.sessions.length && daysSince(lastSession(s))>45).length;
+  const never=S.filter(s=>!s.sessions.length).length;
+  const cm=$('#covMet'); if(cm) cm.textContent=metThisMonth;
+  const cmo=$('#covMonth'); if(cmo) cmo.textContent=monthLabel(mk).split(' ')[0];
+  const co=$('#covOverdue'); if(co) co.textContent=overdue;
+  const cn=$('#covNever'); if(cn) cn.textContent=never;
+  // coverage ring
+  const ring=$('#covRing'); if(ring){ const pct=Math.round(metThisMonth/S.length*100);
+    ring.innerHTML=donutRing(pct, metThisMonth+'/'+S.length); }
+  const rl=$('#covRingLabel'); if(rl) rl.textContent=metThisMonth+' of '+S.length+' cadets met in '+monthLabel(mk);
+  // coverage-over-time bar chart (sessions per week, last 12 weeks)
+  drawCoverChart();
+  // longest unseen list
+  const un=$('#unseenList'); if(un){
+    const ranked=S.slice().map(s=>({s,d:s.sessions.length?daysSince(lastSession(s)):Infinity}))
+      .sort((a,b)=>b.d-a.d).slice(0,8);
+    un.innerHTML=ranked.map(({s,d})=>{
+      const label=d===Infinity?'never met':d+' day'+(d!==1?'s':'')+' ago';
+      const col=d===Infinity?'var(--descent)':d>45?'var(--amber)':'var(--dim)';
+      return `<div class="waypoint" data-openu="${esc(s.id)}" style="cursor:pointer">
+        <div class="badge ${statusOf(s)}" style="width:32px;height:32px;font-size:11px">${esc(initials(s.name))}</div>
+        <div class="wpBody"><div class="wpText">${esc(tc(s.name))}</div>
+        <div class="wpMeta"><span style="color:${col}">${label}</span></div></div></div>`;
+    }).join('');
+    $$('#unseenList [data-openu]').forEach(el=>el.onclick=()=>openStudent(el.dataset.openu));
+  }
+}
+function donutRing(pct,label){
+  const r=32, c=2*Math.PI*r, off=c*(1-pct/100);
+  return `<svg viewBox="0 0 78 78" width="78" height="78">
+    <circle cx="39" cy="39" r="${r}" fill="none" stroke="var(--horizon)" stroke-width="7"/>
+    <circle cx="39" cy="39" r="${r}" fill="none" stroke="var(--climb)" stroke-width="7" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 39 39)" style="transition:stroke-dashoffset .6s"/>
+    <text x="39" y="37" text-anchor="middle" fill="var(--ink)" font-family="monospace" font-weight="700" font-size="15">${pct}%</text>
+    <text x="39" y="50" text-anchor="middle" fill="var(--faint)" font-family="monospace" font-size="8">${esc(label)}</text></svg>`;
+}
+function drawCoverChart(){
+  const cv=$('#coverChart'); if(!cv) return; const ctx=cv.getContext('2d');
+  const W=440,H=180; cv.width=W; cv.height=H; ctx.clearRect(0,0,W,H);
+  // last 12 weeks buckets
+  const weeks=12, now=Date.now(), buckets=new Array(weeks).fill(0);
+  DB.students.forEach(s=>s.sessions.forEach(ss=>{ const wAgo=Math.floor((now-new Date(ss.date))/(7*864e5)); if(wAgo>=0&&wAgo<weeks) buckets[weeks-1-wAgo]++; }));
+  const TC=themeColors(); const max=Math.max(1,...buckets), pad=26, bw=(W-pad*2)/weeks;
+  // baseline
+  ctx.strokeStyle=TC.grid; ctx.beginPath(); ctx.moveTo(pad,H-24); ctx.lineTo(W-pad,H-24); ctx.stroke();
+  buckets.forEach((n,i)=>{ const h=(n/max)*(H-46); const x=pad+i*bw, y=H-24-h;
+    ctx.fillStyle=n?TC.climb:TC.grid; ctx.globalAlpha=n?.85:1; roundRect(ctx,x+2,y,bw-5,h||2,4); ctx.fill(); ctx.globalAlpha=1;
+    if(n){ ctx.fillStyle=TC.ink; ctx.font='700 10px monospace'; ctx.textAlign='center'; ctx.fillText(n,x+bw/2,y-5); }
+  });
+  ctx.fillStyle=TC.faint; ctx.font='8px monospace'; ctx.textAlign='left'; ctx.fillText('12 wks ago',pad,H-8);
+  ctx.textAlign='right'; ctx.fillText('this week',W-pad,H-8);
+}
+
+/* ---- skills across batch ---- */
+function skillAggregates(){
+  const agg={}; /* skill -> {sum, count} of rated (level>0) */
+  DB.students.forEach(s=>(s.ratedSkills||[]).forEach(r=>{ if(r.level>0){ agg[r.skill]=agg[r.skill]||{sum:0,count:0}; agg[r.skill].sum+=r.level; agg[r.skill].count++; } }));
+  return Object.entries(agg).map(([skill,v])=>({skill,avg:v.sum/v.count,count:v.count})).sort((a,b)=>b.avg-a.avg);
+}
+function paintSkillHeat(){
+  const el=$('#skillHeat'); if(!el) return;
+  const A=skillAggregates();
+  if(!A.length){ el.innerHTML='<div class="empty" style="padding:20px"><div class="e1">No skills rated yet</div>Rate cadets\u2019 skills on their profiles to see batch-wide proficiency.</div>'; return; }
+  el.innerHTML=A.slice(0,10).map(({skill,avg,count})=>{
+    const pct=Math.round(avg/5*100); const hue=Math.round(avg/5*130);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(skill)}</div>
+      <div class="traj" style="width:120px;flex:none;margin:0;height:9px"><div class="trajFill" style="width:${pct}%;background:hsl(${hue} 65% 45%)"></div></div>
+      <div class="mono" style="font-size:10px;color:var(--dim);width:52px;text-align:right">${avg.toFixed(1)}/5 · ${count}</div></div>`;
+  }).join('');
+}
+function paintWeakSkills(){
+  const el=$('#weakSkills'); if(!el) return;
+  const A=skillAggregates().filter(x=>x.count>=1).sort((a,b)=>a.avg-b.avg);
+  if(!A.length){ el.innerHTML='<div class="empty" style="padding:20px"><div class="e1">No skills rated yet</div>Once you rate skills, the weakest ones surface here as workshop targets.</div>'; return; }
+  el.innerHTML=A.slice(0,7).map(({skill,avg,count})=>{
+    const pct=Math.round(avg/5*100);
+    return `<div style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+      <span>${esc(skill)}</span><span class="mono" style="color:var(--descent)">${avg.toFixed(1)}/5</span></div>
+      <div class="traj" style="margin:0;height:7px"><div class="trajFill risk" style="width:${pct}%"></div></div>
+      <div class="mono" style="font-size:9px;color:var(--faint);margin-top:3px">${count} cadet${count!==1?'s':''} rated</div></div>`;
+  }).join('');
+}
+
+/* ---- momentum & outcomes ---- */
+function drawTrend(){
+  const cv=$('#trendChart'); if(!cv) return; const ctx=cv.getContext('2d');
+  const W=440,H=190; cv.width=W; cv.height=H; ctx.clearRect(0,0,W,H);
+  // build monthly avg readiness from history snapshots across all students
+  const byMonth={};
+  DB.students.forEach(s=>(s.history||[]).forEach(h=>{ const k=monthKey(h.ts); byMonth[k]=byMonth[k]||[]; byMonth[k].push(h.readiness); }));
+  const keys=Object.keys(byMonth).sort();
+  const TC=themeColors();
+  const note=$('#trendNote');
+  if(keys.length<2){
+    ctx.fillStyle=TC.faint; ctx.font='11px monospace'; ctx.textAlign='center';
+    ctx.fillText('Trend builds as you log sessions over time', W/2, H/2);
+    if(note) note.textContent='Log sessions across weeks and months to see the batch\u2019s readiness climb.';
+    return;
+  }
+  const pts=keys.map(k=>({k,v:byMonth[k].reduce((a,b)=>a+b,0)/byMonth[k].length}));
+  const pad=34, max=100, min=0;
+  // grid
+  ctx.strokeStyle=TC.grid; ctx.lineWidth=1;
+  [0,25,50,75,100].forEach(g=>{ const y=H-24-(g/100)*(H-46); ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(W-10,y); ctx.stroke();
+    ctx.fillStyle=TC.faint; ctx.font='8px monospace'; ctx.textAlign='right'; ctx.fillText(g,pad-4,y+3); });
+  // line
+  const x=i=>pad+(i/(pts.length-1))*(W-pad-10), y=v=>H-24-(v/100)*(H-46);
+  ctx.strokeStyle=TC.cyan; ctx.lineWidth=2.5; ctx.beginPath();
+  pts.forEach((p,i)=>{ i?ctx.lineTo(x(i),y(p.v)):ctx.moveTo(x(i),y(p.v)); }); ctx.stroke();
+  // fill under
+  ctx.lineTo(x(pts.length-1),H-24); ctx.lineTo(x(0),H-24); ctx.closePath();
+  ctx.fillStyle=TC.cyan; ctx.globalAlpha=.12; ctx.fill(); ctx.globalAlpha=1;
+  // dots
+  pts.forEach((p,i)=>{ ctx.fillStyle=TC.cyan; ctx.beginPath(); ctx.arc(x(i),y(p.v),3.5,0,7); ctx.fill();
+    ctx.fillStyle=TC.ink; ctx.font='700 9px monospace'; ctx.textAlign='center'; ctx.fillText(Math.round(p.v),x(i),y(p.v)-8); });
+  // month labels (first & last)
+  ctx.fillStyle=TC.faint; ctx.font='8px monospace';
+  ctx.textAlign='left'; ctx.fillText(monthLabel(pts[0].k).split(' ')[0], pad, H-8);
+  ctx.textAlign='right'; ctx.fillText(monthLabel(pts[pts.length-1].k).split(' ')[0], W-10, H-8);
+  if(note){ const delta=Math.round(pts[pts.length-1].v-pts[0].v);
+    note.textContent=(delta>=0?'▲ Up ':'▼ Down ')+Math.abs(delta)+' points across '+pts.length+' months of tracking.'; note.style.color=delta>=0?'var(--climb)':'var(--descent)'; }
+}
+function paintPoaStats(){
+  const el=$('#poaStats'); if(!el) return;
+  let done=0,total=0,withPlan=0;
+  DB.students.forEach(s=>{ if(s.poa.length){ withPlan++; total+=s.poa.length; done+=s.poa.filter(p=>p.done).length; } });
+  const rate=total?Math.round(done/total*100):0;
+  const overdue=DB.students.reduce((a,s)=>a+s.poa.filter(p=>!p.done&&p.due&&new Date(p.due)<new Date()).length,0);
+  el.innerHTML=`
+    <div style="display:flex;gap:18px;align-items:center;margin-bottom:16px">
+      <div style="flex:none">${donutRing(rate, done+'/'+total)}</div>
+      <div style="flex:1"><div class="gNum" style="font-size:26px">${rate}<span style="font-size:14px;color:var(--faint)">%</span></div>
+        <div class="gLab">of all action items completed</div></div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--horizon)">
+      <div><div class="mono" style="font-size:18px;font-weight:700">${withPlan}</div><div class="gLab">cadets with a plan</div></div>
+      <div><div class="mono" style="font-size:18px;font-weight:700">${total-done}</div><div class="gLab">still open</div></div>
+      <div><div class="mono" style="font-size:18px;font-weight:700;color:${overdue?'var(--descent)':'var(--ink)'}">${overdue}</div><div class="gLab">overdue</div></div>
+    </div>
+    ${total?'':'<div style="font-size:11.5px;color:var(--faint);margin-top:12px">No action items yet — add plans on cadet profiles to track follow-through.</div>'}`;
+}
+
+/* ---- goal-oriented ---- */
+function paintReadyByGoal(){
+  const el=$('#readyByGoal'); if(!el) return;
+  const byGoal={};
+  DB.students.forEach(s=>{ if(s.goal){ byGoal[s.goal]=byGoal[s.goal]||[]; byGoal[s.goal].push(progress(s)); } });
+  const rows=Object.entries(byGoal).map(([g,arr])=>({g,avg:arr.reduce((a,b)=>a+b,0)/arr.length,n:arr.length})).sort((a,b)=>b.avg-a.avg);
+  if(!rows.length){ el.innerHTML='<div class="empty" style="padding:20px"><div class="e1">No goals set yet</div>Set career goals on profiles to compare readiness by track.</div>'; return; }
+  el.innerHTML=rows.map(({g,avg,n})=>{ const pct=Math.round(avg); const hue=Math.round(avg*1.3);
+    return `<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px">
+      <span data-goalfilter="${esc(g)}" style="cursor:pointer">${esc(shortGoal(g))} <span class="mono" style="color:var(--faint);font-size:10px">· ${n} cadet${n!==1?'s':''}</span></span>
+      <span class="mono" style="color:var(--dim)">${pct}%</span></div>
+      <div class="traj" style="margin:0;height:9px"><div class="trajFill" style="width:${pct}%;background:hsl(${hue} 60% 45%)"></div></div></div>`;
+  }).join('');
+  $$('#readyByGoal [data-goalfilter]').forEach(el=>el.onclick=()=>{ VIEW='roster'; CURRENT=null; render(); setTimeout(()=>{ const f=$('#rSearch'); if(f){ f.value=shortGoal(el.dataset.goalfilter); paintFleet(); } },50); });
+}
+function paintGapMatrix(){
+  const el=$('#gapMatrix'); if(!el) return;
+  const byGoal={};
+  DB.students.forEach(s=>{ if(s.goal && ROLE_NEEDS[s.goal]){ byGoal[s.goal]=byGoal[s.goal]||[]; byGoal[s.goal].push(s); } });
+  const goals=Object.keys(byGoal);
+  if(!goals.length){ el.innerHTML='<div class="empty" style="padding:20px"><div class="e1">No goals set yet</div>Once cadets have goals, this shows which required skills are most commonly missing per track.</div>'; return; }
+  el.innerHTML=goals.map(g=>{
+    const cadets=byGoal[g], needs=ROLE_NEEDS[g]||[];
+    // for each need, count cadets who DON'T show it
+    const gaps=needs.map(n=>{ const missing=cadets.filter(s=>{ const have=[...(s.strengths||[]),...((s.ratedSkills||[]).map(r=>r.skill))]; return !have.some(x=>x.toLowerCase().includes(n.toLowerCase().split(' ')[0])); }).length;
+      return {n,missing,pct:Math.round(missing/cadets.length*100)}; }).sort((a,b)=>b.missing-a.missing);
+    return `<div style="margin-bottom:18px"><div style="font-size:13px;font-weight:640;margin-bottom:4px">${esc(shortGoal(g))} <span class="mono" style="color:var(--faint);font-size:10px">· ${cadets.length} cadet${cadets.length!==1?'s':''}</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${gaps.map(x=>`<span class="chip" style="border-color:${x.pct>=60?'rgba(255,107,122,.4)':'var(--horizon)'};color:${x.pct>=60?'var(--descent)':x.pct>=30?'var(--amber)':'var(--dim)'}">${esc(x.n)} · ${x.missing}/${cadets.length} missing</span>`).join('')}</div></div>`;
+  }).join('');
+}
+
+/* donut chart — goal distribution, interactive */
+const CHART_COLORS=['#38e8d0','#ffb84d','#a78bfa','#4ade80','#ff6b7a','#5eb3ff','#f77fbe','#9de24d','#ff9d5c','#5ce0c8','#c792ea','#ffd166','#06d6a0','#ef476f','#7aa5ff','#b8b8ff'];
+function drawDonut(){
+  const cv=$('#donut'); if(!cv) return; const ctx=cv.getContext('2d');
+  const dist=goalDistribution(); const total=dist.reduce((a,[,n])=>a+n,0);
+  const cx=100,cy=100,rO=88,rI=54;
+  ctx.clearRect(0,0,200,200);
+  if(!total){ ctx.fillStyle=cssVar('--faint'); ctx.font='11px monospace'; ctx.textAlign='center'; ctx.fillText('no goals set',100,104); return; }
+  let a0=-Math.PI/2;
+  const segs=[];
+  dist.forEach(([g,n],i)=>{ const frac=n/total; const a1=a0+frac*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,rO,a0,a1); ctx.closePath();
+    ctx.fillStyle=CHART_COLORS[i%CHART_COLORS.length]; ctx.fill();
+    segs.push({g,n,a0,a1,color:CHART_COLORS[i%CHART_COLORS.length]}); a0=a1; });
+  // punch hole
+  ctx.globalCompositeOperation='destination-out'; ctx.beginPath(); ctx.arc(cx,cy,rI,0,Math.PI*2); ctx.fill(); ctx.globalCompositeOperation='source-over';
+  // center label
+  ctx.fillStyle=cssVar('--ink'); ctx.font='700 26px monospace'; ctx.textAlign='center'; ctx.fillText(total,cx,cy-2);
+  ctx.fillStyle=cssVar('--dim'); ctx.font='9px monospace'; ctx.fillText('WITH GOAL',cx,cy+14);
+  // legend
+  const leg=$('#donutLegend');
+  leg.innerHTML=dist.map(([g,n],i)=>`<div class="legRow" data-goal="${esc(g)}" style="display:flex;align-items:center;gap:9px;padding:5px 6px;border-radius:7px;cursor:pointer;font-size:12px">
+    <span style="width:10px;height:10px;border-radius:3px;flex:none;background:${CHART_COLORS[i%CHART_COLORS.length]}"></span>
+    <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(shortGoal(g))}</span>
+    <span class="mono" style="color:var(--dim)">${n}</span></div>`).join('');
+  $$('#donutLegend .legRow').forEach(el=>{
+    el.onmouseenter=()=>el.style.background='var(--surface2)'; el.onmouseleave=()=>el.style.background='';
+    el.onclick=()=>{ VIEW='roster'; CURRENT=null; render(); setTimeout(()=>{ const f=$('#rSearch'); if(f){ f.value=shortGoal(el.dataset.goal); paintFleet(); } },50); };
+  });
+  // hover on donut
+  cv.onmousemove=(e)=>{ const r=cv.getBoundingClientRect(); const x=e.clientX-r.left-cx, y=e.clientY-r.top-cy;
+    const dist2=Math.sqrt(x*x+y*y); if(dist2<rI||dist2>rO){ cv.title=''; return; }
+    let ang=Math.atan2(y,x); if(ang<-Math.PI/2) ang+=Math.PI*2;
+    const seg=segs.find(sg=>ang>=sg.a0&&ang<sg.a1); cv.title=seg?`${shortGoal(seg.g)}: ${seg.n}`:''; };
+}
+
+/* histogram — readiness bands */
+function drawHisto(){
+  const cv=$('#histo'); if(!cv) return; const ctx=cv.getContext('2d');
+  const W=440,H=210; cv.width=W; cv.height=H; ctx.clearRect(0,0,W,H);
+  const TC=themeColors();
+  const buckets=readinessBuckets(); const max=Math.max(1,...buckets);
+  const labels=['0–20','20–40','40–60','60–80','80–100'];
+  const colors=['#ff6b7a','#ff9d5c','#ffb84d','#9de24d','#4ade80'];
+  const pad=30, bw=(W-pad*2)/5, gap=14;
+  buckets.forEach((n,i)=>{
+    const h=(n/max)*(H-50); const x=pad+i*bw, y=H-30-h;
+    ctx.fillStyle=colors[i]; ctx.globalAlpha=.85;
+    roundRect(ctx,x+gap/2,y,bw-gap,h,6); ctx.fill(); ctx.globalAlpha=1;
+    ctx.fillStyle=TC.ink; ctx.font='700 13px monospace'; ctx.textAlign='center'; if(n) ctx.fillText(n,x+bw/2,y-8);
+    ctx.fillStyle=TC.dim; ctx.font='9px monospace'; ctx.fillText(labels[i],x+bw/2,H-12);
+  });
+}
+function roundRect(ctx,x,y,w,h,r){ r=Math.min(r,w/2,h/2); if(h<=0){return;} ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+/* frequency bars */
+function paintFreqBars(id,data,color){
+  const el=$('#'+id); if(!el) return;
+  if(!data.length){ el.innerHTML='<div class="empty" style="padding:20px"><div class="e1">Nothing logged yet</div>Add strengths and gaps on cadet profiles to see patterns.</div>'; return; }
+  const top=data.slice(0,7); const max=top[0][1];
+  el.innerHTML=top.map(([t,n])=>`<div class="freqBar" data-freq="${esc(t)}" style="margin-bottom:10px;cursor:pointer">
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>${esc(tc(t))}</span><span class="mono" style="color:var(--dim)">${n} ›</span></div>
+    <div class="traj" style="margin:0;height:7px"><div class="trajFill" style="width:${Math.round(n/max*100)}%;background:linear-gradient(90deg,transparent,${color})"></div></div></div>`).join('');
+  $$('#'+id+' .freqBar').forEach(el=>el.onclick=()=>{ VIEW='roster'; CURRENT=null; render(); setTimeout(()=>{ const f=$('#rSearch'); if(f){ f.value=el.dataset.freq; paintFleet(); } },50); });
+}
+
+/* heatmap — all 43 by readiness */
+function paintHeatmap(){
+  const el=$('#heatmap'); if(!el) return;
+  const S=DB.students.slice().sort((a,b)=>a.sno-b.sno);
+  el.innerHTML=S.map(s=>{ const p=progress(s); const hue=Math.round(p*1.3); // 0=red-ish→130=green
+    return `<div class="heatCell" data-id="${esc(s.id)}" title="${esc(tc(s.name))} · ${p}%" style="background:hsl(${hue} 65% ${18+p*0.22}%)">
+      <span class="heatInit">${esc(initials(s.name))}</span></div>`; }).join('');
+  $$('#heatmap .heatCell').forEach(c=>c.onclick=()=>openStudent(c.dataset.id));
+}
+
+/* ─────────── REPORTS VIEW ─────────── */
+function reportsView(){
+  const S=DB.students;
+  const withHistory=S.filter(s=>s.sessions.length);
+  const improving=S.filter(s=>momentum(s).dir==='up');
+  const slipping=S.filter(s=>momentum(s).dir==='down');
+  const flat=S.filter(s=>momentum(s).dir==='flat');
+  // month picker: months that have sessions
+  const months={}; S.forEach(s=>s.sessions.forEach(ss=>{ months[monthKey(ss.date)]=(months[monthKey(ss.date)]||0)+1; }));
+  const monthKeys=Object.keys(months).sort().reverse();
+  return `
+    <div class="head"><div>
+      <div class="kicker">Monthly brief · improvement tracking</div>
+      <h1 class="title">Reports</h1>
+      <div class="lede">Who's climbing, who's holding, and who's slipping — plus a monthly brief you can review or print. Improvement is read from each cadet's readiness trend across sessions.</div>
+    </div></div>
+
+    <div class="readout">
+      <div class="gauge c-green"><div class="gNum">${improving.length}</div><div class="gLab">Improving</div><div class="gSub">trending up</div></div>
+      <div class="gauge c-amber"><div class="gNum">${flat.length}</div><div class="gLab">Holding steady</div><div class="gSub">no clear change</div></div>
+      <div class="gauge c-red"><div class="gNum">${slipping.length}</div><div class="gLab">Slipping</div><div class="gSub">readiness dropped</div></div>
+      <div class="gauge"><div class="gNum">${withHistory.length}</div><div class="gLab">Being tracked</div><div class="gSub">have sessions</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc"></span>Monthly brief</div>
+        <select class="field" id="monthPick" style="padding:7px 28px 7px 12px">${monthKeys.length?monthKeys.map(k=>`<option value="${k}">${monthLabel(k)}</option>`).join(''):'<option value="">No sessions yet</option>'}</select>
+      </div>
+      <div id="monthBrief"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--violet)"></span>Search session notes</div><span class="tag">across all cadets</span></div>
+      <input class="field" id="noteSearch" placeholder="Search everything you\u2019ve written in sessions…" style="width:100%">
+      <div id="noteResults" style="margin-top:14px"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panelHead"><div class="panelTitle"><span class="dotc" style="background:var(--climb)"></span>Improvement tracker · all cadets</div>
+        <select class="field" id="trackSort" style="padding:7px 28px 7px 12px">
+          <option value="dir">By trend</option><option value="ready">By readiness</option><option value="name">By name</option></select></div>
+      <div id="trackList"></div>
+    </div>`;
+}
+
+function wireReports(){
+  const ns=$('#noteSearch'); if(ns){ ns.addEventListener('input',()=>paintNoteSearch(ns.value)); paintNoteSearch(''); }
+  const mp=$('#monthPick'); if(mp){ mp.onchange=()=>paintMonthBrief(mp.value); paintMonthBrief(mp.value); }
+  const ts=$('#trackSort'); if(ts){ ts.onchange=()=>paintTracker(ts.value); }
+  paintTracker('dir');
+}
+
+function paintNoteSearch(q){
+  const el=$('#noteResults'); if(!el) return;
+  q=(q||'').toLowerCase().trim();
+  if(!q){ const total=DB.students.reduce((a,s)=>a+s.sessions.length,0);
+    el.innerHTML=`<div style="font-size:12px;color:var(--faint)">${total} session${total!==1?'s':''} logged. Type to search across all notes, progress, and focus fields.</div>`; return; }
+  const hits=[];
+  DB.students.forEach(s=>s.sessions.forEach(ss=>{
+    const blob=((ss.notes||'')+' '+(ss.progress||'')+' '+(ss.focus||'')).toLowerCase();
+    if(blob.includes(q)) hits.push({s,ss});
+  }));
+  hits.sort((a,b)=>new Date(b.ss.date)-new Date(a.ss.date));
+  if(!hits.length){ el.innerHTML=`<div class="empty" style="padding:20px"><div class="e1">No matches</div>Nothing in your session notes matches “${esc(q)}”.</div>`; return; }
+  const hl=(txt)=>{ const t=esc(txt||''); const i=t.toLowerCase().indexOf(q); if(i<0) return t; return t.slice(0,i)+'<mark>'+t.slice(i,i+q.length)+'</mark>'+t.slice(i+q.length); };
+  el.innerHTML=`<div style="font-size:11px;color:var(--faint);margin-bottom:10px">${hits.length} match${hits.length!==1?'es':''}</div>`+hits.slice(0,40).map(({s,ss})=>`
+    <div class="waypoint" data-open7="${esc(s.id)}" style="cursor:pointer;align-items:flex-start">
+      <div class="badge ${statusOf(s)}" style="width:30px;height:30px;font-size:10px">${esc(initials(s.name))}</div>
+      <div class="wpBody"><div style="display:flex;justify-content:space-between;gap:8px"><div class="wpText">${esc(tc(s.name))}</div><span class="mono" style="font-size:9px;color:var(--faint)">${esc(fmtDate(ss.date))}</span></div>
+      <div class="wpMeta" style="display:block;margin-top:4px;color:var(--dim);line-height:1.5">${hl((ss.notes||ss.progress||ss.focus||'').slice(0,140))}${(ss.notes||'').length>140?'…':''}</div></div></div>`).join('');
+  $$('#noteResults [data-open7]').forEach(el=>el.onclick=()=>openStudent(el.dataset.open7));
+}
+function paintMonthBrief(key){
+  const el=$('#monthBrief'); if(!el) return;
+  if(!key){ el.innerHTML='<div class="empty" style="padding:26px"><div class="e1">No sessions logged yet</div>Log mentoring sessions and a monthly brief builds automatically.</div>'; return; }
+  const inMonth=[]; DB.students.forEach(s=>{ const c=s.sessions.filter(ss=>monthKey(ss.date)===key).length; if(c) inMonth.push({s,c}); });
+  const totalSess=inMonth.reduce((a,x)=>a+x.c,0);
+  const seen=inMonth.length;
+  el.innerHTML=`
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--horizon)">
+      <div><div class="gNum" style="font-size:24px">${totalSess}</div><div class="gLab">sessions held</div></div>
+      <div><div class="gNum" style="font-size:24px">${seen}</div><div class="gLab">cadets met</div></div>
+      <div><div class="gNum" style="font-size:24px">${43-seen}</div><div class="gLab">not met this month</div></div>
+    </div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:12px">${monthLabel(key)} — cadets you met, most-seen first:</div>
+    ${inMonth.length? inMonth.sort((a,b)=>b.c-a.c).map(({s,c})=>{ const mo=momentum(s);
+      return `<div class="waypoint" data-open3="${esc(s.id)}" style="cursor:pointer">
+        <div class="badge ${statusOf(s)}" style="width:34px;height:34px;font-size:12px">${esc(initials(s.name))}</div>
+        <div class="wpBody"><div class="wpText">${esc(tc(s.name))} <span style="color:${momentumColor(mo.dir)};font-size:11px;margin-left:6px">${momentumArrow(mo.dir)} ${mo.label}</span></div>
+        <div class="wpMeta"><span>${c} session${c>1?'s':''} this month</span><span>${progress(s)}% ready</span></div></div></div>`; }).join('')
+      : '<div class="empty" style="padding:20px">No sessions in this month.</div>'}`;
+  $$('#monthBrief [data-open3]').forEach(el=>el.onclick=()=>openStudent(el.dataset.open3));
+}
+
+function paintTracker(sort){
+  const el=$('#trackList'); if(!el) return;
+  let L=DB.students.slice();
+  if(sort==='ready') L.sort((a,b)=>progress(b)-progress(a));
+  else if(sort==='name') L.sort((a,b)=>a.name.localeCompare(b.name));
+  else { const rk={up:0,flat:1,down:2,new:3,none:4}; L.sort((a,b)=>rk[momentum(a).dir]-rk[momentum(b).dir]); }
+  el.innerHTML=L.map(s=>{ const mo=momentum(s); const p=progress(s);
+    const spark=sparkline(s);
+    return `<div class="trackRow" data-open4="${esc(s.id)}">
+      <div class="badge ${statusOf(s)}" style="width:32px;height:32px;font-size:11px">${esc(initials(s.name))}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">${esc(tc(s.name))}</div>
+        <div class="mono" style="font-size:9px;color:var(--faint);margin-top:2px">Roll ${s.sno} · ${s.sessions.length} session${s.sessions.length!==1?'s':''}</div></div>
+      ${spark}
+      <div style="text-align:right;min-width:74px">
+        <div style="color:${momentumColor(mo.dir)};font-size:12px;font-weight:600">${momentumArrow(mo.dir)} ${mo.label}</div>
+        <div class="mono" style="font-size:10px;color:var(--dim);margin-top:2px">${p}% ready</div></div>
+    </div>`; }).join('');
+  $$('#trackList .trackRow').forEach(r=>r.onclick=()=>openStudent(r.dataset.open4));
+}
+
+/* tiny sparkline of readiness history */
+function sparkline(s){
+  const h=(s.history||[]).map(x=>x.readiness); if(h.length<2) return '<div style="width:70px"></div>';
+  const max=Math.max(...h,1), min=Math.min(...h,0), rng=Math.max(1,max-min);
+  const pts=h.map((v,i)=>`${(i/(h.length-1))*66+2},${22-((v-min)/rng)*18-2}`).join(' ');
+  const up=h[h.length-1]>=h[0];
+  return `<svg width="70" height="24" style="flex:none"><polyline points="${pts}" fill="none" stroke="${up?'var(--climb)':'var(--descent)'}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+/* ═══════════════════════ STAGE 4 · AI assist (Groq) ═══════════════════════ */
+function aiReady(){ return !!AI_PROXY; }
+function aiCall(path, payload){
+  return fetch(AI_PROXY.replace(/\/$/,'')+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>r.json());
+}
+function aiSetupNote(){
+  modal(`<button class="mClose" data-close>✕</button>
+    <div class="kicker">AI assist</div><h2 style="font-size:20px;margin-bottom:12px">Not switched on yet</h2>
+    <p style="color:var(--dim);font-size:13px;line-height:1.6">MENTOR's AI can suggest a plan of action, recommend how to improve a cadet toward their role, and summarise batch-wide gaps. It runs on Groq's free tier.</p>
+    <p style="color:var(--faint);font-size:12px;line-height:1.6;margin-top:10px">To enable it: deploy <span class="mono">mentor-ai-proxy.js</span>, add your <span class="mono">GROQ_API_KEY</span>, and paste the worker URL into <span class="mono">AI_PROXY</span> at the top of this file. Setup steps are in <span class="mono">MENTOR-AI-SETUP.md</span>.</p>
+    <div style="margin-top:16px"><button class="btn" data-close>Got it</button></div>`);
+}
+function aiLoadingModal(title){
+  modal(`<div class="kicker">AI assist</div><h2 style="font-size:19px;margin-bottom:16px">${esc(title)}</h2>
+    <div style="text-align:center;padding:24px;color:var(--dim)"><div class="aiSpin"></div>
+    <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;margin-top:14px;color:var(--faint)">THINKING…</div></div>`);
+}
+
+/* POA suggestion */
+function aiSuggestPoa(id){
+  if(!aiReady()) return aiSetupNote();
+  const s=DB.students.find(x=>x.id===id); if(!s) return;
+  aiLoadingModal('Suggested plan of action');
+  aiCall('/poa',{student:s}).then(d=>{
+    if(!d.ok){ aiError(d.error); return; }
+    const acts=d.actions||[];
+    modal(`<button class="mClose" data-close>✕</button>
+      <div class="kicker">AI · plan of action</div><h2 style="font-size:19px;margin-bottom:6px">${esc(tc(s.name))}</h2>
+      ${d.rationale?`<p style="color:var(--dim);font-size:12.5px;margin-bottom:16px">${esc(d.rationale)}</p>`:''}
+      <div id="aiActs">${acts.map((a,i)=>`<label class="aiPick"><input type="checkbox" data-ai="${i}" checked><span><b>${esc(a.text)}</b>${a.due?`<span class="mono" style="color:var(--faint);font-size:10px;margin-left:8px">${esc(a.due)}</span>`:''}</span></label>`).join('')}</div>
+      <div style="display:flex;gap:10px;margin-top:16px"><button class="btn go" id="aiAddPoa">Add selected to plan</button><button class="btn" data-close>Cancel</button></div>
+      <div style="font-size:10px;color:var(--faint);margin-top:12px;line-height:1.5">AI-suggested — review before adding. These are ideas to consider, not instructions.</div>`);
+    window.__aiActs=acts;
+    $('#aiAddPoa').onclick=()=>{
+      const picks=$$('[data-ai]:checked').map(c=>+c.dataset.ai);
+      picks.forEach(i=>{ const a=window.__aiActs[i]; s.poa.push({text:a.text,due:'',done:false,added:new Date().toISOString(),ai:true}); });
+      store.save(); closeModal(); render(); toast(picks.length+' action'+(picks.length!==1?'s':'')+' added');
+    };
+  }).catch(()=>aiError('Could not reach the AI service.'));
+}
+
+/* improvement / career-role suggestions */
+function aiImprove(id){
+  if(!aiReady()) return aiSetupNote();
+  const s=DB.students.find(x=>x.id===id); if(!s) return;
+  if(!s.goal){ toast('Set a career goal first — AI tailors this to the role'); return; }
+  aiLoadingModal('How to improve toward '+shortGoal(s.goal));
+  aiCall('/improve',{student:s}).then(d=>{
+    if(!d.ok){ aiError(d.error); return; }
+    const list=(t,arr,c)=>arr&&arr.length?`<div style="margin-bottom:14px"><div class="tag" style="color:${c};margin-bottom:7px">${t}</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:var(--ink)">${arr.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'';
+    modal(`<button class="mClose" data-close>✕</button>
+      <div class="kicker">AI · improvement plan</div><h2 style="font-size:19px;margin-bottom:4px">${esc(tc(s.name))}</h2>
+      <div style="font-size:12px;color:var(--cyan);margin-bottom:16px">toward ${esc(s.goal)}</div>
+      ${d.summary?`<p style="color:var(--dim);font-size:13px;line-height:1.6;margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:10px;border-left:3px solid var(--cyan)">${esc(d.summary)}</p>`:''}
+      ${list('Focus on',d.focus,'var(--amber)')}
+      ${list('Inputs the mentor can provide',d.inputs,'var(--climb)')}
+      <div style="font-size:10px;color:var(--faint);margin-top:8px;line-height:1.5">AI-generated guidance — use your judgement.</div>
+      <div style="margin-top:14px"><button class="btn" data-close>Close</button></div>`);
+  }).catch(()=>aiError('Could not reach the AI service.'));
+}
+
+/* batch summary */
+function aiBatch(){
+  if(!aiReady()) return aiSetupNote();
+  aiLoadingModal('Summarising the batch');
+  const summary={ total:DB.students.length,
+    goals:goalDistribution(), topStrengths:tagFrequency('strengths').slice(0,8),
+    topGaps:tagFrequency('weaknesses').slice(0,8), readinessBuckets:readinessBuckets(),
+    avgReadiness:Math.round(DB.students.reduce((a,s)=>a+progress(s),0)/DB.students.length),
+    notMet:DB.students.filter(s=>!s.sessions.length).length };
+  aiCall('/batch',{summary}).then(d=>{
+    if(!d.ok){ aiError(d.error); return; }
+    const list=(t,arr,c)=>arr&&arr.length?`<div style="margin-bottom:14px"><div class="tag" style="color:${c};margin-bottom:7px">${t}</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7">${arr.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'';
+    modal(`<button class="mClose" data-close>✕</button>
+      <div class="kicker">AI · batch analysis</div><h2 style="font-size:19px;margin-bottom:14px">Cohort gaps & priorities</h2>
+      ${d.note?`<p style="color:var(--dim);font-size:13px;line-height:1.6;margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:10px;border-left:3px solid var(--violet)">${esc(d.note)}</p>`:''}
+      ${list('Patterns across the batch',d.themes,'var(--cyan)')}
+      ${list('What to prioritise',d.priorities,'var(--amber)')}
+      <div style="font-size:10px;color:var(--faint);margin-top:8px">AI-generated from your batch data.</div>
+      <div style="margin-top:14px"><button class="btn" data-close>Close</button></div>`);
+  }).catch(()=>aiError('Could not reach the AI service.'));
+}
+
+function aiError(msg){
+  modal(`<button class="mClose" data-close>✕</button><div class="kicker">AI assist</div>
+    <h2 style="font-size:18px;margin-bottom:10px">Couldn't complete that</h2>
+    <p style="color:var(--dim);font-size:13px;line-height:1.6">${esc(msg||'Something went wrong.')}</p>
+    <div style="margin-top:16px"><button class="btn" data-close>Close</button></div>`);
+}
+
+
+/* ═══════════════════════ STAGE 6 · bulk entry + cohort groups ═══════════════════════ */
+let BULK_MODE='table'; /* 'table' | 'groups' */
+
+function bulkView(){
+  return `
+    <div class="head"><div>
+      <div class="kicker">Fast setup · batch actions</div>
+      <h1 class="title">Bulk &amp; groups</h1>
+      <div class="lede">Set goals and strengths for the whole batch quickly, or group cadets by career track and act on a whole group at once — ideal at the start of the semester.</div>
+    </div></div>
+    <div class="bar">
+      <div class="segmented">
+        <button class="segBtn ${BULK_MODE==='table'?'on':''}" data-mode="table">⊞ Bulk table</button>
+        <button class="segBtn ${BULK_MODE==='groups'?'on':''}" data-mode="groups">◫ Cohort groups</button>
+      </div>
+    </div>
+    <div id="bulkBody"></div>`;
+}
+function wireBulk(){
+  $$('.segBtn').forEach(b=>b.onclick=()=>{ BULK_MODE=b.dataset.mode; render(); });
+  if(BULK_MODE==='table') paintBulkTable(); else paintGroups();
+}
+
+/* ---- bulk table: set goal + quick-add strength per cadet ---- */
+function paintBulkTable(){
+  const el=$('#bulkBody'); if(!el) return;
+  const goalOpts=(cur)=>['<option value="">— goal —</option>'].concat(ROLES.map(r=>`<option value="${esc(r)}"${cur===r?' selected':''}>${esc(shortGoal(r))}</option>`)).join('');
+  el.innerHTML=`
+    <div class="panel" style="padding:0;overflow:hidden">
+      <div class="bulkHead">
+        <div style="flex:0 0 30px">#</div>
+        <div style="flex:2;min-width:130px">Cadet</div>
+        <div style="flex:2;min-width:150px">Career goal</div>
+        <div style="flex:0 0 70px;text-align:center">Ready</div>
+        <div style="flex:3;min-width:160px">Quick add strength</div>
+      </div>
+      <div id="bulkRows">
+        ${DB.students.slice().sort((a,b)=>a.sno-b.sno).map(s=>`
+          <div class="bulkRow" data-id="${esc(s.id)}">
+            <div style="flex:0 0 30px" class="mono" >${s.sno}</div>
+            <div style="flex:2;min-width:130px;display:flex;align-items:center;gap:9px">
+              <div class="badge ${statusOf(s)}" style="width:28px;height:28px;font-size:10px">${esc(initials(s.name))}</div>
+              <span style="font-size:12.5px;font-weight:560;cursor:pointer" data-open5="${esc(s.id)}">${esc(tc(s.name))}</span>
+            </div>
+            <div style="flex:2;min-width:150px"><select class="field bulkGoal" data-bid="${esc(s.id)}" style="width:100%;padding:7px 26px 7px 10px;font-size:12px">${goalOpts(s.goal)}</select></div>
+            <div style="flex:0 0 70px;text-align:center" class="mono" style="font-size:12px;color:var(--dim)">${progress(s)}%</div>
+            <div style="flex:3;min-width:160px;display:flex;gap:6px">
+              <select class="field bulkStr" data-bid="${esc(s.id)}" style="flex:1;padding:7px 24px 7px 9px;font-size:11.5px"><option value="">＋ strength…</option>${libOptions(STRENGTH_LIBRARY,s.strengths)}</select>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div style="font-size:11.5px;color:var(--faint);margin-top:10px">Changes save instantly. Set a goal from the dropdown, or pick a strength to add it. Click a name to open the full profile.</div>`;
+  // wire goal change
+  $$('.bulkGoal').forEach(sel=>sel.onchange=()=>{ const s=DB.students.find(x=>x.id===sel.dataset.bid); s.goal=sel.value; s.updated=new Date().toISOString(); store.save(); toast('Goal set for '+tc(s.name)); const row=sel.closest('.bulkRow'); /* update readiness cell */ paintBulkTable(); });
+  $$('.bulkStr').forEach(sel=>sel.onchange=()=>{ if(!sel.value) return; const s=DB.students.find(x=>x.id===sel.dataset.bid); s.strengths=s.strengths||[]; if(!s.strengths.some(x=>x.toLowerCase()===sel.value.toLowerCase())){ s.strengths.push(sel.value); store.save(); toast('Added “'+sel.value+'” to '+tc(s.name)); } paintBulkTable(); });
+  $$('[data-open5]').forEach(el=>el.onclick=()=>openStudent(el.dataset.open5));
+}
+
+/* ---- cohort groups: grouped by goal, with batch actions ---- */
+function paintGroups(){
+  const el=$('#bulkBody'); if(!el) return;
+  const groups={}; DB.students.forEach(s=>{ const g=s.goal||'__nogoal'; (groups[g]=groups[g]||[]).push(s); });
+  const order=Object.keys(groups).sort((a,b)=>{ if(a==='__nogoal') return 1; if(b==='__nogoal') return -1; return groups[b].length-groups[a].length; });
+  el.innerHTML=order.map(g=>{
+    const list=groups[g], isNo=g==='__nogoal';
+    const avg=Math.round(list.reduce((a,s)=>a+progress(s),0)/list.length);
+    return `<div class="panel">
+      <div class="panelHead">
+        <div class="panelTitle"><span class="dotc" style="background:${isNo?'var(--faint)':'var(--cyan)'}"></span>${isNo?'No goal set':esc(shortGoal(g))} <span class="mono" style="color:var(--faint);font-size:11px;font-weight:400">· ${list.length} cadet${list.length!==1?'s':''} · ${avg}% avg</span></div>
+        ${isNo?'':`<div style="display:flex;gap:8px"><button class="btn sm" data-grouppoa="${esc(g)}">＋ Action to group</button><button class="btn sm" data-groupstr="${esc(g)}">＋ Strength to group</button></div>`}
+      </div>
+      <div class="groupGrid">
+        ${list.sort((a,b)=>a.sno-b.sno).map(s=>`<div class="groupChip" data-open6="${esc(s.id)}">
+          <div class="badge ${statusOf(s)}" style="width:26px;height:26px;font-size:9px">${esc(initials(s.name))}</div>
+          <span style="font-size:12px">${esc(tc(s.name))}</span>
+          <span class="mono" style="font-size:9px;color:var(--faint);margin-left:auto">${progress(s)}%</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  $$('[data-open6]').forEach(el=>el.onclick=()=>openStudent(el.dataset.open6));
+  $$('[data-grouppoa]').forEach(b=>b.onclick=()=>groupAction(b.dataset.grouppoa,'poa'));
+  $$('[data-groupstr]').forEach(b=>b.onclick=()=>groupAction(b.dataset.groupstr,'strength'));
+}
+
+function groupAction(goal,type){
+  const list=DB.students.filter(s=>(s.goal||'')===goal);
+  if(type==='poa'){
+    modal(`<button class="mClose" data-close>✕</button>
+      <div class="kicker">Batch action · ${esc(shortGoal(goal))}</div>
+      <h2 style="font-size:19px;margin-bottom:6px">Add an action to all ${list.length} cadets</h2>
+      <p style="color:var(--dim);font-size:12.5px;margin-bottom:14px">This adds the same plan-of-action step to every cadet aiming for ${esc(shortGoal(goal))}.</p>
+      <label class="fl">Action step</label>
+      <input class="field full" id="gaText" placeholder="e.g. Attend the DGCA orientation workshop">
+      <label class="fl">Due date (optional)</label>
+      <input class="field full" id="gaDue" type="date">
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn go" id="gaSave">Add to all ${list.length}</button><button class="btn" data-close>Cancel</button></div>`);
+    $('#gaSave').onclick=()=>{ const t=$('#gaText').value.trim(); if(!t){ toast('Type the action first'); return; }
+      list.forEach(s=>{ s.poa=s.poa||[]; s.poa.push({text:t,due:$('#gaDue').value||'',done:false,added:new Date().toISOString(),batch:true}); });
+      store.save(); closeModal(); render(); toast('Added to '+list.length+' cadets'); };
+  } else {
+    modal(`<button class="mClose" data-close>✕</button>
+      <div class="kicker">Batch action · ${esc(shortGoal(goal))}</div>
+      <h2 style="font-size:19px;margin-bottom:6px">Add a strength to all ${list.length} cadets</h2>
+      <label class="fl">Strength</label>
+      <select class="field full" id="gaStr"><option value="">— pick —</option>${STRENGTH_LIBRARY.map(x=>`<option>${esc(x)}</option>`).join('')}</select>
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn go" id="gaSave2">Add to all ${list.length}</button><button class="btn" data-close>Cancel</button></div>`);
+    $('#gaSave2').onclick=()=>{ const v=$('#gaStr').value; if(!v){ toast('Pick a strength'); return; }
+      list.forEach(s=>{ s.strengths=s.strengths||[]; if(!s.strengths.some(x=>x.toLowerCase()===v.toLowerCase())) s.strengths.push(v); });
+      store.save(); closeModal(); render(); toast('Added to '+list.length+' cadets'); };
+  }
+}
+
+
+/* ═══════════════════════ STAGE 6 · semester roadmap ═══════════════════════ */
+/* default milestones a mentor might track; stored in DB.roadmap and editable */
+const DEFAULT_MILESTONES=[
+  {id:'m1',title:'Meet every cadet at least once',by:'Month 1',done:false,auto:'metAll'},
+  {id:'m2',title:'Career goal set for every cadet',by:'Month 1',done:false,auto:'goalAll'},
+  {id:'m3',title:'Strengths & gaps noted for every cadet',by:'Month 2',done:false,auto:'sgAll'},
+  {id:'m4',title:'A plan of action for every cadet',by:'Month 2',done:false,auto:'poaAll'},
+  {id:'m5',title:'Skills assessed for goal-track cadets',by:'Month 3',done:false,auto:'skillAll'},
+  {id:'m6',title:'Mid-semester progress review',by:'Month 3',done:false},
+  {id:'m7',title:'Second session logged for every cadet',by:'Month 4',done:false,auto:'met2'},
+  {id:'m8',title:'End-of-semester readiness report',by:'Month 5',done:false}
+];
+function roadmapData(){ if(!DB.roadmap){ DB.roadmap=JSON.parse(JSON.stringify(DEFAULT_MILESTONES)); store.save(); } return DB.roadmap; }
+
+/* auto-progress: compute how far along each auto milestone is */
+function milestoneProgress(m){
+  const S=DB.students, n=S.length;
+  const done=(f)=>S.filter(f).length;
+  switch(m.auto){
+    case 'metAll': return {have:done(s=>s.sessions.length),need:n};
+    case 'goalAll': return {have:done(s=>s.goal),need:n};
+    case 'sgAll': return {have:done(s=>s.strengths.length&&s.weaknesses.length),need:n};
+    case 'poaAll': return {have:done(s=>s.poa.length),need:n};
+    case 'skillAll': { const tgt=S.filter(s=>s.goal); return {have:tgt.filter(s=>(s.ratedSkills||[]).length).length,need:tgt.length||n}; }
+    case 'met2': return {have:done(s=>s.sessions.length>=2),need:n};
+    default: return null;
+  }
+}
+function roadmapView(){
+  const M=roadmapData();
+  const S=DB.students;
+  const autoDone=M.filter(m=>{ const p=milestoneProgress(m); return p&&p.have>=p.need&&p.need>0; }).length;
+  const manualDone=M.filter(m=>!m.auto&&m.done).length;
+  const total=M.length, complete=autoDone+manualDone;
+  return `
+    <div class="head"><div>
+      <div class="kicker">Semester plan · AY 2026-27</div>
+      <h1 class="title">Roadmap</h1>
+      <div class="lede">What should happen by when. Milestones tied to your data tick themselves off as you work through the batch; the rest you mark manually. A clear path from day one to the end-of-semester report.</div>
+    </div>
+    <div style="text-align:right"><div class="gNum" style="font-size:30px">${complete}<span style="font-size:16px;color:var(--faint)">/${total}</span></div><div class="gLab">milestones met</div></div></div>
+
+    <div class="panel">
+      <div class="roadTrack"><div class="roadFill" style="width:${Math.round(complete/total*100)}%"></div></div>
+      <div class="timeline" style="margin-top:22px">
+        ${M.map(m=>{
+          const p=m.auto?milestoneProgress(m):null;
+          const isDone=p? (p.have>=p.need&&p.need>0) : m.done;
+          const pct=p&&p.need? Math.round(p.have/p.need*100):0;
+          return `<div class="tlItem roadItem">
+            <div class="roadDot ${isDone?'done':''}" ${m.auto?'':`data-mtoggle="${m.id}"`} style="${m.auto?'':'cursor:pointer'}">${isDone?'✓':''}</div>
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+                <div class="tlNotes" style="font-weight:600${isDone?';color:var(--dim);text-decoration:line-through':''}">${esc(m.title)}</div>
+                <div class="mono" style="font-size:9px;letter-spacing:.1em;color:var(--cyan);text-transform:uppercase;white-space:nowrap">${esc(m.by)}</div>
+              </div>
+              ${m.auto? `<div style="margin-top:7px"><div class="traj" style="margin:0;height:6px"><div class="trajFill${isDone?'':' new'}" style="width:${pct}%"></div></div>
+                <div class="mono" style="font-size:9px;color:var(--faint);margin-top:4px">${p.have}/${p.need} cadets · auto-tracked</div></div>`
+                : `<div class="mono" style="font-size:9px;color:var(--faint);margin-top:5px">${isDone?'marked complete':'tap the circle when done'}</div>`}
+            </div></div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn sm" id="addMilestone">＋ Add milestone</button>
+      <button class="btn sm" id="resetRoadmap">↺ Reset to defaults</button>
+    </div>`;
+}
+function wireRoadmap(){
+  $$('[data-mtoggle]').forEach(d=>d.onclick=()=>{ const m=DB.roadmap.find(x=>x.id===d.dataset.mtoggle); m.done=!m.done; store.save(); render(); });
+  $('#addMilestone').onclick=()=>{
+    modal(`<button class="mClose" data-close>✕</button><div class="kicker">New milestone</div>
+      <h2 style="font-size:19px;margin-bottom:14px">Add a milestone</h2>
+      <label class="fl">Milestone</label><input class="field full" id="mTitle" placeholder="e.g. Arrange industry visit">
+      <label class="fl">Target (when)</label><input class="field full" id="mBy" placeholder="e.g. Month 4">
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn go" id="mSave">Add</button><button class="btn" data-close>Cancel</button></div>`);
+    $('#mSave').onclick=()=>{ const t=$('#mTitle').value.trim(); if(!t){ toast('Type the milestone'); return; }
+      DB.roadmap.push({id:'m'+Date.now(),title:t,by:$('#mBy').value.trim()||'This semester',done:false}); store.save(); closeModal(); render(); toast('Milestone added'); };
+  };
+  $('#resetRoadmap').onclick=()=>{ DB.roadmap=JSON.parse(JSON.stringify(DEFAULT_MILESTONES)); store.save(); render(); toast('Roadmap reset'); };
+}
+
+
+/* ─────────── modal + nav + backup ─────────── */
+function modal(html){ $('#modalBody').innerHTML=html; $('#scrim').hidden=false; $$('[data-close]').forEach(b=>b.onclick=closeModal); }
+function closeModal(){ $('#scrim').hidden=true; }
+$('#scrim').addEventListener('click',e=>{ if(e.target===$('#scrim')) closeModal(); });
+
+$$('.navItem').forEach(n=>n.onclick=()=>{ VIEW=n.dataset.view; CURRENT=null; render(); });
+
+$('#exportBtn').onclick=()=>{ const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mentor-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click(); toast('Backup downloaded'); };
+$('#importBtn').onclick=()=>$('#importFile').click();
+$('#importFile').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.students||!Array.isArray(d.students)) throw 0; DB=d;
+    DB.students.forEach(s=>{ s.strengths=s.strengths||[]; s.weaknesses=s.weaknesses||[]; s.skills=s.skills||[]; s.sessions=s.sessions||[]; s.poa=s.poa||[]; });
+    store.save(); CURRENT=null; render(); toast('Restored · '+d.students.length+' cadets'); }catch(_){ toast('That file could not be read'); } };
+  r.readAsText(f); };
+
+
+/* ── theme (day / night) ── */
+function applyTheme(t){ document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem('mentor.theme',t); }catch(e){}
+  const btn=document.getElementById('themeBtn'); if(btn) btn.textContent = t==='light' ? '☾ Night mode' : '☀ Day mode';
+  /* redraw canvases with theme colors */
+  if(VIEW==='analytics' && !CURRENT){ try{ wireAnalytics(); }catch(e){} }
+}
+(function(){ let t='dark'; try{ t=localStorage.getItem('mentor.theme')||'dark'; }catch(e){} document.documentElement.setAttribute('data-theme',t); })();
+document.getElementById('themeBtn').onclick=()=>{ const cur=document.documentElement.getAttribute('data-theme')||'dark'; applyTheme(cur==='light'?'dark':'light'); };
+applyTheme(document.documentElement.getAttribute('data-theme')||'dark');
+
+render();
+</script>
+</body>
+</html>
