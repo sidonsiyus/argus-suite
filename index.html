@@ -26,7 +26,7 @@
   /* canvas is a replaced element: inset:0 alone leaves it at its intrinsic
      300x150 in the corner. It needs an explicit width/height to fill the screen. */
   #stars{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none;display:block}
-  .wrap{position:relative;z-index:1;max-width:1060px;margin:0 auto;padding:0 24px 40px}
+  .wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:0 24px 40px}
 
   .top{display:flex;align-items:center;justify-content:space-between;padding:22px 0 4px}
   .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.28em;color:var(--gold)}
@@ -165,6 +165,220 @@
     .ddash svg{width:18px;height:18px}
     .ddash em{display:none}
   }
+
+  /* ═══ STAGE 1 · two-column landing: ASCENT teaser left, ring right ═══ */
+  .cols{ display:flex; gap:26px; align-items:flex-start; margin-top:14px; }
+  .colLeft{ flex:0 0 300px; max-width:300px; }
+  .colRight{ flex:1; min-width:0; }
+  .colRight .stage{ margin-top:0; }
+
+  .ascentCard{
+    position:relative; border:1px solid var(--line); border-radius:16px;
+    background:linear-gradient(180deg,rgba(255,158,100,.06),rgba(16,13,21,.4));
+    padding:16px 15px 14px; overflow:hidden;
+    box-shadow:0 18px 50px -30px rgba(255,158,100,.5);
+  }
+  .ascentCard::before{ content:""; position:absolute; inset:0 0 auto 0; height:2px;
+    background:linear-gradient(90deg,transparent,#ff9e64,transparent); opacity:.7; }
+  .acHead{ display:flex; align-items:center; gap:9px; margin-bottom:3px; }
+  .acLogo{ font-family:var(--mono); font-weight:700; letter-spacing:.22em; font-size:14px; color:#ff9e64; }
+  .acLive{ margin-left:auto; display:inline-flex; align-items:center; gap:5px;
+    font-family:var(--mono); font-size:8px; letter-spacing:.14em; color:#ff9e64; opacity:.9; }
+  .acLive i{ width:6px;height:6px;border-radius:50%;background:#ff9e64;box-shadow:0 0 8px #ff9e64;
+    animation:acPulse 1.8s infinite; }
+  @keyframes acPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+  .acSub{ font-family:var(--mono); font-size:8.5px; letter-spacing:.12em; color:var(--dim,#a49a8f);
+    text-transform:uppercase; margin-bottom:12px; }
+  .acList{ display:flex; flex-direction:column; gap:8px; min-height:120px; }
+  .acJob{ display:block; text-decoration:none; color:inherit; border:1px solid var(--line);
+    border-left:2px solid #ff9e64; border-radius:9px; padding:9px 10px;
+    background:rgba(8,7,10,.5); transition:transform .15s, border-color .15s, background .15s; }
+  .acJob:hover{ transform:translateX(3px); border-color:#ff9e64; background:rgba(255,158,100,.06); }
+  .acTitle{ font-size:12.5px; font-weight:640; line-height:1.25; color:var(--ink); }
+  .acCo{ font-family:var(--mono); font-size:9px; color:var(--dim,#a49a8f); margin-top:3px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .acMeta{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .acPill{ font-family:var(--mono); font-size:8px; letter-spacing:.05em; padding:2px 6px;
+    border-radius:20px; border:1px solid var(--line); color:var(--dim,#a49a8f); }
+  .acPill.src{ color:#ff9e64; border-color:rgba(255,158,100,.4); }
+  .acState{ font-family:var(--mono); font-size:9.5px; color:var(--dim,#a49a8f);
+    text-align:center; padding:26px 8px; line-height:1.6; }
+  .acSkel{ height:54px; border-radius:9px; border:1px solid var(--line);
+    background:linear-gradient(100deg,rgba(255,255,255,.02),rgba(255,158,100,.05),rgba(255,255,255,.02));
+    background-size:200% 100%; animation:acShimmer 1.3s infinite; }
+  @keyframes acShimmer{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .acFoot{ margin-top:13px; }
+  .acOpen{ display:flex; align-items:center; justify-content:center; gap:7px; width:100%;
+    text-decoration:none; font-family:var(--mono); font-size:10px; letter-spacing:.14em;
+    text-transform:uppercase; color:#08070a; font-weight:700; padding:10px;
+    border-radius:10px; background:linear-gradient(90deg,#ff9e64,#ffb98a);
+    transition:filter .15s, transform .15s; }
+  .acOpen:hover{ filter:brightness(1.08); transform:translateY(-1px); }
+  .acRefresh{ display:block; margin:8px auto 0; background:none; border:none; cursor:pointer;
+    font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; color:var(--dim,#a49a8f); }
+  .acRefresh:hover{ color:#ff9e64; }
+
+  @media(max-width:900px){
+    .cols{ flex-direction:column; }
+    .colLeft{ flex:none; max-width:none; width:100%; order:2; }
+    .colRight{ order:1; width:100%; }
+  }
+
+
+  /* static ASCENT panel (no live listings) */
+  a.ascentCard{ display:block; text-decoration:none; color:inherit; cursor:pointer;
+    transition:transform .18s, border-color .18s, box-shadow .18s; }
+  a.ascentCard:hover{ transform:translateY(-3px); border-color:rgba(255,158,100,.55);
+    box-shadow:0 24px 60px -28px rgba(255,158,100,.7); }
+  .acIconWrap{ display:flex; justify-content:center; margin:14px 0 12px; }
+  .acIcon{ width:60px; height:60px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+    color:#ff9e64; border:1px solid rgba(255,158,100,.35);
+    background:radial-gradient(circle at 50% 35%,rgba(255,158,100,.18),rgba(255,158,100,.03));
+    box-shadow:inset 0 0 22px -8px rgba(255,158,100,.6); }
+  .acIcon svg{ width:30px; height:30px; }
+  .acBlurb{ font-size:11.5px; line-height:1.6; color:var(--dim,#a49a8f); text-align:center; margin-bottom:13px; }
+  .acFeat{ display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:15px; }
+  .acOpen{ pointer-events:none; }
+
+
+  /* ═══ STAGE 3 · three columns: ASCENT | ring | news ═══ */
+  .cols{ display:flex; gap:20px; align-items:flex-start; margin-top:14px; }
+  .colLeft{ flex:0 0 244px; max-width:244px; }
+  .colRight{ flex:1 1 auto; min-width:0; display:flex; justify-content:center; }
+  .colNews{ flex:0 0 250px; max-width:250px; display:flex; flex-direction:column; gap:16px; }
+  /* keep the ring inside its own column so waypoints never spill onto the news panel */
+  .colRight .stage{ width:100%; max-width:520px; margin:0 auto; }
+
+  .newsCard, .otdCard{ position:relative; border:1px solid var(--line); border-radius:16px;
+    background:linear-gradient(180deg,rgba(240,182,74,.05),rgba(16,13,21,.4)); padding:15px 14px; overflow:hidden; }
+  .ncHead{ display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:9px;
+    letter-spacing:.16em; color:var(--acc,#f0b64a); margin-bottom:12px; }
+  .ncDot{ width:6px;height:6px;border-radius:50%;background:var(--acc,#f0b64a);
+    box-shadow:0 0 8px var(--acc,#f0b64a); animation:ncPulse 1.9s infinite; }
+  @keyframes ncPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+  .ncLive{ margin-left:auto; font-size:8px; letter-spacing:.12em; color:var(--dim,#a49a8f); text-transform:uppercase; }
+  .ncList{ display:flex; flex-direction:column; gap:2px; }
+  .ncItem{ display:block; text-decoration:none; color:inherit; padding:9px 2px; border-bottom:1px solid var(--line);
+    transition:padding-left .15s, color .15s; }
+  .ncItem:last-child{ border-bottom:none; }
+  .ncItem:hover{ padding-left:6px; }
+  .ncTitle{ font-size:11.5px; line-height:1.4; color:var(--ink); font-weight:560;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .ncItem:hover .ncTitle{ color:var(--acc,#f0b64a); }
+  .ncMeta{ font-family:var(--mono); font-size:8px; letter-spacing:.05em; color:var(--dim,#a49a8f); margin-top:4px;
+    display:flex; gap:6px; }
+  .ncState{ font-family:var(--mono); font-size:9px; color:var(--dim,#a49a8f); text-align:center; padding:22px 6px; line-height:1.6; }
+  .ncSkel{ height:40px; margin:6px 0; border-radius:7px; border:1px solid var(--line);
+    background:linear-gradient(100deg,rgba(255,255,255,.02),rgba(240,182,74,.05),rgba(255,255,255,.02));
+    background-size:200% 100%; animation:ncShim 1.3s infinite; }
+  @keyframes ncShim{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .ncRefresh{ display:block; margin:10px auto 0; background:none; border:none; cursor:pointer;
+    font-family:var(--mono); font-size:8px; letter-spacing:.1em; color:var(--dim,#a49a8f); }
+  .ncRefresh:hover{ color:var(--acc,#f0b64a); }
+
+  .otdCard{ background:linear-gradient(180deg,rgba(139,147,255,.06),rgba(16,13,21,.4)); }
+  .otdCard::before{ content:""; position:absolute; inset:0 0 auto 0; height:2px;
+    background:linear-gradient(90deg,transparent,#8b93ff,transparent); opacity:.6; }
+  .otdHead{ font-family:var(--mono); font-size:9px; letter-spacing:.16em; color:#8b93ff; margin-bottom:10px; }
+  .otdDate{ font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; color:var(--dim,#a49a8f); text-transform:uppercase; }
+  .otdYear{ font-size:30px; font-weight:800; line-height:1; color:var(--ink); margin:3px 0 8px;
+    background:linear-gradient(120deg,#fff,#8b93ff); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .otdText{ font-size:11.5px; line-height:1.55; color:var(--dim,#a49a8f); }
+
+  @media(max-width:1160px){
+    .cols{ flex-wrap:wrap; }
+    .colLeft{ order:2; flex:1 1 264px; }
+    .colRight{ order:1; flex:1 1 100%; }
+    .colNews{ order:3; flex:1 1 264px; flex-direction:row; }
+    .colNews .newsCard, .colNews .otdCard{ flex:1; }
+  }
+  @media(max-width:760px){
+    .colNews{ flex-direction:column; }
+  }
+
+
+  /* ═══ STAGE 2 · announcements ═══ */
+  .annBar{ display:flex; align-items:center; gap:10px; margin:12px 0 2px; padding:9px 14px;
+    border:1px solid var(--line); border-radius:12px; position:relative; overflow:hidden;
+    background:linear-gradient(90deg,rgba(240,182,74,.1),rgba(240,182,74,.02));
+    animation:annBarIn .5s cubic-bezier(.2,.8,.2,1); }
+  .annBar[data-level="alert"]{ background:linear-gradient(90deg,rgba(230,80,80,.14),rgba(230,80,80,.02)); }
+  .annBar[data-level="success"]{ background:linear-gradient(90deg,rgba(49,197,106,.13),rgba(49,197,106,.02)); }
+  .annBar::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:var(--acc,#f0b64a); box-shadow:0 0 12px var(--acc,#f0b64a); }
+  .annBar[data-level="alert"]::before{ background:#e65050; box-shadow:0 0 12px #e65050; }
+  .annBar[data-level="success"]::before{ background:#31c56a; box-shadow:0 0 12px #31c56a; }
+  @keyframes annBarIn{ from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
+  .annBarIcon{ font-size:14px; flex:none; }
+  .annBarText{ flex:1; min-width:0; font-size:12.5px; color:var(--ink); font-weight:560;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .annBarMore{ flex:none; font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase;
+    background:none; border:1px solid var(--line); color:var(--acc,#f0b64a); padding:4px 9px; border-radius:20px; cursor:pointer;
+    transition:background .15s,color .15s; }
+  .annBarMore:hover{ background:var(--acc,#f0b64a); color:#08070a; }
+  .annBarClose{ flex:none; background:none; border:none; color:var(--dim,#a49a8f); cursor:pointer; font-size:13px; padding:2px 4px; }
+  .annBarClose:hover{ color:var(--ink); }
+
+  /* scrim + pop-up */
+  .annScrim[hidden]{ display:none !important; }
+  .annScrim{ position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+    padding:22px; background:rgba(4,3,7,.72); backdrop-filter:blur(6px);
+    animation:scrimIn .28s ease; }
+  @keyframes scrimIn{ from{opacity:0} to{opacity:1} }
+  .annPop, .adminPanel{ position:relative; width:min(460px,94vw); max-height:82vh; overflow:auto;
+    border:1px solid rgba(240,182,74,.3); border-radius:20px; padding:26px 24px 24px;
+    background:linear-gradient(180deg,#141019,#0c0a11);
+    box-shadow:0 40px 100px -30px rgba(240,182,74,.4), 0 0 0 1px rgba(255,255,255,.03) inset;
+    animation:popIn .42s cubic-bezier(.2,.9,.25,1.05); }
+  @keyframes popIn{ from{opacity:0; transform:translateY(24px) scale(.94)} to{opacity:1; transform:none} }
+  .annPopGlow{ position:absolute; inset:-1px auto auto -1px; right:-1px; height:3px; border-radius:20px 20px 0 0;
+    background:linear-gradient(90deg,transparent,var(--acc,#f0b64a),transparent); opacity:.8; }
+  .annPopClose{ position:absolute; top:14px; right:14px; background:none; border:none; color:var(--dim,#a49a8f);
+    font-size:16px; cursor:pointer; line-height:1; }
+  .annPopClose:hover{ color:var(--ink); }
+  .annPopKicker{ font-family:var(--mono); font-size:9px; letter-spacing:.22em; color:var(--acc,#f0b64a); margin-bottom:14px; }
+  .annPopList{ display:flex; flex-direction:column; gap:12px; }
+  .annCard{ border:1px solid var(--line); border-left:3px solid var(--acc,#f0b64a); border-radius:12px;
+    padding:13px 14px; background:rgba(8,7,10,.5); animation:cardIn .4s both; }
+  .annCard[data-level="alert"]{ border-left-color:#e65050; }
+  .annCard[data-level="success"]{ border-left-color:#31c56a; }
+  @keyframes cardIn{ from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:none} }
+  .annCardTitle{ font-size:14px; font-weight:680; color:var(--ink); margin-bottom:4px; }
+  .annCardBody{ font-size:12.5px; line-height:1.55; color:var(--dim,#a49a8f); }
+  .annCardTime{ font-family:var(--mono); font-size:8.5px; letter-spacing:.05em; color:var(--dim,#a49a8f); opacity:.7; margin-top:8px; }
+  .annEmpty{ font-family:var(--mono); font-size:10px; color:var(--dim,#a49a8f); text-align:center; padding:28px 8px; }
+
+  /* admin fab */
+  .adminFab{ position:fixed; left:16px; bottom:16px; z-index:70; width:38px; height:38px; border-radius:11px;
+    border:1px solid var(--line); background:rgba(16,13,21,.85); color:var(--dim,#a49a8f); font-size:16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:color .15s,border-color .15s,transform .15s; }
+  .adminFab:hover{ color:var(--acc,#f0b64a); border-color:var(--acc,#f0b64a); transform:rotate(40deg); }
+
+  /* admin panel */
+  .adminHint{ font-size:12px; color:var(--dim,#a49a8f); line-height:1.5; margin:0 0 14px; }
+  .adminInput{ width:100%; box-sizing:border-box; background:rgba(8,7,10,.6); border:1px solid var(--line);
+    border-radius:9px; padding:10px 12px; color:var(--ink); font-size:13px; font-family:inherit; margin-bottom:10px; }
+  .adminInput:focus{ outline:none; border-color:var(--acc,#f0b64a); }
+  .adminForm{ display:flex; flex-direction:column; }
+  .adminRow{ display:flex; gap:8px; align-items:stretch; }
+  .adminBtn{ font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; cursor:pointer;
+    border:1px solid var(--line); border-radius:9px; padding:10px 16px; background:none; color:var(--ink); transition:filter .15s,transform .15s; }
+  .adminBtn.pri{ background:linear-gradient(90deg,var(--acc,#f0b64a),#ffd98a); color:#08070a; border:none; font-weight:700; }
+  .adminBtn.pri:hover{ filter:brightness(1.08); transform:translateY(-1px); }
+  .adminMsg{ font-size:11px; min-height:15px; margin:2px 0 6px; }
+  .adminMsg.err{ color:#e65050; } .adminMsg.ok{ color:#31c56a; }
+  .adminDivider{ height:1px; background:var(--line); margin:18px 0 14px; }
+  .adminList{ display:flex; flex-direction:column; gap:8px; }
+  .adminItem{ display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:9px; padding:9px 11px; background:rgba(8,7,10,.4); }
+  .adminItemMain{ flex:1; min-width:0; }
+  .adminItemTitle{ font-size:12.5px; font-weight:620; color:var(--ink); }
+  .adminItemBody{ font-size:11px; color:var(--dim,#a49a8f); margin-top:2px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .adminItemDel{ flex:none; background:none; border:none; color:var(--dim,#a49a8f); cursor:pointer; font-size:13px; }
+  .adminItemDel:hover{ color:#e65050; }
+  .annBadge{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+  .annBadge.info{ background:var(--acc,#f0b64a); } .annBadge.alert{ background:#e65050; } .annBadge.success{ background:#31c56a; }
+
 </style>
 </head>
 <body>
@@ -176,6 +390,35 @@
     <div class="rt"><b>8</b> modules · <b>1</b> research project</div>
   </div>
 
+  <div class="annBar" id="annBar" hidden>
+    <span class="annBarIcon" id="annBarIcon">📢</span>
+    <span class="annBarText" id="annBarText"></span>
+    <button class="annBarMore" id="annBarMore">view all</button>
+    <button class="annBarClose" id="annBarClose" title="dismiss">✕</button>
+  </div>
+
+  <div class="cols">
+   <div class="colLeft">
+    <a class="ascentCard" href="ascent.html">
+      <div class="acHead">
+        <span class="acLogo">ASCENT</span>
+        <span class="acLive"><i></i>LIVE</span>
+      </div>
+      <div class="acSub">Aviation &amp; aerospace careers</div>
+      <div class="acIconWrap"><div class="acIcon">
+        <svg viewBox="0 0 24 24"><path d="M2 12h20M12 2l4 10-4 10-4-10z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      </div></div>
+      <div class="acBlurb">The suite’s live job board — real aviation &amp; aerospace vacancies, an application tracker, a résumé-fit analyzer and official recruitment notices.</div>
+      <div class="acFeat">
+        <span class="acPill src">Live vacancies</span>
+        <span class="acPill">Saved &amp; tracker</span>
+        <span class="acPill">Résumé fit</span>
+        <span class="acPill">Official notices</span>
+      </div>
+      <div class="acOpen">Open the job board →</div>
+    </a>
+   </div>
+   <div class="colRight">
   <div class="stage" id="stage">
     <canvas class="scope" id="scope"></canvas>
     <div class="hub" id="hub">
@@ -195,6 +438,23 @@
         <div class="rCta">CLICK TO LAUNCH →</div>
       </div>
     </div>
+  </div>
+   </div>
+   <div class="colNews">
+    <div class="newsCard">
+      <div class="ncHead"><span class="ncDot"></span>AVIATION NEWS<span class="ncLive" id="ncLive">live</span></div>
+      <div class="ncList" id="ncList">
+        <div class="ncSkel"></div><div class="ncSkel"></div><div class="ncSkel"></div>
+      </div>
+      <button class="ncRefresh" id="ncRefresh">↻ refresh headlines</button>
+    </div>
+    <div class="otdCard">
+      <div class="otdHead">ON THIS DAY IN AVIATION</div>
+      <div class="otdDate" id="otdDate">—</div>
+      <div class="otdYear" id="otdYear">—</div>
+      <div class="otdText" id="otdText">—</div>
+    </div>
+   </div>
   </div>
 
   <div class="link"><span class="dot"></span>
@@ -233,6 +493,7 @@
 
 /* ═══ ICONS ═══ */
 const ICON={
+  ascent: '<path d="M3 20.5h18"/><path d="M6.5 20.5V13"/><path d="M11.5 20.5V9"/><path d="M16.5 20.5V5"/><path d="M14 3h6v6"/><path d="M20 3 12.5 10.5"/>',
   argus:  '<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   pyrgos: '<path d="M7 21h10"/><path d="M9.5 21V10h5v11"/><path d="M8.6 10 12 5.6 15.4 10"/><path d="M12 5.6V2.8"/><path d="M4.5 14.5 7 13.5M19.5 14.5 17 13.5"/>',
   odyssey:'<path d="M2.5 14.6 21.5 9.2"/><path d="M6.6 13.4 4.2 9.9l1.9-.5 3.3 2.5"/><path d="M9.8 19.3 8.1 16.2"/><path d="M3.5 20.5h7"/><circle cx="18.6" cy="10" r="1"/>',
@@ -523,6 +784,9 @@ const MODULES=[
   {f:"aircraft-maintenance-hangar.html",acc:"#31c56a",k:"hangar",  n:"HANGAR",
    tag:"MAINTENANCE",
    d:"A virtual hangar floor — work a 100-hour inspection work pack at the task bench, through to sign-off."},
+  {f:"ascent.html",                    acc:"#ff9e64", k:"ascent",  n:"ASCENT",   live:1,
+   tag:"CAREERS &middot; AVIATION JOBS",
+   d:"Live aviation and aerospace openings with real salary bands, deadline countdowns, an application tracker and a side-by-side compare view."},
   {f:"gargantua/index.html",           acc:"#b98cff", k:"gargantua", n:"GARGANTUA",
    tag:"RELATIVITY &middot; RAYTRACER",
    d:"A Schwarzschild black hole integrated per pixel — real null geodesics, the shadow at 3&radic;3 M, and the photon ring."}
@@ -575,7 +839,7 @@ function activate(i){
   hub.style.setProperty('--acc',m.acc);
   document.getElementById('rBrg').textContent=String(WPS[i].dataset.brg).padStart(3,'0');
   document.getElementById('rName').textContent=m.n;
-  document.getElementById('rTag').textContent=m.tag;
+  document.getElementById('rTag').innerHTML=m.tag;
   document.getElementById('rDesc').innerHTML=m.d;
   document.getElementById('fRead').style.setProperty('--acc',m.acc);
 }
@@ -768,6 +1032,224 @@ function loop(){
 }
 layout();
 requestAnimationFrame(loop);
+
+
+
+
+/* ═══ STAGE 3 · aviation news + on-this-day ═══ */
+(function(){
+  var NEWS_PROXY='https://news-proxy.jhrishi7.workers.dev';  /* paste your news-proxy worker URL here to switch on live news */
+
+  /* ---- On this day in aviation (offline, date-keyed "MM-DD") ---- */
+  var OTD={
+    "01-01":[1914,"The world's first scheduled airline flight took off — the St. Petersburg\u2013Tampa Airboat Line in Florida."],
+    "01-15":[2009,"US Airways Flight 1549 ditched safely on the Hudson River after a bird strike — the \u201cMiracle on the Hudson.\u201d"],
+    "02-06":[1996,"The Boeing 777 entered commercial service with United Airlines."],
+    "02-09":[1969,"The Boeing 747 \u2014 the first \u201cJumbo Jet\u201d \u2014 made its maiden flight."],
+    "03-02":[1969,"Concorde made its maiden flight from Toulouse, France."],
+    "03-27":[1977,"The Tenerife disaster \u2014 the deadliest accident in aviation history \u2014 reshaped runway and radio procedures worldwide."],
+    "04-12":[1961,"Yuri Gagarin became the first human in space aboard Vostok 1."],
+    "04-28":[1988,"Aloha Airlines Flight 243 survived explosive decompression, transforming aircraft ageing and inspection rules."],
+    "05-20":[1927,"Charles Lindbergh began the first solo nonstop transatlantic flight aboard the Spirit of St. Louis."],
+    "05-21":[1932,"Amelia Earhart became the first woman to fly solo across the Atlantic."],
+    "06-18":[1928,"Amelia Earhart became the first woman to cross the Atlantic by air as a passenger."],
+    "07-02":[1937,"Amelia Earhart disappeared over the Pacific during her attempt to circumnavigate the globe."],
+    "07-20":[1969,"Apollo 11's Eagle landed on the Moon; Neil Armstrong took humanity's first steps on another world."],
+    "07-25":[2000,"Air France Concorde Flight 4590 crashed near Paris, beginning the end of Concorde service."],
+    "07-27":[1949,"The de Havilland Comet, the world's first commercial jet airliner, made its maiden flight."],
+    "08-19":[1871,"Orville Wright, aviation pioneer and co-inventor of the first powered aircraft, was born."],
+    "09-08":[1974,"TWA Flight 841 and the era's security changes \u2014 aviation security kept evolving through the 1970s."],
+    "10-14":[1947,"Chuck Yeager broke the sound barrier in the Bell X-1, reaching Mach 1.06."],
+    "10-24":[2003,"Concorde made its final commercial flight, retiring supersonic passenger travel."],
+    "11-10":[1908,"Early aviation milestones \u2014 the Wright brothers' influence spread across Europe this era."],
+    "12-17":[1903,"The Wright brothers achieved the first powered, sustained, controlled aeroplane flight at Kitty Hawk."],
+    "12-23":[1986,"Voyager completed the first non-stop, non-refuelled flight around the world."]
+  };
+  function pad(n){ return n<10?'0'+n:''+n; }
+  function nearestOTD(d){
+    var key=pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    if(OTD[key]) return {key:key,f:OTD[key]};
+    /* find the closest earlier keyed date in the year, else any */
+    var keys=Object.keys(OTD).sort();
+    var cur=key, best=null;
+    for(var i=0;i<keys.length;i++){ if(keys[i]<=cur) best=keys[i]; }
+    if(!best) best=keys[keys.length-1];
+    return {key:best,f:OTD[best]};
+  }
+  function renderOTD(){
+    var now=new Date(); var o=nearestOTD(now);
+    var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var mm=parseInt(o.key.slice(0,2),10)-1, dd=parseInt(o.key.slice(3),10);
+    var de=document.getElementById('otdDate'), ye=document.getElementById('otdYear'), te=document.getElementById('otdText');
+    if(de) de.textContent=months[mm]+' '+dd;
+    if(ye) ye.textContent=o.f[0];
+    if(te) te.textContent=o.f[1];
+  }
+
+  /* ---- Live news ---- */
+  var listEl=document.getElementById('ncList'), refreshEl=document.getElementById('ncRefresh'), liveEl=document.getElementById('ncLive');
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function skel(){ if(listEl) listEl.innerHTML='<div class="ncSkel"></div><div class="ncSkel"></div><div class="ncSkel"></div>'; }
+  function state(m){ if(listEl) listEl.innerHTML='<div class="ncState">'+esc(m)+'</div>'; }
+  function item(a){
+    return '<a class="ncItem" href="'+esc(a.url||'#')+'" target="_blank" rel="noopener">'+
+      '<div class="ncTitle">'+esc(a.title)+'</div>'+
+      '<div class="ncMeta"><span>'+esc(a.source||'')+'</span>'+(a.published?'<span>'+esc(a.published)+'</span>':'')+'</div></a>';
+  }
+  function loadNews(){
+    if(!NEWS_PROXY){ if(liveEl) liveEl.textContent='off'; state('Live news isn\u2019t switched on yet. Deploy the news-proxy worker and paste its URL into NEWS_PROXY.'); return; }
+    if(liveEl) liveEl.textContent='live'; skel();
+    var ctrl=new AbortController(); var to=setTimeout(function(){ctrl.abort();},11000);
+    fetch(NEWS_PROXY.replace(/\/$/,'')+'/news',{signal:ctrl.signal})
+      .then(function(r){ clearTimeout(to); return r.json(); })
+      .then(function(d){
+        var items=(d&&d.items)||[];
+        if(!items.length){ state('No headlines right now \u2014 try refresh in a bit.'); return; }
+        listEl.innerHTML=items.slice(0,6).map(item).join('');
+      })
+      .catch(function(){ clearTimeout(to); state('Couldn\u2019t load headlines \u2014 tap refresh to retry.'); });
+  }
+  if(refreshEl) refreshEl.addEventListener('click',loadNews);
+  renderOTD();
+  loadNews();
+})();
+
+
+/* ═══ STAGE 2 · announcements (worker-synced) ═══ */
+function initAnnouncements(){
+  /* HARD GUARD: never let any overlay be open on load */
+  try{
+    var _as=document.getElementById('adminScrim'); if(_as) _as.hidden=true;
+    var _ns=document.getElementById('annScrim'); if(_ns) _ns.hidden=true;
+  }catch(e){}
+  var ANNOUNCE_PROXY='https://announcment-proxy.jhrishi7.workers.dev';  /* paste your announce-proxy worker URL here */
+  var SEEN_KEY='argus.annSeen';
+
+  var bar=document.getElementById('annBar'), barText=document.getElementById('annBarText'), barIcon=document.getElementById('annBarIcon');
+  var popScrim=document.getElementById('annScrim'), popList=document.getElementById('annPopList');
+  var adminScrim=document.getElementById('adminScrim');
+  var ITEMS=[]; var ADMIN_KEY_CACHE='';
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function icon(l){ return l==='alert'?'⚠️':l==='success'?'✅':'📢'; }
+  function timeAgo(iso){ try{ var d=new Date(iso); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+
+  function fetchItems(){
+    if(!ANNOUNCE_PROXY){ return Promise.resolve([]); }
+    return fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/',{cache:'no-store'})
+      .then(function(r){return r.json();}).then(function(d){ return (d&&d.items)||[]; }).catch(function(){ return []; });
+  }
+
+  function renderBar(){
+    if(!ITEMS.length){ bar.hidden=true; return; }
+    var top=ITEMS[0];
+    bar.hidden=false;
+    bar.setAttribute('data-level',top.level||'info');
+    barIcon.textContent=icon(top.level);
+    barText.textContent=top.title||top.body||'';
+  }
+  function renderPop(){
+    if(!ITEMS.length){ popList.innerHTML='<div class="annEmpty">No announcements right now.</div>'; return; }
+    popList.innerHTML=ITEMS.map(function(a,i){
+      return '<div class="annCard" data-level="'+esc(a.level||'info')+'" style="animation-delay:'+(i*60)+'ms">'+
+        (a.title?'<div class="annCardTitle">'+esc(a.title)+'</div>':'')+
+        (a.body?'<div class="annCardBody">'+esc(a.body)+'</div>':'')+
+        '<div class="annCardTime">'+esc(timeAgo(a.ts))+'</div></div>';
+    }).join('');
+  }
+  function openPop(){ renderPop(); popScrim.hidden=false; }
+  function closePop(){ popScrim.hidden=true; }
+
+  /* auto-show once per browser session, only if there's something and it's unseen */
+  function maybeAutoShow(){
+    if(!ITEMS.length) return;
+    var sig=ITEMS.map(function(a){return a.id;}).join(',');
+    var seen=''; try{ seen=sessionStorage.getItem(SEEN_KEY)||''; }catch(e){}
+    if(seen!==sig){ openPop(); try{ sessionStorage.setItem(SEEN_KEY,sig); }catch(e){} }
+  }
+
+  function load(auto){
+    fetchItems().then(function(items){ ITEMS=items; renderBar(); if(auto) maybeAutoShow(); });
+  }
+
+  /* bar controls */
+  document.getElementById('annBarMore').addEventListener('click',openPop);
+  document.getElementById('annBarClose').addEventListener('click',function(){ bar.hidden=true; });
+  document.getElementById('annPopClose').addEventListener('click',closePop);
+  popScrim.addEventListener('click',function(e){ if(e.target===popScrim) closePop(); });
+
+  /* ---- admin ---- */
+  var fab=document.getElementById('adminFab');
+  var loginBox=document.getElementById('adminLogin'), panelBody=document.getElementById('adminPanelBody');
+  var passInput=document.getElementById('adminPass'), loginMsg=document.getElementById('adminLoginMsg');
+  function openAdmin(){ adminScrim.hidden=false; loginBox.hidden=false; panelBody.hidden=true; loginMsg.textContent=''; passInput.value=''; setTimeout(function(){passInput.focus();},60); }
+  function closeAdmin(){ adminScrim.hidden=true; }
+  fab.addEventListener('click',openAdmin);
+  document.getElementById('adminClose').addEventListener('click',closeAdmin);
+  adminScrim.addEventListener('click',function(e){ if(e.target===adminScrim) closeAdmin(); });
+
+  function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Key':ADMIN_KEY_CACHE}; }
+
+  function doLogin(){
+    if(!ANNOUNCE_PROXY){ loginMsg.className='adminMsg err'; loginMsg.textContent='Announcements aren\u2019t switched on. Deploy the announce-proxy worker and set ANNOUNCE_PROXY.'; return; }
+    var pass=passInput.value.trim(); if(!pass){ return; }
+    loginMsg.className='adminMsg'; loginMsg.textContent='Checking\u2026';
+    fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/verify',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Key':pass}})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(res){
+        if(res.d&&res.d.ok){ ADMIN_KEY_CACHE=pass; loginBox.hidden=true; panelBody.hidden=false; renderAdminList(); }
+        else { loginMsg.className='adminMsg err'; loginMsg.textContent='Wrong password.'; }
+      })
+      .catch(function(){ loginMsg.className='adminMsg err'; loginMsg.textContent='Couldn\u2019t reach the announcements service.'; });
+  }
+  document.getElementById('adminLoginBtn').addEventListener('click',doLogin);
+  passInput.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); doLogin(); } });
+
+  function renderAdminList(){
+    var el=document.getElementById('adminList');
+    if(!ITEMS.length){ el.innerHTML='<div class="annEmpty">Nothing posted yet.</div>'; return; }
+    el.innerHTML=ITEMS.map(function(a){
+      return '<div class="adminItem" data-id="'+esc(a.id)+'">'+
+        '<div class="adminItemMain"><div class="adminItemTitle"><span class="annBadge '+esc(a.level||'info')+'"></span>'+esc(a.title||'(no title)')+'</div>'+
+        (a.body?'<div class="adminItemBody">'+esc(a.body)+'</div>':'')+'</div>'+
+        '<button class="adminItemDel" data-del="'+esc(a.id)+'" title="Remove">🗑</button></div>';
+    }).join('');
+    [].forEach.call(el.querySelectorAll('[data-del]'),function(btn){
+      btn.addEventListener('click',function(){ delItem(btn.getAttribute('data-del')); });
+    });
+  }
+
+  var postMsg=document.getElementById('adminPostMsg');
+  function doPost(){
+    var title=document.getElementById('annTitle').value.trim();
+    var body=document.getElementById('annBody').value.trim();
+    var level=document.getElementById('annLevel').value;
+    if(!title&&!body){ postMsg.className='adminMsg err'; postMsg.textContent='Type a title or some details first.'; return; }
+    postMsg.className='adminMsg'; postMsg.textContent='Posting\u2026';
+    fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/',{method:'POST',headers:adminHeaders(),body:JSON.stringify({title:title,body:body,level:level})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.ok){ ITEMS=d.items||[]; postMsg.className='adminMsg ok'; postMsg.textContent='Posted.';
+          document.getElementById('annTitle').value=''; document.getElementById('annBody').value='';
+          renderBar(); renderAdminList(); }
+        else { postMsg.className='adminMsg err'; postMsg.textContent=d.error||'Could not post.'; }
+      })
+      .catch(function(){ postMsg.className='adminMsg err'; postMsg.textContent='Network error.'; });
+  }
+  document.getElementById('annPost').addEventListener('click',doPost);
+
+  function delItem(id){
+    if(!confirm('Remove this announcement for everyone?')) return;
+    fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/delete',{method:'POST',headers:adminHeaders(),body:JSON.stringify({id:id})})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d.ok){ ITEMS=d.items||[]; renderBar(); renderAdminList(); } });
+  }
+
+    load(false);   /* no auto-popup on load — announcements show in the bar; click ‘view all’ to open */
+}
+if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',initAnnouncements); }
+else { initAnnouncements(); }
+
 </script>
 
   <!-- ═══ ATTENDANCE DASHBOARDS · bottom-right dock ═══ -->
@@ -792,5 +1274,52 @@ requestAnimationFrame(loop);
       </a>
     </div>
   </div>
+
+<!-- ═══ STAGE 2 · announcements ═══ -->
+<button class="adminFab" id="adminFab" title="Admin">⚙</button>
+
+<div class="annScrim" id="annScrim" hidden>
+  <div class="annPop" id="annPop" role="dialog" aria-modal="true">
+    <div class="annPopGlow"></div>
+    <button class="annPopClose" id="annPopClose" aria-label="close">✕</button>
+    <div class="annPopKicker">ANNOUNCEMENTS</div>
+    <div class="annPopList" id="annPopList"></div>
+  </div>
+</div>
+
+<div class="annScrim" id="adminScrim" hidden>
+  <div class="adminPanel" id="adminPanel" role="dialog" aria-modal="true">
+    <button class="annPopClose" id="adminClose" aria-label="close">✕</button>
+
+    <div id="adminLogin">
+      <div class="annPopKicker">ADMIN · SIGN IN</div>
+      <p class="adminHint">Enter the admin password to post or remove announcements.</p>
+      <input type="password" id="adminPass" class="adminInput" placeholder="Password" autocomplete="off">
+      <div class="adminMsg" id="adminLoginMsg"></div>
+      <button class="adminBtn pri" id="adminLoginBtn">Unlock</button>
+    </div>
+
+    <div id="adminPanelBody" hidden>
+      <div class="annPopKicker">ADMIN · ANNOUNCEMENTS</div>
+      <div class="adminForm">
+        <input type="text" id="annTitle" class="adminInput" placeholder="Title (e.g. Holiday tomorrow)">
+        <textarea id="annBody" class="adminInput" style="min-height:80px;resize:vertical" placeholder="Details (optional)"></textarea>
+        <div class="adminRow">
+          <select id="annLevel" class="adminInput" style="flex:1">
+            <option value="info">Info (gold)</option>
+            <option value="alert">Alert (red)</option>
+            <option value="success">Good news (green)</option>
+          </select>
+          <button class="adminBtn pri" id="annPost">Post</button>
+        </div>
+        <div class="adminMsg" id="adminPostMsg"></div>
+      </div>
+      <div class="adminDivider"></div>
+      <div class="annPopKicker" style="margin-bottom:8px">POSTED · tap ✕ to remove</div>
+      <div class="adminList" id="adminList"></div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
