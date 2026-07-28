@@ -1042,46 +1042,66 @@ requestAnimationFrame(loop);
 
   /* ---- On this day in aviation (offline, date-keyed "MM-DD") ---- */
   var OTD={
-    "01-01":[1914,"The world's first scheduled airline flight took off — the St. Petersburg\u2013Tampa Airboat Line in Florida."],
-    "01-15":[2009,"US Airways Flight 1549 ditched safely on the Hudson River after a bird strike — the \u201cMiracle on the Hudson.\u201d"],
+    "01-01":[1914,"The world's first scheduled airline flight took off \u2014 the St. Petersburg\u2013Tampa Airboat Line in Florida."],
+    "01-09":[2007,"Aviation and tech converged as the smartphone era began \u2014 reshaping cockpit EFBs and flight apps within a decade."],
+    "01-15":[2009,"US Airways Flight 1549 ditched safely on the Hudson River after a bird strike \u2014 the \u201cMiracle on the Hudson.\u201d"],
+    "01-27":[1967,"The Apollo 1 crew was lost in a launch-pad fire, driving sweeping spacecraft safety reforms."],
     "02-06":[1996,"The Boeing 777 entered commercial service with United Airlines."],
     "02-09":[1969,"The Boeing 747 \u2014 the first \u201cJumbo Jet\u201d \u2014 made its maiden flight."],
+    "02-20":[1962,"John Glenn became the first American to orbit the Earth aboard Friendship 7."],
     "03-02":[1969,"Concorde made its maiden flight from Toulouse, France."],
+    "03-08":[2014,"Malaysia Airlines Flight 370 vanished \u2014 spurring global flight-tracking mandates."],
     "03-27":[1977,"The Tenerife disaster \u2014 the deadliest accident in aviation history \u2014 reshaped runway and radio procedures worldwide."],
     "04-12":[1961,"Yuri Gagarin became the first human in space aboard Vostok 1."],
     "04-28":[1988,"Aloha Airlines Flight 243 survived explosive decompression, transforming aircraft ageing and inspection rules."],
+    "05-15":[1930,"Ellen Church became the world's first flight attendant, aboard a Boeing Air Transport flight."],
     "05-20":[1927,"Charles Lindbergh began the first solo nonstop transatlantic flight aboard the Spirit of St. Louis."],
     "05-21":[1932,"Amelia Earhart became the first woman to fly solo across the Atlantic."],
-    "06-18":[1928,"Amelia Earhart became the first woman to cross the Atlantic by air as a passenger."],
+    "06-18":[1928,"Amelia Earhart became the first woman to cross the Atlantic by air."],
+    "06-23":[1931,"Wiley Post and Harold Gatty began their record round-the-world flight in the Winnie Mae."],
     "07-02":[1937,"Amelia Earhart disappeared over the Pacific during her attempt to circumnavigate the globe."],
+    "07-15":[1954,"The Boeing 367-80 \u2014 prototype of the 707 \u2014 first flew, launching the American jet age."],
     "07-20":[1969,"Apollo 11's Eagle landed on the Moon; Neil Armstrong took humanity's first steps on another world."],
     "07-25":[2000,"Air France Concorde Flight 4590 crashed near Paris, beginning the end of Concorde service."],
     "07-27":[1949,"The de Havilland Comet, the world's first commercial jet airliner, made its maiden flight."],
-    "08-19":[1871,"Orville Wright, aviation pioneer and co-inventor of the first powered aircraft, was born."],
-    "09-08":[1974,"TWA Flight 841 and the era's security changes \u2014 aviation security kept evolving through the 1970s."],
+    "07-28":[1935,"The Boeing B-17 Flying Fortress prototype made its first flight."],
+    "07-29":[1958,"NASA was established by the U.S. Congress, opening the space age of aviation research."],
+    "07-30":[1971,"Apollo 15 landed on the Moon, carrying the first Lunar Roving Vehicle."],
+    "08-01":[1919,"KLM, the world's oldest airline still operating under its original name, was founded."],
+    "08-19":[1871,"Orville Wright, co-inventor of the first powered aircraft, was born."],
+    "08-25":[1919,"The world's first daily international scheduled air service began, London to Paris."],
+    "09-08":[2004,"NASA's Genesis capsule returned \u2014 part of the era's push in aerospace sample-return engineering."],
+    "09-15":[1928,"The de Havilland Gipsy engine era advanced light aviation and pilot training worldwide."],
+    "10-04":[1957,"Sputnik 1, the first artificial satellite, was launched \u2014 opening the space race."],
     "10-14":[1947,"Chuck Yeager broke the sound barrier in the Bell X-1, reaching Mach 1.06."],
     "10-24":[2003,"Concorde made its final commercial flight, retiring supersonic passenger travel."],
-    "11-10":[1908,"Early aviation milestones \u2014 the Wright brothers' influence spread across Europe this era."],
+    "11-10":[1935,"The Hawker Hurricane first flew \u2014 a fighter that would prove decisive in the Battle of Britain."],
+    "11-13":[1907,"Paul Corn\u00fa achieved the first free flight of a rotary-wing aircraft \u2014 an early helicopter."],
+    "12-14":[1903,"The Wright brothers made their first flight attempt at Kitty Hawk, three days before success."],
     "12-17":[1903,"The Wright brothers achieved the first powered, sustained, controlled aeroplane flight at Kitty Hawk."],
-    "12-23":[1986,"Voyager completed the first non-stop, non-refuelled flight around the world."]
+    "12-23":[1986,"Voyager completed the first non-stop, non-refuelled flight around the world."],
+    "12-31":[1968,"The Tupolev Tu-144, the first supersonic transport to fly, made its maiden flight \u2014 ahead of Concorde."]
   };
   function pad(n){ return n<10?'0'+n:''+n; }
   function nearestOTD(d){
     var key=pad(d.getMonth()+1)+'-'+pad(d.getDate());
-    if(OTD[key]) return {key:key,f:OTD[key]};
-    /* find the closest earlier keyed date in the year, else any */
+    if(OTD[key]) return {key:key,f:OTD[key],exact:true};
+    /* find the closest keyed date (either side) in the year */
     var keys=Object.keys(OTD).sort();
-    var cur=key, best=null;
-    for(var i=0;i<keys.length;i++){ if(keys[i]<=cur) best=keys[i]; }
-    if(!best) best=keys[keys.length-1];
-    return {key:best,f:OTD[best]};
+    var best=keys[0], bestDist=999;
+    for(var i=0;i<keys.length;i++){
+      var mm=parseInt(keys[i].slice(0,2),10), dd=parseInt(keys[i].slice(3),10);
+      var dist=Math.abs((mm*31+dd)-((d.getMonth()+1)*31+d.getDate()));
+      if(dist<bestDist){ bestDist=dist; best=keys[i]; }
+    }
+    return {key:best,f:OTD[best],exact:false};
   }
   function renderOTD(){
     var now=new Date(); var o=nearestOTD(now);
     var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
     var mm=parseInt(o.key.slice(0,2),10)-1, dd=parseInt(o.key.slice(3),10);
     var de=document.getElementById('otdDate'), ye=document.getElementById('otdYear'), te=document.getElementById('otdText');
-    if(de) de.textContent=months[mm]+' '+dd;
+    if(de) de.textContent = o.exact ? (months[mm]+' '+dd) : ('Nearest milestone \u00b7 '+months[mm]+' '+dd);
     if(ye) ye.textContent=o.f[0];
     if(te) te.textContent=o.f[1];
   }
