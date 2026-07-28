@@ -391,6 +391,7 @@ textarea.field{width:100%;resize:vertical;min-height:70px;line-height:1.55}
     <div class="railFoot">
       <button class="ghost" id="themeBtn">◐ Day / night</button>
       <button class="ghost" id="exportBtn">↓ Back up data</button>
+      <button class="ghost" id="lockNowBtn">🔒 Lock console</button>
       <button class="ghost" id="importBtn">↑ Restore</button>
       <input type="file" id="importFile" accept="application/json" class="hidden">
     </div>
@@ -1801,6 +1802,13 @@ function applyTheme(t){ document.documentElement.setAttribute('data-theme', t); 
 }
 (function(){ let t='dark'; try{ t=localStorage.getItem('mentor.theme')||'dark'; }catch(e){} document.documentElement.setAttribute('data-theme',t); })();
 document.getElementById('themeBtn').onclick=()=>{ const cur=document.documentElement.getAttribute('data-theme')||'dark'; applyTheme(cur==='light'?'dark':'light'); };
+/* manual lock */
+(function(){ const lb=document.getElementById('lockNowBtn'); if(lb) lb.onclick=()=>{
+  try{ sessionStorage.removeItem('mentor.unlocked'); }catch(e){}
+  const scr=document.getElementById('lockScreen'), inp=document.getElementById('lockInput'), msg=document.getElementById('lockMsg');
+  if(msg) msg.textContent=''; if(inp) inp.value='';
+  if(scr){ scr.classList.remove('unlocked'); setTimeout(()=>inp&&inp.focus(),300); }
+}; })();
 /* redraw charts crisply on resize */
 let RESZ; window.addEventListener('resize',()=>{ clearTimeout(RESZ); RESZ=setTimeout(()=>{ if(VIEW==='analytics'&&!CURRENT){ try{ wireAnalytics(); }catch(e){} } },200); });
 applyTheme(document.documentElement.getAttribute('data-theme')||'dark');
