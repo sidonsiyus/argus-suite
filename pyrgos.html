@@ -403,6 +403,7 @@ body.silentmode .board{outline:1px solid rgba(30,203,184,.25);outline-offset:-3p
       <button class="postab" data-pos="APP">Approach</button>
       <button class="postab on" data-pos="TWR">Tower</button>
       <button class="postab" data-pos="GND">Ground</button>
+      <button class="postab ops" id="btnOps" style="background:rgba(240,182,74,.14);color:var(--gold)">◇ OPS</button>
     </div>
     <div class="spacer"></div>
     <div class="hud">
@@ -603,7 +604,7 @@ function vhdg(x,y){ return (Math.atan2(x,-y)/D2R+360)%360; }   // compass headin
    ============================================================ */
 const LAYOUTS={
   chennai:{
-    label:"Chennai · MAA (VOMM)", icao:"VOMM", metar:"VOMM", twr:"127.9", gnd:"121.75", dep:"127.9", geo:{lat:12.9941,lon:80.1709},
+    label:"Chennai · MAA (VOMM)", icao:"VOMM", metar:"VOMM", twr:"118.1", gnd:"121.9", dep:"127.9", geo:{lat:12.9941,lon:80.1709},
     sids:[
       {name:"LATID5A", rwys:["25","07"], hdg:200, alt:5000},
       {name:"GUVOX3B", rwys:["25"],      hdg:290, alt:6000},
@@ -611,17 +612,17 @@ const LAYOUTS={
       {name:"TILNU2A", rwys:["12","30","25"], hdg:25, alt:7000}
     ],
     runways:[
-      // VOMM to scale — 07/25: 3661 m, TRUE 069.05°/249.05°  ·  12/30: 2890 m, TRUE 117.65°/297.65°, crossing near the 25 end
-      {id:"MAIN", ax:138,ay:779, bx:1232,by:360, w:18, nameA:"07", nameB:"25", role:"BOTH", dir:"25"},
-      {id:"CROSS",ax:271,ay:21,  bx:1090,by:451, w:16, nameA:"12", nameB:"30", role:"OFF",  dir:"12"}
+      // VOMM accurate to scale — 07/25: 3658 m, TRUE 071°/251°  ·  12/30: 2045 m, TRUE 117.65°/297.65°, crossing near the 25 end (scale 0.3203 px/m)
+      {id:"MAIN", ax:131,ay:760, bx:1239,by:379, w:17, nameA:"07", nameB:"25", role:"BOTH", dir:"25"},
+      {id:"CROSS",ax:659,ay:286, bx:1239,by:590, w:16, nameA:"12", nameB:"30", role:"OFF",  dir:"12"}
     ],
     nodes:{
       // TWY A — main parallel, north of 07/25
-      A1:{x:161,y:642},A2:{x:390,y:554},A3:{x:620,y:466},A4:{x:850,y:378},A5:{x:1080,y:290},
+      A1:{x:174,y:669},A2:{x:418,y:585},A3:{x:662,y:501},A4:{x:905,y:418},A5:{x:1138,y:338},
       // runway hold-short points
-      H07:{x:122,y:737},H25:{x:1216,y:318},H12:{x:300,y:58},H30:{x:1062,y:470},
+      H07:{x:134,y:696},H25:{x:1197,y:330},H12:{x:696,y:243},H30:{x:1253,y:535},
       // terminal stands (between the runways, north side)
-      G1:{x:384,y:438},G2:{x:461,y:409},G3:{x:537,y:380},G4:{x:614,y:350},G5:{x:690,y:321},G6:{x:767,y:292},G7:{x:843,y:262},G8:{x:920,y:233}
+      G1:{x:418,y:513},G2:{x:479,y:492},G3:{x:540,y:471},G4:{x:601,y:450},G5:{x:662,y:429},G6:{x:723,y:409},G7:{x:784,y:388},G8:{x:844,y:367}
     },
     edges:[["A1","A2"],["A2","A3"],["A3","A4"],["A4","A5"],
       ["A1","H07"],["A5","H25"],["A2","H12"],["A5","H30"],
@@ -801,6 +802,7 @@ const TYPE_KEYS=Object.keys(TYPES), AIR_KEYS=Object.keys(AIRLINES);
 /* ---- runtime state ---- */
 let CFG={traffic:1, arrRate:1, shift:300, emg:1, night:0, voice:1, silent:0, tempo:1, wx:"CAVOK",
   approach:"seq", diff:"standard", spacing:1, cb:0, uiScale:1, ody:1,
+  pipeOnly:0,   // when 1, only pipeline-fed flights depart — no random ambient departures
   view:"chart"};      // "chart" = aerodrome chart · "scope" = radar scope
 function loadCareer(){ try{ return JSON.parse(localStorage.getItem("pyrgos_career"))||null; }catch(_){ return null; } }
 function saveCareer(c){ try{ localStorage.setItem("pyrgos_career", JSON.stringify(c)); }catch(_){} }
@@ -852,8 +854,8 @@ const ODY={ seen:"", pending:0, t:null };   // watches for flights filed mid-shi
 function resetGame(startRun){
   G=freshState(); G.shift=CFG.shift; selected=null;
   loadLayout(LKEY);
-  // seed a couple of departures at gates + one arrival
-  for(let i=0;i<2;i++) spawnDeparture(true);
+  // seed a couple of departures at gates + one arrival (skip seed departures in pipeline-only mode)
+  if(!CFG.pipeOnly){ for(let i=0;i<2;i++) spawnDeparture(true); }
   spawnArrival();
   purgeOdyStore();                        // a new shift does not inherit yesterday's ghosts
   injectOdyssey();                        // your own dispatched flights come first
@@ -1120,6 +1122,46 @@ function spawnDeparture(atStart){
   G.aircraft.push(ac);
   if(!atStart) log("strip", spoken(ac)+" ready at "+gate.id);
   return ac;
+}
+
+/* ── MERGE BRIDGE: spawn a cleared pipeline flight into the live radar sim ── */
+function spawnFromStrip(flight){
+  if(!flight) return null;
+  const gate=GATES.find(g=>!g.occ); if(!gate){ toast("No free gate for "+(flight.callsign||"traffic")); return null; }
+  // parse callsign "ABY283" -> prefix ABY + number 283 (fallback: whole string)
+  let pre="", num=flight.callsign||"";
+  const m=(flight.callsign||"").match(/^([A-Z]{2,3})(\d+)$/);
+  if(m){ pre=m[1]; num=m[2]; }
+  // map aircraft type onto a known TYPES key, else default A320
+  let tk = flight.actype && TYPES[flight.actype] ? flight.actype : "A320";
+  gate.occ=flight.callsign||("F"+G.nextId);
+  const rwy=pickDepRwy();
+  // SID: prefer the one Delivery cleared; else pick a valid one
+  let sid=null;
+  if(flight.clearance && flight.clearance.sid && LZ.sids){ sid=LZ.sids.find(x=>x.name===flight.clearance.sid)||null; }
+  if(!sid) sid=pickSid(rName(rwy));
+  const ac={
+    id:G.nextId++, kind:"dep", pre, cs:flight.callsign||("F"+G.nextId), num,
+    type:tk, wake:TYPES[tk].wake, rwy, squawk:(flight.squawk||mkSquawk()), sid,
+    x:gate.x, y:gate.y, hdg:0, spd:0, alt:0, state:"GATE",
+    cleared:{push:false,taxi:false,lineup:false,takeoff:false,sid:!!(flight.clearance&&flight.clearance.sid)},
+    route:null, gate, emg:false, born:G.t, waited:0, flash:0,
+    ody:true, stripId:flight.id, ades:flight.ades||"", adep:flight.adep||""
+  };
+  G.aircraft.push(ac);
+  log("strip", spoken(ac)+" on stand "+gate.id+" — cleared, ready for push");
+  return ac;
+}
+
+/* keep the pipeline strip's stage synced with the live aircraft's progress */
+function stripStageFromAc(ac){
+  if(!ac.ody||!ac.stripId||!window.PYRGOS_OPS) return;
+  const f=(window.PYRGOS_OPS.pipe||[]).find(x=>x.id===ac.stripId); if(!f) return;
+  let st=f.stage;
+  if(ac.state==="PUSH"||ac.state==="WAITTAXI") st="pushback";
+  else if(ac.state==="TAXI_OUT"||ac.state==="HOLD_SHORT"||ac.state==="LINEUP") st="taxi";
+  else if(ac.state==="ROLL"||ac.state==="CLIMB"||ac.state==="DEP"||ac.dead) st="departed";
+  if(st!==f.stage){ f.stage=st; if(window.PYRGOS_OPS.save) window.PYRGOS_OPS.save(); }
 }
 
 
@@ -2445,9 +2487,9 @@ function stepGame(dt){
   G.spawnT-=dt*CFG.traffic*CFG.arrRate*wave;
   if(G.spawnT<=0){ if(G.aircraft.filter(a=>a.kind==="arr").length<maxArr) spawnArrival(); G.spawnT=(7.5/Math.max(.4,CFG.arrRate))+Math.random()*4; }
   G.depT-=dt*CFG.traffic*wave;
-  if(G.depT<=0){ if(GATES.some(g=>!g.occ)&&G.aircraft.filter(a=>a.kind==="dep").length<maxDep) spawnDeparture(); G.depT=8+Math.random()*6; }
+  if(G.depT<=0){ if(!CFG.pipeOnly && GATES.some(g=>!g.occ)&&G.aircraft.filter(a=>a.kind==="dep").length<maxDep) spawnDeparture(); G.depT=8+Math.random()*6; }
 
-  for(const a of G.aircraft){ updateAircraft(a,dt); if(a.flash>0)a.flash-=dt; updateDeice(a,dt); }
+  for(const a of G.aircraft){ updateAircraft(a,dt); if(a.flash>0)a.flash-=dt; updateDeice(a,dt); if(a.ody&&typeof stripStageFromAc==="function") stripStageFromAc(a); }
 
   /* ---- ground operations ---- */
   G.vehicles=G.vehicles||[]; G.notams=G.notams||[];
@@ -3949,7 +3991,8 @@ micBtn.addEventListener("pointerup",()=>{ stopListen(); });
 micBtn.addEventListener("pointerleave",()=>{ if(listening)stopListen(); });
 
 /* position tabs */
-document.getElementById("posTabs").addEventListener("click",(e)=>{ const b=e.target.closest(".postab"); if(!b)return;
+var _btnOps=document.getElementById("btnOps"); if(_btnOps) _btnOps.addEventListener("click",function(ev){ ev.stopPropagation(); if(window.PYRGOS_OPS) window.PYRGOS_OPS.open(); });
+document.getElementById("posTabs").addEventListener("click",(e)=>{ const b=e.target.closest(".postab"); if(!b)return; if(b.id==="btnOps") return;
   document.querySelectorAll(".postab").forEach(x=>x.classList.remove("on")); b.classList.add("on"); G.pos=b.dataset.pos;
   if(G){ G._commsBay=b.dataset.pos; if(typeof paintComms==="function") paintComms(); } if(G)G._crtAt=performance.now(); fit();
   document.getElementById("hintLine").textContent = G.pos==="APP"?"Approach: space the arrivals — Reduce Speed or Go Around to fix separation."
@@ -4484,5 +4527,1785 @@ window.addEventListener("keydown",(e)=>{ const t=e.target; if(t&&/^(INPUT|TEXTAR
   else if(k==="o"){ CFG.stca = CFG.stca?0:1; if(typeof toast==="function")toast("Conflict alerts "+(CFG.stca?"on":"off")); }
 });
 </script>
+
+<style id="deptStyles">
+/* ═══ PYRGOS departments · Stage 1 ═══ */
+.deptLayer{position:absolute;inset:0;z-index:40;background:
+  radial-gradient(ellipse 70% 50% at 20% 0%,rgba(240,182,74,.06),transparent 55%),var(--bg);
+  display:flex;flex-direction:column;overflow:hidden}
+.deptLayer[hidden]{display:none}
+.deptBar{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex:none}
+.deptBrand b{font-family:var(--mono);letter-spacing:.26em;color:var(--gold);font-size:14px}
+.deptBrand span{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--muted);margin-left:6px}
+.deptTabs{display:flex;gap:4px;background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:4px}
+.deptTab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted);background:transparent;border:0;padding:8px 14px;border-radius:8px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:7px}
+.deptTab i{font-style:normal;font-size:12px}
+.deptTab:hover{color:var(--ink)}
+.deptTab.on[data-dept="briefing"]{background:rgba(240,182,74,.18);color:var(--gold);font-weight:700}
+.deptTab.on[data-dept="atis"]{background:rgba(30,203,184,.16);color:var(--teal);font-weight:700}
+.deptTab.on[data-dept="delivery"]{background:rgba(167,139,250,.18);color:#b9a6ff;font-weight:700}
+.deptTab.on[data-dept="ground"]{background:rgba(255,178,62,.16);color:var(--amber);font-weight:700}
+.deptTab.on[data-dept="tower"]{background:rgba(107,183,255,.16);color:var(--blue);font-weight:700}
+.deptSpacer{flex:1}
+.deptExit{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:9px;padding:8px 12px;cursor:pointer;transition:.15s}
+.deptExit:hover{border-color:var(--red);color:var(--red)}
+.deptView{flex:1;min-height:0;overflow:auto;padding:20px;display:none}
+.deptView.on{display:block}
+.deptStub{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-family:var(--mono)}
+.deptStub b{font-size:22px;letter-spacing:.1em;color:var(--ink)}
+.deptStub span{font-size:12px}
+
+/* briefing */
+.briefGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1400px;margin:0 auto}
+@media(max-width:900px){.briefGrid{grid-template-columns:1fr}}
+.briefCol{display:flex;flex-direction:column;gap:16px;min-width:0}
+.briefPanel{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px}
+.bpHead{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:650;color:var(--ink);margin-bottom:12px}
+.bpDot{width:7px;height:7px;border-radius:50%;background:var(--gold)}
+.bpDot.amber{background:var(--amber)}
+.bpCount{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg2);border:1px solid var(--line);border-radius:20px;padding:2px 9px}
+.bpHint{font-size:12px;color:var(--muted);line-height:1.55;margin:0 0 12px}
+.fplBox{width:100%;min-height:180px;resize:vertical;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;color:var(--ink);font-family:var(--mono);font-size:12px;line-height:1.5}
+.fplBox:focus{outline:none;border-color:var(--gold)}
+.bpRow{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.dBtn{font-family:var(--mono);font-size:11px;letter-spacing:.06em;cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:10px 15px;background:var(--bg2);color:var(--ink);transition:.15s}
+.dBtn:hover{border-color:var(--muted)}
+.dBtn.go{background:linear-gradient(100deg,var(--gold),#ffd27a);color:#2a1e05;border:none;font-weight:700}
+.dBtn.go:hover{filter:brightness(1.06)}
+.dBtn.danger:hover{border-color:var(--red);color:var(--red)}
+.fplErr{color:var(--red);font-size:12px;margin-top:10px;min-height:16px;font-family:var(--mono)}
+
+/* parsed strip */
+.stripCard{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg2)}
+.stripTop{display:flex;align-items:center;gap:12px;padding:12px 14px;background:linear-gradient(90deg,rgba(240,182,74,.12),transparent);border-bottom:1px solid var(--line)}
+.stripCall{font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:.05em;color:var(--gold)}
+.stripType{font-family:var(--mono);font-size:11px;color:var(--muted);padding:2px 8px;border:1px solid var(--line);border-radius:20px}
+.stripRoute{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--ink)}
+.stripGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line)}
+.stripCell{background:var(--bg2);padding:9px 12px}
+.stripCell .k{font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+.stripCell .v{font-family:var(--mono);font-size:13px;color:var(--ink);margin-top:3px}
+.stripRouteFull{padding:10px 14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.6;word-break:break-word}
+.stripRouteFull b{color:var(--ink)}
+.valid{display:flex;gap:7px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line)}
+.vchip{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+.vchip.ok{color:var(--green);border-color:rgba(58,217,160,.4)}
+.vchip.warn{color:var(--amber);border-color:rgba(255,178,62,.4)}
+
+/* pipeline */
+.pipeList{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow:auto}
+.pipeRow{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg2)}
+.pipeCall{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink);min-width:74px}
+.pipeRoute{font-family:var(--mono);font-size:11px;color:var(--muted);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage-pill{font-family:var(--mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.stage-pending{background:rgba(255,178,62,.14);color:var(--amber)}
+.stage-approved{background:rgba(58,217,160,.14);color:var(--green)}
+.stage-cleared{background:rgba(167,139,250,.16);color:#b9a6ff}
+.stage-pushback,.stage-taxi{background:rgba(255,178,62,.14);color:var(--amber)}
+.stage-departed{background:rgba(107,183,255,.16);color:var(--blue)}
+.pipeEmpty{text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:11px}
+.pipeDel{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 4px;flex:none}
+.pipeDel:hover{color:var(--red)}
+
+.mergeNote{font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--muted);background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin:12px 0}
+.mergeNote b{color:var(--ink)}
+
+.pipeToggle{display:flex;gap:10px;align-items:flex-start;font-family:var(--mono);font-size:11px;line-height:1.55;color:var(--muted);cursor:pointer;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--bg2);margin:12px 0}
+.pipeToggle input{margin-top:2px;flex:none;width:16px;height:16px;accent-color:var(--amber);cursor:pointer}
+.pipeToggle b{color:var(--amber)}
+
+/* ATIS */
+.atisGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1200px;margin:0 auto}
+@media(max-width:820px){.atisGrid{grid-template-columns:1fr}}
+.atisLetter{margin-left:auto;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;font-size:18px;color:#062420;background:var(--teal)}
+.atisScreen{background:#031412;border:1px solid rgba(30,203,184,.25);border-radius:11px;padding:16px;
+  font-family:var(--mono);font-size:13px;line-height:1.85;color:#8ff0e2;white-space:pre-wrap;min-height:150px;
+  box-shadow:inset 0 0 30px -10px rgba(30,203,184,.4)}
+.atisScreen .k{color:var(--muted)}
+.atisMeta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:10px;letter-spacing:.05em}
+.atisLab{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+.atisRwyRow{display:flex;gap:8px;flex-wrap:wrap}
+.atRwy{font-family:var(--mono);font-size:13px;font-weight:700;padding:9px 15px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);color:var(--ink);cursor:pointer;transition:.15s}
+.atRwy:hover{border-color:var(--teal)}
+.atRwy.on{background:rgba(30,203,184,.16);border-color:var(--teal);color:var(--teal)}
+.atRwy small{display:block;font-size:8px;color:var(--muted);font-weight:400;margin-top:2px}
+.segline{display:flex;gap:6px;flex-wrap:wrap}
+.atSeg{font-family:var(--mono);font-size:11px;padding:8px 13px;border-radius:8px;border:1px solid var(--line);background:var(--bg2);color:var(--muted);cursor:pointer;transition:.15s}
+.atSeg:hover{color:var(--ink)}
+.atSeg.on{background:rgba(30,203,184,.16);border-color:var(--teal);color:var(--teal);font-weight:700}
+.atisTwo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.atisInline{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.atisGo{background:linear-gradient(100deg,var(--teal),#7ff0e2)!important;color:#062420!important}
+
+/* briefing chart */
+.briefChartCol{grid-column:1 / -1}
+.chartPanel{padding:14px}
+.chartSub{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-left:4px}
+.chartCtrls{margin-left:auto;display:flex;gap:5px}
+.chartBtn{font-family:var(--mono);font-size:11px;min-width:30px;height:28px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg2);color:var(--ink);cursor:pointer;transition:.15s}
+.chartBtn:hover{border-color:var(--gold);color:var(--gold)}
+.chartBtn.on{background:rgba(30,203,184,.16);border-color:var(--teal);color:var(--teal)}
+.chartWrap{position:relative;margin-top:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#040a12}
+#briefChart{display:block;width:100%;height:460px;cursor:grab}
+#briefChart:active{cursor:grabbing}
+.chartLegend{position:absolute;left:12px;bottom:12px;background:rgba(4,10,18,.82);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.7;backdrop-filter:blur(3px)}
+.clRow{display:flex;align-items:center;gap:8px}
+.clDot{width:9px;height:9px;border-radius:50%;flex:none}
+.clDot.live{background:var(--teal);box-shadow:0 0 7px var(--teal)}
+.clDot.prop{background:var(--gold);box-shadow:0 0 7px var(--gold);border:1px dashed #fff3}
+.clLine{width:16px;height:0;border-top:2px dashed #d98cff;flex:none}
+.chartInfo{position:absolute;right:12px;top:12px;background:rgba(4,10,18,.82);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-family:var(--mono);font-size:10px;color:var(--ink);line-height:1.7;backdrop-filter:blur(3px);max-width:230px;display:none}
+.chartInfo.on{display:block}
+.chartInfo b{color:var(--gold)}
+
+
+
+.chartFieldSel{font-family:var(--mono);font-size:10px;padding:6px 8px;border-radius:8px;
+  background:var(--bg2);color:var(--gold,#f0b64a);border:1px solid var(--line);cursor:pointer;margin-right:8px;max-width:180px}
+.chartFieldSel:focus{outline:none;border-color:var(--gold,#f0b64a)}
+
+.chartRange{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-right:8px}
+.chRngBtn{font-family:var(--mono);font-size:10px;padding:7px 11px;background:var(--bg2);color:var(--muted);border:none;cursor:pointer;transition:.15s}
+.chRngBtn:hover{color:var(--ink)}
+.chRngBtn.on{background:rgba(90,220,160,.16);color:#5ad9a0;font-weight:700}
+.chModeBtn[data-cmode="radar"].on{background:rgba(90,220,160,.16);color:#5ad9a0}
+
+.chartModes{margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-right:8px}
+.chModeBtn{font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:7px 13px;background:var(--bg2);color:var(--muted);border:none;cursor:pointer;transition:.15s}
+.chModeBtn:hover{color:var(--ink)}
+.chModeBtn.on{background:rgba(240,182,74,.16);color:var(--gold);font-weight:700}
+.chartCtrls{margin-left:0}
+.clDot.sid{background:#5ad9a0;box-shadow:0 0 6px #5ad9a0}
+
+
+
+
+.relRow{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg2);margin-bottom:8px}
+.relRow .pipeCall{min-width:70px}
+
+
+/* delivery / CRAFT */
+.delGrid{display:grid;grid-template-columns:340px 1fr;gap:16px;max-width:1200px;margin:0 auto}
+@media(max-width:820px){.delGrid{grid-template-columns:1fr}}
+.delFor{margin-left:auto;font-family:var(--mono);font-size:12px;color:#b9a6ff}
+.craftEmpty{text-align:center;padding:40px 20px;color:var(--muted);font-family:var(--mono);font-size:12px}
+.craftRow{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line)}
+.craftRow:last-of-type{border-bottom:none}
+.craftLtr{width:34px;height:34px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;font-size:16px;color:#b9a6ff;background:rgba(167,139,250,.14);border:1px solid rgba(167,139,250,.3)}
+.craftBody{flex:1;min-width:0}
+.craftLab{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.craftInp{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 12px;color:var(--ink);font-family:var(--mono);font-size:13px;width:100%}
+.craftInp:focus{outline:none;border-color:#b9a6ff}
+.craftInp[readonly]{color:var(--muted);background:var(--bg2)}
+select.craftInp{cursor:pointer}
+.craftInline{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.craftHint{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.craftHint b{color:var(--ink)}
+.craftSub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5}
+.craftReadout{margin:14px 0 4px;padding:14px;border-radius:11px;background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.25);
+  font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink)}
+.craftReadout .lbl{color:#b9a6ff;font-size:9px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:8px}
+.craftReadout b{color:#d3c6ff}
+.delGo{background:linear-gradient(100deg,#a78bfa,#c9b8ff)!important;color:#1a1030!important}
+.delDone{text-align:center;padding:34px 20px;color:var(--green);font-family:var(--mono);font-size:13px}
+
+</style>
+
+<!-- ═══════════════════════ PYRGOS · STAGE 1 · BRIEFING HUB ═══════════════════════ -->
+<div id="deptLayer" class="deptLayer" hidden>
+  <!-- department position bar -->
+  <div class="deptBar">
+    <div class="deptBrand"><b>PYRGOS</b> <span>OPS</span></div>
+    <div class="deptTabs" id="deptTabs">
+      <button class="deptTab on" data-dept="briefing"><i>◇</i> Briefing</button>
+      <button class="deptTab" data-dept="atis"><i>◉</i> ATIS</button>
+      <button class="deptTab" data-dept="delivery"><i>▸</i> Delivery</button>
+      <button class="deptTab" data-dept="ground"><i>⊙</i> Ground</button>
+      <button class="deptTab" data-dept="tower"><i>▲</i> Tower</button>
+    </div>
+    <div class="deptSpacer"></div>
+    <button class="deptExit" id="deptExit" title="Back to radar sim">✕ Radar sim</button>
+  </div>
+
+  <!-- BRIEFING workspace -->
+  <div class="deptView on" id="dv-briefing">
+    <div class="briefGrid">
+      <!-- left: intake -->
+      <div class="briefCol">
+        <div class="briefPanel">
+          <div class="bpHead"><span class="bpDot"></span>Flight plan intake</div>
+          <p class="bpHint">Paste an ICAO flight plan (FPL) or an OFP route string from ODYSSEY. Briefing reads it, validates it, and releases it into the chain.</p>
+          <textarea id="fplInput" class="fplBox" placeholder="(FPL-ABY283-IS&#10;-A320/M-SBDFGHILORVWXY/SV1&#10;-OMSJ1650&#10;-N0451F360 DCT DARAX UN440 ... OTSAN&#10;-LTFJ0415 LTBU&#10;-PBN/... REG/A6ANS ...)"></textarea>
+          <div class="bpRow">
+            <button class="dBtn go" id="fplParse">Read flight plan</button>
+            <button class="dBtn" id="fplSample">Load sample (G9 283)</button>
+          </div>
+          <div id="fplErr" class="fplErr"></div>
+        </div>
+      </div>
+      <!-- right: parsed strip + queue -->
+      <div class="briefCol">
+        <div class="briefPanel" id="parsedPanel" hidden>
+          <div class="bpHead"><span class="bpDot"></span>Parsed flight strip</div>
+          <div id="parsedStrip"></div>
+          <div class="bpRow">
+            <button class="dBtn go" id="fplApprove">✓ Approve &amp; release</button>
+            <button class="dBtn danger" id="fplReject">✕ Reject</button>
+          </div>
+        </div>
+        <div class="briefPanel">
+          <div class="bpHead"><span class="bpDot amber"></span>Pipeline · all flights <span class="bpCount" id="pipeCount">0</span><button class="dBtn" id="pipeClear" style="margin-left:auto;padding:5px 11px;font-size:9px;display:none">Clear all</button></div>
+          <div id="pipeList" class="pipeList"></div>
+        </div>
+      </div>
+      <!-- CHART: full-width situational display below the intake+strip -->
+      <div class="briefCol briefChartCol">
+        <div class="briefPanel chartPanel">
+          <div class="bpHead"><span class="bpDot"></span>Situational chart <span id="chartSub" class="chartSub">live traffic &amp; proposed route</span>
+            <div class="chartModes">
+              <button class="chModeBtn" data-cmode="radar">◎ Radar</button>
+              <button class="chModeBtn on" data-cmode="enroute">Enroute</button>
+              <button class="chModeBtn" data-cmode="terminal">Terminal</button>
+              <button class="chModeBtn" data-cmode="jepp">Jeppesen</button>
+              <button class="chModeBtn" data-cmode="sectional">Sectional</button>
+            </div>
+            <select class="chartFieldSel" id="chartFieldSel" style="display:none" title="Radar field"></select>
+            <div class="chartRange" id="chartRange" style="display:none">
+              <button class="chRngBtn on" data-rng="40">40 NM</button>
+              <button class="chRngBtn" data-rng="80">80 NM</button>
+            </div>
+            <div class="chartCtrls">
+              <button class="chartBtn" id="chZoomOut" title="Zoom out">−</button>
+              <button class="chartBtn" id="chZoomIn" title="Zoom in">+</button>
+              <button class="chartBtn" id="chFitRoute" title="Fit the whole route">↹ Route</button>
+              <button class="chartBtn" id="chFitField" title="Zoom to the field">⊙ Field</button>
+              <button class="chartBtn" id="chLiveAdsb" title="Overlay real-world ADS-B traffic">◐ Live ADS-B</button>
+            </div>
+          </div>
+          <div class="chartWrap">
+            <canvas id="briefChart"></canvas>
+            <div class="chartLegend">
+              <div class="clRow"><span class="clDot live"></span> Live traffic (flying now)</div>
+              <div class="clRow"><span class="clDot prop"></span> Proposed flight (awaiting decision)</div>
+              <div class="clRow"><span class="clLine"></span> Filed route &amp; waypoints</div>
+              <div class="clRow"><span class="clDot sid"></span> SID tracks (via MMV)</div>
+              <div class="clRow"><span class="clDot" style="background:rgba(150,165,180,.5)"></span> Live ADS-B (real, uncontrolled)</div>
+            </div>
+            <div class="chartInfo" id="chartInfo"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- other departments: skeleton placeholders for now -->
+  <div class="deptView" id="dv-atis">
+    <div class="atisGrid">
+      <!-- left: broadcast preview -->
+      <div class="briefPanel atisBroadcast">
+        <div class="bpHead"><span class="bpDot" style="background:var(--teal)"></span>Now broadcasting <span class="atisLetter" id="atisLetterBig">A</span></div>
+        <div class="atisScreen" id="atisScreen"></div>
+        <div class="atisMeta" id="atisMeta"></div>
+      </div>
+      <!-- right: set the picture -->
+      <div class="briefPanel">
+        <div class="bpHead"><span class="bpDot" style="background:var(--teal)"></span>Set the airport picture</div>
+        <p class="bpHint">What you set here becomes the airport's live state — Delivery, Ground and the radar board all read the <b>active runway</b> and weather from this broadcast.</p>
+
+        <label class="atisLab">Active runway</label>
+        <div class="atisRwyRow" id="atisRwyRow"></div>
+
+        <label class="atisLab">Approach in use</label>
+        <div class="segline" id="atisAppRow">
+          <button class="atSeg on" data-app="ILS">ILS</button>
+          <button class="atSeg" data-app="RNP">RNP</button>
+          <button class="atSeg" data-app="VOR">VOR</button>
+          <button class="atSeg" data-app="VISUAL">Visual</button>
+        </div>
+
+        <label class="atisLab">Weather</label>
+        <div class="segline" id="atisWxRow">
+          <button class="atSeg on" data-wx="CAVOK">CAVOK</button>
+          <button class="atSeg" data-wx="RAIN">Rain</button>
+          <button class="atSeg" data-wx="LOWVIS">Low vis / fog</button>
+        </div>
+
+        <div class="atisTwo">
+          <div><label class="atisLab">Wind</label>
+            <div class="atisInline"><input class="craftInp" id="atisWdir" type="number" min="0" max="360" style="max-width:80px">°/ <input class="craftInp" id="atisWspd" type="number" min="0" max="60" style="max-width:70px"> kt</div></div>
+          <div><label class="atisLab">QNH</label>
+            <div class="atisInline">Q<input class="craftInp" id="atisQnh" type="number" min="960" max="1050" style="max-width:90px"></div></div>
+        </div>
+
+        <div class="bpRow">
+          <button class="dBtn go atisGo" id="atisPublish">◉ Publish broadcast</button>
+          <button class="dBtn" id="atisNewLetter" title="Advance the information letter">↻ New info letter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="deptView" id="dv-delivery">
+    <div class="delGrid">
+      <!-- inbox: approved flights awaiting clearance -->
+      <div class="briefPanel delInbox">
+        <div class="bpHead"><span class="bpDot" style="background:#b9a6ff"></span>Awaiting clearance <span class="bpCount" id="delCount">0</span></div>
+        <div id="delList" class="pipeList"></div>
+      </div>
+      <!-- CRAFT builder -->
+      <div class="briefPanel delBuilder">
+        <div class="bpHead"><span class="bpDot" style="background:#b9a6ff"></span>Issue IFR clearance <span id="delFor" class="delFor"></span></div>
+        <div id="craftForm" class="craftForm">
+          <div class="craftEmpty" id="craftEmpty">Select a flight on the left to build its clearance.</div>
+          <div id="craftFields" hidden>
+            <div class="craftRow">
+              <div class="craftLtr">C</div>
+              <div class="craftBody"><label class="craftLab">Clearance limit</label>
+                <input class="craftInp" id="cCL" readonly></div>
+            </div>
+            <div class="craftRow">
+              <div class="craftLtr">R</div>
+              <div class="craftBody"><label class="craftLab">Route · departure SID</label>
+                <select class="craftInp" id="cSID"></select>
+                <div class="craftSub" id="cRouteSub"></div></div>
+            </div>
+            <div class="craftRow">
+              <div class="craftLtr">A</div>
+              <div class="craftBody"><label class="craftLab">Altitude · initial climb</label>
+                <div class="craftInline">
+                  <input class="craftInp" id="cAlt" type="number" step="1000" style="max-width:130px"> ft
+                  <span class="craftHint">then expect <b id="cCruise">—</b></span></div></div>
+            </div>
+            <div class="craftRow">
+              <div class="craftLtr">F</div>
+              <div class="craftBody"><label class="craftLab">Frequency · departure</label>
+                <input class="craftInp" id="cFreq" style="max-width:130px"> MHz</div>
+            </div>
+            <div class="craftRow">
+              <div class="craftLtr">T</div>
+              <div class="craftBody"><label class="craftLab">Transponder · squawk</label>
+                <div class="craftInline">
+                  <input class="craftInp" id="cSquawk" maxlength="4" style="max-width:110px;font-size:16px;letter-spacing:.2em">
+                  <button class="dBtn" id="cSquawkGen" style="padding:7px 11px">↻ Assign</button></div></div>
+            </div>
+            <div class="craftReadout" id="craftReadout"></div>
+            <div class="bpRow">
+              <button class="dBtn go delGo" id="delIssue">▸ Issue clearance</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="deptView" id="dv-ground">
+    <div class="delGrid">
+      <div class="briefPanel">
+        <div class="bpHead"><span class="bpDot" style="background:var(--amber)"></span>Cleared · ready for pushback <span class="bpCount" id="gndCount">0</span></div>
+        <div id="gndList" class="pipeList"></div>
+      </div>
+      <div class="briefPanel">
+        <div class="bpHead"><span class="bpDot" style="background:var(--amber)"></span>Ground control</div>
+        <p class="bpHint">Cleared flights appear on the left. Release one onto the live radar board, then work its <b>pushback</b> and <b>taxi to the runway</b> on the scope using the ground controls. When it reaches the runway you hand it to Tower.</p>
+        <label class="pipeToggle"><input type="checkbox" id="pipeOnlyChk"> <span><b>Pipeline-only departures</b> — suppress random ambient departures, so only flights you approve and clear will depart. Arrivals keep coming for realism.</span></label>
+        <div class="mergeNote"><b>Merged tower:</b> releasing puts the real aircraft on the radar scope carrying its own callsign, squawk and SID from the pipeline — no invented traffic. Its strip stage tracks it live (pushback → taxi → departed).</div>
+        <div id="gndActive"></div>
+      </div>
+    </div>
+  </div>
+  <div class="deptView" id="dv-tower">
+    <div class="delGrid">
+      <div class="briefPanel">
+        <div class="bpHead"><span class="bpDot" style="background:var(--blue)"></span>Taxiing · approaching the runway <span class="bpCount" id="twrCount">0</span></div>
+        <div id="twrList" class="pipeList"></div>
+      </div>
+      <div class="briefPanel">
+        <div class="bpHead"><span class="bpDot" style="background:var(--blue)"></span>Tower control</div>
+        <p class="bpHint">Flights holding short show here. Open the radar board to clear them for <b>line-up</b> and <b>takeoff</b>, then hand off to Departure. The strip closes out as <b>departed</b>.</p>
+        <button class="dBtn go" id="twrOpenBoard" style="background:linear-gradient(100deg,var(--blue),#a9d3ff);color:#06172c">▸ Open radar board (Tower)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="deptScript">
+/* ═══════════════════════ PYRGOS · Stage 1 · Briefing + pipeline ═══════════════════════ */
+(function(){
+  const SAMPLE = `(FPL-ABY283-IS
+-A320/M-SBDFGHILORVWXY/SV1
+-OMSJ1650
+-N0451F360 DCT DARAX UN440 MOBON W10 SITEN UP574 SYZ W3 MESVI UL223
+ UMH UL124 BONAM/N0443F360 UG81 EZS UG8 BAG UL333 LATGA UT32 OTSAN
+-LTFJ0415 LTBU
+-PBN/A1B1C1D1L1O1S1 DOF/141120 REG/A6ANS EET/OMAE0008 OIIX0011
+ LTAA0231 LTBB0404 SEL/JMLR RMK/TCAS EQUIPPED AND SVCBL)`;
+
+  /* the shared flight-strip pipeline — persisted to localStorage so approved flights survive a reload */
+  const PIPE_LS = "pyrgos.pipe.v1";
+  let PIPE = [];
+  try{ const v=localStorage.getItem(PIPE_LS); if(v) PIPE=JSON.parse(v)||[]; }catch(e){ PIPE=[]; }
+  function savePipe(){ try{ localStorage.setItem(PIPE_LS, JSON.stringify(PIPE)); }catch(e){} }
+  const STAGES = ["pending","approved","cleared","pushback","taxi","departed"];
+
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  /* ---- the parser: reads an ICAO FPL (also tolerates a bare OFP route line) ---- */
+  function parseFPL(raw){
+    let t=(raw||'').trim();
+    if(!t) throw new Error('Nothing to read — paste a flight plan first.');
+    // ICAO bracketed FPL
+    if(t.indexOf('FPL-')>=0){
+      if(t.startsWith('(')) t=t.slice(1);
+      if(t.endsWith(')')) t=t.slice(0,-1);
+      t=t.replace(/\n\s+/g,' ');                 // join wrapped continuation lines
+      const fields=t.split(/\n-|(?<!\S)-(?=[A-Z(])/).map(f=>f.replace(/^-/,'').trim()).filter(Boolean);
+      // more robust: split on newline-dash
+      const F=t.split('\n').map(x=>x.trim());
+      // rebuild by dash markers
+      const parts=t.split(/\n/).join('\n');
+      // simplest reliable: split original on lines beginning with '-'
+      const segs=[]; let cur='';
+      raw.replace(/\r/g,'').split('\n').forEach(line=>{
+        if(line.trim().startsWith('-')){ if(cur)segs.push(cur.trim()); cur=line.trim().replace(/^-/,''); }
+        else { cur+=' '+line.trim(); }
+      });
+      if(cur)segs.push(cur.trim());
+      // segs[0] still holds "(FPL-ABY283-IS"
+      segs[0]=segs[0].replace(/^\(/,'').replace(/^-/,'');
+      const r={};
+      let m;
+      m=segs[0].match(/FPL-(\S+)-(\w)(\w)/); if(!m) throw new Error('Not a valid FPL header (need FPL-CALLSIGN-...).');
+      r.callsign=m[1]; r.rules=m[2]; r.flighttype=m[3];
+      m=(segs[1]||'').match(/([A-Z0-9]+)\/(\w)-(\S+)/); if(m){ r.actype=m[1]; r.wake=m[2]; r.equip=m[3]; }
+      m=(segs[2]||'').match(/([A-Z]{4})(\d{4})/); if(m){ r.adep=m[1]; r.etd=m[2]; }
+      m=(segs[3]||'').match(/(N\d+|M\d+)?(F\d+|A\d+)?\s*(.*)/); if(m){ r.spd=m[1]||''; r.lvl=m[2]||''; r.route=(m[3]||'').trim(); }
+      m=(segs[4]||'').match(/([A-Z]{4})(\d{4})\s*([A-Z]{4})?/); if(m){ r.ades=m[1]; r.eet=m[2]; r.altn=m[3]||''; }
+      r.other=segs[5]||'';
+      const reg=r.other.match(/REG\/(\S+)/); r.reg=reg?reg[1]:'';
+      r.src='FPL';
+      return r;
+    }
+    // bare OFP route line e.g. "OMSJ/30R N0451F360 DCT DARAX ... LTFJ/24"
+    const om=t.match(/([A-Z]{4})\/(\w+)\s+(N\d+|M\d+)(F\d+|A\d+)\s+(.*?)\s+([A-Z]{4})\/(\w+)\s*$/s);
+    if(om){
+      return { callsign:'(from OFP)', adep:om[1], depRwy:om[2], spd:om[3], lvl:om[4],
+        route:om[5].replace(/\s+/g,' ').trim(), ades:om[6], arrRwy:om[7], src:'OFP' };
+    }
+    throw new Error('Could not read that. Paste an ICAO FPL (starts with "(FPL-") or an OFP route line (ADEP/RWY … ADES/RWY).');
+  }
+
+  /* ---- validation checks ---- */
+  function validate(r){
+    const v=[];
+    v.push({ok:!!r.callsign, label:'Callsign'});
+    v.push({ok:!!r.adep, label:'Departure'});
+    v.push({ok:!!r.ades, label:'Destination'});
+    v.push({ok:!!r.route, label:'Route'});
+    v.push({ok:!!(r.lvl), label:'Cruise level'});
+    // does departure match the loaded airport?
+    if(typeof LZ!=='undefined' && LZ && LZ.icao){
+      v.push({ok:r.adep===LZ.icao, label:'ADEP = '+LZ.icao, warn:r.adep!==LZ.icao});
+    }
+    return v;
+  }
+
+  let PARSED=null;
+  function renderParsed(r){
+    PARSED=r;
+    const v=validate(r);
+    const cell=(k,val)=>`<div class="stripCell"><div class="k">${k}</div><div class="v">${esc(val||'—')}</div></div>`;
+    const routeShort = r.route ? (r.route.length>60? r.route.slice(0,60)+'…' : r.route) : '—';
+    $('#parsedStrip').innerHTML = `
+      <div class="stripCard">
+        <div class="stripTop">
+          <div class="stripCall">${esc(r.callsign)}</div>
+          ${r.actype?`<div class="stripType">${esc(r.actype)}${r.wake?' / '+esc(r.wake):''}</div>`:''}
+          <div class="stripRoute">${esc(r.adep||'?')} ${r.depRwy?'/'+esc(r.depRwy):''} → ${esc(r.ades||'?')} ${r.arrRwy?'/'+esc(r.arrRwy):''}</div>
+        </div>
+        <div class="stripGrid">
+          ${cell('Departure', r.adep)}
+          ${cell('Destination', r.ades)}
+          ${cell('Cruise', (r.spd||'')+' '+(r.lvl||''))}
+          ${cell('ETD', r.etd)}
+          ${cell('Type', r.actype)}
+          ${cell('Wake', r.wake)}
+          ${cell('Alternate', r.altn)}
+          ${cell('Reg', r.reg)}
+        </div>
+        <div class="stripRouteFull"><b>ROUTE:</b> ${esc(r.route)||'—'}</div>
+        <div class="valid">${v.map(x=>`<span class="vchip ${x.warn?'warn':x.ok?'ok':''}">${x.ok?'✓':x.warn?'!':'○'} ${esc(x.label)}</span>`).join('')}</div>
+      </div>`;
+    $('#parsedPanel').hidden=false;
+  }
+
+  function renderPipe(){
+    const el=$('#pipeList'); if(!el) return;
+    $('#pipeCount').textContent=PIPE.length;
+    const clr=$('#pipeClear'); if(clr) clr.style.display = PIPE.length? 'inline-block':'none';
+    if(!PIPE.length){ el.innerHTML='<div class="pipeEmpty">No flights yet. Read a plan and approve it to start the pipeline.</div>'; return; }
+    el.innerHTML=PIPE.map(f=>`<div class="pipeRow" data-fid="${esc(f.id)}">
+      <span class="pipeCall">${esc(f.callsign)}</span>
+      <span class="pipeRoute">${esc(f.adep||'?')} → ${esc(f.ades||'?')} · ${esc((f.route||'').split(' ').slice(0,4).join(' '))}…</span>
+      <span class="stage-pill stage-${f.stage}">${f.stage}</span>
+      <button class="pipeDel" data-del="${esc(f.id)}" title="Remove from pipeline">✕</button>
+    </div>`).join('');
+    $$('#pipeList .pipeDel').forEach(b=>b.onclick=()=>{
+      const i=PIPE.findIndex(x=>x.id===b.dataset.del);
+      if(i>=0){ const c=PIPE[i].callsign; PIPE.splice(i,1); savePipe(); renderPipe(); if(typeof toast==='function') toast(c+' removed from pipeline'); }
+    });
+  }
+
+  /* ---- wiring ---- */
+  function initBriefing(){
+    $('#fplSample').onclick=()=>{ $('#fplInput').value=SAMPLE; $('#fplErr').textContent=''; };
+    $('#fplParse').onclick=()=>{
+      $('#fplErr').textContent='';
+      try{ const r=parseFPL($('#fplInput').value); renderParsed(r); setProposed(r); if(CH.mode==='radar'){ fitRadar(); } else { fitRoute(); }
+        const info=$('#chartInfo'); if(info){ info.classList.add('on'); info.innerHTML='<b>'+esc(r.callsign||'PROPOSED')+'</b><br>'+esc(r.adep||'?')+' → '+esc(r.ades||'?')+'<br>'+(CH.proposed?CH.proposed.pts.length:0)+' waypoints'; } }
+      catch(e){ $('#fplErr').textContent=e.message; $('#parsedPanel').hidden=true; setProposed(null); }
+    };
+    $('#fplApprove').onclick=()=>{
+      if(!PARSED) return;
+      PIPE.unshift({...PARSED, stage:'approved', id:'F'+Date.now(), added:Date.now()});
+      savePipe(); renderPipe(); $('#parsedPanel').hidden=true; $('#fplInput').value=''; PARSED=null;
+      setProposed(null); const info=$('#chartInfo'); if(info) info.classList.remove('on');
+      if(typeof toast==='function') toast('Flight released into the pipeline');
+    };
+    $('#fplReject').onclick=()=>{ $('#parsedPanel').hidden=true; PARSED=null; setProposed(null); const info=$('#chartInfo'); if(info) info.classList.remove('on'); if(typeof toast==='function') toast('Flight plan rejected'); };
+    const clr=$('#pipeClear'); if(clr) clr.onclick=()=>{ if(!PIPE.length) return; PIPE.length=0; savePipe(); renderPipe(); if(typeof toast==='function') toast('Pipeline cleared'); };
+    renderPipe();
+  }
+
+  /* ═══════════════════════ Stage 2 · Clearance Delivery (CRAFT) ═══════════════════════ */
+  let DEL_SEL=null; /* currently selected flight id */
+
+  function squawk(){ /* random VFR-safe octal squawk, avoid reserved 7500/7600/7700/7777/0000 */
+    let s; do{ s=''; for(let i=0;i<4;i++) s+=Math.floor(Math.random()*8); }
+    while(["7500","7600","7700","7777","0000","1200"].includes(s)); return s;
+  }
+  function apField(k,def){ try{ return (typeof LZ!=='undefined'&&LZ&&LZ[k])?LZ[k]:def; }catch(e){ return def; } }
+  function sidsForRwy(){ try{ return (typeof LZ!=='undefined'&&LZ&&LZ.sids)?LZ.sids:[]; }catch(e){ return []; } }
+
+  function renderDelInbox(){
+    const el=$('#delList'); if(!el) return;
+    const waiting=PIPE.filter(f=>f.stage==='approved');
+    $('#delCount').textContent=waiting.length;
+    if(!waiting.length){ el.innerHTML='<div class="pipeEmpty">No flights awaiting clearance. Approve a flight in Briefing first.</div>'; DEL_SEL=null; return; }
+    el.innerHTML=waiting.map(f=>`<div class="pipeRow" data-delsel="${esc(f.id)}" style="cursor:pointer;${f.id===DEL_SEL?'border-color:#b9a6ff':''}">
+      <span class="pipeCall">${esc(f.callsign)}</span>
+      <span class="pipeRoute">${esc(f.adep||'?')} → ${esc(f.ades||'?')}</span>
+      <span class="stage-pill stage-approved">approved</span>
+    </div>`).join('');
+    $$('#delList [data-delsel]').forEach(r=>r.onclick=()=>{ DEL_SEL=r.dataset.delsel; renderDelInbox(); buildCraft(); });
+  }
+
+  function buildCraft(){
+    const f=PIPE.find(x=>x.id===DEL_SEL);
+    if(!f){ $('#craftEmpty').style.display='block'; $('#craftFields').hidden=true; $('#delFor').textContent=''; return; }
+    $('#craftEmpty').style.display='none'; $('#craftFields').hidden=false;
+    const atisTag = (window.PYRGOS_ATIS && window.PYRGOS_ATIS.letter) ? ('  ·  info '+window.PYRGOS_ATIS.letter+(window.PYRGOS_ATIS.runway?' · rwy '+window.PYRGOS_ATIS.runway:'')) : '';
+    $('#delFor').textContent=f.callsign+atisTag;
+    // C — clearance limit = destination
+    $('#cCL').value=f.ades||'destination';
+    // R — SID options for the current airport; prefer ones valid for the ATIS active runway
+    const sids=sidsForRwy();
+    const actRwy = (window.PYRGOS_ATIS && window.PYRGOS_ATIS.runway) || null;
+    const ordered = actRwy ? sids.slice().sort((a,b)=>{
+      const av=(a.rwys||[]).includes(actRwy)?0:1, bv=(b.rwys||[]).includes(actRwy)?0:1; return av-bv; }) : sids;
+    $('#cSID').innerHTML = ordered.length
+      ? ordered.map(sd=>{ const valid = !actRwy || (sd.rwys||[]).includes(actRwy);
+          return `<option value="${esc(sd.name)}" data-alt="${sd.alt||5000}">${esc(sd.name)} (rwy ${(sd.rwys||[]).join('/')})${actRwy&&!valid?' — not rwy '+esc(actRwy):''}</option>`; }).join('')
+      : '<option value="">(no SIDs defined — as filed)</option>';
+    $('#cRouteSub').innerHTML = f.route? 'Then as filed: <b style="color:var(--ink)">'+esc((f.route||'').split(' ').slice(0,6).join(' '))+'…</b>' : '';
+    // A — initial altitude from the SID; cruise from the plan
+    const applyAlt=()=>{ const opt=$('#cSID').selectedOptions[0]; $('#cAlt').value = opt? (opt.dataset.alt||5000) : 5000; };
+    applyAlt();
+    $('#cSID').onchange=()=>{ applyAlt(); syncReadout(); $('#cRouteSub').innerHTML = f.route? 'Then as filed: <b style="color:var(--ink)">'+esc((f.route||'').split(' ').slice(0,6).join(' '))+'…</b>':''; };
+    $('#cCruise').textContent = f.lvl ? f.lvl.replace('F','FL').replace('A','') : '(filed level)';
+    // F — departure frequency
+    $('#cFreq').value = apField('dep','127.9');
+    // T — squawk
+    $('#cSquawk').value = f.squawk || squawk();
+    $('#cSquawkGen').onclick=()=>{ $('#cSquawk').value=squawk(); syncReadout(); };
+    ['#cAlt','#cFreq','#cSquawk'].forEach(id=>{ const e=$(id); if(e) e.oninput=syncReadout; });
+    syncReadout();
+  }
+
+  function syncReadout(){
+    const f=PIPE.find(x=>x.id===DEL_SEL); if(!f) return;
+    const sid=$('#cSID').value, alt=$('#cAlt').value, freq=$('#cFreq').value, sq=$('#cSquawk').value;
+    const cruise=f.lvl? f.lvl.replace('F','FL').replace('A','') : 'filed level';
+    $('#craftReadout').innerHTML = `<span class="lbl">Clearance · read to ${esc(f.callsign)}</span>`+
+      `${esc(f.callsign)}, cleared to <b>${esc(f.ades||'destination')}</b> via the <b>${esc(sid||'filed route')}</b> departure`+
+      `${f.route?', then as filed':''}. Climb <b>${esc(alt)} ft</b>, expect <b>${esc(cruise)}</b> ten minutes after departure. `+
+      `Departure frequency <b>${esc(freq)}</b>, squawk <b>${esc(sq)}</b>.`;
+  }
+
+  function initDelivery(){
+    const btn=$('#delIssue'); if(btn) btn.onclick=()=>{
+      const f=PIPE.find(x=>x.id===DEL_SEL); if(!f) return;
+      f.stage='cleared';
+      f.clearance={ sid:$('#cSID').value, alt:$('#cAlt').value, freq:$('#cFreq').value, squawk:$('#cSquawk').value, cl:f.ades };
+      f.squawk=$('#cSquawk').value;
+      savePipe();
+      if(typeof toast==='function') toast(f.callsign+' cleared — squawk '+f.squawk);
+      DEL_SEL=null; renderDelInbox(); buildCraft(); renderPipe();
+    };
+  }
+
+  /* ═══════════════════════ Stage 3 · Ground + Tower (merged into radar sim) ═══════════════════════ */
+  function releaseToScope(fid, pos){
+    const f=PIPE.find(x=>x.id===fid); if(!f) return;
+    // ensure the shift is running (dismiss intro / set running)
+    try{ const intro=document.getElementById('intro'); if(intro){ const sb=document.getElementById('startBtn'); if(sb) sb.click(); }
+      if(typeof G!=='undefined' && G && !G.running){ G.running=true; G.paused=false; } }catch(e){}
+    const ac = window.PYRGOS_OPS.spawn(f);
+    if(!ac){ return; }
+    // switch the radar sim to the requested position, close the ops layer, show the board
+    try{
+      const tab=document.querySelector('.postab[data-pos="'+pos+'"]');
+      if(tab){ document.querySelectorAll('.postab').forEach(x=>x.classList.remove('on')); tab.classList.add('on'); if(G) G.pos=pos; }
+    }catch(e){}
+    closeDeptLayer();
+    if(typeof toast==='function') toast(f.callsign+' released to the board — work the '+(pos==='GND'?'ground':'tower'));
+  }
+
+  function renderGround(){
+    const el=$('#gndList'); if(!el) return;
+    // cleared but not yet released (still 'cleared'), OR already on the board in pushback/taxi
+    const ready=PIPE.filter(f=>f.stage==='cleared');
+    $('#gndCount').textContent=ready.length;
+    el.innerHTML = ready.length ? ready.map(f=>`<div class="relRow">
+        <span class="pipeCall">${esc(f.callsign)}</span>
+        <span class="pipeRoute">${esc(f.adep||'?')} → ${esc(f.ades||'?')} · sq ${esc(f.squawk||'----')}</span>
+        <button class="dBtn go" style="padding:7px 12px;background:linear-gradient(100deg,var(--amber),#ffd089);color:#2a1c05" data-release="${esc(f.id)}">▸ Release &amp; push</button>
+      </div>`).join('')
+      : '<div class="pipeEmpty">No cleared flights waiting. Clear a flight in Delivery first.</div>';
+    $$('#gndList [data-release]').forEach(b=>b.onclick=()=>releaseToScope(b.dataset.release,'GND'));
+    // active (on the board) list
+    const active=PIPE.filter(f=>f.stage==='pushback'||f.stage==='taxi');
+    $('#gndActive').innerHTML = active.length
+      ? '<div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin:14px 0 8px">On the board now</div>'+
+        active.map(f=>`<div class="relRow"><span class="pipeCall">${esc(f.callsign)}</span><span class="pipeRoute">${esc(f.adep||'?')} → ${esc(f.ades||'?')}</span><span class="stage-pill stage-${f.stage}">${f.stage}</span></div>`).join('')
+      : '';
+  }
+
+  function renderTower(){
+    const el=$('#twrList'); if(!el) return;
+    const taxiing=PIPE.filter(f=>f.stage==='taxi');
+    $('#twrCount').textContent=taxiing.length;
+    el.innerHTML = taxiing.length ? taxiing.map(f=>`<div class="relRow">
+        <span class="pipeCall">${esc(f.callsign)}</span>
+        <span class="pipeRoute">${esc(f.adep||'?')} → ${esc(f.ades||'?')}</span>
+        <span class="stage-pill stage-taxi">taxi</span>
+      </div>`).join('')
+      : '<div class="pipeEmpty">No flights approaching the runway yet. Work the ground first.</div>';
+  }
+
+  function initGroundTower(){
+    const chk=$('#pipeOnlyChk');
+    if(chk){ try{ chk.checked=!!(typeof CFG!=='undefined'&&CFG.pipeOnly); }catch(e){}
+      chk.onchange=()=>{ try{ if(typeof CFG!=='undefined'){ CFG.pipeOnly=chk.checked?1:0; } }catch(e){}
+        if(typeof toast==='function') toast(chk.checked?'Pipeline-only departures ON':'Ambient departures ON'); }; }
+    const tb=$('#twrOpenBoard'); if(tb) tb.onclick=()=>{
+      try{ const tab=document.querySelector('.postab[data-pos="TWR"]'); if(tab){ document.querySelectorAll('.postab').forEach(x=>x.classList.remove('on')); tab.classList.add('on'); if(typeof G!=='undefined'&&G) G.pos='TWR'; } }catch(e){}
+      closeDeptLayer(); if(typeof toast==='function') toast('Tower board — clear line-up and takeoff');
+    };
+  }
+
+  /* ═══════════════════════ Stage 5 · ATIS (feeds the whole field) ═══════════════════════ */
+  const ATIS={ letter:'A', app:'ILS', wx:'CAVOK', activeRwy:null };
+
+  function atisRunwayOptions(){ try{ return (typeof RUNWAYS!=='undefined'?RUNWAYS:[]); }catch(e){ return []; } }
+
+  function renderAtisControls(){
+    // runway chips — one per runway END (each direction)
+    const rows=$('#atisRwyRow'); if(!rows) return;
+    const rwys=atisRunwayOptions();
+    // build ends: for each runway, both directions
+    const ends=[];
+    rwys.forEach(r=>{ ends.push({rw:r, dir:r.nameA}); ends.push({rw:r, dir:r.nameB}); });
+    if(!ATIS.activeRwy && rwys.length){ const main=rwys[0]; ATIS.activeRwy=main.dir; }
+    rows.innerHTML=ends.map(e=>`<button class="atRwy ${ATIS.activeRwy===e.dir?'on':''}" data-arwy="${esc(e.dir)}" data-rwid="${esc(e.rw.id)}">${esc(e.dir)}<small>${esc(e.rw.nameA)}/${esc(e.rw.nameB)}</small></button>`).join('');
+    $$('#atisRwyRow [data-arwy]').forEach(b=>b.onclick=()=>{ ATIS.activeRwy=b.dataset.arwy; ATIS._rwid=b.dataset.rwid; renderAtisControls(); renderAtisScreen(); });
+    // approach + wx segments
+    $$('#atisAppRow .atSeg').forEach(b=>{ b.classList.toggle('on',b.dataset.app===ATIS.app); b.onclick=()=>{ ATIS.app=b.dataset.app; renderAtisControls(); renderAtisScreen(); }; });
+    $$('#atisWxRow .atSeg').forEach(b=>{ b.classList.toggle('on',b.dataset.wx===ATIS.wx); b.onclick=()=>{ ATIS.wx=b.dataset.wx; renderAtisScreen(); renderAtisControls(); }; });
+  }
+
+  function readSimState(){
+    try{
+      if(typeof G!=='undefined'&&G&&G.wind){ if($('#atisWdir'))$('#atisWdir').value=G.wind.dir; if($('#atisWspd'))$('#atisWspd').value=G.wind.spd; }
+      if(typeof CFG!=='undefined'){ ATIS.wx=CFG.wx||'CAVOK'; }
+      if($('#atisQnh')&&!$('#atisQnh').value) $('#atisQnh').value=1013;
+    }catch(e){}
+  }
+
+  function renderAtisScreen(){
+    const el=$('#atisScreen'); if(!el) return;
+    const icao=(typeof LZ!=='undefined'&&LZ&&LZ.icao)?LZ.icao:'XXXX';
+    const wd=($('#atisWdir')&&$('#atisWdir').value)||'000', ws=($('#atisWspd')&&$('#atisWspd').value)||'00';
+    const qnh=($('#atisQnh')&&$('#atisQnh').value)||'1013';
+    const vis = ATIS.wx==='LOWVIS'?'0800 fog' : ATIS.wx==='RAIN'?'4000 rain' : 'CAVOK';
+    const cloud = ATIS.wx==='LOWVIS'?'broken 200 ft' : ATIS.wx==='RAIN'?'broken 1200 ft' : 'nil';
+    $('#atisLetterBig').textContent=ATIS.letter;
+    el.innerHTML =
+      `<span class="k">${esc(icao)} ATIS — information</span> <b>${esc(ATIS.letter)}</b>\n`+
+      `<span class="k">Runway in use:</span> ${esc(ATIS.activeRwy||'—')}\n`+
+      `<span class="k">Approach:</span> ${esc(ATIS.app)}\n`+
+      `<span class="k">Wind:</span> ${String(wd).padStart(3,'0')} degrees ${String(ws).padStart(2,'0')} knots\n`+
+      `<span class="k">Visibility:</span> ${esc(vis)}\n`+
+      `<span class="k">Cloud:</span> ${esc(cloud)}\n`+
+      `<span class="k">QNH:</span> ${esc(qnh)}\n`+
+      `<span class="k">Advise on initial contact you have information</span> ${esc(ATIS.letter)}.`;
+    $('#atisMeta').textContent = ATIS._published ? ('Published — the field is on information '+ATIS.letter) : 'Draft — publish to make this the live broadcast';
+  }
+
+  function publishAtis(){
+    // 1) push wind into the sim
+    try{ const wd=parseInt($('#atisWdir').value||'0',10), ws=parseInt($('#atisWspd').value||'0',10);
+      if(typeof setWind==='function') setWind(wd,ws); }catch(e){}
+    // 2) push weather category
+    try{ if(typeof CFG!=='undefined') CFG.wx=ATIS.wx; if(typeof renderWxBadge==='function') renderWxBadge(); }catch(e){}
+    // 3) set the active runway: make the chosen end DEP+ARR (BOTH), others OFF for the same physical runway direction
+    try{
+      if(typeof RUNWAYS!=='undefined' && ATIS.activeRwy){
+        const r=RUNWAYS.find(x=>x.id===ATIS._rwid) || RUNWAYS.find(x=>x.nameA===ATIS.activeRwy||x.nameB===ATIS.activeRwy);
+        if(r){ r.dir=ATIS.activeRwy; r.role='BOTH';
+          if(typeof renderRwyPanel==='function') renderRwyPanel();
+          if(typeof setWind==='function' && typeof G!=='undefined'&&G) setWind(G.wind.dir,G.wind.spd);
+        }
+      }
+    }catch(e){}
+    ATIS._published=true;
+    renderAtisScreen();
+    // expose current ATIS so Delivery can reference it
+    window.PYRGOS_ATIS = { letter:ATIS.letter, runway:ATIS.activeRwy, app:ATIS.app, wx:ATIS.wx };
+    if(typeof toast==='function') toast('ATIS information '+ATIS.letter+' published — runway '+ATIS.activeRwy);
+  }
+
+  function bumpLetter(){ ATIS.letter=String.fromCharCode(65+((ATIS.letter.charCodeAt(0)-65+1)%26)); ATIS._published=false; renderAtisScreen(); }
+
+  function initAtis(){
+    ['#atisWdir','#atisWspd','#atisQnh'].forEach(id=>{ const e=$(id); if(e) e.oninput=renderAtisScreen; });
+    const pb=$('#atisPublish'); if(pb) pb.onclick=publishAtis;
+    const nl=$('#atisNewLetter'); if(nl) nl.onclick=bumpLetter;
+  }
+
+  /* ═══════════════════════ Briefing situational chart (geo-accurate) ═══════════════════════ */
+  const FIXDB={
+    OMSJ:[25.3286,55.5172], LTFJ:[40.8986,29.3092], VOMM:[12.9941,80.1709], LTBU:[41.2622,28.1461],
+    VIDP:[28.5665,77.1031], EGLL:[51.4706,-0.4619], VOBL:[13.1979,77.7063],
+    // ── all major Indian airports (real coords, OurAirports open data) ──
+    VA1G:[24.5034,81.2203], VA2C:[21.5268,80.2903], VAAH:[23.0772,72.6347], VAAK:[20.6989,77.0569], VAAU:[19.8629,75.3963], VABB:[19.0887,72.8679], VABJ:[23.2878,69.6702], VABM:[15.8593,74.6183], VABO:[22.3362,73.2263], VABP:[23.2875,77.3374], VABV:[21.7522,72.1852], VADN:[20.4344,72.8432], VAHB:[15.3611,75.0821], VAHS:[22.3788,71.0394], VAID:[22.7214,75.8005], VAJB:[23.1778,80.052], VAJM:[22.4655,70.0126], VAKE:[23.1127,70.1003], VAKJ:[24.8172,79.9186], VAKP:[16.6647,74.2894], VAKS:[21.3171,70.2704], VALT:[18.4115,76.4647], VAND:[19.1833,77.3167], VANP:[21.0922,79.0472], VAOZ:[20.1191,73.9129], VAPO:[18.5821,73.9197], VAPR:[21.6495,69.6564], VARG:[17.0136,73.3278], VARK:[22.3092,70.7795], VARP:[21.1804,81.7388], VASD:[19.6892,74.3737], VASL:[17.628,75.9348], VASU:[21.1155,72.7433], VAUD:[24.6177,73.8961], VEAN:[28.1753,94.802], VEAT:[23.887,91.2404], VEBD:[26.6812,88.3286], VEBI:[25.7036,91.9787], VEBN:[25.4522,82.8625], VEBS:[20.251,85.8147], VEBU:[21.9884,82.111], VECC:[22.654,88.4476], VEDB:[23.834,86.4253], VEDG:[23.6225,87.243], VEDH:[26.1928,85.9169], VEGK:[26.7397,83.4497], VEGT:[26.1067,91.5852], VEGY:[24.7443,84.9512], VEIM:[24.76,93.8967], VEJS:[22.8137,86.169], VEJT:[26.7305,94.1754], VEKI:[26.7765,83.8892], VEKR:[24.3087,92.0077], VEKU:[24.9129,92.9787], VELP:[23.8406,92.6197], VELR:[27.2957,94.0973], VEMN:[27.4839,95.0169], VEMR:[25.8839,93.7711], VEMZ:[26.1191,85.3137], VEPT:[25.5913,85.088], VERC:[23.3143,85.3217], VERK:[22.2566,84.8152], VETZ:[26.7091,92.7847], VEUK:[20.0978,83.1833], VEVZ:[17.7235,83.2277], VEZO:[27.5883,93.8281], VIAG:[27.158,77.961], VIAL:[25.4401,81.7339], VIAR:[31.7096,74.7973], VIBK:[28.0706,73.2072], VIBR:[31.8767,77.1544], VIBT:[30.2701,74.7558], VIBY:[28.4221,79.4508], VICG:[30.6735,76.7885], VICX:[26.4043,80.4101], VIDN:[30.1892,78.1767], VIDP:[28.5556,77.0952], VIGG:[32.1649,76.263], VIGR:[26.2933,78.2278], VIHR:[29.1861,75.7414], VIHX:[30.7485,75.6298], VIJO:[26.2511,73.0489], VIJP:[26.8242,75.8122], VIJR:[26.8887,70.865], VIJU:[32.6888,74.8382], VIKG:[26.591,74.813], VIKO:[25.1602,75.8456], VILD:[30.8547,75.9526], VILH:[34.1359,77.5465], VILK:[26.7606,80.8893], VIMB:[28.8175,78.9219], VIPK:[32.2336,75.6344], VIPT:[29.0334,79.4737], VISR:[33.9871,74.7742], VOAT:[10.8237,72.176], VOBI:[15.1628,76.8828], VOBL:[13.1979,77.7063], VOBR:[17.9081,77.4871], VOBZ:[16.53,80.8049], VOCB:[11.03,77.0434], VOCI:[10.151,76.4008], VOCL:[11.136,75.9552], VOCP:[14.5132,78.7692], VOCX:[9.1531,92.8193], VOGA:[15.7443,73.8606], VOGO:[15.3801,73.8333], VOHS:[17.2313,78.4299], VOHY:[17.4531,78.4676], VOKN:[11.9163,75.545], VOKU:[15.7163,78.1692], VOMD:[9.8345,78.0934], VOML:[12.9547,74.8868], VOMM:[12.99,80.1693], VOMY:[12.2298,76.6537], VOPB:[11.6402,92.729], VOPC:[11.968,79.812], VOPN:[14.1493,77.7911], VORY:[17.1058,81.8132], VOSM:[11.7833,78.0656], VOTP:[13.632,79.5399], VOTR:[10.7629,78.7177], VOTV:[8.4819,76.92],
+    // ── key VORs (real navaid positions) ──
+    BBB:[19.0886,72.8681], HYD:[17.4531,78.4676], MAA:[12.9941,80.1709],
+    DARAX:[25.72,55.30], MOBON:[26.90,54.30], SITEN:[27.55,53.90], SYZ:[29.54,52.59],
+    MESVI:[31.30,49.95], UMH:[37.68,45.08], BONAM:[38.05,44.30], EZS:[38.61,39.29],
+    BAG:[40.07,32.69], LATGA:[40.33,32.05], OTSAN:[40.80,29.60],
+    KAPES:[13.6,79.9], BUBKO:[14.2,79.4], ANIRO:[13.3,80.4], TEBAM:[12.6,79.8], BODEL:[13.1,79.6]
+  };
+
+  // ── merge harvested real waypoints (from SimBrief plans via ODYSSEY) ──
+  // These are real published coords learned from actual flight plans — plotted at true positions.
+  let HARVESTED_FIXES={};
+  try{
+    const store=JSON.parse(localStorage.getItem('argus.fixdb')||'{}');
+    Object.keys(store).forEach(id=>{ const f=store[id];
+      if(f && typeof f.lat==='number' && typeof f.lon==='number'){
+        HARVESTED_FIXES[id]=[f.lat,f.lon];
+        if(!FIXDB[id]) FIXDB[id]=[f.lat,f.lon];   // add if not already known
+      }
+    });
+  }catch(e){}
+  window._reloadHarvestedFixes=function(){
+    try{ const store=JSON.parse(localStorage.getItem('argus.fixdb')||'{}');
+      Object.keys(store).forEach(id=>{ const f=store[id];
+        if(f&&typeof f.lat==='number'){ HARVESTED_FIXES[id]=[f.lat,f.lon]; FIXDB[id]=[f.lat,f.lon]; } });
+      return Object.keys(store).length;
+    }catch(e){ return 0; }
+  };
+  // ── real Chennai-region nav data (OurAirports open data) ──
+  const NAVAIDS=[{i:"AAE",t:"V",y:23.0722,x:72.625,f:113.1,n:"Ahmedabad"},
+  {i:"AAR",t:"V",y:31.7069,x:74.8008,f:115.5,n:"Amritsar"},
+  {i:"AAT",t:"V",y:23.8896,x:91.2397,f:116.1,n:"Agartala"},
+  {i:"AAU",t:"V",y:19.8647,x:75.3941,f:116.3,n:"Aurangabad"},
+  {i:"AG",t:"N",y:27.1502,x:77.9653,f:250,n:"Agra"},
+  {i:"AGG",t:"V",y:27.1507,x:77.9475,f:112.0,n:"Agra"},
+  {i:"AH",t:"N",y:23.1414,x:72.6997,f:215,n:"Ahmedabad"},
+  {i:"ALI",t:"V",y:27.8293,x:78.1783,f:117.9,n:"Aligarh"},
+  {i:"AP",t:"N",y:25.4671,x:81.6982,f:328,n:"Allahabad"},
+  {i:"AR",t:"N",y:31.7086,x:74.8143,f:351,n:"Amritsar"},
+  {i:"AT",t:"N",y:23.8873,x:91.2344,f:237,n:"Agartala"},
+  {i:"AU",t:"N",y:19.8605,x:75.3985,f:205,n:"Aurangabad"},
+  {i:"AZ",t:"N",y:23.7429,x:92.8029,f:366,n:"Aizawl"},
+  {i:"BBB",t:"V",y:19.0854,x:72.8754,f:116.6,n:"Mumbai"},
+  {i:"BBD",t:"V",y:26.6876,x:88.326,f:116.6,n:"Bagdogra"},
+  {i:"BBG",t:"V",y:12.9497,x:77.681,f:115.5,n:"Bangalore"},
+  {i:"BBI",t:"V",y:15.1651,x:76.8806,f:112.8,n:"Bellary"},
+  {i:"BBJ",t:"V",y:23.2711,x:69.6678,f:112.6,n:"Bhuj"},
+  {i:"BBM",t:"V",y:15.8562,x:74.6169,f:112.1,n:"Belgaum"},
+  {i:"BBN",t:"V",y:25.454,x:82.8593,f:113.9,n:"Varanasi"},
+  {i:"BBS",t:"V",y:20.2448,x:85.8113,f:113.5,n:"Bhubaneshwar"},
+  {i:"BBZ",t:"V",y:16.5208,x:80.7942,f:116.2,n:"Vijayawada"},
+  {i:"BD",t:"N",y:26.6879,x:88.3264,f:345,n:"Bagdogra"},
+  {i:"BG",t:"N",y:12.9695,x:77.7141,f:363,n:"Bangalore"},
+  {i:"BI",t:"N",y:15.1589,x:76.8861,f:310,n:"Bellary"},
+  {i:"BJ",t:"N",y:23.2783,x:69.6712,f:404,n:"Bhuj"},
+  {i:"BN",t:"N",y:25.446,x:82.8661,f:222,n:"Varanasi"},
+  {i:"BNR",t:"N",y:31.8817,x:77.1515,f:334,n:"Bhuntar"},
+  {i:"BPL",t:"V",y:23.2822,x:77.3371,f:117.1,n:"Bhopal"},
+  {i:"BPN",t:"V",y:25.7065,x:91.9787,f:116.0,n:"Barapani"},
+  {i:"BR",t:"N",y:17.9177,x:77.4988,f:240,n:"Bidar"},
+  {i:"BS",t:"N",y:20.2595,x:85.8141,f:302,n:"Bhubaneshwar"},
+  {i:"BV",t:"N",y:21.7586,x:72.1767,f:243,n:"Bhavnagar"},
+  {i:"BVR",t:"V",y:21.7501,x:72.1889,f:114.1,n:"Bhavnagar"},
+  {i:"BY",t:"N",y:28.4168,x:79.4484,f:218,n:"Bareilly"},
+  {i:"BZ",t:"N",y:16.5239,x:80.7881,f:393,n:"Vijayawada"},
+  {i:"CA",t:"N",y:10.0408,x:76.279,f:268,n:"Cochin Intl"},
+  {i:"CB",t:"N",y:11.0238,x:77.0472,f:354,n:"Coimbatore"},
+  {i:"CC",t:"N",y:9.9639,x:76.282,f:325,n:"Cochin"},
+  {i:"CCB",t:"V",y:11.0338,x:77.0481,f:112.9,n:"Coimbatore"},
+  {i:"CCN",t:"V",y:9.9447,x:76.2729,f:114.6,n:"Cochin"},
+  {i:"CEA",t:"V",y:22.6452,x:88.4529,f:112.5,n:"Kolkata"},
+  {i:"CG",t:"N",y:30.6665,x:76.7988,f:228,n:"Chandigarh"},
+  {i:"CHG",t:"V",y:30.6676,x:76.8057,f:116.5,n:"Chandigarh"},
+  {i:"CHI",t:"V",y:28.3476,x:76.666,f:116.8,n:"Chillerki"},
+  {i:"CI",t:"N",y:10.1494,x:76.4842,f:217,n:"Cochin Intl"},
+  {i:"CIA",t:"V",y:10.1505,x:76.3726,f:113.5,n:"Cochin Intl"},
+  {i:"CIB",t:"V",y:10.1153,x:76.6817,f:117.3,n:"Cochin Intl"},
+  {i:"CL",t:"N",y:11.1427,x:75.9478,f:303,n:"Calicut"},
+  {i:"CLC",t:"V",y:11.1351,x:75.9548,f:116.5,n:"Calicut"},
+  {i:"CN",t:"N",y:9.1521,x:92.8323,f:355,n:"Carnicobar"},
+  {i:"CO",t:"N",y:26.3304,x:89.4824,f:337,n:"Cooch Behar"},
+  {i:"DBR",t:"N",y:27.4655,x:95.0186,f:265,n:"Dibrugarh"},
+  {i:"DG",t:"N",y:17.6677,x:78.4153,f:327,n:"Dundigul"},
+  {i:"DH",t:"N",y:28.5645,x:77.2023,f:202,n:"Delhi"},
+  {i:"DMR",t:"V",y:25.8808,x:93.7816,f:114.5,n:"Dimapur"},
+  {i:"DP",t:"N",y:28.5834,x:76.9987,f:274,n:"Delhi"},
+  {i:"DPN",t:"V",y:28.5667,x:77.0949,f:116.1,n:"Delhi"},
+  {i:"DRG",t:"V",y:27.4871,x:95.0211,f:117.3,n:"Dibrugarh"},
+  {i:"DU",t:"N",y:22.7402,x:88.4576,f:385,n:"Kolkata"},
+  {i:"FSG",t:"V",y:26.2508,x:81.3778,f:114.3,n:"Fursatganj"},
+  {i:"GGB",t:"V",y:17.3136,x:76.8031,f:116.0,n:"Gulbarga"},
+  {i:"GGC",t:"V",y:24.7419,x:84.9439,f:115.0,n:"Gaya"},
+  {i:"GGO",t:"V",y:15.3798,x:73.8126,f:113.6,n:"Goa"},
+  {i:"GGT",t:"V",y:26.1019,x:91.5857,f:117.6,n:"Guwahati"},
+  {i:"GH",t:"N",y:26.7336,x:83.4456,f:278,n:"Gorakhpur"},
+  {i:"GJ",t:"N",y:26.2836,x:78.2319,f:390,n:"Gwalior"},
+  {i:"GO",t:"N",y:15.392,x:73.8904,f:274,n:"Goa"},
+  {i:"GT",t:"N",y:26.1088,x:91.6027,f:360,n:"Guwahati"},
+  {i:"GWA",t:"V",y:26.2853,x:78.2183,f:112.8,n:"Gwalior"},
+  {i:"HB",t:"N",y:15.3584,x:75.0835,f:402,n:"Hubli"},
+  {i:"HHY",t:"V",y:17.4544,x:78.4575,f:114.7,n:"Hyderabad"},
+  {i:"HW",t:"N",y:29.0311,x:79.4737,f:400,n:"Pantnagar"},
+  {i:"ID",t:"N",y:22.7297,x:75.8101,f:335,n:"Indore"},
+  {i:"IID",t:"V",y:22.7228,x:75.8067,f:116.7,n:"Indore"},
+  {i:"IIM",t:"V",y:24.7676,x:93.9044,f:115.9,n:"Imphal"},
+  {i:"IM",t:"N",y:24.7582,x:93.8891,f:289,n:"Imphal"},
+  {i:"JA",t:"N",y:32.6996,x:74.849,f:415,n:"Jammu"},
+  {i:"JAL",t:"V",y:27.6943,x:79.6556,f:115.8,n:"Jalalabad"},
+  {i:"JB",t:"N",y:23.1859,x:80.0606,f:301,n:"Jabalpur"},
+  {i:"JG",t:"N",y:30.1899,x:78.1744,f:375,n:"Dehradun"},
+  {i:"JH",t:"N",y:21.8966,x:84.0387,f:314,n:"Jharsuguda"},
+  {i:"JHT",t:"V",y:26.7019,x:94.1487,f:112.1,n:"Jorhat"},
+  {i:"JJB",t:"V",y:23.1792,x:80.0608,f:113.6,n:"Jabalpur"},
+  {i:"JJO",t:"V",y:26.2336,x:73.0493,f:112.3,n:"Jodhpur"},
+  {i:"JJP",t:"V",y:26.8249,x:75.8007,f:112.9,n:"Jaipur"},
+  {i:"JJS",t:"V",y:22.8124,x:86.1676,f:115.4,n:"Jamshedpur"},
+  {i:"JJU",t:"V",y:32.6916,x:74.8376,f:113.3,n:"Jammu"},
+  {i:"JMR",t:"V",y:22.4686,x:70.1711,f:115.0,n:"Jamnagar"},
+  {i:"JO",t:"N",y:26.2502,x:73.0327,f:340,n:"Jodhpur"},
+  {i:"JT",t:"N",y:26.7172,x:94.1465,f:217,n:"Jorhat"},
+  {i:"KA",t:"N",y:26.4169,x:80.3983,f:292,n:"Kanpur Chakeri"},
+  {i:"KD",t:"N",y:23.1116,x:70.1075,f:335,n:"Kandla"},
+  {i:"KG",t:"N",y:26.1013,x:87.9418,f:263,n:"Kishanganj"},
+  {i:"KH",t:"N",y:25.5671,x:87.5557,f:242,n:"Katihar"},
+  {i:"KJ",t:"N",y:24.8204,x:79.9167,f:403,n:"Khajuraho"},
+  {i:"KKJ",t:"V",y:24.8149,x:79.9187,f:116.4,n:"Khajuraho"},
+  {i:"KKP",t:"V",y:12.7849,x:79.7131,f:115.4,n:"Kancheepuram"},
+  {i:"KKU",t:"V",y:24.9137,x:92.9775,f:115.7,n:"Silchar"},
+  {i:"KL",t:"N",y:20.6941,x:77.0524,f:211,n:"Akola"},
+  {i:"KM",t:"N",y:24.1323,x:91.811,f:246,n:"Kamalpur"},
+  {i:"KN",t:"N",y:32.1699,x:76.2637,f:237,n:"Kangra"},
+  {i:"KO",t:"N",y:25.1656,x:75.8437,f:284,n:"Kota"},
+  {i:"KP",t:"N",y:16.6647,x:74.2824,f:260,n:"Kolhapur"},
+  {i:"KR",t:"N",y:24.3095,x:92.0063,f:310,n:"Kailashahar"},
+  {i:"KS",t:"N",y:21.3185,x:70.2617,f:282,n:"Keshod"},
+  {i:"KU",t:"N",y:24.9198,x:92.9875,f:351,n:"Silchar"},
+  {i:"LA",t:"N",y:34.15,x:77.5833,f:105,n:"Leh"},
+  {i:"LBR",t:"V",y:27.2919,x:94.1003,f:116.5,n:"Lilabari"},
+  {i:"LD",t:"N",y:30.8595,x:75.9647,f:380,n:"Ludhiana"},
+  {i:"LEH",t:"V",y:34.7328,x:77.5664,f:115.7,n:"Leh"},
+  {i:"LKA",t:"V",y:28.1795,x:74.1092,f:114.0,n:"Esdem"},
+  {i:"LLK",t:"V",y:26.7622,x:80.8805,f:113.1,n:"Lucknow"},
+  {i:"LLP",t:"V",y:23.8297,x:92.6259,f:114.2,n:"Lengpui"},
+  {i:"LM",t:"N",y:28.5562,x:77.1338,f:320,n:"Delhi"},
+  {i:"LP",t:"N",y:23.8349,x:92.6226,f:344,n:"Lengpui"},
+  {i:"LU",t:"N",y:24.6215,x:73.9456,f:384,n:"Udaipur"},
+  {i:"LUN",t:"V",y:28.5703,x:73.7842,f:117.6,n:"Mabor"},
+  {i:"MA",t:"N",y:12.9556,x:80.0749,f:228,n:"Chennai"},
+  {i:"MD",t:"N",y:9.8422,x:78.0996,f:400,n:"Madurai"},
+  {i:"MDI",t:"V",y:9.8311,x:78.089,f:116.1,n:"Madurai"},
+  {i:"ML",t:"N",y:12.9632,x:74.8919,f:357,n:"Mangalore"},
+  {i:"MML",t:"V",y:12.9613,x:74.9216,f:114.2,n:"Mangalore"},
+  {i:"MMV",t:"V",y:12.9934,x:80.1707,f:112.5,n:"Chennai"},
+  {i:"MR",t:"N",y:25.8839,x:93.7677,f:422,n:"Dimapur"},
+  {i:"NNP",t:"V",y:21.1116,x:79.0199,f:112.7,n:"Nagpur"},
+  {i:"NP",t:"N",y:21.1227,x:79.0391,f:372,n:"Nagpur"},
+  {i:"NR",t:"N",y:27.2868,x:94.0909,f:381,n:"Lilabari"},
+  {i:"OM",t:"N",y:11.9662,x:79.8098,f:385,n:"Pondicherry"},
+  {i:"PK",t:"N",y:32.2405,x:75.6331,f:393,n:"Pathankot"},
+  {i:"PL",t:"N",y:28.5423,x:77.1973,f:303,n:"Delhi"},
+  {i:"PO",t:"N",y:18.5843,x:73.9159,f:381,n:"Pune"},
+  {i:"PPB",t:"V",y:11.6497,x:92.7472,f:115.7,n:"Port Blair"},
+  {i:"PPT",t:"V",y:25.5904,x:85.0899,f:112.1,n:"Patna"},
+  {i:"PR",t:"N",y:21.6412,x:69.6626,f:344,n:"Porbandar"},
+  {i:"PRA",t:"V",y:24.0371,x:74.7439,f:114.9,n:"Pratapgarh"},
+  {i:"PUN",t:"V",y:18.5797,x:73.9142,f:113.9,n:"Pune"},
+  {i:"QQZ",t:"V",y:22.3328,x:73.2251,f:117.3,n:"Vadodara"},
+  {i:"QZ",t:"N",y:22.3348,x:73.2093,f:304,n:"Vadodara"},
+  {i:"RC",t:"N",y:23.317,x:85.3218,f:285,n:"Ranchi"},
+  {i:"RK",t:"N",y:22.3109,x:70.7863,f:329,n:"Rajkot"},
+  {i:"RKT",t:"V",y:22.3131,x:70.7783,f:115.4,n:"Rajkot"},
+  {i:"RRC",t:"V",y:23.3087,x:85.3266,f:116.9,n:"Ranchi"},
+  {i:"RRP",t:"V",y:21.1803,x:81.7456,f:116.1,n:"Raipur"},
+  {i:"RY",t:"N",y:17.1097,x:81.8199,f:366,n:"Rajahmundry"},
+  {i:"SAI",t:"N",y:14.1499,x:77.7846,f:241,n:"Sri Sathya Sai"},
+  {i:"SAM",t:"V",y:28.8225,x:76.8238,f:117.0,n:"Sampla"},
+  {i:"SG",t:"N",y:21.1674,x:73.5659,f:358,n:"Songarh"},
+  {i:"SH",t:"N",y:31.0862,x:77.067,f:398,n:"Simla"},
+  {i:"SKA",t:"V",y:27.8484,x:77.0082,f:117.2,n:"Sakaras"},
+  {i:"SNG",t:"V",y:34.002,x:74.7546,f:115.9,n:"Srinagar"},
+  {i:"SNG",t:"N",y:33.9828,x:74.7823,f:220,n:"Srinagar"},
+  {i:"SP",t:"N",y:29.9999,x:77.432,f:298,n:"Sarsawa"},
+  {i:"SSB",t:"V",y:28.3934,x:77.7081,f:112.4,n:"Sikandrabad"},
+  {i:"SU",t:"N",y:21.1157,x:72.7427,f:201,n:"Surat"},
+  {i:"TEZ",t:"V",y:26.7108,x:92.7995,f:117.9,n:"Tezpur"},
+  {i:"TJ",t:"N",y:27.9171,x:96.1629,f:339,n:"Teju"},
+  {i:"TK",t:"N",y:22.9007,x:88.0307,f:390,n:"Tarkeshwar"},
+  {i:"TR",t:"N",y:10.7499,x:78.6884,f:307,n:"Tiruchirappalli"},
+  {i:"TRR",t:"N",y:27.3668,x:75.5656,f:266,n:"Reengus/Asovo"},
+  {i:"TTP",t:"V",y:13.6344,x:79.5391,f:115.7,n:"Tirupati"},
+  {i:"TTR",t:"V",y:10.7624,x:78.7134,f:113.1,n:"Tiruchirappalli"},
+  {i:"TU",t:"N",y:8.7256,x:78.0257,f:376,n:"Tuticorin"},
+  {i:"TVM",t:"V",y:8.4748,x:76.9247,f:115.1,n:"Trivandrum"},
+  {i:"TZ",t:"N",y:26.7108,x:92.7995,f:208,n:"Tezpur"},
+  {i:"UUD",t:"V",y:24.6129,x:73.8909,f:115.9,n:"Udaipur"},
+  {i:"VB",t:"N",y:17.3344,x:77.8817,f:321,n:"Vikarabad"},
+  {i:"VVZ",t:"V",y:17.6677,x:83.2528,f:114.0,n:"Vishakhapatnam"},
+  {i:"VZ",t:"N",y:17.738,x:83.2528,f:244,n:"Vishakhapatnam"},
+  {i:"WSM",t:"V",y:20.1175,x:77.1655,f:114.5,n:"Washim"},
+  {i:"YH",t:"N",y:13.1514,x:77.6155,f:223,n:"Yelahanka"}];
+  const AIRWAYS=[["AAE", "BBJ"], ["AAE", "BVR"], ["AAE", "PRA"], ["AAE", "QQZ"], ["AAE", "RKT"], ["AAE", "UUD"], ["AAR", "CHG"], ["AAR", "JJU"], ["AAR", "LEH"], ["AAR", "SNG"], ["AAT", "BPN"], ["AAT", "CEA"], ["AAT", "KKU"], ["AAT", "LLP"], ["AAU", "BBB"], ["AAU", "PUN"], ["AAU", "WSM"], ["AGG", "ALI"], ["AGG", "GWA"], ["AGG", "JAL"], ["AGG", "JJP"], ["AGG", "SKA"], ["ALI", "GWA"], ["ALI", "JAL"], ["ALI", "SKA"], ["ALI", "SSB"], ["BBB", "BVR"], ["BBB", "PUN"], ["BBD", "BPN"], ["BBD", "GGT"], ["BBD", "PPT"], ["BBG", "BBI"], ["BBG", "CCB"], ["BBG", "KKP"], ["BBG", "MML"], ["BBG", "MMV"], ["BBG", "TTP"], ["BBI", "BBM"], ["BBI", "GGB"], ["BBI", "GGO"], ["BBI", "HHY"], ["BBJ", "JMR"], ["BBJ", "RKT"], ["BBM", "GGB"], ["BBM", "GGO"], ["BBM", "PUN"], ["BBN", "FSG"], ["BBN", "GGC"], ["BBN", "PPT"], ["BBS", "CEA"], ["BBS", "JJS"], ["BBS", "RRC"], ["BBS", "VVZ"], ["BBZ", "HHY"], ["BBZ", "TTP"], ["BBZ", "VVZ"], ["BPL", "IID"], ["BPL", "JJB"], ["BPL", "PRA"], ["BPN", "GGT"], ["BPN", "KKU"], ["BPN", "TEZ"], ["BVR", "JMR"], ["BVR", "QQZ"], ["BVR", "RKT"], ["CCB", "CIA"], ["CCB", "CIB"], ["CCB", "CLC"], ["CCB", "MDI"], ["CCB", "TTR"], ["CCN", "CIA"], ["CCN", "CIB"], ["CCN", "CLC"], ["CCN", "TVM"], ["CEA", "JJS"], ["CEA", "RRC"], ["CHG", "DPN"], ["CHG", "JJU"], ["CHG", "SAM"], ["CHI", "DPN"], ["CHI", "JJP"], ["CHI", "SAM"], ["CHI", "SKA"], ["CIA", "CIB"], ["CIA", "CLC"], ["CIA", "TVM"], ["CIB", "MDI"], ["CIB", "TTR"], ["CIB", "TVM"], ["CLC", "MML"], ["DMR", "DRG"], ["DMR", "IIM"], ["DMR", "JHT"], ["DMR", "KKU"], ["DMR", "TEZ"], ["DPN", "SAM"], ["DPN", "SKA"], ["DPN", "SSB"], ["DRG", "JHT"], ["DRG", "LBR"], ["FSG", "KKJ"], ["FSG", "LLK"], ["GGB", "HHY"], ["GGB", "WSM"], ["GGC", "JJS"], ["GGC", "PPT"], ["GGC", "RRC"], ["GGO", "MML"], ["GGT", "KKU"], ["GGT", "TEZ"], ["GWA", "KKJ"], ["GWA", "SKA"], ["IID", "PRA"], ["IID", "QQZ"], ["IIM", "KKU"], ["IIM", "LLP"], ["JAL", "LLK"], ["JHT", "LBR"], ["JHT", "TEZ"], ["JJB", "KKJ"], ["JJB", "NNP"], ["JJB", "RRP"], ["JJO", "LKA"], ["JJO", "LUN"], ["JJO", "UUD"], ["JJP", "LKA"], ["JJP", "LUN"], ["JJP", "SKA"], ["JJS", "RRC"], ["JJU", "LEH"], ["JJU", "SNG"], ["JMR", "RKT"], ["KKJ", "LLK"], ["KKP", "MMV"], ["KKP", "TTP"], ["KKU", "LLP"], ["LBR", "TEZ"], ["LEH", "SNG"], ["LKA", "LUN"], ["MDI", "TTR"], ["MMV", "TTP"], ["NNP", "RRP"], ["NNP", "WSM"], ["PPT", "RRC"], ["PRA", "QQZ"], ["PRA", "UUD"], ["RRP", "VVZ"], ["SAM", "SSB"], ["SKA", "SSB"]];
+  const COAST=[[[8.004,81.538],[8.004,81.525]],[[8.028,81.507],[8.052,81.489],[8.065,81.481],[8.101,81.472],[8.116,81.464],[8.095,81.452],[8.106,81.418],[8.127,81.41],[8.137,81.396],[8.16,81.395],[8.192,81.396],[8.15,81.419],[8.103,81.43],[8.128,81.448],[8.174,81.441],[8.243,81.42],[8.27,81.415],[8.301,81.406],[8.339,81.399],[8.344,81.375],[8.362,81.357],[8.397,81.351],[8.373,81.377],[8.364,81.389],[8.391,81.388],[8.442,81.373],[8.482,81.366],[8.496,81.357],[8.508,81.346],[8.515,81.323],[8.5,81.286],[8.477,81.297],[8.467,81.281],[8.466,81.235],[8.472,81.213],[8.487,81.198],[8.506,81.185],[8.521,81.17],[8.504,81.149],[8.51,81.129],[8.528,81.142],[8.535,81.159],[8.531,81.177],[8.52,81.194],[8.507,81.211],[8.523,81.218],[8.542,81.207],[8.573,81.212],[8.558,81.23],[8.542,81.225],[8.546,81.25],[8.57,81.247],[8.617,81.225],[8.61,81.205],[8.621,81.214],[8.633,81.232],[8.666,81.222],[8.696,81.195],[8.711,81.188],[8.699,81.177],[8.751,81.162],[8.777,81.15],[8.788,81.126],[8.8,81.114],[8.852,81.093],[8.863,81.078],[8.869,81.06],[8.882,81.047],[8.937,81.015],[8.98,80.979],[8.964,80.972],[8.946,80.961],[8.933,80.948],[8.944,80.915],[8.965,80.935],[8.973,80.923],[9.026,80.887],[9.041,80.875],[9.034,80.891],[9.027,80.919],[9.003,80.942],[9.011,80.958],[9.033,80.935],[9.062,80.916],[9.094,80.902],[9.117,80.896],[9.104,80.882],[9.125,80.873],[9.135,80.859],[9.142,80.834],[9.156,80.84],[9.148,80.875],[9.22,80.844],[9.239,80.834],[9.27,80.824],[9.272,80.804],[9.252,80.806],[9.239,80.814],[9.251,80.794],[9.298,80.742],[9.308,80.762],[9.292,80.779],[9.295,80.799],[9.312,80.785],[9.332,80.764],[9.346,80.752],[9.36,80.744],[9.581,80.468],[9.603,80.429],[9.617,80.41],[9.77,80.279],[9.784,80.27],[9.816,80.261],[9.826,80.247],[9.83,80.227],[9.828,80.185],[9.824,80.165],[9.814,80.137],[9.788,80.154],[9.775,80.211],[9.755,80.248],[9.673,80.32],[9.602,80.408],[9.583,80.444],[9.61,80.37],[9.629,80.339],[9.724,80.25],[9.754,80.222],[9.76,80.203],[9.756,80.18],[9.773,80.147],[9.777,80.13],[9.806,80.128],[9.821,80.107],[9.816,80.067],[9.823,79.989],[9.815,79.971],[9.779,79.931],[9.768,79.91],[9.744,79.927],[9.727,79.937],[9.703,79.943],[9.686,79.958],[9.684,79.976],[9.675,80.001],[9.645,80.039],[9.618,80.087],[9.608,80.111],[9.604,80.136],[9.616,80.125],[9.633,80.105],[9.645,80.094],[9.636,80.115],[9.603,80.153],[9.594,80.172],[9.584,80.186],[9.599,80.2],[9.617,80.183],[9.649,80.174],[9.638,80.205],[9.616,80.256],[9.591,80.298],[9.53,80.369],[9.528,80.41],[9.518,80.429],[9.528,80.444],[9.529,80.465],[9.51,80.496],[9.503,80.523],[9.492,80.547],[9.446,80.615],[9.455,80.567],[9.483,80.504],[9.498,80.451],[9.5,80.427],[9.465,80.336],[9.453,80.287],[9.467,80.266],[9.493,80.278],[9.525,80.249],[9.534,80.233],[9.549,80.176],[9.583,80.116],[9.595,80.085],[9.596,80.053],[9.578,80.068],[9.535,80.142],[9.521,80.161],[9.506,80.176],[9.491,80.188],[9.473,80.197],[9.468,80.177],[9.459,80.163],[9.43,80.141],[9.423,80.112],[9.415,80.087],[9.404,80.065],[9.392,80.053],[9.355,80.058],[9.333,80.066],[9.323,80.077],[9.308,80.105],[9.3,80.118],[9.234,80.116],[9.209,80.11],[9.193,80.106],[9.11,80.073],[9.076,80.067],[9.051,80.055],[9.026,80.048],[9.015,80.035],[9.001,80.005],[8.949,79.947],[8.944,79.925],[8.92,79.925],[8.884,79.93],[8.813,79.928],[8.74,79.951],[8.642,79.942],[8.622,79.932],[8.581,79.918],[8.562,79.903],[8.551,79.887],[8.538,79.874],[8.518,79.868],[8.476,79.868],[8.455,79.861],[8.438,79.848],[8.341,79.839],[8.299,79.829],[8.278,79.827],[8.25,79.811],[8.229,79.805],[8.215,79.813],[8.183,79.813],[8.164,79.817],[8.148,79.826],[8.073,79.793],[8.056,79.806],[8.04,79.819],[8.021,79.829],[8.003,79.834]],[[8.013,79.732],[8.055,79.752],[8.081,79.73],[8.101,79.728],[8.164,79.744],[8.196,79.744],[8.209,79.754],[8.233,79.769],[8.26,79.779],[8.264,79.757],[8.281,79.744],[8.314,79.763],[8.349,79.778],[8.304,79.749],[8.272,79.74],[8.25,79.729],[8.23,79.713],[8.219,79.697],[8.201,79.702],[8.142,79.707],[8.123,79.704],[8.098,79.697]],[[15.795,80.968],[15.819,80.937],[15.847,80.888],[15.812,80.868],[15.755,80.918],[15.741,80.943],[15.75,80.972],[15.762,80.985],[15.781,80.983],[15.795,80.968]],[[15.005,74.007],[14.995,74.031],[14.95,74.031],[14.921,74.036],[14.898,74.077],[14.888,74.091],[14.857,74.103],[14.846,74.125],[14.853,74.141],[14.862,74.154],[14.877,74.166],[14.891,74.198],[14.901,74.208],[14.882,74.221],[14.865,74.233],[14.867,74.208],[14.863,74.191],[14.844,74.17],[14.826,74.16],[14.839,74.14],[14.832,74.119],[14.808,74.114],[14.811,74.091],[14.793,74.096],[14.78,74.111],[14.764,74.146],[14.75,74.153],[14.75,74.174],[14.716,74.194],[14.732,74.209],[14.734,74.234],[14.719,74.253],[14.702,74.263],[14.659,74.269],[14.64,74.276],[14.62,74.268],[14.606,74.287],[14.615,74.312],[14.613,74.339],[14.602,74.307],[14.587,74.295],[14.565,74.296],[14.538,74.304],[14.519,74.31],[14.524,74.339],[14.551,74.341],[14.571,74.359],[14.545,74.359],[14.545,74.379],[14.53,74.372],[14.476,74.428],[14.48,74.401],[14.462,74.407],[14.485,74.377],[14.512,74.367],[14.53,74.352],[14.505,74.354],[14.467,74.374],[14.431,74.382],[14.419,74.392],[14.385,74.394],[14.363,74.404],[14.345,74.413],[14.301,74.415],[14.284,74.428],[14.258,74.5],[14.249,74.471],[14.254,74.447],[14.263,74.433],[14.24,74.429],[14.22,74.439],[14.181,74.467],[14.162,74.473],[14.106,74.475],[14.081,74.491],[14.062,74.496],[14.041,74.495],[14.01,74.505],[13.97,74.536],[13.946,74.551],[13.904,74.584],[13.871,74.596],[13.836,74.615],[13.774,74.623],[13.692,74.647],[13.66,74.66],[13.701,74.676],[13.712,74.688],[13.695,74.701],[13.686,74.688],[13.674,74.701],[13.656,74.713],[13.654,74.736],[13.641,74.71],[13.647,74.687],[13.63,74.677],[13.604,74.671],[13.549,74.678],[13.527,74.677],[13.461,74.701],[13.42,74.702],[13.439,74.691],[13.468,74.681],[13.443,74.683],[13.41,74.688],[13.393,74.695],[13.366,74.696],[13.348,74.707],[13.331,74.715],[13.263,74.733],[13.221,74.738],[13.171,74.749],[13.155,74.76],[13.119,74.763],[13.1,74.769],[13.085,74.783],[13.052,74.77],[12.862,74.818],[12.857,74.851],[12.871,74.895],[12.879,74.941],[12.866,74.933],[12.858,74.917],[12.853,74.901],[12.848,74.881],[12.83,74.867],[12.826,74.851],[12.838,74.825],[12.816,74.835],[12.797,74.852],[12.765,74.854],[12.743,74.87],[12.725,74.88],[12.537,74.955],[12.507,74.977],[12.491,74.985],[12.471,74.989],[12.455,74.999],[12.444,75.01],[12.415,75.018],[12.306,75.083],[12.269,75.099],[12.246,75.105],[12.221,75.105],[12.239,75.12],[12.249,75.14],[12.208,75.131],[12.161,75.144],[12.077,75.181],[12.042,75.186],[12.022,75.194],[12.008,75.209],[12.022,75.222],[12.01,75.233],[11.967,75.277],[11.998,75.261],[12.043,75.304],[12.023,75.325],[12.008,75.315],[12.011,75.281],[11.981,75.29],[11.966,75.302],[11.956,75.316],[11.95,75.332],[11.951,75.361],[11.969,75.38],[11.946,75.383],[11.926,75.4],[11.936,75.327],[11.932,75.308],[11.899,75.325],[11.872,75.349],[11.858,75.356],[11.865,75.373],[11.727,75.506],[11.694,75.531],[11.563,75.585],[11.523,75.601],[11.505,75.606],[11.485,75.609],[11.469,75.63],[11.468,75.65],[11.463,75.665],[11.45,75.677],[11.42,75.695],[11.382,75.711],[11.367,75.722],[11.359,75.742],[11.344,75.729],[11.325,75.734],[11.31,75.743],[11.098,75.833],[10.933,75.88],[10.85,75.895],[10.809,75.911],[10.796,75.942],[10.781,75.924],[10.758,75.927],[10.744,75.935],[10.726,75.939],[10.606,76.0],[10.567,76.008],[10.553,76.019],[10.529,76.045],[10.514,76.052],[10.47,76.063],[10.45,76.065],[10.433,76.07],[10.385,76.106],[10.344,76.121],[10.261,76.138],[10.22,76.153],[10.206,76.16],[10.194,76.171],[10.2,76.202],[10.216,76.209],[10.235,76.208],[10.269,76.195],[10.253,76.213],[10.234,76.223],[10.239,76.24],[10.217,76.237],[10.197,76.224],[10.171,76.178],[10.145,76.185],[10.121,76.181],[10.024,76.215],[10.0,76.228],[9.987,76.243],[10.005,76.235],[10.026,76.231],[10.066,76.229],[10.082,76.223],[10.099,76.214],[10.117,76.208],[10.138,76.215],[10.118,76.223],[10.103,76.236],[10.048,76.255],[10.036,76.274],[10.016,76.269],[9.978,76.278],[9.951,76.294],[9.967,76.312],[9.953,76.321],[9.915,76.359],[9.899,76.364],[9.862,76.386],[9.843,76.394],[9.823,76.396],[9.803,76.384],[9.785,76.38],[9.757,76.391],[9.735,76.395],[9.717,76.392],[9.7,76.41],[9.683,76.415],[9.636,76.415],[9.614,76.42],[9.594,76.42],[9.569,76.407],[9.555,76.428],[9.563,76.448],[9.556,76.467],[9.544,76.484],[9.535,76.503],[9.504,76.477],[9.497,76.459],[9.508,76.435],[9.514,76.377],[9.521,76.357],[9.624,76.373],[9.65,76.387],[9.679,76.394],[9.696,76.377],[9.716,76.368],[9.768,76.359],[9.804,76.361],[9.83,76.353],[9.856,76.337],[9.862,76.32],[9.846,76.324],[9.816,76.346],[9.789,76.338],[9.727,76.347],[9.699,76.346],[9.861,76.314],[9.88,76.309],[9.871,76.297],[9.856,76.305],[9.844,76.29],[9.877,76.289],[9.876,76.267],[9.896,76.258],[9.912,76.262],[9.904,76.286],[9.929,76.285],[9.951,76.27],[9.963,76.251],[9.953,76.236],[9.894,76.247],[9.809,76.277],[9.658,76.297],[9.633,76.291],[9.493,76.312],[9.325,76.363],[9.145,76.443],[9.236,76.416],[9.245,76.428],[9.212,76.443],[9.151,76.462],[9.164,76.473],[9.131,76.476],[9.117,76.469],[9.138,76.462],[9.115,76.46],[9.056,76.489],[9.022,76.5],[9.002,76.514],[8.977,76.518],[8.947,76.528],[8.973,76.539],[8.984,76.55],[8.994,76.565],[8.973,76.558],[8.952,76.559],[8.994,76.577],[8.989,76.606],[8.997,76.627],[9.008,76.644],[9.007,76.668],[8.995,76.657],[8.987,76.634],[8.977,76.652],[8.973,76.603],[8.956,76.582],[8.943,76.574],[8.92,76.582],[8.926,76.607],[8.908,76.591],[8.904,76.573],[8.925,76.559],[8.913,76.544],[8.891,76.559],[8.819,76.645],[8.8,76.66],[8.74,76.696],[8.708,76.731],[8.685,76.742],[8.601,76.814],[8.57,76.827],[8.521,76.88],[8.405,76.963],[8.368,76.996],[8.285,77.11],[8.272,77.129],[8.184,77.225],[8.175,77.239],[8.168,77.263],[8.154,77.287],[8.131,77.309],[8.087,77.45],[8.076,77.511],[8.083,77.565],[8.115,77.561],[8.139,77.595],[8.156,77.644],[8.174,77.752],[8.182,77.768],[8.215,77.793],[8.229,77.806],[8.345,78.0],[8.361,78.039],[8.373,78.063],[8.432,78.08],[8.466,78.115],[8.478,78.123],[8.593,78.142],[8.626,78.136],[8.658,78.115],[8.658,78.143],[8.681,78.14],[8.699,78.155],[8.727,78.165],[8.745,78.187],[8.753,78.205],[8.765,78.215],[8.788,78.21],[8.77,78.2],[8.764,78.176],[8.753,78.162],[8.772,78.17],[8.794,78.174],[8.861,78.178],[8.877,78.183],[8.939,78.218],[8.966,78.24],[9.077,78.377],[9.1,78.412],[9.117,78.45],[9.125,78.486],[9.141,78.619],[9.145,78.635],[9.162,78.655],[9.177,78.661],[9.184,78.676],[9.187,78.728],[9.201,78.752],[9.219,78.777],[9.228,78.815],[9.244,78.844],[9.249,78.861],[9.254,78.896],[9.252,78.918],[9.27,78.949],[9.278,78.989],[9.274,79.026],[9.265,79.061],[9.254,79.087],[9.256,79.129],[9.274,79.165],[9.272,79.184],[9.267,79.201],[9.258,79.232],[9.25,79.293],[9.213,79.361],[9.159,79.424],[9.151,79.44],[9.159,79.454],[9.176,79.438],[9.228,79.368],[9.241,79.354],[9.256,79.345],[9.268,79.336],[9.29,79.337],[9.307,79.346],[9.323,79.32],[9.313,79.297],[9.297,79.274],[9.289,79.252],[9.291,79.116],[9.3,79.075],[9.315,79.04],[9.385,78.96],[9.416,78.933],[9.453,78.915],[9.474,78.913],[9.514,78.925],[9.562,78.931],[9.584,78.938],[9.603,78.948],[9.617,78.957],[9.631,78.973],[9.649,78.98],[9.747,79.039],[9.782,79.078],[9.802,79.094],[9.826,79.101],[9.85,79.121],[9.891,79.142],[9.97,79.2],[10.011,79.241],[10.036,79.279],[10.054,79.254],[10.085,79.244],[10.152,79.237],[10.18,79.24],[10.193,79.262],[10.21,79.271],[10.234,79.272],[10.253,79.286],[10.268,79.305],[10.302,79.364],[10.32,79.386],[10.321,79.412],[10.31,79.437],[10.308,79.46],[10.317,79.511],[10.323,79.532],[10.336,79.568],[10.344,79.587],[10.336,79.607],[10.317,79.574],[10.313,79.552],[10.297,79.563],[10.258,79.76],[10.274,79.774],[10.282,79.759],[10.289,79.731],[10.289,79.704],[10.299,79.685],[10.307,79.662],[10.31,79.63],[10.324,79.621],[10.309,79.757],[10.297,79.78],[10.275,79.779],[10.269,79.795],[10.272,79.815],[10.279,79.834],[10.293,79.857],[10.379,79.864],[10.551,79.86],[10.592,79.85],[10.755,79.85],[10.81,79.847],[10.95,79.841],[10.98,79.847],[11.007,79.852],[11.16,79.855],[11.264,79.835],[11.342,79.833],[11.359,79.797],[11.363,79.776],[11.358,79.759],[11.341,79.752],[11.303,79.696],[11.296,79.676],[11.312,79.684],[11.366,79.74],[11.378,79.759],[11.379,79.783],[11.379,79.81],[11.391,79.822],[11.443,79.817],[11.454,79.793],[11.435,79.797],[11.465,79.781],[11.536,79.757],[11.577,79.752],[11.597,79.754],[11.634,79.763],[11.674,79.767],[11.769,79.786],[11.788,79.793],[11.879,79.82],[11.933,79.845],[11.955,79.85],[11.973,79.86],[12.012,79.861],[12.037,79.87],[12.069,79.897],[12.13,79.928],[12.154,79.948],[12.242,80.005],[12.222,79.974],[12.214,79.953],[12.256,80.005],[12.277,80.026],[12.331,80.057],[12.351,80.087],[12.401,80.117],[12.475,80.156],[12.533,80.18],[12.567,80.185],[12.614,80.196],[12.632,80.204],[12.66,80.222],[12.675,80.229],[12.711,80.234],[12.763,80.252],[12.835,80.263],[12.957,80.269],[13.029,80.283],[13.068,80.286],[13.096,80.308],[13.136,80.307],[13.164,80.314],[13.18,80.324],[13.198,80.333],[13.221,80.334],[13.217,80.318],[13.249,80.32],[13.243,80.334],[13.271,80.336],[13.321,80.346],[13.349,80.348],[13.375,80.344],[13.413,80.334],[13.43,80.327],[13.423,80.312],[13.429,80.293],[13.44,80.275],[13.451,80.262],[13.468,80.266],[13.472,80.243],[13.486,80.228],[13.489,80.176],[13.494,80.153],[13.496,80.132],[13.512,80.112],[13.537,80.101],[13.574,80.07],[13.595,80.056],[13.619,80.053],[13.648,80.076],[13.659,80.091],[13.695,80.094],[13.681,80.11],[13.664,80.121],[13.639,80.118],[13.619,80.136],[13.649,80.142],[13.729,80.142],[13.719,80.153],[13.679,80.184],[13.644,80.197],[13.592,80.245],[13.513,80.278],[13.441,80.307],[13.479,80.31],[13.527,80.288],[13.592,80.259],[13.66,80.238],[13.677,80.228],[13.697,80.221],[13.721,80.227],[13.756,80.245],[13.8,80.249],[13.84,80.237],[13.988,80.164],[14.028,80.15],[14.149,80.126],[14.194,80.123],[14.229,80.136],[14.242,80.121],[14.234,80.107],[14.217,80.091],[14.202,80.073],[14.196,80.051],[14.222,80.055],[14.229,80.07],[14.25,80.087],[14.257,80.128],[14.27,80.137],[14.325,80.159],[14.345,80.175],[14.389,80.179],[14.469,80.176],[14.526,80.188],[14.548,80.19],[14.565,80.197],[14.566,80.159],[14.571,80.142],[14.58,80.161],[14.593,80.176],[14.617,80.174],[14.663,80.16],[14.688,80.128],[14.698,80.117],[14.714,80.108],[14.764,80.105],[14.921,80.073],[14.942,80.073],[14.975,80.062],[15.014,80.055],[15.093,80.053],[15.204,80.082],[15.297,80.093],[15.37,80.121],[15.388,80.127],[15.406,80.14],[15.438,80.173],[15.452,80.184],[15.482,80.2],[15.497,80.211],[15.518,80.201],[15.548,80.217],[15.567,80.219],[15.675,80.263],[15.701,80.28],[15.776,80.36],[15.797,80.393],[15.808,80.436],[15.83,80.461],[15.836,80.476],[15.857,80.526],[15.868,80.542],[15.881,80.554],[15.869,80.571],[15.882,80.6],[15.888,80.618],[15.889,80.663],[15.908,80.67],[15.901,80.69],[15.898,80.736],[15.893,80.76],[15.884,80.776],[15.842,80.803],[15.804,80.808],[15.716,80.807],[15.727,80.82],[15.748,80.83],[15.823,80.856],[15.895,80.89],[15.936,80.896],[15.978,80.891],[16.017,80.875],[16.004,80.889],[16.031,80.896],[16.0,80.906],[15.966,80.91],[15.891,80.903],[15.871,80.904],[15.853,80.91],[15.839,80.922],[15.833,80.941],[15.803,80.979],[15.791,80.988],[15.779,81.005],[15.792,81.019],[15.812,81.013],[15.825,81.003],[15.847,80.999],[15.881,81.027],[15.894,81.043],[15.921,81.088],[15.966,81.135],[15.986,81.155],[16.039,81.156],[16.057,81.162],[16.087,81.18],[16.139,81.19],[16.199,81.219],[16.244,81.23],[16.271,81.254],[16.289,81.26],[16.311,81.25],[16.333,81.26],[16.367,81.317],[16.374,81.345],[16.367,81.376],[16.377,81.387],[16.383,81.411],[16.374,81.424],[16.351,81.421],[16.359,81.475],[16.361,81.496],[16.35,81.536],[16.374,81.54],[16.368,81.569],[16.346,81.568],[16.342,81.585],[16.34,81.621],[16.333,81.636],[16.337,81.656],[16.327,81.677],[16.315,81.696],[16.312,81.718],[16.323,81.763],[16.339,81.783],[16.375,81.862],[16.382,81.881],[16.386,81.9],[16.388,81.941],[16.407,81.956],[16.408,81.982],[16.42,82.008],[16.436,82.023],[16.448,82.037],[16.444,82.069],[16.455,82.091],[16.477,82.123],[16.501,82.173],[16.513,82.203],[16.565,82.259],[16.58,82.307],[16.591,82.296],[16.607,82.285],[16.628,82.287],[16.61,82.299],[16.62,82.312],[16.678,82.338],[16.706,82.346],[16.761,82.352],[16.812,82.366],[16.86,82.367],[16.909,82.367],[16.936,82.361],[16.956,82.349],[16.925,82.357],[16.891,82.361],[16.859,82.362],[16.845,82.352],[16.854,82.335],[16.847,82.32],[16.854,82.304],[16.867,82.268],[16.885,82.255],[16.908,82.251],[16.929,82.253],[16.998,82.292],[17.03,82.299],[17.047,82.312],[17.073,82.342],[17.11,82.37],[17.127,82.388],[17.14,82.423],[17.154,82.435],[17.182,82.452],[17.206,82.475],[17.349,82.719],[17.359,82.758],[17.383,82.796],[17.393,82.838],[17.403,82.854],[17.414,82.869],[17.422,82.883],[17.409,82.897],[17.443,82.945],[17.45,82.97],[17.473,82.996],[17.491,83.02],[17.506,83.053],[17.531,83.088],[17.56,83.171],[17.577,83.196],[17.584,83.209],[17.593,83.239],[17.608,83.234],[17.635,83.213],[17.634,83.247],[17.649,83.268],[17.658,83.289],[17.673,83.299],[17.688,83.272],[17.695,83.249],[17.716,83.247],[17.717,83.268],[17.706,83.28],[17.693,83.29],[17.701,83.313],[17.717,83.341],[17.784,83.402],[17.806,83.418],[17.839,83.425],[17.854,83.431],[17.868,83.453],[17.907,83.449],[17.902,83.466],[17.917,83.487],[17.943,83.526],[17.956,83.539],[17.973,83.557],[18.01,83.576],[18.045,83.614],[18.14,83.775],[18.272,84.077],[18.298,84.113],[18.334,84.124],[18.354,84.136],[18.375,84.144],[18.4,84.174],[18.418,84.188],[18.446,84.23],[18.461,84.24],[18.506,84.288],[18.539,84.331],[18.553,84.35],[18.537,84.326],[18.516,84.298],[18.5,84.271],[18.502,84.249],[18.526,84.247],[18.524,84.273],[18.53,84.289],[18.544,84.306],[18.554,84.333],[18.57,84.349],[18.601,84.37],[18.636,84.424],[18.663,84.437],[18.681,84.448],[18.776,84.542],[18.796,84.548],[18.916,84.631],[18.93,84.665],[18.946,84.68],[18.977,84.699],[19.028,84.741],[19.054,84.751],[19.091,84.778],[19.102,84.768],[19.074,84.74],[19.096,84.723],[19.129,84.731],[19.148,84.739],[19.138,84.751],[19.123,84.764],[19.116,84.778],[19.22,84.872],[19.323,84.996],[19.372,85.07],[19.475,85.18],[19.518,85.241],[19.536,85.285],[19.575,85.337],[19.594,85.38],[19.631,85.463],[19.67,85.54],[19.691,85.577],[19.576,85.331],[19.574,85.303],[19.601,85.288],[19.595,85.309],[19.62,85.318],[19.605,85.33],[19.599,85.352],[19.608,85.368],[19.62,85.38],[19.636,85.385],[19.644,85.402],[19.662,85.405],[19.679,85.399],[19.675,85.374],[19.678,85.351],[19.642,85.309],[19.656,85.261],[19.635,85.236],[19.617,85.242],[19.602,85.233],[19.59,85.224],[19.581,85.213],[19.574,85.193],[19.554,85.233],[19.547,85.215],[19.554,85.199],[19.527,85.202],[19.506,85.186],[19.503,85.162],[19.493,85.146],[19.482,85.136],[19.499,85.13],[19.519,85.124],[19.507,85.115],[19.53,85.103],[19.549,85.123],[19.557,85.139],[19.568,85.151],[19.58,85.139],[19.613,85.15],[19.626,85.166],[19.671,85.19],[19.684,85.207],[19.707,85.203],[19.736,85.221],[19.763,85.247],[19.78,85.268],[19.79,85.29],[19.794,85.32],[19.838,85.375],[19.88,85.416],[19.896,85.44],[19.903,85.464],[19.889,85.515],[19.882,85.557],[19.792,85.567],[19.773,85.57],[19.757,85.563],[19.746,85.577],[19.738,85.559],[19.711,85.515],[19.729,85.523],[19.724,85.478],[19.716,85.451],[19.708,85.439],[19.697,85.426],[19.692,85.443],[19.675,85.448],[19.663,85.457],[19.666,85.48],[19.691,85.549],[19.728,85.614],[19.732,85.638],[19.723,85.626],[19.748,85.685],[19.754,85.715],[19.764,85.734],[19.765,85.778],[19.773,85.809],[19.796,85.846],[19.803,85.889]],[[9.076,79.714],[9.073,79.736],[9.067,79.759],[9.058,79.779],[9.049,79.8],[9.013,79.841],[9.001,79.859],[8.988,79.87],[8.976,79.886],[8.973,79.91],[8.989,79.901],[9.012,79.88],[9.041,79.854],[9.024,79.9],[9.054,79.882],[9.077,79.842],[9.093,79.799],[9.099,79.779],[9.104,79.759],[9.104,79.714],[9.09,79.698],[9.076,79.714]],[[9.5,79.731],[9.524,79.719],[9.53,79.694],[9.535,79.676],[9.554,79.665],[9.504,79.656],[9.491,79.666],[9.484,79.689],[9.485,79.715],[9.5,79.731]],[[9.617,79.896],[9.629,79.927],[9.622,79.944],[9.617,79.971],[9.641,79.96],[9.648,79.945],[9.661,79.931],[9.679,79.926],[9.678,79.907],[9.688,79.895],[9.71,79.889],[9.737,79.891],[9.757,79.894],[9.756,79.861],[9.738,79.854],[9.717,79.852],[9.699,79.841],[9.652,79.865],[9.629,79.88],[9.617,79.896]]];
+  const NAV_FREQ={MMV:"112.5",KKP:"115.4",TTP:"115.7",BBG:"115.5",MML:"?",CCB:"?"};
+  const NAVBYID={}; NAVAIDS.forEach(n=>{ NAVBYID[n.i]=n; if(NAV_FREQ[n.i]) n.freq=NAV_FREQ[n.i]; });
+  // SID tracks anchored on the real Chennai MMV VOR-DME (exit fix = radial/distance from MMV)
+  const MMV=[12.9934,80.1707];
+  const SID_TRACKS={
+    LATID5A:{fix:[12.7117,80.0656],radial:200,dist:18,alt:"5000",spd:"250"},
+    GUVOX3B:{fix:[13.1185,79.8172],radial:290,dist:22,alt:"6000",spd:"250"},
+    OPULU1D:{fix:[12.9021,80.4276],radial:110,dist:16,alt:"5000",spd:"250"},
+    TILNU2A:{fix:[13.3556,80.3443],radial:25,dist:24,alt:"7000",spd:"250"}
+  };
+  // fold navaids into the fix lookup so route fixes resolve to real coords too
+  NAVAIDS.forEach(n=>{ if(!FIXDB[n.i]) FIXDB[n.i]=[n.y,n.x]; });
+
+  // chart camera: centre lat/lon + scale (px per degree lon at centre)
+  const CH={ cx:80, cy:13, scale:20, drag:null, W:0, H:0, proposed:null, dpr:1, mode:'enroute', rangeNM:40, sweep:0 };
+
+  function chartGeo(){ try{ return (typeof LZ!=='undefined'&&LZ&&LZ.geo)?LZ.geo:{lat:12.99,lon:80.17}; }catch(e){ return {lat:12.99,lon:80.17}; } }
+
+  // project lat/lon -> canvas px (equirectangular, cos-lat corrected)
+  function proj(lat,lon){
+    const k=Math.cos(CH.cy*Math.PI/180);
+    const x = CH.W/2 + (lon-CH.cx)*CH.scale*k;
+    const y = CH.H/2 - (lat-CH.cy)*CH.scale;
+    return [x,y];
+  }
+  function unproj(px,py){
+    const k=Math.cos(CH.cy*Math.PI/180);
+    const lon = CH.cx + (px-CH.W/2)/(CH.scale*k);
+    const lat = CH.cy - (py-CH.H/2)/CH.scale;
+    return [lat,lon];
+  }
+  // sim local px (world 1680x1060 around the airport) -> lat/lon, using field geo + a metres-per-pixel scale
+  function simToGeo(x,y){
+    const g=chartGeo();
+    // sim scale ~0.32 px/m => 1px ≈ 3.123 m. Field centre ≈ world centre.
+    const mPerPx=1/0.32026;
+    const dxm=(x-840)*mPerPx, dym=(y-530)*mPerPx;   // metres east / south from field centre
+    const dLat = -dym/111320;
+    const dLon =  dxm/(111320*Math.cos(g.lat*Math.PI/180));
+    return [g.lat+dLat, g.lon+dLon];
+  }
+
+  function lookupFix(name){
+    if(FIXDB[name]) return FIXDB[name];
+    return null;
+  }
+
+  // resolve a route string into an ordered list of {name,lat,lon,known}
+  function resolveRoute(r){
+    if(!r||!r.route) return [];
+    const g=chartGeo();
+    const toks=r.route.split(/\s+/).filter(t=>t && !/^(DCT|N\d|M\d|F\d|A\d)/.test(t) && !/^[UNWMGYLTZ]+\d/.test(t) && t.length>=3 && /^[A-Z]/.test(t));
+    // include ADEP and ADES as anchors
+    const pts=[];
+    const adep = r.adep && FIXDB[r.adep] ? {name:r.adep,ll:FIXDB[r.adep]} : {name:r.adep||'DEP', ll:[g.lat,g.lon]};
+    pts.push(adep);
+    toks.forEach(t=>{ const ll=lookupFix(t); if(ll) pts.push({name:t,ll,known:true}); else pts.push({name:t,ll:null,known:false}); });
+    if(r.ades){ const ll=FIXDB[r.ades]; pts.push({name:r.ades, ll:ll||null, known:!!ll}); }
+    // fill unknown fixes by interpolating between known neighbours
+    const known=pts.map((p,i)=>p.ll?i:-1).filter(i=>i>=0);
+    for(let i=0;i<pts.length;i++){
+      if(pts[i].ll) continue;
+      const prev=known.filter(k=>k<i).pop(), next=known.find(k=>k>i);
+      if(prev!=null&&next!=null){ const f=(i-prev)/(next-prev); const a=pts[prev].ll,b=pts[next].ll;
+        pts[i].ll=[a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f]; pts[i].est=true; }
+    }
+    return pts.filter(p=>p.ll);
+  }
+
+  function setProposed(r){ CH.proposed = r ? {r, pts:resolveRoute(r)} : null; drawChart(); }
+
+  function fitRoute(){
+    if(!CH.proposed||!CH.proposed.pts.length){ fitField(); return; }
+    const pts=CH.proposed.pts;
+    let laMin=90,laMax=-90,loMin=180,loMax=-180;
+    pts.forEach(p=>{ laMin=Math.min(laMin,p.ll[0]);laMax=Math.max(laMax,p.ll[0]);loMin=Math.min(loMin,p.ll[1]);loMax=Math.max(loMax,p.ll[1]); });
+    CH.cy=(laMin+laMax)/2; CH.cx=(loMin+loMax)/2;
+    const k=Math.cos(CH.cy*Math.PI/180);
+    const sLat=CH.H*0.8/Math.max(0.2,(laMax-laMin)); const sLon=CH.W*0.8/Math.max(0.2,(loMax-loMin)*k);
+    CH.scale=Math.max(0.3,Math.min(sLat,sLon));
+    drawChart();
+  }
+  function fitField(){ const g=chartGeo(); CH.cx=g.lon; CH.cy=g.lat; CH.scale=1600; drawChart(); }
+
+  // draw SID tracks: from the departure runway threshold, out to the SID exit fix, anchored via MMV
+  function drawSids(ctx){
+    if(typeof RUNWAYS==='undefined'||!RUNWAYS) return;
+    // which runway is active (from ATIS) — draw SIDs valid for it; else all
+    const actRwy = (window.PYRGOS_ATIS && window.PYRGOS_ATIS.runway) || null;
+    const sidDefs = (typeof LZ!=='undefined'&&LZ&&LZ.sids)?LZ.sids:[];
+    // MMV marker
+    const mp=proj(MMV[0],MMV[1]);
+    sidDefs.forEach(sd=>{
+      const trk=SID_TRACKS[sd.name]; if(!trk) return;
+      const valid = !actRwy || (sd.rwys||[]).includes(actRwy);
+      // departure end: use the active runway threshold if we can, else the runway this SID lists first
+      let depName = actRwy && (sd.rwys||[]).includes(actRwy) ? actRwy : (sd.rwys||[])[0];
+      const rw = RUNWAYS.find(r=>r.nameA===depName||r.nameB===depName); if(!rw) return;
+      const thr = (rw.nameA===depName)? simToGeo(rw.ax,rw.ay) : simToGeo(rw.bx,rw.by);
+      const p0=proj(thr[0],thr[1]);         // runway end
+      const pf=proj(trk.fix[0],trk.fix[1]);  // SID exit fix
+      // track: runway -> (slight curve via a turn point) -> exit fix
+      ctx.strokeStyle = valid? 'rgba(90,217,160,.85)':'rgba(90,217,160,.28)';
+      ctx.lineWidth=1.6; ctx.setLineDash(valid?[]:[4,4]);
+      ctx.beginPath(); ctx.moveTo(p0[0],p0[1]);
+      // turn point ~ 1/3 along toward fix, nudged along initial heading
+      const tx=p0[0]+(pf[0]-p0[0])*0.4, ty=p0[1]+(pf[1]-p0[1])*0.4;
+      ctx.quadraticCurveTo(tx,ty,pf[0],pf[1]); ctx.stroke(); ctx.setLineDash([]);
+      // arrowhead at fix
+      const ang=Math.atan2(pf[1]-ty,pf[0]-tx);
+      ctx.fillStyle=valid?'#5ad9a0':'rgba(90,217,160,.4)';
+      ctx.beginPath(); ctx.moveTo(pf[0],pf[1]);
+      ctx.lineTo(pf[0]-8*Math.cos(ang-0.4),pf[1]-8*Math.sin(ang-0.4));
+      ctx.lineTo(pf[0]-8*Math.cos(ang+0.4),pf[1]-8*Math.sin(ang+0.4)); ctx.closePath(); ctx.fill();
+      // SID label at the fix
+      ctx.fillStyle=valid?'#7fe8c0':'rgba(140,200,180,.5)'; ctx.font='9px ui-monospace,monospace';
+      ctx.fillText(sd.name, pf[0]+7, pf[1]+3);
+    });
+    // MMV emphasised in terminal mode
+    if(CH.mode==='terminal'){
+      ctx.strokeStyle='#5ad9a0'; ctx.lineWidth=1.4; ctx.beginPath();
+      for(let k=0;k<6;k++){ const a=k*Math.PI/3-Math.PI/2; const px=mp[0]+Math.cos(a)*8, py=mp[1]+Math.sin(a)*8; if(k===0)ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+      ctx.closePath(); ctx.stroke();
+      ctx.fillStyle='#5ad9a0'; ctx.beginPath(); ctx.arc(mp[0],mp[1],2,0,7); ctx.fill();
+      ctx.fillStyle='#8ff0d0'; ctx.font='10px ui-monospace,monospace'; ctx.fillText('MMV', mp[0]+11, mp[1]+3);
+    }
+  }
+
+  function setChartMode(m){
+    CH.mode=m;
+    $$('.chModeBtn').forEach(b=>b.classList.toggle('on',b.dataset.cmode===m));
+    const rng=$('#chartRange'); if(rng) rng.style.display = m==='radar'?'inline-flex':'none';
+    const fld=$('#chartFieldSel'); if(fld) fld.style.display = m==='radar'?'inline-block':'none';
+    if(m==='radar'){ fitRadar(); startRadarLoop();
+      if(!ADSB.on){ toggleAdsb(); }  // radar needs live traffic
+    } else { stopRadarLoop();
+      if(m==='terminal'||m==='jepp'){ fitTerminal(); }
+      else if(m==='sectional'){ const g=chartGeo(); CH.cx=g.lon; CH.cy=g.lat; CH.scale=900; drawChart(); }
+      else { if(CH.proposed) fitRoute(); else fitField(); }
+    }
+  }
+  function fitRadar(){ const g=radarGeo(); CH.cx=g.lon; CH.cy=g.lat;
+    // scale so the range circle fits with margin
+    const halfH=(CH.H||460)/2 - 30;
+    // px per NM = scale * (1/60 deg per NM) ; want rangeNM*ppnm = halfH
+    CH.scale = halfH / (CH.rangeNM/60);
+    drawChart();
+  }
+  let _radarRAF=null;
+  function startRadarLoop(){ if(_radarRAF) return; const tick=()=>{ if(CH.mode!=='radar'){ _radarRAF=null; return; } drawChart(); _radarRAF=requestAnimationFrame(tick); }; _radarRAF=requestAnimationFrame(tick); }
+  function stopRadarLoop(){ if(_radarRAF){ cancelAnimationFrame(_radarRAF); _radarRAF=null; } }
+  function setRadarRange(nm){ CH.rangeNM=nm; $$('[data-rng]').forEach(b=>b.classList.toggle('on',+b.dataset.rng===nm));
+    fitRadar(); if(ADSB.on) fetchAdsb(); }
+  function setRadarField(icao){ if(!RADAR_FIELDS[icao]) return; RADAR_FIELD=icao;
+    const sel=$('#chartFieldSel'); if(sel) sel.value=icao;
+    fitRadar(); if(ADSB.on) fetchAdsb();
+    if(typeof toast==='function') toast('Radar centred on '+RADAR_FIELDS[icao].name+' ('+icao+')'); }
+  function fitTerminal(){ const g=chartGeo(); CH.cx=g.lon; CH.cy=g.lat; CH.scale=9000; drawChart(); }
+
+  // ── sectional base: real coastline, water fill, airspace ring ──
+  function drawSectionalBase(ctx){
+    // water: fill the whole canvas as land tint already; draw sea polygons via coastline is complex,
+    // so approximate: draw coastline as the land/water boundary and shade the east (sea) side.
+    // Simple + honest: draw coastline lines, and a translucent blue wash on the sea side (east of Chennai coast ~80.3E).
+    ctx.save();
+    // sea wash (east of the coast)
+    const seaLon=80.30; const [sx]=proj(0,seaLon);
+    ctx.fillStyle='#aecbe0'; ctx.fillRect(sx,0,CH.W-sx,CH.H);
+    // coastline
+    ctx.strokeStyle='#5a7a92'; ctx.lineWidth=1.4;
+    COAST.forEach(seg=>{ ctx.beginPath(); seg.forEach((p,i)=>{ const q=proj(p[0],p[1]); if(i===0)ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]); }); ctx.stroke(); });
+    ctx.restore();
+    // airspace ring around the field (Chennai CTR ~ 30nm)
+    const g=chartGeo(); const c=proj(g.lat,g.lon);
+    const edge=proj(g.lat+ (30/60), g.lon); const rr=Math.abs(edge[1]-c[1]);
+    ctx.strokeStyle='rgba(120,40,140,.5)'; ctx.lineWidth=1.4; ctx.setLineDash([6,3]);
+    ctx.beginPath(); ctx.arc(c[0],c[1],rr,0,7); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='rgba(120,40,140,.6)'; ctx.font='9px ui-monospace,monospace'; ctx.fillText('CTR', c[0]+rr*0.7, c[1]-rr*0.7);
+  }
+
+  // ── Jeppesen overlay: restriction boxes on SID fixes + freq boxes on navaids + routing panel ──
+  function drawJeppOverlay(ctx){
+    const ink='#1a2a4a';
+    // navaid frequency boxes
+    NAVAIDS.forEach(nv=>{ if(nv.t!=='V'||!nv.freq) return; const q=proj(nv.y,nv.x);
+      if(q[0]<0||q[0]>CH.W||q[1]<0||q[1]>CH.H) return;
+      const label=nv.i+' '+nv.freq; const w=label.length*6+10;
+      ctx.fillStyle='#fff'; ctx.strokeStyle=ink; ctx.lineWidth=1;
+      ctx.fillRect(q[0]+8,q[1]-8,w,15); ctx.strokeRect(q[0]+8,q[1]-8,w,15);
+      ctx.fillStyle=ink; ctx.font='10px ui-monospace,monospace'; ctx.fillText(label,q[0]+12,q[1]+2.5);
+    });
+    // SID fix restriction boxes (altitude / speed)
+    const sidDefs=(typeof LZ!=='undefined'&&LZ&&LZ.sids)?LZ.sids:[];
+    sidDefs.forEach(sd=>{ const trk=SID_TRACKS[sd.name]; if(!trk) return; const q=proj(trk.fix[0],trk.fix[1]);
+      if(q[0]<0||q[0]>CH.W||q[1]<0||q[1]>CH.H) return;
+      // altitude box (blue underline style)
+      const at=trk.alt?('AT '+trk.alt):''; const sp=trk.spd?(trk.spd+' KT'):'';
+      ctx.fillStyle='#1230a0'; ctx.font='bold 10px ui-monospace,monospace';
+      if(at){ ctx.fillText(at, q[0]+8, q[1]+16); ctx.strokeStyle='#1230a0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(q[0]+8,q[1]+19); ctx.lineTo(q[0]+8+at.length*6,q[1]+19); ctx.stroke(); }
+      if(sp){ ctx.fillText(sp, q[0]+8, q[1]+29); }
+    });
+    // routing panel (bottom strip, Jepp style)
+    const rp=CH.proposed;
+    ctx.fillStyle='rgba(255,255,255,.92)'; ctx.strokeStyle=ink; ctx.lineWidth=1;
+    const ph=42, py=CH.H-ph;
+    ctx.fillRect(0,py,CH.W,ph); ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(CH.W,py); ctx.stroke();
+    ctx.fillStyle=ink; ctx.font='bold 10px ui-monospace,monospace'; ctx.fillText('ROUTING', 12, py+15);
+    ctx.font='10px ui-monospace,monospace';
+    const routeTxt = rp && rp.r ? (rp.r.callsign+'  '+(rp.r.adep||'')+' → '+(rp.r.ades||'')+'   via '+ (rp.r.route||'').split(' ').slice(0,8).join(' ')) : 'No flight plan loaded — SIDs shown from active runway via MMV';
+    ctx.fillText(routeTxt, 12, py+31);
+  }
+
+  // ─────────── RADAR FIELDS (Chennai + Mumbai, real data) ───────────
+  const RADAR_FIELDS={
+    VEAT:{icao:'VEAT',name:'Agartala - Maharaja Bir',lat:23.887,lon:91.2404,elev:46,rwys:[]},
+    VOAT:{icao:'VOAT',name:'Agatti',lat:10.8237,lon:72.176,elev:14,rwys:[]},
+    VIAG:{icao:'VIAG',name:'Agra / Agra Air Force St',lat:27.158,lon:77.961,elev:551,rwys:[]},
+    VAAK:{icao:'VAAK',name:'Akola',lat:20.6989,lon:77.0569,elev:999,rwys:[]},
+    VEAN:{icao:'VEAN',name:'Along',lat:28.1753,lon:94.802,elev:900,rwys:[]},
+    VAAU:{icao:'VAAU',name:'Aurangabad',lat:19.8629,lon:75.3963,elev:1911,rwys:[]},
+    VEBD:{icao:'VEBD',name:'Bagdogra',lat:26.6812,lon:88.3286,elev:412,rwys:[]},
+    VIBY:{icao:'VIBY',name:'Bareilly Air Force Stati',lat:28.4221,lon:79.4508,elev:580,rwys:[]},
+    VOHY:{icao:'VOHY',name:'Begumpet',lat:17.4531,lon:78.4676,elev:1742,rwys:[{n:'09',hdg:89,len:3231},{n:'27',hdg:269,len:3231}]},
+    VABM:{icao:'VABM',name:'Belagavi',lat:15.8593,lon:74.6183,elev:2487,rwys:[]},
+    VOBI:{icao:'VOBI',name:'Bellary',lat:15.1628,lon:76.8828,elev:30,rwys:[]},
+    VIBT:{icao:'VIBT',name:'Bhatinda Air Force Stati',lat:30.2701,lon:74.7558,elev:662,rwys:[]},
+    VABV:{icao:'VABV',name:'Bhavnagar',lat:21.7522,lon:72.1852,elev:44,rwys:[]},
+    VABJ:{icao:'VABJ',name:'Bhuj',lat:23.2878,lon:69.6702,elev:268,rwys:[]},
+    VOBR:{icao:'VOBR',name:'Bidar / Bidar Air Force',lat:17.9081,lon:77.4871,elev:2178,rwys:[]},
+    VEBS:{icao:'VEBS',name:'Biju Patnaik Intl',lat:20.251,lon:85.8147,elev:138,rwys:[]},
+    VEBU:{icao:'VEBU',name:'Bilaspur',lat:21.9884,lon:82.111,elev:899,rwys:[]},
+    VEIM:{icao:'VEIM',name:'Bir Tikendrajit Intl',lat:24.76,lon:93.8967,elev:2540,rwys:[]},
+    VERC:{icao:'VERC',name:'Birsa Munda',lat:23.3143,lon:85.3217,elev:2148,rwys:[]},
+    VOCL:{icao:'VOCL',name:'Calicut Intl',lat:11.136,lon:75.9552,elev:342,rwys:[]},
+    VOCX:{icao:'VOCX',name:'Car Nicobar Air Force Ba',lat:9.1531,lon:92.8193,elev:5,rwys:[]},
+    VILK:{icao:'VILK',name:'Chaudhary Charan Singh I',lat:26.7606,lon:80.8893,elev:410,rwys:[{n:'09',hdg:89,len:2742},{n:'27',hdg:269,len:2742}]},
+    VOMM:{icao:'VOMM',name:'Chennai Intl',lat:12.99,lon:80.1693,elev:52,rwys:[{n:'07',hdg:69,len:3658},{n:'25',hdg:249,len:3658},{n:'12',hdg:118,len:2045},{n:'30',hdg:298,len:2045}]},
+    VABB:{icao:'VABB',name:'Chhatrapati Shivaji Maha',lat:19.0887,lon:72.8679,elev:39,rwys:[{n:'09',hdg:89,len:3509},{n:'27',hdg:269,len:3509},{n:'14',hdg:134,len:2871},{n:'32',hdg:314,len:2871}]},
+    VOCI:{icao:'VOCI',name:'Cochin Intl',lat:10.151,lon:76.4008,elev:30,rwys:[{n:'09',hdg:88,len:3400},{n:'27',hdg:268,len:3400}]},
+    VOCB:{icao:'VOCB',name:'Coimbatore Intl',lat:11.03,lon:77.0434,elev:1324,rwys:[]},
+    VADN:{icao:'VADN',name:'Daman',lat:20.4344,lon:72.8432,elev:33,rwys:[]},
+    VEDH:{icao:'VEDH',name:'Darbhanga',lat:26.1928,lon:85.9169,elev:156,rwys:[]},
+    VIDN:{icao:'VIDN',name:'Dehradun Jolly Grant',lat:30.1892,lon:78.1767,elev:1831,rwys:[]},
+    VAID:{icao:'VAID',name:'Devi Ahilya Bai Holkar I',lat:22.7214,lon:75.8005,elev:1850,rwys:[]},
+    VEDB:{icao:'VEDB',name:'Dhanbad',lat:23.834,lon:86.4253,elev:847,rwys:[]},
+    VEMN:{icao:'VEMN',name:'Dibrugarh',lat:27.4839,lon:95.0169,elev:362,rwys:[]},
+    VEMR:{icao:'VEMR',name:'Dimapur',lat:25.8839,lon:93.7711,elev:487,rwys:[]},
+    VANP:{icao:'VANP',name:'Dr. Babasaheb Ambedkar I',lat:21.0922,lon:79.0472,elev:1033,rwys:[{n:'09',hdg:84,len:1938},{n:'27',hdg:264,len:1938},{n:'14',hdg:143,len:3200},{n:'32',hdg:323,len:3200}]},
+    VEGY:{icao:'VEGY',name:'Gaya',lat:24.7443,lon:84.9512,elev:380,rwys:[]},
+    VOGO:{icao:'VOGO',name:'Goa Dabolim Intl',lat:15.3801,lon:73.8333,elev:150,rwys:[{n:'08',hdg:79,len:3458},{n:'26',hdg:259,len:3458}]},
+    VA2C:{icao:'VA2C',name:'Gondia',lat:21.5268,lon:80.2903,elev:987,rwys:[]},
+    VEGK:{icao:'VEGK',name:'Gorakhpur',lat:26.7397,lon:83.4497,elev:259,rwys:[]},
+    VIGR:{icao:'VIGR',name:'Gwalior',lat:26.2933,lon:78.2278,elev:617,rwys:[]},
+    VIHX:{icao:'VIHX',name:'Halwara Intl',lat:30.7485,lon:75.6298,elev:790,rwys:[]},
+    VAHB:{icao:'VAHB',name:'Hubballi',lat:15.3611,lon:75.0821,elev:2171,rwys:[]},
+    VIDP:{icao:'VIDP',name:'Indira Gandhi Intl',lat:28.5556,lon:77.0952,elev:777,rwys:[{n:'09',hdg:92,len:2813},{n:'27',hdg:272,len:2813},{n:'10',hdg:105,len:3810},{n:'28',hdg:285,len:3810},{n:'11L',hdg:103,len:4400},{n:'29R',hdg:283,len:4400},{n:'11R',hdg:103,len:4430},{n:'29L',hdg:283,len:4430}]},
+    VAJB:{icao:'VAJB',name:'Jabalpur',lat:23.1778,lon:80.052,elev:1624,rwys:[]},
+    VIJP:{icao:'VIJP',name:'Jaipur Intl',lat:26.8242,lon:75.8122,elev:1263,rwys:[{n:'08',hdg:84,len:2797},{n:'26',hdg:264,len:2797},{n:'15',hdg:144,len:1592},{n:'33',hdg:324,len:1592}]},
+    VIJR:{icao:'VIJR',name:'Jaisalmer',lat:26.8887,lon:70.865,elev:751,rwys:[]},
+    VIJU:{icao:'VIJU',name:'Jammu',lat:32.6888,lon:74.8382,elev:996,rwys:[]},
+    VAJM:{icao:'VAJM',name:'Jamnagar',lat:22.4655,lon:70.0126,elev:69,rwys:[]},
+    VEPT:{icao:'VEPT',name:'Jay Prakash Narayan',lat:25.5913,lon:85.088,elev:170,rwys:[]},
+    VIJO:{icao:'VIJO',name:'Jodhpur',lat:26.2511,lon:73.0489,elev:717,rwys:[]},
+    VEJT:{icao:'VEJT',name:'Jorhat',lat:26.7305,lon:94.1754,elev:311,rwys:[]},
+    VOCP:{icao:'VOCP',name:'Kadapa',lat:14.5132,lon:78.7692,elev:430,rwys:[]},
+    VEKR:{icao:'VEKR',name:'Kailashahar',lat:24.3087,lon:92.0077,elev:79,rwys:[]},
+    VAKE:{icao:'VAKE',name:'Kandla',lat:23.1127,lon:70.1003,elev:96,rwys:[]},
+    VIGG:{icao:'VIGG',name:'Kangra',lat:32.1649,lon:76.263,elev:2525,rwys:[]},
+    VOKN:{icao:'VOKN',name:'Kannur Intl',lat:11.9163,lon:75.545,elev:330,rwys:[]},
+    VICX:{icao:'VICX',name:'Kanpur',lat:26.4043,lon:80.4101,elev:410,rwys:[]},
+    VEDG:{icao:'VEDG',name:'Kazi Nazrul Islam',lat:23.6225,lon:87.243,elev:300,rwys:[]},
+    VOBL:{icao:'VOBL',name:'Kempegowda Intl Bengalur',lat:13.1979,lon:77.7063,elev:3000,rwys:[{n:'09L',hdg:90,len:4000},{n:'27R',hdg:270,len:4000},{n:'09R',hdg:92,len:4000},{n:'27L',hdg:272,len:4000}]},
+    VAKS:{icao:'VAKS',name:'Keshod',lat:21.3171,lon:70.2704,elev:167,rwys:[]},
+    VAKJ:{icao:'VAKJ',name:'Khajuraho',lat:24.8172,lon:79.9186,elev:728,rwys:[]},
+    VIKG:{icao:'VIKG',name:'Kishangarh Ajmer',lat:26.591,lon:74.813,elev:0,rwys:[]},
+    VAKP:{icao:'VAKP',name:'Kolhapur',lat:16.6647,lon:74.2894,elev:1996,rwys:[]},
+    VIKO:{icao:'VIKO',name:'Kota',lat:25.1602,lon:75.8456,elev:896,rwys:[]},
+    VIBR:{icao:'VIBR',name:'Kullu Manali',lat:31.8767,lon:77.1544,elev:3573,rwys:[]},
+    VOKU:{icao:'VOKU',name:'Kurnool',lat:15.7163,lon:78.1692,elev:920,rwys:[]},
+    VEKI:{icao:'VEKI',name:'Kushinagar Intl',lat:26.7765,lon:83.8892,elev:266,rwys:[]},
+    VEBN:{icao:'VEBN',name:'Lal Bahadur Shastri Intl',lat:25.4522,lon:82.8625,elev:266,rwys:[]},
+    VILH:{icao:'VILH',name:'Leh Kushok Bakula Rimpoc',lat:34.1359,lon:77.5465,elev:10682,rwys:[]},
+    VELP:{icao:'VELP',name:'Lengpui',lat:23.8406,lon:92.6197,elev:1398,rwys:[]},
+    VELR:{icao:'VELR',name:'Lilabari North Lakhimpur',lat:27.2957,lon:94.0973,elev:330,rwys:[]},
+    VEGT:{icao:'VEGT',name:'Lokpriya Gopinath Bordol',lat:26.1067,lon:91.5852,elev:162,rwys:[{n:'02',hdg:23,len:2743},{n:'20',hdg:203,len:2743}]},
+    VILD:{icao:'VILD',name:'Ludhiana',lat:30.8547,lon:75.9526,elev:834,rwys:[]},
+    VOMD:{icao:'VOMD',name:'Madurai',lat:9.8345,lon:78.0934,elev:459,rwys:[{n:'09',hdg:86,len:1826},{n:'27',hdg:266,len:1826},{n:'13',hdg:126,len:1403},{n:'31',hdg:306,len:1403}]},
+    VIHR:{icao:'VIHR',name:'Maharaja Agrasen Intl',lat:29.1861,lon:75.7414,elev:700,rwys:[]},
+    VAUD:{icao:'VAUD',name:'Maharana Pratap',lat:24.6177,lon:73.8961,elev:1684,rwys:[]},
+    VOML:{icao:'VOML',name:'Mangaluru Intl',lat:12.9547,lon:74.8868,elev:337,rwys:[]},
+    VOGA:{icao:'VOGA',name:'Manohar Intl',lat:15.7443,lon:73.8606,elev:552,rwys:[]},
+    VIMB:{icao:'VIMB',name:'Moradabad',lat:28.8175,lon:78.9219,elev:637,rwys:[]},
+    VALT:{icao:'VALT',name:'Murod Kond',lat:18.4115,lon:76.4647,elev:2136,rwys:[]},
+    VEMZ:{icao:'VEMZ',name:'Muzaffarpur',lat:26.1191,lon:85.3137,elev:174,rwys:[]},
+    VOMY:{icao:'VOMY',name:'Mysore',lat:12.2298,lon:76.6537,elev:2349,rwys:[]},
+    VIBK:{icao:'VIBK',name:'Nal',lat:28.0706,lon:73.2072,elev:750,rwys:[]},
+    VAND:{icao:'VAND',name:'Nanded',lat:19.1833,lon:77.3167,elev:1250,rwys:[]},
+    VAOZ:{icao:'VAOZ',name:'Nashik Intl',lat:20.1191,lon:73.9129,elev:1900,rwys:[]},
+    VECC:{icao:'VECC',name:'Netaji Subhash Chandra B',lat:22.654,lon:88.4476,elev:16,rwys:[{n:'01L',hdg:6,len:2832},{n:'19R',hdg:186,len:2832},{n:'01R',hdg:6,len:3633},{n:'19L',hdg:186,len:3633}]},
+    VIPT:{icao:'VIPT',name:'Pantnagar',lat:29.0334,lon:79.4737,elev:769,rwys:[]},
+    VIPK:{icao:'VIPK',name:'Pathankot',lat:32.2336,lon:75.6344,elev:1017,rwys:[]},
+    VOPC:{icao:'VOPC',name:'Pondicherry',lat:11.968,lon:79.812,elev:134,rwys:[]},
+    VAPR:{icao:'VAPR',name:'Porbandar',lat:21.6495,lon:69.6564,elev:23,rwys:[]},
+    VIAL:{icao:'VIAL',name:'Prayagraj',lat:25.4401,lon:81.7339,elev:322,rwys:[]},
+    VAPO:{icao:'VAPO',name:'Pune Intl',lat:18.5821,lon:73.9197,elev:1942,rwys:[]},
+    VABP:{icao:'VABP',name:'Raja Bhoj Intl',lat:23.2875,lon:77.3374,elev:1711,rwys:[]},
+    VORY:{icao:'VORY',name:'Rajahmundry',lat:17.1058,lon:81.8132,elev:151,rwys:[]},
+    VOHS:{icao:'VOHS',name:'Rajiv Gandhi Intl',lat:17.2313,lon:78.4299,elev:2024,rwys:[{n:'09L',hdg:90,len:3707},{n:'27R',hdg:270,len:3707},{n:'09R',hdg:90,len:4260},{n:'27L',hdg:270,len:4260}]},
+    VARK:{icao:'VARK',name:'Rajkot',lat:22.3092,lon:70.7795,elev:441,rwys:[]},
+    VAHS:{icao:'VAHS',name:'Rajkot Intl',lat:22.3788,lon:71.0394,elev:647,rwys:[]},
+    VARG:{icao:'VARG',name:'Ratnagiri',lat:17.0136,lon:73.3278,elev:305,rwys:[]},
+    VA1G:{icao:'VA1G',name:'Rewa, Chorhata, REWA',lat:24.5034,lon:81.2203,elev:1000,rwys:[]},
+    VERK:{icao:'VERK',name:'Rourkela',lat:22.2566,lon:84.8152,elev:659,rwys:[]},
+    VOSM:{icao:'VOSM',name:'Salem',lat:11.7833,lon:78.0656,elev:1008,rwys:[]},
+    VAAH:{icao:'VAAH',name:'Sardar Vallabh Patel Int',lat:23.0772,lon:72.6347,elev:189,rwys:[{n:'05',hdg:45,len:3505},{n:'23',hdg:225,len:3505}]},
+    VICG:{icao:'VICG',name:'Shaheed Bhagat Singh Int',lat:30.6735,lon:76.7885,elev:1012,rwys:[]},
+    VISR:{icao:'VISR',name:'Sheikh ul Alam Intl',lat:33.9871,lon:74.7742,elev:5429,rwys:[]},
+    VEBI:{icao:'VEBI',name:'Shillong',lat:25.7036,lon:91.9787,elev:2910,rwys:[]},
+    VASD:{icao:'VASD',name:'Shirdi Intl',lat:19.6892,lon:74.3737,elev:1926,rwys:[]},
+    VEKU:{icao:'VEKU',name:'Silchar',lat:24.9129,lon:92.9787,elev:352,rwys:[]},
+    VASL:{icao:'VASL',name:'Solapur',lat:17.628,lon:75.9348,elev:1584,rwys:[]},
+    VEJS:{icao:'VEJS',name:'Sonari',lat:22.8137,lon:86.169,elev:475,rwys:[]},
+    VIAR:{icao:'VIAR',name:'Sri Guru Ram Das Ji Intl',lat:31.7096,lon:74.7973,elev:756,rwys:[]},
+    VOPN:{icao:'VOPN',name:'Sri Sathya Sai',lat:14.1493,lon:77.7911,elev:1558,rwys:[]},
+    VASU:{icao:'VASU',name:'Surat Intl',lat:21.1155,lon:72.7433,elev:16,rwys:[]},
+    VARP:{icao:'VARP',name:'Swami Vivekananda',lat:21.1804,lon:81.7388,elev:1041,rwys:[]},
+    VETZ:{icao:'VETZ',name:'Tezpur',lat:26.7091,lon:92.7847,elev:240,rwys:[]},
+    VOTV:{icao:'VOTV',name:'Thiruvananthapuram Intl',lat:8.4819,lon:76.92,elev:15,rwys:[{n:'14',hdg:136,len:3398},{n:'32',hdg:316,len:3398}]},
+    VOTR:{icao:'VOTR',name:'Tiruchirappalli Intl',lat:10.7629,lon:78.7177,elev:288,rwys:[{n:'09',hdg:86,len:1864},{n:'27',hdg:266,len:1864},{n:'15',hdg:149,len:1456},{n:'33',hdg:329,len:1456}]},
+    VOTP:{icao:'VOTP',name:'Tirupati Intl',lat:13.632,lon:79.5399,elev:350,rwys:[{n:'08',hdg:81,len:3810},{n:'26',hdg:261,len:3810}]},
+    VEUK:{icao:'VEUK',name:'Utkela',lat:20.0978,lon:83.1833,elev:685,rwys:[]},
+    VABO:{icao:'VABO',name:'Vadodara Intl',lat:22.3362,lon:73.2263,elev:129,rwys:[]},
+    VOPB:{icao:'VOPB',name:'Veer Savarkar Intl / INS',lat:11.6402,lon:92.729,elev:13,rwys:[{n:'04',hdg:36,len:3290},{n:'22',hdg:216,len:3290}]},
+    VOBZ:{icao:'VOBZ',name:'Vijayawada Intl',lat:16.53,lon:80.8049,elev:82,rwys:[{n:'08',hdg:79,len:3360},{n:'26',hdg:259,len:3360}]},
+    VEVZ:{icao:'VEVZ',name:'Visakhapatnam Intl',lat:17.7235,lon:83.2277,elev:15,rwys:[]},
+    VEZO:{icao:'VEZO',name:'Ziro',lat:27.5883,lon:93.8281,elev:5403,rwys:[]}
+  }
+  let RADAR_FIELD='VOMM';
+  function radarGeo(){ const f=RADAR_FIELDS[RADAR_FIELD]; return {lat:f.lat, lon:f.lon}; }
+
+  // ─────────── RADAR SCOPE (ATC-grade) ───────────
+  // NM ↔ pixels using the current projection at the field
+  function nmToPx(nm){ const g=(CH.mode==='radar')?radarGeo():chartGeo(); const a=proj(g.lat,g.lon); const b=proj(g.lat+nm/60,g.lon); return Math.abs(b[1]-a[1]); }
+  function pxPerNM(){ return nmToPx(1); }
+
+  function drawRadarScope(ctx){
+    const g=radarGeo(); const ctr=proj(g.lat,g.lon);
+    const FLD=RADAR_FIELDS[RADAR_FIELD];
+    const ppnm=pxPerNM();
+    // ── background: deep radar green-black ──
+    const bg=ctx.createRadialGradient(ctr[0],ctr[1],10,ctr[0],ctr[1],CH.rangeNM*ppnm);
+    bg.addColorStop(0,'#04160f'); bg.addColorStop(1,'#020a08');
+    ctx.fillStyle='#01110a'; ctx.fillRect(0,0,CH.W,CH.H);
+    ctx.fillStyle=bg; ctx.fillRect(0,0,CH.W,CH.H);
+
+    // ── coastline (dim, real) ──
+    if(typeof COAST!=='undefined'){ ctx.strokeStyle='rgba(60,150,110,.28)'; ctx.lineWidth=1;
+      COAST.forEach(seg=>{ ctx.beginPath(); seg.forEach((p,i)=>{ const q=proj(p[0],p[1]); if(i===0)ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]); }); ctx.stroke(); }); }
+
+    // ── range rings every 10 NM up to range ──
+    ctx.strokeStyle='rgba(80,220,160,.16)'; ctx.fillStyle='rgba(120,240,190,.5)'; ctx.font='9px ui-monospace,monospace'; ctx.lineWidth=1;
+    for(let nm=10; nm<=CH.rangeNM; nm+=10){ const r=nm*ppnm;
+      ctx.beginPath(); ctx.arc(ctr[0],ctr[1],r,0,7); ctx.stroke();
+      ctx.fillText(nm+'', ctr[0]+3, ctr[1]-r+11);
+    }
+    // outer ring emphasised
+    ctx.strokeStyle='rgba(80,220,160,.4)'; ctx.beginPath(); ctx.arc(ctr[0],ctr[1],CH.rangeNM*ppnm,0,7); ctx.stroke();
+
+    // ── approximate airspace rings (CTR + TMA) — NOT published boundaries ──
+    // Chennai: CTR ~ 10 NM, TMA ~ 30 NM (approximate radii for training)
+    const ctr_r=10*ppnm, tma_r=30*ppnm;
+    // CTR (inner) — magenta dashed
+    ctx.strokeStyle='rgba(230,120,220,.5)'; ctx.lineWidth=1.3; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.arc(ctr[0],ctr[1],ctr_r,0,7); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(230,140,225,.65)'; ctx.font='8px ui-monospace,monospace'; ctx.textAlign='center';
+    if(ctr_r<CH.rangeNM*ppnm) ctx.fillText('CTR ~10', ctr[0], ctr[1]-ctr_r-4);
+    // TMA (outer) — blue dashed, only if within range
+    if(30<=CH.rangeNM){ ctx.strokeStyle='rgba(120,180,255,.4)'; ctx.lineWidth=1.3; ctx.setLineDash([8,5]);
+      ctx.beginPath(); ctx.arc(ctr[0],ctr[1],tma_r,0,7); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='rgba(140,190,255,.6)'; ctx.fillText('TMA ~30', ctr[0], ctr[1]-tma_r-4); }
+    ctx.textAlign='left';
+
+    // ── compass rose (010° ticks, labels every 30°) ──
+    const rr=CH.rangeNM*ppnm;
+    for(let deg=0; deg<360; deg+=10){ const a=(deg-90)*Math.PI/180;
+      const inner = deg%30===0 ? rr-14 : rr-7;
+      const x1=ctr[0]+Math.cos(a)*(rr), y1=ctr[1]+Math.sin(a)*(rr);
+      const x2=ctr[0]+Math.cos(a)*inner, y2=ctr[1]+Math.sin(a)*inner;
+      ctx.strokeStyle='rgba(80,220,160,.35)'; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      if(deg%30===0){ ctx.fillStyle='rgba(120,240,190,.6)'; ctx.font='8px ui-monospace,monospace';
+        const lx=ctr[0]+Math.cos(a)*(rr-24), ly=ctr[1]+Math.sin(a)*(rr-24);
+        ctx.textAlign='center'; ctx.fillText((''+deg).padStart(3,'0'),lx,ly+3); ctx.textAlign='left'; }
+    }
+
+    // ── radar sweep (rotating) ──
+    CH.sweep=(CH.sweep+0.9)%360;
+    const sa=(CH.sweep-90)*Math.PI/180;
+    const grd=ctx.createLinearGradient(ctr[0],ctr[1],ctr[0]+Math.cos(sa)*rr,ctr[1]+Math.sin(sa)*rr);
+    grd.addColorStop(0,'rgba(90,255,190,.22)'); grd.addColorStop(1,'rgba(90,255,190,0)');
+    ctx.strokeStyle=grd; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(ctr[0],ctr[1]);
+    ctx.lineTo(ctr[0]+Math.cos(sa)*rr,ctr[1]+Math.sin(sa)*rr); ctx.stroke();
+    // faint sweep afterglow wedge
+    ctx.fillStyle='rgba(90,255,190,.04)'; ctx.beginPath(); ctx.moveTo(ctr[0],ctr[1]);
+    ctx.arc(ctr[0],ctr[1],rr,sa-0.5,sa); ctx.closePath(); ctx.fill();
+
+    // ── navaids (MMV etc.) as small green diamonds ──
+    if(typeof NAVAIDS!=='undefined'){ NAVAIDS.forEach(nv=>{ if(nv.t!=='V')return; const q=proj(nv.y,nv.x);
+      const d=Math.hypot(q[0]-ctr[0],q[1]-ctr[1]); if(d>rr)return;
+      ctx.strokeStyle='rgba(120,240,190,.55)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(q[0],q[1]-4);ctx.lineTo(q[0]+4,q[1]);ctx.lineTo(q[0],q[1]+4);ctx.lineTo(q[0]-4,q[1]);ctx.closePath(); ctx.stroke();
+      ctx.fillStyle='rgba(120,240,190,.7)'; ctx.font='8px ui-monospace,monospace'; ctx.fillText(nv.i,q[0]+6,q[1]+3); }); }
+
+    // ── runways (bright, to scale) from the selected field's real geometry ──
+    const ppnm2=pxPerNM();
+    if(!FLD.rwys||!FLD.rwys.length){ // no runway data — draw a simple field cross
+      ctx.strokeStyle='rgba(150,255,210,.7)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(ctr[0]-6,ctr[1]); ctx.lineTo(ctr[0]+6,ctr[1]); ctx.moveTo(ctr[0],ctr[1]-6); ctx.lineTo(ctr[0],ctr[1]+6); ctx.stroke();
+    }
+    (FLD.rwys||[]).forEach(rw=>{ const halfNM=(rw.len/1852)/2; // metres → NM, half-length each side
+      const brg=(rw.hdg)*Math.PI/180;
+      // runway centreline along its heading, centred on the field
+      const dLa=halfNM/60*Math.cos(brg), dLo=(halfNM/60*Math.sin(brg))/Math.cos(g.lat*Math.PI/180);
+      const a=proj(g.lat+dLa,g.lon+dLo), b=proj(g.lat-dLa,g.lon-dLo);
+      ctx.strokeStyle='rgba(150,255,210,.8)'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); });
+
+    // ── field marker ──
+    ctx.fillStyle='#7fffcf'; ctx.beginPath(); ctx.arc(ctr[0],ctr[1],3,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(127,255,207,.5)'; ctx.beginPath(); ctx.arc(ctr[0],ctr[1],6,0,7); ctx.stroke();
+
+    // ── SID tracks (dim, if drawSids exists) ──
+    // (drawn by main chart normally; radar keeps it clean unless zoomed)
+
+    // ── proposed flight plan route + vector ──
+    if(CH.proposed) drawRadarProposed(ctx, ppnm, ctr, rr);
+
+    // ── LIVE TRAFFIC — the primary radar picture ──
+    drawRadarTargets(ctx, ppnm, ctr, rr);
+
+    // ── scope header text ──
+    ctx.fillStyle='rgba(120,240,190,.8)'; ctx.font='bold 10px ui-monospace,monospace'; ctx.textAlign='left';
+    ctx.fillText(FLD.icao+' '+FLD.name.toUpperCase()+' APP/DEP  ·  '+CH.rangeNM+' NM  ·  '+(ADSB.on?(ADSB.aircraft.length+' TGT'):'ADS-B OFF'), 12, 18);
+    ctx.fillStyle='rgba(150,170,180,.45)'; ctx.font='7px ui-monospace,monospace';
+    ctx.fillText('CTR/TMA rings approximate · not published airspace', 12, CH.H-6);
+    if(!ADSB.on){ ctx.fillStyle='rgba(255,180,80,.9)'; ctx.font='10px ui-monospace,monospace'; ctx.textAlign='center';
+      ctx.fillText('◐ Turn on Live ADS-B to see real traffic', CH.W/2, CH.H-14); ctx.textAlign='left'; }
+  }
+
+  // great-circle-ish NM between two lat/lon (small-angle, fine at TMA scale)
+  function nmBetween(la1,lo1,la2,lo2){ const dLa=(la2-la1)*60; const dLo=(lo2-lo1)*60*Math.cos((la1+la2)/2*Math.PI/180); return Math.hypot(dLa,dLo); }
+  // Separation minima: 3 NM lateral, 1000 ft vertical (terminal). Predicted (2-min) closure also flagged.
+  const SEP_NM=3, SEP_FT=1000, LOOK_MIN=2;
+  function computeConflicts(list){
+    const flags={}; const pairs=[];
+    for(let i=0;i<list.length;i++){ for(let j=i+1;j<list.length;j++){
+      const a=list[i], b=list[j];
+      const dNM=nmBetween(a.lat,a.lon,b.lat,b.lon);
+      const dFT=Math.abs((a.alt||0)-(b.alt||0));
+      // current violation
+      let sev=0;
+      if(dNM<SEP_NM && dFT<SEP_FT) sev=2;
+      else {
+        // predicted: advance both LOOK_MIN minutes along track, re-test
+        const adv=(ac)=>{ const nm=(ac.gs||0)*LOOK_MIN/60; const dLa=nm/60*Math.cos((ac.trk||0)*Math.PI/180); const dLo=(nm/60*Math.sin((ac.trk||0)*Math.PI/180))/Math.cos(ac.lat*Math.PI/180); return [ac.lat+dLa,ac.lon+dLo]; };
+        const pa=adv(a), pb=adv(b); const pdNM=nmBetween(pa[0],pa[1],pb[0],pb[1]);
+        // vertical trend
+        const va=(a.alt||0)+(a.vr||0)*LOOK_MIN, vb=(b.alt||0)+(b.vr||0)*LOOK_MIN; const pdFT=Math.abs(va-vb);
+        if(pdNM<SEP_NM && pdFT<SEP_FT) sev=1;
+      }
+      if(sev){ flags[i]=Math.max(flags[i]||0,sev); flags[j]=Math.max(flags[j]||0,sev);
+        pairs.push({i,j,sev,dNM,dFT}); }
+    }}
+    return {flags,pairs};
+  }
+
+  function drawRadarTargets(ctx, ppnm, ctr, rr){
+    if(!ADSB.on) return;
+    const list=ADSB.aircraft;
+    const {flags,pairs}=computeConflicts(list);
+    // ── draw conflict connector lines first (under targets) ──
+    const blink = (Math.floor(Date.now()/400)%2)===0;
+    pairs.forEach(pr=>{ const a=list[pr.i], b=list[pr.j]; const qa=proj(a.lat,a.lon), qb=proj(b.lat,b.lon);
+      ctx.strokeStyle = pr.sev===2 ? (blink?'rgba(255,80,90,.9)':'rgba(255,80,90,.4)') : 'rgba(255,180,60,.6)';
+      ctx.lineWidth=pr.sev===2?2:1.2; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(qa[0],qa[1]); ctx.lineTo(qb[0],qb[1]); ctx.stroke(); ctx.setLineDash([]);
+      // separation readout at midpoint
+      const mx=(qa[0]+qb[0])/2, my=(qa[1]+qb[1])/2;
+      ctx.fillStyle=pr.sev===2?'#ff5b6e':'#ffb23e'; ctx.font='7px ui-monospace,monospace'; ctx.textAlign='center';
+      ctx.fillText(pr.dNM.toFixed(1)+'nm/'+Math.round(pr.dFT)+'ft', mx, my-3); ctx.textAlign='left';
+    });
+    // ── targets ──
+    list.forEach((a,idx)=>{
+      const q=proj(a.lat,a.lon);
+      const d=Math.hypot(q[0]-ctr[0],q[1]-ctr[1]); if(d>rr+4) return;
+      const trk=a.trk||0, gs=a.gs||0;
+      const sev=flags[idx]||0;
+      const col = sev===2?'#ff5b6e' : sev===1?'#ffb23e' : '#7fffcf';
+      const colDim = sev===2?'rgba(255,91,110,.7)' : sev===1?'rgba(255,178,62,.7)' : 'rgba(120,255,190,.6)';
+      // velocity vector: 1-minute predicted position
+      const distNM = gs/60; const vlen=distNM*ppnm;
+      const va=(trk-90)*Math.PI/180;
+      const vx=q[0]+Math.cos(va)*vlen, vy=q[1]+Math.sin(va)*vlen;
+      ctx.strokeStyle=colDim; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(vx,vy); ctx.stroke();
+      // conflict halo
+      if(sev){ ctx.strokeStyle = sev===2?(blink?'#ff5b6e':'rgba(255,91,110,.45)'):'rgba(255,178,62,.6)';
+        ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(q[0],q[1],9,0,7); ctx.stroke(); }
+      // target symbol
+      ctx.fillStyle=col; ctx.fillRect(q[0]-2.5,q[1]-2.5,5,5);
+      ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1; ctx.strokeRect(q[0]-2.5,q[1]-2.5,5,5);
+      // ── full ATC data block ──
+      const fl = Math.round((a.alt||0)/100);
+      const flStr = a.alt>=18000 ? ('FL'+(''+fl).padStart(3,'0')) : ((''+fl).padStart(3,'0'));
+      const vrA = a.vr>100?'↑':a.vr<-100?'↓':' ';
+      const gsStr = Math.round(gs/10)+'';
+      const l1 = (a.cs||a.reg||'????');
+      const l2 = flStr+vrA+' '+gsStr;
+      const l3 = (a.type||a.cat||'')+(sev===2?'  ⚠CONFLICT':sev===1?'  ⚠TFC':'');
+      const bx=q[0]+10, by=q[1]-8;
+      ctx.strokeStyle=colDim; ctx.beginPath(); ctx.moveTo(q[0]+2,q[1]-2); ctx.lineTo(bx-2,by+2); ctx.stroke();
+      ctx.font='9px ui-monospace,monospace'; ctx.textAlign='left';
+      ctx.fillStyle= sev? col : '#aaffdd'; ctx.fillText(l1, bx, by);
+      ctx.fillStyle= sev? col : '#7fe8c0'; ctx.fillText(l2, bx, by+10);
+      if(l3){ ctx.fillStyle= sev===2?'#ff5b6e':sev===1?'#ffb23e':'rgba(120,220,180,.7)'; ctx.font='8px ui-monospace,monospace'; ctx.fillText(l3, bx, by+19); }
+    });
+    // ── alert banner if any conflicts ──
+    const nConf=pairs.filter(p=>p.sev===2).length, nAdv=pairs.filter(p=>p.sev===1).length;
+    if(nConf||nAdv){ const txt=(nConf?('⚠ '+nConf+' CONFLICT'+(nConf>1?'S':'')):'')+(nConf&&nAdv?'  ·  ':'')+(nAdv?(nAdv+' PROXIMITY'):'');
+      ctx.fillStyle=nConf?(blink?'rgba(255,91,110,.95)':'rgba(255,91,110,.6)'):'rgba(255,178,62,.9)';
+      ctx.font='bold 11px ui-monospace,monospace'; ctx.textAlign='right'; ctx.fillText(txt, CH.W-12, 18); ctx.textAlign='left'; }
+  }
+
+  function drawRadarProposed(ctx, ppnm, ctr, rr){
+    const rp=CH.proposed; if(!rp||!rp.pts||!rp.pts.length) return;
+    const pts=rp.pts.filter(p=>p.ll);
+    if(!pts.length) return;
+    // route line through fixes
+    ctx.strokeStyle='rgba(240,182,74,.9)'; ctx.lineWidth=1.6; ctx.setLineDash([7,4]);
+    ctx.beginPath(); pts.forEach((f,i)=>{ const q=proj(f.ll[0],f.ll[1]); if(i===0)ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]); }); ctx.stroke(); ctx.setLineDash([]);
+    // fix markers + names + leg distance/track
+    pts.forEach((f,i)=>{ const q=proj(f.ll[0],f.ll[1]);
+      ctx.fillStyle=f.known?'#f0b64a':'rgba(240,182,74,.5)'; ctx.beginPath();
+      ctx.moveTo(q[0],q[1]-3.5);ctx.lineTo(q[0]+3.5,q[1]);ctx.lineTo(q[0],q[1]+3.5);ctx.lineTo(q[0]-3.5,q[1]);ctx.closePath(); ctx.fill();
+      ctx.fillStyle='rgba(255,210,130,.9)'; ctx.font='8px ui-monospace,monospace';
+      ctx.fillText((f.name||'')+(f.known?'':'*'),q[0]+5,q[1]-4);
+      // leg annotation (track/dist) at midpoint
+      if(i>0){ const p0=pts[i-1]; const a=proj(p0.ll[0],p0.ll[1]);
+        const midx=(a[0]+q[0])/2, midy=(a[1]+q[1])/2;
+        const dLa=f.ll[0]-p0.ll[0], dLo=(f.ll[1]-p0.ll[1])*Math.cos(f.ll[0]*Math.PI/180);
+        const trk=(Math.atan2(dLo,dLa)*180/Math.PI+360)%360;
+        const distNM=Math.hypot(dLa,dLo)*60;
+        ctx.fillStyle='rgba(240,200,140,.55)'; ctx.font='7px ui-monospace,monospace';
+        ctx.fillText((''+Math.round(trk)).padStart(3,'0')+'° '+Math.round(distNM)+'nm', midx+3, midy-2);
+      }
+    });
+    // proposed a/c symbol at origin
+    const f0=pts[0]; const q=proj(f0.ll[0],f0.ll[1]);
+    ctx.strokeStyle='#f0b64a'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(q[0],q[1],6,0,7); ctx.stroke();
+    ctx.fillStyle='rgba(240,182,74,.95)'; ctx.font='bold 9px ui-monospace,monospace';
+    ctx.fillText((rp.r&&rp.r.callsign)||'PROPOSED', q[0]+9, q[1]+11);
+  }
+
+  function drawChart(){
+    const cv=$('#briefChart'); if(!cv) return;
+    const wrap=cv.parentElement; const cssW=wrap.clientWidth, cssH=460;
+    CH.dpr=Math.min(window.devicePixelRatio||1,2);
+    cv.width=cssW*CH.dpr; cv.height=cssH*CH.dpr; cv.style.height=cssH+'px';
+    const ctx=cv.getContext('2d'); ctx.setTransform(CH.dpr,0,0,CH.dpr,0,0);
+    CH.W=cssW; CH.H=cssH;
+    ctx.clearRect(0,0,CH.W,CH.H);
+    // ── RADAR MODE: dedicated ATC scope ──
+    if(CH.mode==='radar'){ drawRadarScope(ctx); return; }
+    const JEPP = CH.mode==='jepp';
+    const SECT = CH.mode==='sectional';
+    // bg — light for Jeppesen, tinted land for sectional, dark otherwise
+    if(JEPP){ ctx.fillStyle='#f4f1e8'; ctx.fillRect(0,0,CH.W,CH.H); }
+    else if(SECT){ ctx.fillStyle='#e8e0c8'; ctx.fillRect(0,0,CH.W,CH.H); drawSectionalBase(ctx); }
+    else { ctx.fillStyle='#040a12'; ctx.fillRect(0,0,CH.W,CH.H); }
+    // graticule (lat/lon grid)
+    ctx.strokeStyle= (JEPP||SECT)?'rgba(90,90,110,.14)':'rgba(120,150,170,.10)'; ctx.lineWidth=1; ctx.font='9px ui-monospace,monospace'; ctx.fillStyle=(JEPP||SECT)?'rgba(60,60,80,.5)':'rgba(140,170,190,.35)';
+    const step = CH.scale>200?0.2 : CH.scale>40?1 : CH.scale>8?5 : 10;
+    const tl=unproj(0,0), br=unproj(CH.W,CH.H);
+    for(let lo=Math.floor(tl[1]/step)*step; lo<=br[1]; lo+=step){ const [x]=proj(0,lo); ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,CH.H);ctx.stroke(); }
+    for(let la=Math.floor(br[0]/step)*step; la<=tl[0]; la+=step){ const [,y]=proj(la,0); ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(CH.W,y);ctx.stroke(); }
+
+    const g=chartGeo();
+
+    // ── real airway network (VOR-to-VOR) ──
+    if(CH.scale<2500){
+      const lite=(CH.mode==='jepp'||CH.mode==='sectional');
+      ctx.strokeStyle= lite?'rgba(120,140,190,.28)':'rgba(70,150,180,.30)'; ctx.lineWidth=1;
+      AIRWAYS.forEach(([a,b])=>{ const na=NAVBYID[a], nb=NAVBYID[b]; if(!na||!nb) return;
+        const pa=proj(na.y,na.x), pb=proj(nb.y,nb.x);
+        if((pa[0]<-40&&pb[0]<-40)||(pa[0]>CH.W+40&&pb[0]>CH.W+40)) return;
+        if((pa[1]<-40&&pb[1]<-40)||(pa[1]>CH.H+40&&pb[1]>CH.H+40)) return;
+        ctx.beginPath(); ctx.moveTo(pa[0],pa[1]); ctx.lineTo(pb[0],pb[1]); ctx.stroke();
+      });
+    }
+    // ── airports as chart markers ──
+    if(CH.scale<3000 && typeof FIXDB!=='undefined'){
+      const lite=(CH.mode==='jepp'||CH.mode==='sectional');
+      Object.keys(FIXDB).forEach(k=>{ if(!/^V[A-Z]{3}$/.test(k)) return; const ll=FIXDB[k];
+        const q=proj(ll[0],ll[1]); if(q[0]<-20||q[0]>CH.W+20||q[1]<-20||q[1]>CH.H+20) return;
+        // airport circle-with-tick symbol
+        ctx.strokeStyle= lite?'#7a4a1a':'rgba(240,182,74,.7)'; ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.arc(q[0],q[1],3.5,0,7); ctx.stroke();
+        if(CH.scale>4){ ctx.fillStyle= lite?'#7a4a1a':'rgba(240,182,74,.75)'; ctx.font='7px ui-monospace,monospace';
+          ctx.fillText(k, q[0]+5, q[1]-3); }
+      });
+    }
+    // ── harvested enroute fixes (learned from real SimBrief plans) — true positions ──
+    if(CH.scale<4000 && typeof HARVESTED_FIXES!=='undefined'){
+      const lite=(CH.mode==='jepp'||CH.mode==='sectional');
+      Object.keys(HARVESTED_FIXES).forEach(id=>{ const ll=HARVESTED_FIXES[id];
+        const q=proj(ll[0],ll[1]); if(q[0]<-20||q[0]>CH.W+20||q[1]<-20||q[1]>CH.H+20) return;
+        // waypoint triangle (like a real intersection symbol)
+        ctx.strokeStyle= lite?'#5a4a6a':'rgba(180,150,220,.6)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(q[0],q[1]-4); ctx.lineTo(q[0]+3.5,q[1]+2.5); ctx.lineTo(q[0]-3.5,q[1]+2.5); ctx.closePath(); ctx.stroke();
+        if(CH.scale>3){ ctx.fillStyle= lite?'#5a4a6a':'rgba(190,165,225,.7)'; ctx.font='7px ui-monospace,monospace';
+          ctx.fillText(id, q[0]+5, q[1]+2); }
+      });
+    }
+    // ── navaids (VOR compass-rose / NDB dotted) ──
+    if(CH.scale<6000){
+      NAVAIDS.forEach(nv=>{ const q=proj(nv.y,nv.x);
+        if(q[0]<-30||q[0]>CH.W+30||q[1]<-30||q[1]>CH.H+30) return;
+        if(nv.t==='V'){ // VOR: hexagon + centre dot
+          ctx.strokeStyle=(CH.mode==='jepp'||CH.mode==='sectional')?'#1a3a6a':'#4aa9c4'; ctx.lineWidth=1.2; ctx.beginPath();
+          for(let k=0;k<6;k++){ const a=k*Math.PI/3-Math.PI/2; const px=q[0]+Math.cos(a)*6, py=q[1]+Math.sin(a)*6; if(k===0)ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+          ctx.closePath(); ctx.stroke();
+          ctx.fillStyle='#4aa9c4'; ctx.beginPath(); ctx.arc(q[0],q[1],1.6,0,7); ctx.fill();
+        } else { // NDB: dotted circle
+          ctx.strokeStyle='rgba(150,130,90,.7)'; ctx.setLineDash([1.5,2]); ctx.lineWidth=1;
+          ctx.beginPath(); ctx.arc(q[0],q[1],5,0,7); ctx.stroke(); ctx.setLineDash([]);
+        }
+        if(CH.scale>2.2){ const lite=(CH.mode==='jepp'||CH.mode==='sectional');
+          ctx.fillStyle= lite? '#1a2a4a' : (nv.t==='V'?'#7fd0e4':'rgba(200,180,140,.75)');
+          ctx.font='8px ui-monospace,monospace'; ctx.fillText(nv.i, q[0]+8, q[1]+3); }
+      });
+    }
+
+    // ── field + runways (geo-accurate) when zoomed in enough ──
+    if(CH.scale>=300 && typeof RUNWAYS!=='undefined'){
+      RUNWAYS.forEach(r=>{
+        const A=simToGeo(r.ax,r.ay), B=simToGeo(r.bx,r.by);
+        const pa=proj(A[0],A[1]), pb=proj(B[0],B[1]);
+        ctx.strokeStyle=(CH.mode==='jepp'||CH.mode==='sectional')?'#2a2a2a':'#5b6b78'; ctx.lineWidth=Math.max(2,(r.w||16)*CH.scale/1600*0.6);
+        ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();
+        ctx.fillStyle=(CH.mode==='jepp'||CH.mode==='sectional')?'#1a1a1a':'#9fb2bf'; ctx.font='10px ui-monospace,monospace';
+        ctx.fillText(r.nameA,pa[0]-8,pa[1]+3); ctx.fillText(r.nameB,pb[0]-8,pb[1]+3);
+      });
+    }
+    // field marker
+    const fp=proj(g.lat,g.lon);
+    ctx.fillStyle='#f0b64a'; ctx.strokeStyle='#f0b64a'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(fp[0],fp[1],4,0,7); ctx.stroke();
+    ctx.fillStyle=(CH.mode==='jepp'||CH.mode==='sectional')?'#8a2020':'#f0b64a'; ctx.font='bold 11px ui-monospace,monospace';
+    ctx.fillText((typeof LZ!=='undefined'&&LZ&&LZ.icao)?LZ.icao:'FIELD', fp[0]+7, fp[1]-6);
+
+    // ── SID tracks (drawn when zoomed in enough, or always in terminal mode) ──
+    if(CH.mode==='terminal' || CH.mode==='jepp' || CH.mode==='sectional' || CH.scale>=1200){ drawSids(ctx); }
+
+    // ── proposed route: legs + waypoints ──
+    if(CH.proposed && CH.proposed.pts.length){
+      const pts=CH.proposed.pts;
+      ctx.strokeStyle='#d98cff'; ctx.lineWidth=2; ctx.setLineDash([7,5]);
+      ctx.beginPath();
+      pts.forEach((p,i)=>{ const q=proj(p.ll[0],p.ll[1]); if(i===0)ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]); });
+      ctx.stroke(); ctx.setLineDash([]);
+      pts.forEach((p,i)=>{ const q=proj(p.ll[0],p.ll[1]);
+        // waypoint symbol: triangle
+        ctx.fillStyle = p.est?'#7a6a8a':(p.known?'#d98cff':'#8a7a9a');
+        ctx.beginPath(); ctx.moveTo(q[0],q[1]-5); ctx.lineTo(q[0]+4.5,q[1]+3.5); ctx.lineTo(q[0]-4.5,q[1]+3.5); ctx.closePath(); ctx.fill();
+        if(CH.scale>3 || i===0 || i===pts.length-1){
+          ctx.fillStyle=p.est?'rgba(200,180,220,.55)':'#e8d5ff'; ctx.font='9px ui-monospace,monospace';
+          ctx.fillText(p.name+(p.est?'*':''), q[0]+6, q[1]+3);
+        }
+      });
+    }
+
+    // ── live traffic from the sim ──
+    if(typeof G!=='undefined' && G && G.aircraft){
+      G.aircraft.forEach(a=>{
+        const ll=simToGeo(a.x,a.y); const q=proj(ll[0],ll[1]);
+        if(q[0]<-20||q[0]>CH.W+20||q[1]<-20||q[1]>CH.H+20) return;
+        const isProp=a.ody; // pipeline-fed
+        ctx.fillStyle = isProp? '#f0b64a' : '#1ecbb8';
+        ctx.beginPath(); ctx.arc(q[0],q[1],3.5,0,7); ctx.fill();
+        if(isProp){ ctx.strokeStyle='#fff6'; ctx.setLineDash([2,2]); ctx.beginPath();ctx.arc(q[0],q[1],6,0,7);ctx.stroke(); ctx.setLineDash([]); }
+        if(CH.scale>=300){ ctx.fillStyle=isProp?'#f0b64a':'#7fe8dc'; ctx.font='9px ui-monospace,monospace'; ctx.fillText(a.cs||'', q[0]+6, q[1]-4); }
+      });
+    }
+    // ── live real-world ADS-B overlay ──
+    drawAdsb(ctx);
+    // ── Jeppesen overlay (boxes + routing panel) ──
+    if(CH.mode==='jepp') drawJeppOverlay(ctx);
+  }
+
+  // ── live real-world ADS-B overlay (via AEROSCOPE flight-proxy worker) ──
+  const ADSB={ on:false, aircraft:[], timer:null, loading:false };
+  const ADSB_PROXY='https://flight-proxy.jhrishi7.workers.dev';
+
+  async function fetchAdsb(){
+    if(ADSB.loading) return; ADSB.loading=true;
+    const g=(CH.mode==='radar' && typeof radarGeo==='function')?radarGeo():chartGeo();
+    try{
+      // airplanes.live point search: /v2/point/<lat>/<lon>/<radius_nm>
+      const radius = CH.mode==='radar' ? Math.round(CH.rangeNM*1.3) : 250;
+      const url=ADSB_PROXY+'/v2/point/'+g.lat.toFixed(3)+'/'+g.lon.toFixed(3)+'/'+radius;
+      const r=await fetch(url,{cache:'no-store'});
+      if(r.ok){ const j=await r.json(); const list=j.ac||j.aircraft||[];
+        ADSB.aircraft=list.filter(a=>a.lat&&a.lon).map(a=>({lat:+a.lat,lon:+a.lon,
+          cs:(a.flight||a.r||'').trim(), alt:a.alt_baro||a.alt||0, trk:a.track||a.trak||a.true_heading||0,
+          gs:+(a.gs||a.ground_speed||0), type:(a.t||a.type||'').trim(), reg:(a.r||'').trim(),
+          vr:+(a.baro_rate||a.geom_rate||0), sq:(a.squawk||'').trim(), cat:(a.category||'').trim() }));
+      }
+    }catch(e){ /* soft-fail: worker/offline */ }
+    ADSB.loading=false; drawChart();
+  }
+  function toggleAdsb(){
+    ADSB.on=!ADSB.on;
+    const btn=$('#chLiveAdsb'); if(btn) btn.classList.toggle('on',ADSB.on);
+    if(ADSB.on){ fetchAdsb(); ADSB.timer=setInterval(fetchAdsb,15000);
+      if(typeof toast==='function') toast('Live ADS-B ON — real traffic (uncontrolled, background)'); }
+    else { clearInterval(ADSB.timer); ADSB.aircraft=[]; drawChart();
+      if(typeof toast==='function') toast('Live ADS-B off'); }
+  }
+  function drawAdsb(ctx){
+    if(!ADSB.on||!ADSB.aircraft.length) return;
+    ADSB.aircraft.forEach(a=>{ const q=proj(a.lat,a.lon);
+      if(q[0]<-15||q[0]>CH.W+15||q[1]<-15||q[1]>CH.H+15) return;
+      // dim grey ghost chevron, clearly "not mine"
+      ctx.save(); ctx.translate(q[0],q[1]); ctx.rotate((a.trk||0)*Math.PI/180);
+      ctx.strokeStyle='rgba(150,165,180,.55)'; ctx.fillStyle='rgba(120,140,160,.30)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(3,4); ctx.lineTo(0,2); ctx.lineTo(-3,4); ctx.closePath();
+      ctx.fill(); ctx.stroke(); ctx.restore();
+      if(CH.scale>=300 && a.cs){ ctx.fillStyle='rgba(150,165,180,.6)'; ctx.font='8px ui-monospace,monospace'; ctx.fillText(a.cs,q[0]+6,q[1]+3); }
+    });
+  }
+
+  function initChart(){
+
+    const cv=$('#briefChart'); if(!cv) return;
+    // pan
+    cv.addEventListener('mousedown',e=>{ CH.drag={x:e.clientX,y:e.clientY,cx:CH.cx,cy:CH.cy}; });
+    window.addEventListener('mousemove',e=>{ if(!CH.drag) return; const k=Math.cos(CH.cy*Math.PI/180);
+      CH.cx=CH.drag.cx-(e.clientX-CH.drag.x)/(CH.scale*k); CH.cy=CH.drag.cy+(e.clientY-CH.drag.y)/CH.scale; drawChart(); });
+    window.addEventListener('mouseup',()=>{ CH.drag=null; });
+    // zoom on wheel
+    cv.addEventListener('wheel',e=>{ e.preventDefault(); const f=e.deltaY<0?1.15:0.87; CH.scale=Math.max(0.25,Math.min(60000,CH.scale*f)); drawChart(); },{passive:false});
+    $('#chZoomIn').onclick=()=>{ CH.scale*=1.4; drawChart(); };
+    $('#chZoomOut').onclick=()=>{ CH.scale*=0.7; drawChart(); };
+    $('#chFitRoute').onclick=fitRoute;
+    $('#chFitField').onclick=fitField;
+    const la=$('#chLiveAdsb'); if(la) la.onclick=toggleAdsb;
+    $$('.chModeBtn').forEach(b=>b.onclick=()=>setChartMode(b.dataset.cmode));
+    $$('[data-rng]').forEach(b=>b.onclick=()=>setRadarRange(+b.dataset.rng));
+    const fldSel=$('#chartFieldSel');
+    if(fldSel){
+      // populate with all Indian fields, majors first
+      const MAJORS=['VOMM','VABB','VIDP','VOBL','VOHS','VECC','VOCI','VAAH','VOTV','VOGO','VANP','VOHY','VOMD','VOBZ','VOTP'];
+      const keys=Object.keys(RADAR_FIELDS);
+      const ordered=[...MAJORS.filter(k=>RADAR_FIELDS[k]), ...keys.filter(k=>!MAJORS.includes(k)).sort((a,b)=>RADAR_FIELDS[a].name.localeCompare(RADAR_FIELDS[b].name))];
+      fldSel.innerHTML=ordered.map(k=>`<option value="${k}">${RADAR_FIELDS[k].icao} · ${RADAR_FIELDS[k].name}</option>`).join('');
+      fldSel.value=RADAR_FIELD;
+      fldSel.onchange=()=>setRadarField(fldSel.value);
+    }
+    fitField();
+    // live redraw loop (throttled) so sim traffic animates on the chart while briefing is open
+    setInterval(()=>{ const layer=document.getElementById('deptLayer'); const bv=document.getElementById('dv-briefing');
+      if(layer && !layer.hidden && bv && bv.classList.contains('on')) drawChart(); }, 600);
+    window.addEventListener('resize',()=>{ const layer=document.getElementById('deptLayer'); if(layer&&!layer.hidden) drawChart(); });
+  }
+
+  /* ---- department switching ---- */
+  function showDept(d){
+    $$('.deptTab').forEach(t=>t.classList.toggle('on',t.dataset.dept===d));
+    $$('.deptView').forEach(v=>v.classList.toggle('on', v.id==='dv-'+d));
+    if(d==='briefing'){ setTimeout(()=>{ try{ drawChart(); }catch(e){} },30); }
+    if(d==='delivery'){ renderDelInbox(); buildCraft(); }
+    if(d==='ground'){ renderGround(); }
+    if(d==='tower'){ renderTower(); }
+    if(d==='atis'){ readSimState(); renderAtisControls(); renderAtisScreen(); }
+  }
+  function openDeptLayer(){ $('#deptLayer').hidden=false; showDept('briefing'); }
+  function closeDeptLayer(){ $('#deptLayer').hidden=true; }
+
+  // expose a hook so a top-bar button can open the ops layer
+  window.PYRGOS_OPS = { open:openDeptLayer, close:closeDeptLayer, pipe:PIPE, save:savePipe,
+    spawn:function(f){ if(typeof spawnFromStrip==='function'){ const ac=spawnFromStrip(f); if(ac){ f.stage='pushback'; savePipe(); return ac; } } return null; },
+    refreshDelivery:function(){ if(typeof renderDelInbox==='function'){ try{ renderDelInbox(); buildCraft(); }catch(e){} } } };
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    $('#deptTabs').addEventListener('click',e=>{ const b=e.target.closest('.deptTab'); if(b) showDept(b.dataset.dept); });
+    $('#deptExit').onclick=closeDeptLayer;
+    initBriefing(); initDelivery(); initGroundTower(); initAtis(); initChart();
+  });
+  // if DOM already ready
+  if(document.readyState!=='loading'){ setTimeout(()=>{ try{
+    document.getElementById('deptTabs').addEventListener('click',e=>{ const b=e.target.closest('.deptTab'); if(b) showDept(b.dataset.dept); });
+    document.getElementById('deptExit').onclick=closeDeptLayer; initBriefing(); initDelivery(); initGroundTower(); initAtis(); initChart();
+  }catch(e){} },0); }
+})();
+</script>
+
 </body>
 </html>
