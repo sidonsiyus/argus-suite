@@ -405,6 +405,139 @@ select{appearance:none;cursor:pointer;
 .scan-foot{display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .scan-count{flex:1;font-size:12px;color:var(--muted)}
 .scan-log{background:var(--gold);border:0;color:#231a04;font-weight:700;border-radius:9px;padding:11px 18px;cursor:pointer;font-family:var(--mono);letter-spacing:.05em}
+
+/* ═══════════════ TAB BAR + LIVE ATTENDANCE VIEW ═══════════════ */
+.tabbar{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line);padding-bottom:0}
+.tabbtn{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;
+  background:none;border:none;border-bottom:2px solid transparent;color:var(--faint);padding:11px 16px 12px;cursor:pointer;
+  transition:color .18s,border-color .18s;margin-bottom:-1px;display:flex;align-items:center;gap:8px}
+.tabbtn:hover{color:var(--muted)}
+.tabbtn.on{color:var(--gold);border-bottom-color:var(--gold)}
+.tabbtn .tdot{width:6px;height:6px;border-radius:50%;background:var(--faint);transition:background .18s}
+.tabbtn.on .tdot{background:var(--gold);box-shadow:0 0 7px var(--gold)}
+.view{display:none}
+.view.on{display:block;animation:viewIn .3s ease}
+@keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* live attendance */
+.la-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.la-src{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--faint);display:flex;align-items:center;gap:7px}
+.la-src .ld{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.la-src.live .ld{background:var(--green);box-shadow:0 0 7px var(--green);animation:pulse 2s infinite}
+.la-src.err .ld{background:var(--red);box-shadow:0 0 7px var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.la-sel{font-family:var(--mono);font-size:11px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+  border-radius:8px;padding:8px 11px;cursor:pointer}
+.la-refresh{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);
+  border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:8px 13px;cursor:pointer;transition:.18s}
+.la-refresh:hover{border-color:var(--gold);color:var(--gold)}
+.la-updated{font-family:var(--mono);font-size:9px;color:var(--faint);margin-left:auto}
+.la-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px}
+.la-stat{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:15px 17px;position:relative;overflow:hidden}
+.la-stat::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accc,var(--gold));opacity:.5}
+.la-stat b{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--ink);display:block;line-height:1}
+.la-stat span{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:7px;display:block}
+.la-stat.gold b{color:var(--gold2)} .la-stat.red b{color:var(--red)} .la-stat.grn b{color:var(--green)}
+.la-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.la-search{flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:9px;
+  padding:9px 12px;font-family:var(--sans);font-size:13px}
+.la-search:focus{outline:none;border-color:var(--gold)}
+.la-sortbtn{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:var(--panel2);
+  border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:8px 11px;cursor:pointer;transition:.16s}
+.la-sortbtn.on{border-color:var(--gold);color:var(--gold)}
+.la-list{display:flex;flex-direction:column;gap:7px}
+.la-row{display:grid;grid-template-columns:26px 1fr auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);
+  border-radius:11px;padding:12px 15px;transition:border-color .16s}
+.la-row:hover{border-color:var(--line2)}
+.la-row.low{border-color:rgba(255,112,96,.35)}
+.la-rank{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center}
+.la-who b{font-size:14px;font-weight:600;color:var(--ink);display:block}
+.la-who .reg{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.04em}
+.la-bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:7px;width:100%;max-width:230px}
+.la-bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold),var(--gold2))}
+.la-row.low .la-bar i{background:linear-gradient(90deg,#b8433a,var(--red))}
+.la-metrics{display:flex;align-items:center;gap:14px;text-align:right}
+.la-split{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.03em;line-height:1.5;text-align:right}
+.la-split .p{color:var(--green)} .la-split .o{color:var(--gold)} .la-split .a{color:var(--red)}
+.la-pct{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--ink);min-width:58px;text-align:right}
+.la-pct.low{color:var(--red)} .la-pct.mid{color:var(--gold2)} .la-pct.hi{color:var(--green)}
+.la-flag{font-family:var(--mono);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--red);
+  border:1px solid rgba(255,112,96,.4);border-radius:5px;padding:2px 6px;margin-top:5px;display:inline-block}
+.la-loading,.la-error{text-align:center;padding:50px 20px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.la-error{color:var(--red)}
+.la-note{font-family:var(--mono);font-size:9px;color:var(--faint);margin-top:14px;line-height:1.7;letter-spacing:.02em}
+
+/* sub-tabs */
+.la-subtabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.la-subtab{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;background:var(--panel2);
+  border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:8px 14px;cursor:pointer;transition:.16s}
+.la-subtab:hover{border-color:var(--line2);color:var(--ink)}
+.la-subtab.on{background:linear-gradient(90deg,rgba(240,182,74,.15),rgba(240,182,74,.03));border-color:var(--gold);color:var(--gold)}
+.la-sub{display:none} .la-sub.on{display:block;animation:viewIn .25s ease}
+
+/* cards */
+.la-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px 18px;margin-bottom:14px}
+.la-card-h{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.la-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:720px){.la-grid2{grid-template-columns:1fr}}
+
+/* day trend chart (CSS bars) */
+.la-trend{display:flex;align-items:flex-end;gap:5px;height:150px;padding-top:8px}
+.la-tbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;cursor:pointer;position:relative}
+.la-tbar i{width:100%;max-width:26px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--gold2),var(--gold));transition:.16s;min-height:2px}
+.la-tbar.low i{background:linear-gradient(180deg,#ff9a8f,var(--red))}
+.la-tbar:hover i{filter:brightness(1.2)}
+.la-tbar b{font-family:var(--mono);font-size:8px;color:var(--ink);font-weight:600}
+.la-tbar span{font-family:var(--mono);font-size:7px;color:var(--faint);white-space:nowrap;transform:rotate(-45deg);transform-origin:center;margin-top:4px}
+.la-tbar .tdow{font-size:6.5px;color:var(--faint);transform:none;margin:0}
+.la-trend-note{font-family:var(--mono);font-size:9px;color:var(--faint);margin-top:22px;text-align:center}
+
+/* distribution bars */
+.la-dist{display:flex;flex-direction:column;gap:9px}
+.la-distrow{display:grid;grid-template-columns:70px 1fr 34px;gap:10px;align-items:center;font-family:var(--mono);font-size:10px}
+.la-distrow .dl{color:var(--muted)}
+.la-distrow .db{height:16px;background:var(--line);border-radius:4px;overflow:hidden}
+.la-distrow .db i{display:block;height:100%;border-radius:4px}
+.la-distrow .dv{text-align:right;color:var(--ink);font-weight:600}
+
+/* glance list */
+.la-glance{display:flex;flex-direction:column;gap:11px}
+.la-grow{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+.la-grow:last-child{border:none;padding:0}
+.la-grow span{color:var(--muted)} .la-grow b{color:var(--ink);font-size:13px}
+.la-grow b.grn{color:var(--green)} .la-grow b.red{color:var(--red)} .la-grow b.gold{color:var(--gold2)}
+
+/* chip lists (day detail) */
+.la-chiplist{display:flex;flex-wrap:wrap;gap:7px}
+.la-chip{font-family:var(--mono);font-size:10px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:var(--ink)}
+.la-chip.abs{border-color:rgba(255,112,96,.35);color:var(--red)}
+.la-chip.od{border-color:rgba(240,182,74,.35);color:var(--gold2)}
+.la-chip .r{font-size:8px;color:var(--faint);margin-left:5px}
+.la-empty{font-family:var(--mono);font-size:10px;color:var(--faint);padding:8px 0}
+
+/* term recovery */
+.la-termrow{display:grid;grid-template-columns:220px 1fr;gap:14px;align-items:center}
+@media(max-width:640px){.la-termrow{grid-template-columns:1fr}}
+.la-termrow label{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px}
+.la-termrow input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 12px;font-family:var(--mono);font-size:14px}
+.la-termrow input:focus{outline:none;border-color:var(--gold)}
+.la-termhint{font-family:var(--mono);font-size:9px;color:var(--faint);line-height:1.6}
+
+/* risk rows */
+.la-riskrow{background:var(--panel);border:1px solid rgba(255,112,96,.3);border-radius:12px;padding:14px 16px;margin-bottom:9px}
+.la-riskrow.cond{border-color:rgba(255,112,96,.55)}
+.la-riskrow.dead{border-color:rgba(150,150,160,.3);opacity:.75}
+.la-risktop{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px}
+.la-risktop b{font-size:14px;color:var(--ink)}
+.la-risktop .rpct{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--red)}
+.la-riskmath{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.la-mtile{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font-family:var(--mono);flex:1;min-width:120px}
+.la-mtile b{display:block;font-size:15px;color:var(--gold2);font-weight:700}
+.la-mtile.dead b{color:var(--red)} .la-mtile.ok b{color:var(--green)}
+.la-mtile span{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:4px;display:block}
+.la-letterbtn{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:none;border:1px solid var(--line2);
+  color:var(--muted);border-radius:7px;padding:7px 12px;cursor:pointer;transition:.16s}
+.la-letterbtn:hover{border-color:var(--gold);color:var(--gold)}
 </style>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -469,6 +602,12 @@ select{appearance:none;cursor:pointer;
     <button class="ghost" onclick="lockNow()">Lock</button>
   </header>
 
+  <div class="tabbar">
+    <button class="tabbtn on" id="tabCommand" onclick="showTab('command')"><span class="tdot"></span>Command</button>
+    <button class="tabbtn" id="tabLive" onclick="showTab('live')"><span class="tdot"></span>Live Attendance</button>
+  </div>
+
+  <div class="view on" id="viewCommand">
   <div class="glance card">
     <div class="gauge-wrap">
       <svg class="gauge" viewBox="0 0 120 120"><circle class="g-track" cx="60" cy="60" r="52"/><circle class="g-arc" id="gArc" cx="60" cy="60" r="52"/></svg>
@@ -649,6 +788,90 @@ select{appearance:none;cursor:pointer;
         <button class="btn line" onclick="clearDay()">Clear today's log</button>
         <button class="btn line" onclick="prefillSample()">Load sample day</button>
       </div>
+    </div>
+  </div>
+  </div><!-- /viewCommand -->
+
+  <div class="view" id="viewLive">
+    <div class="la-head">
+      <div class="la-src" id="laSrc"><span class="ld"></span><span id="laSrcTxt">Connecting…</span></div>
+      <select class="la-sel" id="laSheet" onchange="loadLive()"></select>
+      <button class="la-refresh" onclick="loadLive(true)">↻ Refresh</button>
+      <span class="la-updated" id="laUpdated"></span>
+    </div>
+
+    <!-- sub-tabs within Live -->
+    <div class="la-subtabs">
+      <button class="la-subtab on" id="lsOverview" onclick="showLaSub('overview')">Overview</button>
+      <button class="la-subtab" id="lsDaily" onclick="showLaSub('daily')">Day-by-day</button>
+      <button class="la-subtab" id="lsStudents" onclick="showLaSub('students')">Students</button>
+      <button class="la-subtab" id="lsRisk" onclick="showLaSub('risk')">Below 75%</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="la-sub on" id="laOverview">
+      <div class="la-stats" id="laStats"></div>
+      <div class="la-card">
+        <div class="la-card-h">Attendance rate · day by day</div>
+        <div id="laTrend" class="la-trend"></div>
+        <div class="la-trend-note" id="laTrendNote"></div>
+      </div>
+      <div class="la-grid2">
+        <div class="la-card">
+          <div class="la-card-h">Distribution</div>
+          <div id="laDist" class="la-dist"></div>
+        </div>
+        <div class="la-card">
+          <div class="la-card-h">At a glance</div>
+          <div id="laGlance" class="la-glance"></div>
+        </div>
+      </div>
+      <div class="la-note" id="laNote"></div>
+    </div>
+
+    <!-- DAY BY DAY -->
+    <div class="la-sub" id="laDaily">
+      <div class="la-card">
+        <div class="la-card-h">Pick a day</div>
+        <select class="la-sel" id="laDayPick" onchange="renderDayDetail()" style="width:100%;margin-bottom:4px"></select>
+      </div>
+      <div class="la-stats" id="laDayStats"></div>
+      <div class="la-grid2">
+        <div class="la-card">
+          <div class="la-card-h" id="laDayAbsHead">Absent that day</div>
+          <div id="laDayAbsent" class="la-chiplist"></div>
+        </div>
+        <div class="la-card">
+          <div class="la-card-h" id="laDayOdHead">On duty that day</div>
+          <div id="laDayOd" class="la-chiplist"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STUDENTS -->
+    <div class="la-sub" id="laStudents">
+      <div class="la-toolbar">
+        <input class="la-search" id="laSearch" placeholder="Search name or reg no…" oninput="renderLive()">
+        <button class="la-sortbtn on" id="laSortPct" onclick="setSort('pct')">By %</button>
+        <button class="la-sortbtn" id="laSortName" onclick="setSort('name')">By name</button>
+        <button class="la-sortbtn" id="laSortReg" onclick="setSort('sno')">By roll</button>
+        <button class="la-sortbtn" id="laSortLow" onclick="setSort('low')">Defaulters</button>
+      </div>
+      <div class="la-list" id="laList"><div class="la-loading">Loading live attendance…</div></div>
+    </div>
+
+    <!-- BELOW 75 -->
+    <div class="la-sub" id="laRisk">
+      <div class="la-card">
+        <div class="la-card-h">Recovery calculator</div>
+        <div class="la-termrow">
+          <div><label>Total classes this term (periods)</label><input type="number" id="laTermTotal" min="90" placeholder="e.g. 300" oninput="renderRisk()"></div>
+          <div class="la-termhint" id="laTermHint">Set the full term's total periods to compute how many more each student must attend. Until set, projections use logged classes only.</div>
+        </div>
+      </div>
+      <div class="la-stats" id="laRiskStats"></div>
+      <div class="la-list" id="laRiskList"></div>
+      <div class="la-note">Detention &lt; 75% · Condonation &lt; 65% · "Classes needed" assumes they attend every remaining class. If 75% is shown as unreachable, even perfect attendance the rest of term can't recover it.</div>
     </div>
   </div>
 </div>
@@ -1978,6 +2201,289 @@ function exportDocx() {
     save(); render(); toast(file + ' downloaded' + (dup >= 0 ? ' · replaced same-date report' : ''));
   }).catch(e => { console.error(e); toast('Generation failed — see console'); });
 }
+
+/* ═══════════════ LIVE ATTENDANCE (Google Sheet via worker) ═══════════════ */
+const LIVE_WORKER = "https://argus-attend.jhrishi7.workers.dev/";
+let LIVE = { data:null, sort:'pct', sheet:'', loaded:false, sub:'overview' };
+
+function showTab(which){
+  const cmd = which==='command';
+  document.getElementById('viewCommand').classList.toggle('on', cmd);
+  document.getElementById('viewLive').classList.toggle('on', !cmd);
+  document.getElementById('tabCommand').classList.toggle('on', cmd);
+  document.getElementById('tabLive').classList.toggle('on', !cmd);
+  if(!cmd && !LIVE.loaded){ loadLive(); }
+}
+
+function showLaSub(which){
+  LIVE.sub=which;
+  ['overview','daily','students','risk'].forEach(k=>{
+    const cap=k.charAt(0).toUpperCase()+k.slice(1);
+    document.getElementById('la'+cap).classList.toggle('on', k===which);
+    document.getElementById('ls'+cap).classList.toggle('on', k===which);
+  });
+}
+
+function setSort(s){
+  LIVE.sort = s;
+  ['pct','name','sno','low'].forEach(k=>{
+    const b=document.getElementById('laSort'+(k==='pct'?'Pct':k==='name'?'Name':k==='sno'?'Reg':'Low'));
+    if(b) b.classList.toggle('on', k===s);
+  });
+  renderLive();
+}
+
+async function loadLive(force){
+  const src=document.getElementById('laSrc'), txt=document.getElementById('laSrcTxt');
+  src.className='la-src'; txt.textContent='Loading…';
+  try{
+    const q = LIVE.sheet ? ('?sheet='+encodeURIComponent(LIVE.sheet)) : '';
+    const r = await fetch(LIVE_WORKER+q, {cache:'no-store'});
+    const j = await r.json();
+    if(j.error) throw new Error(j.error+(j.detail?(' — '+j.detail):''));
+    LIVE.data=j; LIVE.loaded=true;
+    const sheetSel=document.getElementById('laSheet');
+    if(sheetSel && !sheetSel.options.length && Array.isArray(j.availableSheets)){
+      const months=j.availableSheets.filter(n=>/attendance/i.test(n));
+      (months.length?months:j.availableSheets).forEach(n=>{
+        const o=document.createElement('option'); o.value=n; o.textContent=n.replace(/daily attendance for /i,'').trim(); sheetSel.appendChild(o);
+      });
+      if(j.sheet) sheetSel.value=j.sheet;
+    }
+    src.className='la-src live'; txt.textContent='Live · Google Sheet';
+    const u=new Date(j.updated); document.getElementById('laUpdated').textContent='Synced '+u.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    renderStats(); renderLive(); renderTrend(); renderDist(); renderGlance(); populateDayPicker(); renderDayDetail(); renderRisk();
+    document.getElementById('laNote').innerHTML=
+      'Read-only, live from the department attendance sheet · OD counts as present · '+
+      (j.summary&&j.summary.basis?j.summary.basis:((j.nDays||18)+' days'))+' × '+(j.periods||5)+' periods = base '+j.base+'. '+
+      'Days detected from real date headers, totals computed exactly. Sheet is never modified.';
+  }catch(e){
+    src.className='la-src err'; txt.textContent='Connection error';
+    document.getElementById('laList').innerHTML='<div class="la-error">Couldn\'t load live attendance.<br><span style="font-size:10px;color:var(--faint)">'+String(e.message||e)+'</span></div>';
+    document.getElementById('laStats').innerHTML='';
+  }
+}
+
+function renderStats(){
+  const d=LIVE.data; if(!d) return;
+  const s=d.summary, tot=d.students.reduce((a,x)=>({p:a.p+x.present,o:a.o+x.od,ab:a.ab+x.absent}),{p:0,o:0,ab:0});
+  document.getElementById('laStats').innerHTML=[
+    ['gold', s.count, 'Students'],
+    ['', s.avgPct+'%', 'Cohort average'],
+    ['red', s.below75, 'Below 75%'],
+    ['grn', tot.p, 'Present hrs'],
+    ['gold', tot.o, 'OD hrs'],
+    ['red', tot.ab, 'Absent hrs'],
+  ].map(([c,v,l])=>'<div class="la-stat '+c+'"><b>'+v+'</b><span>'+l+'</span></div>').join('');
+}
+
+function renderTrend(){
+  const d=LIVE.data; const el=document.getElementById('laTrend'); if(!d||!d.dayTrend){el.innerHTML='<div class="la-empty">No daily data.</div>';return;}
+  const rates=d.dayTrend.filter(x=>x.rate!=null);
+  if(!rates.length){el.innerHTML='<div class="la-empty">No days marked yet.</div>';document.getElementById('laTrendNote').textContent='';return;}
+  el.innerHTML=d.dayTrend.map(x=>{
+    if(x.rate==null) return '<div class="la-tbar" title="'+x.label+' · not marked"><i style="height:1%;opacity:.2"></i><span class="tdow">'+x.dow+'</span></div>';
+    const h=Math.max(2,(x.rate/100)*100);
+    const low=x.rate<75;
+    return '<div class="la-tbar'+(low?' low':'')+'" title="'+x.label+' ('+x.dow+') · '+x.rate+'%" onclick="jumpToDay('+x.idx+')">'+
+      '<b>'+x.rate+'</b><i style="height:'+h+'%"></i><span>'+x.label+'</span></div>';
+  }).join('');
+  const avg=Math.round(rates.reduce((a,x)=>a+x.rate,0)/rates.length*10)/10;
+  const best=rates.reduce((a,x)=>x.rate>a.rate?x:a); const worst=rates.reduce((a,x)=>x.rate<a.rate?x:a);
+  document.getElementById('laTrendNote').innerHTML='Avg '+avg+'% across '+rates.length+' days · best '+best.label+' ('+best.rate+'%) · weakest '+worst.label+' ('+worst.rate+'%)';
+}
+
+function renderDist(){
+  const d=LIVE.data; const el=document.getElementById('laDist'); if(!d)return;
+  const bands=[['≥90%',s=>s.pct>=90,'var(--green)'],['75–90%',s=>s.pct>=75&&s.pct<90,'var(--gold2)'],['65–75%',s=>s.pct>=65&&s.pct<75,'var(--gold)'],['<65%',s=>s.pct<65,'var(--red)']];
+  const n=d.students.length;
+  el.innerHTML=bands.map(([lbl,fn,col])=>{
+    const c=d.students.filter(fn).length; const w=n?Math.round(c/n*100):0;
+    return '<div class="la-distrow"><span class="dl">'+lbl+'</span><div class="db"><i style="width:'+w+'%;background:'+col+'"></i></div><span class="dv">'+c+'</span></div>';
+  }).join('');
+}
+
+function renderGlance(){
+  const d=LIVE.data; const el=document.getElementById('laGlance'); if(!d)return;
+  const ss=d.students.slice();
+  const top=ss.reduce((a,x)=>x.pct>a.pct?x:a); const bot=ss.reduce((a,x)=>x.pct<a.pct?x:a);
+  const perfect=ss.filter(s=>s.pct>=100).length;
+  const odHeavy=ss.filter(s=>s.od>s.present).length;
+  const rows=[
+    ['Highest', top.name+' · '+top.pct+'%','grn'],
+    ['Lowest', bot.name+' · '+bot.pct+'%','red'],
+    ['At 100%', perfect+' students','gold'],
+    ['More OD than present', odHeavy+' students',''],
+    ['Days recorded', (d.dayTrend?d.dayTrend.filter(x=>x.rate!=null).length:0)+' of '+(d.nDays||18),''],
+  ];
+  el.innerHTML=rows.map(([l,v,c])=>'<div class="la-grow"><span>'+l+'</span><b class="'+c+'">'+v+'</b></div>').join('');
+}
+
+/* ---- day by day ---- */
+function populateDayPicker(){
+  const d=LIVE.data; const sel=document.getElementById('laDayPick'); if(!d||!d.days)return;
+  sel.innerHTML=d.days.map(day=>{
+    const t=d.dayTrend?d.dayTrend[day.idx]:null;
+    const marked=t&&t.rate!=null;
+    return '<option value="'+day.idx+'">'+day.label+' ('+day.dow+')'+(marked?' — '+t.rate+'%':' — not marked')+'</option>';
+  }).join('');
+}
+function jumpToDay(idx){ showLaSub('daily'); document.getElementById('laDayPick').value=idx; renderDayDetail(); }
+
+function renderDayDetail(){
+  const d=LIVE.data; if(!d||!d.days)return;
+  const idx=+document.getElementById('laDayPick').value||0;
+  const day=d.days[idx]; if(!day)return;
+  let present=0,absent=0,od=0;
+  const absentees=[], odList=[];
+  d.students.forEach(s=>{
+    const dd=s.daily&&s.daily[idx]; if(!dd)return;
+    present+=dd.present; absent+=dd.absent; od+=dd.od;
+    if(dd.absent>0) absentees.push(s);
+    if(dd.od>0) odList.push(s);
+  });
+  const marked=present+absent+od;
+  const rate=marked?Math.round((present+od)/marked*1000)/10:null;
+  document.getElementById('laDayStats').innerHTML=[
+    ['gold', day.label, day.dow+' · '+(day.date||'')],
+    ['grn', present, 'Present slots'],
+    ['red', absent, 'Absent slots'],
+    ['gold', od, 'OD slots'],
+    ['', rate==null?'—':rate+'%', 'Day rate'],
+  ].map(([c,v,l])=>'<div class="la-stat '+c+'"><b>'+v+'</b><span>'+l+'</span></div>').join('');
+  document.getElementById('laDayAbsHead').textContent='Absent that day ('+absentees.length+')';
+  document.getElementById('laDayOdHead').textContent='On duty that day ('+odList.length+')';
+  document.getElementById('laDayAbsent').innerHTML=absentees.length?absentees.map(s=>'<span class="la-chip abs">'+laEsc(s.name)+'<span class="r">'+(s.daily[idx].absent)+'/'+(d.periods||5)+'</span></span>').join(''):'<div class="la-empty">Nobody absent'+(marked?'':' · day not marked yet')+'</div>';
+  document.getElementById('laDayOd').innerHTML=odList.length?odList.map(s=>'<span class="la-chip od">'+laEsc(s.name)+'<span class="r">'+(s.daily[idx].od)+'/'+(d.periods||5)+'</span></span>').join(''):'<div class="la-empty">Nobody on OD</div>';
+}
+
+/* ---- students list ---- */
+function renderLive(){
+  const d=LIVE.data; if(!d) return;
+  const se=document.getElementById('laSearch');
+  const q=(se?se.value:'').toLowerCase().trim();
+  let arr=d.students.slice();
+  if(q) arr=arr.filter(s=>s.name.toLowerCase().includes(q)||String(s.reg).includes(q));
+  const sort=LIVE.sort;
+  if(sort==='pct') arr.sort((a,b)=>b.pct-a.pct);
+  else if(sort==='name') arr.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(sort==='sno') arr.sort((a,b)=>a.sno-b.sno);
+  else if(sort==='low') arr=arr.filter(s=>s.pct<75).sort((a,b)=>a.pct-b.pct);
+  const list=document.getElementById('laList');
+  if(!arr.length){ list.innerHTML='<div class="la-loading">No students match.</div>'; return; }
+  list.innerHTML=arr.map((s)=>{
+    const low=s.pct<75, cls=s.pct<75?'low':s.pct<85?'mid':'hi';
+    const w=Math.min(100,s.pct);
+    return '<div class="la-row'+(low?' low':'')+'" onclick="openStudent('+s.sno+')" style="cursor:pointer">'+
+      '<div class="la-rank">'+s.sno+'</div>'+
+      '<div class="la-who"><b>'+laEsc(s.name)+'</b><span class="reg">'+laEsc(String(s.reg))+'</span>'+
+        '<div class="la-bar"><i style="width:'+w+'%"></i></div>'+
+        (low?'<span class="la-flag">Defaulter · below 75%</span>':'')+'</div>'+
+      '<div class="la-metrics">'+
+        '<div class="la-split"><span class="p">'+s.present+' P</span> · <span class="o">'+s.od+' OD</span><br><span class="a">'+s.absent+' A</span> · '+s.total+'/'+s.base+'</div>'+
+        '<div class="la-pct '+cls+'">'+s.pct+'<span style="font-size:11px">%</span></div>'+
+      '</div></div>';
+  }).join('');
+}
+
+function openStudent(sno){
+  const d=LIVE.data; const s=d.students.find(x=>x.sno===sno); if(!s)return;
+  const daily=(s.daily||[]).map((dd,i)=>{
+    const day=(d.days&&d.days[i])||{label:'D'+(i+1),dow:''};
+    const col=dd.status==='present'?'var(--green)':dd.status==='absent'?'var(--red)':dd.status==='od'?'var(--gold2)':dd.status==='partial'?'var(--gold)':'var(--line2)';
+    const lab=dd.status==='blank'?'—':dd.present+'P '+dd.absent+'A '+dd.od+'OD';
+    return '<div style="text-align:center"><div style="width:26px;height:26px;border-radius:6px;background:'+col+';margin:0 auto 4px;opacity:'+(dd.status==='blank'?'.25':'1')+'" title="'+day.label+': '+lab+'"></div><div style="font-family:var(--mono);font-size:7px;color:var(--faint)">'+day.label+'</div></div>';
+  }).join('');
+  const html='<div style="font-family:var(--sans)"><div style="font-size:17px;font-weight:700;color:var(--ink)">'+laEsc(s.name)+'</div>'+
+    '<div style="font-family:var(--mono);font-size:10px;color:var(--faint);margin-bottom:14px">Roll '+s.sno+' · '+laEsc(String(s.reg))+'</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">'+
+      '<div class="la-stat grn" style="flex:1;min-width:70px"><b>'+s.present+'</b><span>Present</span></div>'+
+      '<div class="la-stat gold" style="flex:1;min-width:70px"><b>'+s.od+'</b><span>OD</span></div>'+
+      '<div class="la-stat red" style="flex:1;min-width:70px"><b>'+s.absent+'</b><span>Absent</span></div>'+
+      '<div class="la-stat" style="flex:1;min-width:70px"><b>'+s.pct+'%</b><span>'+s.total+'/'+s.base+'</span></div>'+
+    '</div>'+
+    '<div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Daily record</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px">'+daily+'</div>'+
+    '<div style="font-family:var(--mono);font-size:8px;color:var(--faint);margin-top:12px">GREEN present · RED absent · GOLD OD · AMBER partial · GREY not marked</div></div>';
+  laModal(html);
+}
+
+/* ---- below 75 / recovery ---- */
+function renderRisk(){
+  const d=LIVE.data; if(!d)return;
+  const termTotal=parseInt(document.getElementById('laTermTotal').value,10);
+  const risk=d.students.filter(s=>s.pct<75).sort((a,b)=>a.pct-b.pct);
+  document.getElementById('laRiskStats').innerHTML=[
+    ['red', risk.length, 'Below 75%'],
+    ['gold', d.students.filter(s=>s.pct>=65&&s.pct<75).length, '65–75% (detention)'],
+    ['red', d.students.filter(s=>s.pct<65).length, 'Below 65% (condonation)'],
+  ].map(([c,v,l])=>'<div class="la-stat '+c+'"><b>'+v+'</b><span>'+l+'</span></div>').join('');
+
+  const list=document.getElementById('laRiskList');
+  if(!risk.length){ list.innerHTML='<div class="la-empty" style="padding:24px;text-align:center">No students below 75%.</div>'; return; }
+  list.innerHTML=risk.map(s=>{
+    const cond=s.pct<65;
+    let mtiles='', deadRow=false;
+    if(termTotal && termTotal>s.base){
+      const remaining=termTotal - s.base;
+      const need75=Math.max(0, Math.ceil(0.75*termTotal - s.total));
+      const need65=Math.max(0, Math.ceil(0.65*termTotal - s.total));
+      const reach75=need75<=remaining;
+      const reach65=need65<=remaining;
+      const proj=Math.round(((s.total+remaining)/termTotal)*1000)/10;
+      if(!reach75) deadRow=true;
+      mtiles=
+        '<div class="la-mtile '+(reach75?'ok':'dead')+'"><b>'+(reach75?need75:'—')+'</b><span>'+(reach75?'more to hit 75%':'75% unreachable')+'</span></div>'+
+        (cond?'<div class="la-mtile '+(reach65?'ok':'dead')+'"><b>'+(reach65?need65:'—')+'</b><span>'+(reach65?'more to hit 65%':'65% unreachable')+'</span></div>':'')+
+        '<div class="la-mtile"><b>'+proj+'%</b><span>if attends all '+remaining+' left</span></div>';
+    } else {
+      const extra=Math.max(0,Math.ceil((0.75*s.base - s.total)/0.25));
+      mtiles='<div class="la-mtile"><b>'+extra+'</b><span>extra classes* to reach 75%</span></div>'+
+        '<div class="la-mtile"><b>set →</b><span>enter term total above</span></div>';
+    }
+    return '<div class="la-riskrow'+(cond?' cond':'')+(deadRow?' dead':'')+'">'+
+      '<div class="la-risktop"><b>'+laEsc(s.name)+' <span style="font-family:var(--mono);font-size:9px;color:var(--faint)">· roll '+s.sno+'</span></b><span class="rpct">'+s.pct+'%</span></div>'+
+      '<div class="la-riskmath">'+mtiles+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="la-letterbtn" onclick="defaulterLetter('+s.sno+',\''+(cond?'cond':'det')+'\')">Copy '+(cond?'condonation':'shortage')+' letter</button>'+
+      '<button class="la-letterbtn" onclick="openStudent('+s.sno+')">View record</button></div>'+
+      '</div>';
+  }).join('');
+}
+
+function defaulterLetter(sno,tier){
+  const d=LIVE.data; const s=d.students.find(x=>x.sno===sno); if(!s)return;
+  const termTotal=parseInt(document.getElementById('laTermTotal').value,10);
+  let recovery='';
+  if(termTotal&&termTotal>s.base){
+    const remaining=termTotal-s.base;
+    const need75=Math.max(0,Math.ceil(0.75*termTotal - s.total));
+    recovery = need75<=remaining
+      ? ' To reach the required 75%, you must attend at least '+need75+' of the remaining '+remaining+' classes this term.'
+      : ' Note: even with full attendance for the remaining '+remaining+' classes, the 75% requirement can no longer be met this term.';
+  }
+  const today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const body = tier==='cond'
+    ? 'Date: '+today+'\n\nTo: '+s.name+' (Roll '+s.sno+', Reg '+s.reg+')\n\nSubject: Condonation notice — attendance below 65%\n\nDear '+s.name+',\n\nYour attendance currently stands at '+s.pct+'% ('+s.total+' of '+s.base+' periods, OD included), which is below the 65% threshold. As per institutional norms, attendance below 65% requires a condonation application and may affect your eligibility to appear for examinations.'+recovery+'\n\nPlease meet the class coordinator immediately to discuss corrective steps.\n\n— Class Coordinator, II B.Sc Aeronautical Science - A'
+    : 'Date: '+today+'\n\nTo: '+s.name+' (Roll '+s.sno+', Reg '+s.reg+')\n\nSubject: Attendance shortage — below 75%\n\nDear '+s.name+',\n\nYour attendance currently stands at '+s.pct+'% ('+s.total+' of '+s.base+' periods, OD included), which is below the required 75%. Continued shortage may place you under detention as per institutional norms.'+recovery+'\n\nYou are advised to improve your attendance immediately and meet the class coordinator if there are genuine reasons for absence.\n\n— Class Coordinator, II B.Sc Aeronautical Science - A';
+  navigator.clipboard.writeText(body).then(()=>toast('Letter copied for '+s.name)).catch(()=>{
+    laModal('<div style="font-family:var(--mono);font-size:11px;white-space:pre-wrap;color:var(--ink)">'+laEsc(body)+'</div>');
+  });
+}
+
+/* tiny modal */
+function laModal(html){
+  let m=document.getElementById('laModalWrap');
+  if(!m){ m=document.createElement('div'); m.id='laModalWrap';
+    m.style.cssText='position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(5,4,8,.8);backdrop-filter:blur(6px)';
+    m.onclick=e=>{if(e.target===m)m.remove();};
+    document.body.appendChild(m);
+  }
+  m.innerHTML='<div style="background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:24px;max-width:640px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 40px 90px -30px #000">'+html+
+    '<div style="text-align:right;margin-top:18px"><button class="la-letterbtn" onclick="document.getElementById(\'laModalWrap\').remove()">Close</button></div></div>';
+}
+function laEsc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+document.addEventListener('change', e=>{ if(e.target && e.target.id==='laSheet'){ LIVE.sheet=e.target.value; LIVE.loaded=false; loadLive(true); }});
 </script>
 <div id="scanModal" hidden>
   <div class="scan-card">
