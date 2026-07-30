@@ -337,48 +337,109 @@
   .mstSw.on .pos.u{color:#3ee08f}
 
   /* ══ MCDU — modelled on the real unit ══ */
-  .mcdu{background:linear-gradient(180deg,#3a3a3d,#232326 12%,#1c1c1f);
-    border:1px solid #45454a;border-radius:10px;padding:11px 11px 13px;
-    box-shadow:0 26px 60px -30px #000, inset 0 1px 0 rgba(255,255,255,.10);max-width:340px}
-  .mScr{position:relative;display:grid;grid-template-columns:30px 1fr 30px;gap:5px;align-items:stretch}
-  /* the screen lives in the MIDDLE column — the keys flank it */
-  .mScr canvas{grid-column:2;grid-row:1;width:100%;height:336px;display:block;border-radius:3px;
-    border:2px solid #101012;background:#04120a;
-    box-shadow:inset 0 0 34px rgba(0,0,0,.9), 0 0 20px rgba(62,224,143,.13)}
-  /* line-select keys — wide, flat, hardware-grey, with the bar you actually press */
-  .lsk{grid-row:1;display:flex;flex-direction:column;justify-content:space-between;padding:30px 0 34px}
+  .mcdu{background:
+      linear-gradient(180deg,#54545a,#3e3e43 5%,#2c2c30 30%,#242427 70%,#1c1c1f);
+    border:1px solid #56565c;border-radius:16px;padding:18px 16px 20px;
+    box-shadow:0 40px 90px -35px #000, inset 0 2px 0 rgba(255,255,255,.14), inset 0 -3px 10px rgba(0,0,0,.6),
+      inset 0 0 0 1px rgba(0,0,0,.3);
+    width:360px;max-width:100%;position:relative;font-family:var(--mono)}
+  .mcdu::before{content:"";position:absolute;inset:6px;border-radius:11px;pointer-events:none;
+    box-shadow:inset 0 1px 2px rgba(255,255,255,.06)}
+  .mcHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;
+    font-family:var(--mono);font-size:7px;letter-spacing:.2em;color:#7a7a84}
+  /* ── SCREEN with flanking LSKs ── */
+  .mScr{position:relative;display:grid;grid-template-columns:26px 1fr 26px;gap:6px;align-items:stretch}
+  .mScr canvas{grid-column:2;grid-row:1;width:100%;height:348px;display:block;border-radius:5px;
+    border:3px solid #0c0c0d;background:#020805;
+    box-shadow:inset 0 0 46px rgba(0,0,0,.94), inset 0 0 0 1px rgba(74,222,122,.06), 0 0 26px rgba(74,222,122,.10),
+      0 2px 4px rgba(0,0,0,.6)}
+  .lsk{grid-row:1;display:flex;flex-direction:column;justify-content:space-between;padding:26px 0 30px}
   .lsk.L{grid-column:1} .lsk.R{grid-column:3}
-  .lsk button{width:30px;height:17px;border-radius:2px;
-    background:linear-gradient(180deg,#4a4a50,#2e2e33);border:1px solid #17171a;
-    border-bottom:2px solid #111;color:#cfcfd4;font-size:7px;font-family:var(--mono);
-    font-weight:700;letter-spacing:.04em;transition:.08s;display:flex;align-items:center;justify-content:center}
-  .lsk button:hover{background:linear-gradient(180deg,#6a6a72,#45454c);color:#fff}
-  .lsk button:active{transform:translateY(1px);border-bottom-width:1px;
-    background:linear-gradient(180deg,#2e2e33,#4a4a50)}
-  .lsk.L button::before{content:'';width:9px;height:2px;background:#8d8d96;border-radius:1px}
-  .lsk.R button::after{content:'';width:9px;height:2px;background:#8d8d96;border-radius:1px}
-  /* page keys */
-  .mPg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:9px}
-  .mPg button{padding:7px 0;border-radius:3px;
-    background:linear-gradient(180deg,#4a4a50,#2c2c31);border:1px solid #17171a;border-bottom:2px solid #111;
-    color:#c3c3ca;font-family:var(--mono);font-size:7.5px;letter-spacing:.08em;font-weight:700;transition:.08s}
-  .mPg button:hover{background:linear-gradient(180deg,#63636b,#3d3d43);color:#fff}
-  .mPg button:active{transform:translateY(1px);border-bottom-width:1px}
-  .mPg button.on{background:linear-gradient(180deg,#f0d08a,#d9a63c);color:#1a1408;
-    border-color:#8a6a20;box-shadow:0 0 10px rgba(240,182,74,.35)}
-  /* alpha-numeric keypad */
-  .mKeys{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin-top:7px}
-  .mKeys button{aspect-ratio:1;border-radius:3px;
-    background:linear-gradient(180deg,#46464c,#28282d);border:1px solid #151518;border-bottom:2px solid #0e0e10;
-    color:#d2d2d8;font-family:var(--mono);font-size:8px;font-weight:700;transition:.07s;padding:0}
-  .mKeys button:hover{background:linear-gradient(180deg,#5e5e67,#3a3a40);color:#fff}
-  .mKeys button:active{transform:translateY(1px);border-bottom-width:1px;
-    background:linear-gradient(180deg,#28282d,#46464c)}
-  .mKeys button[data-k="CLR"]{font-size:6.5px;color:#ffb23e}
-  .mKeys button[data-k="←"]{color:#ffb23e}
-  .mcHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;
-    font-family:var(--mono);font-size:7px;letter-spacing:.16em;color:#6e6e78}
+  .lsk button{position:relative;width:26px;height:22px;border-radius:3px;
+    background:linear-gradient(180deg,#52525a,#303036);border:1px solid #17171a;
+    border-bottom:2px solid #101012;color:#c8c8d0;font-size:7px;font-family:var(--mono);
+    font-weight:700;cursor:pointer;transition:.07s;display:flex;align-items:center;justify-content:center;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+  .lsk button::before{content:"";position:absolute;top:3px;width:13px;height:3px;border-radius:2px;background:#1a1a1d;box-shadow:inset 0 1px 1px #000}
+  .lskLbl{position:absolute;bottom:2px;font-family:var(--mono);font-size:7.5px;font-weight:800;letter-spacing:.02em;
+    color:#8fe8b8;text-shadow:0 0 4px rgba(62,224,143,.4)}
+  .lsk.L button .lskLbl{right:2px} .lsk.R button .lskLbl{left:2px}
+  .lsk button:hover{background:linear-gradient(180deg,#6c6c76,#45454c)}
+  .lsk button:hover .lskLbl{color:#b8ffd8}
+  .lsk button:hover{background:linear-gradient(180deg,#6c6c76,#45454c)}
+  .lsk button:active{transform:translateY(1px);border-bottom-width:1px}
 
+  /* ── FUNCTION-KEY BLOCK (real A320 arrangement) ── */
+  .mFunc{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:12px}
+  .mFunc button{height:28px;border-radius:5px;cursor:pointer;
+    background:linear-gradient(180deg,#42424a,#2a2a30 60%,#212126);border:1px solid #101012;border-bottom:2px solid #0a0a0c;
+    color:#e8e8ee;font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:.02em;transition:.07s;
+    display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.05;padding:0 1px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 1px 2px rgba(0,0,0,.4)}
+  .mFunc button:hover{background:linear-gradient(180deg,#50505a,#34343a);color:#fff}
+  .mFunc button:active{transform:translateY(1px);border-bottom-width:1px}
+  .mFunc button.on{background:linear-gradient(180deg,#2e6cff,#1a4bbf);color:#fff;border-color:#123a9a;
+    box-shadow:0 0 10px rgba(46,108,255,.4),inset 0 1px 0 rgba(255,255,255,.2)}
+  .mFunc button.blank{visibility:hidden}
+  .mFunc button.slew{color:#e8d8a0;font-size:11px}
+  .mFunc button.airport{color:#7fe8a0}
+
+  /* ── ALPHANUMERIC KEYPAD ── */
+  .mKeys{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:11px}
+  .mKeys button{aspect-ratio:1.3;border-radius:7px;cursor:pointer;
+    background:radial-gradient(130% 130% at 50% 8%,#5c5c64,#333338 55%,#26262b);border:1px solid #101012;border-bottom:2px solid #0a0a0c;
+    color:#eeeef4;font-family:"Courier New",var(--mono);font-size:12px;font-weight:700;transition:.07s;padding:0;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 2px 3px rgba(0,0,0,.45)}
+  .mKeys button:hover{background:radial-gradient(120% 120% at 50% 12%,#68686f,#38383d 75%);color:#fff}
+  .mKeys button:active{transform:translateY(1px);border-bottom-width:1px}
+  .mKeys button[data-k="CLR"]{color:#ffb23e;font-size:9px}
+  .mKeys button[data-k="OVFY"]{color:#7fe8ff;font-size:13px}
+  .mKeys button[data-k="/"],.mKeys button[data-k="."],.mKeys button[data-k="+/-"]{color:#cfe8ff}
+  .mKeys button[data-k="SP"]{font-size:8px}
+
+
+  .mcduGuide{margin-top:4px}
+  .gdHead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .gdTitle{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--gold,#f0b64a);text-transform:uppercase;white-space:nowrap}
+  .gdProg{flex:1;height:6px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+  .gdBar{height:100%;border-radius:4px;background:linear-gradient(90deg,#3ee08f,#6bd0ff);transition:width .4s}
+  .gdCount{font-family:var(--mono);font-size:9px;color:var(--faint,#8a8a8a);white-space:nowrap}
+  .gdNow{border:1px solid rgba(107,183,255,.3);border-radius:11px;padding:13px;background:rgba(107,183,255,.05)}
+  .gdStepNo{font-family:var(--mono);font-size:8px;letter-spacing:.14em;color:#6bb7ff}
+  .gdStepTitle{font-size:14px;font-weight:650;margin:4px 0 7px;color:var(--ink,#eaeaea)}
+  .gdSay{font-size:12.5px;line-height:1.6;color:var(--dim,#b0b0b0)}
+  .gdSay b{color:var(--ink,#fff);background:rgba(107,183,255,.14);padding:0 4px;border-radius:3px;font-family:var(--mono)}
+  .gdChips{display:flex;gap:6px;flex-wrap:wrap;margin:11px 0}
+  .gdChip{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.12);color:var(--dim,#b0b0b0)}
+  .gdChip.pg{color:#f0b64a;border-color:rgba(240,182,74,.35)}
+  .gdChip.lsk{color:#3ee08f;border-color:rgba(62,224,143,.35)}
+  .gdChip b{color:#fff}
+  .gdBtns{display:flex;gap:8px;margin-top:4px}
+  .gdBtn{font-family:var(--mono);font-size:10px;padding:8px 13px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:var(--ink,#eaeaea);transition:.13s}
+  .gdBtn:hover{border-color:rgba(255,255,255,.3)}
+  .gdBtn.go{background:linear-gradient(100deg,#6bb7ff,#a9d3ff);color:#06172c;border:none;font-weight:700}
+  .gdBtn.fill{color:#3ee08f;border-color:rgba(62,224,143,.35)}
+  .gdDone{padding:14px;border-radius:11px;background:rgba(62,224,143,.08);border:1px solid rgba(62,224,143,.3);
+    font-size:13px;color:#7fe8a0;font-family:var(--mono);line-height:1.5}
+  .gdAll{margin-top:11px}
+  .gdAll summary{font-family:var(--mono);font-size:10px;color:var(--faint,#8a8a8a);cursor:pointer;padding:5px 0}
+  .gdList{margin:6px 0 0;padding-left:22px;font-size:11.5px;line-height:1.9;color:var(--dim,#a8a8a8)}
+  .gdList li.ok{color:#7fe8a0;text-decoration:line-through;opacity:.7}
+  .gdList b{font-family:var(--mono);color:var(--ink,#ddd)}
+  .fmcChecklist{margin-top:10px}
+  .fmcChecklist summary{font-family:var(--mono);font-size:10px;color:var(--faint,#8a8a8a);cursor:pointer}
+  .mAuto{display:flex;gap:7px;margin-top:11px}
+  .mAutoBtn{flex:1;height:24px;border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:8px;
+    font-weight:700;letter-spacing:.08em;color:#7fe8a0;background:linear-gradient(180deg,#2a3a30,#1c2a22);
+    border:1px solid #1a2a20;border-bottom:2px solid #101a14;transition:.08s}
+  .mAutoBtn:hover{background:linear-gradient(180deg,#34483a,#22322a);color:#a0f0c0}
+  .mAutoBtn:active{transform:translateY(1px);border-bottom-width:1px}
+  .mAutoBtn.clr{color:#ffb27a;background:linear-gradient(180deg,#3a302a,#2a221c);border-color:#2a201a}
+  .mAutoBtn.clr:hover{color:#ffc79a}
+  .mBright{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:11px;
+    font-family:var(--mono);font-size:7px;letter-spacing:.15em;color:#6a6a72}
+  .mBright .knob{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#5a5a62,#242428);
+    border:1px solid #141416;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
   /* keyboard hint bar */
   #keybar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:none;gap:0;
     background:linear-gradient(180deg,rgba(8,7,10,0),rgba(8,7,10,.96) 42%);
@@ -481,6 +542,39 @@
   .lookT td{border:1px solid #9b9484;padding:1.5px 3px;text-align:center;font-variant-numeric:tabular-nums}
   .lookT tr.hi td{background:#ffe9b0;font-weight:700;box-shadow:inset 0 0 0 1px #c8971f}
   .lookWrap{max-height:190px;overflow:auto;border:1px solid #6d6656}
+
+  
+  .fpgen .fpLab{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:#6b6250;margin-right:8px}
+
+
+  .srcCard .srcRow{display:flex;gap:10px;margin:12px 0 4px;flex-wrap:wrap}
+  .srcBtn{flex:1;min-width:180px;text-align:left;padding:13px 15px;border-radius:11px;cursor:pointer;
+    border:1px solid #2a251c;background:#141210;color:#c8bfa8;font-family:var(--mono);font-size:13px;font-weight:700;transition:.13s}
+  .srcBtn small{display:block;font-weight:400;font-size:9.5px;color:#6b6250;margin-top:4px;letter-spacing:0}
+  .srcBtn:hover{border-color:#6b6250}
+  .srcBtn.on[data-src="offline"]{background:rgba(240,182,74,.12);border-color:#d9a63c;color:#f0d08a}
+  .srcBtn.on[data-src="simbrief"]{background:rgba(107,183,255,.12);border-color:#6bb7ff;color:#a9d3ff}
+  .sbDispatch{margin-top:12px;padding-top:12px;border-top:1px solid #2a251c}
+  .sbRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .sbStatus{margin-top:10px;font-family:var(--mono);font-size:11px;line-height:1.6;color:#c8bfa8}
+  .sbStatus b{color:#a9d3ff}
+
+  .fpPid{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}
+  .fpPidIn{font-family:var(--mono);font-size:12px;padding:7px 11px;border-radius:7px;border:1px solid #3a3730;
+    background:#0f0d0a;color:#f0d08a;width:130px;letter-spacing:.05em}
+  .fpPidIn:focus{outline:none;border-color:#d9a63c}
+  .fpPidNote{font-size:9px;color:#6b6250;font-family:var(--mono)}
+  .fpMethod,.fpStyles{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+  .fpBtn,.fpStyle{font-family:var(--mono);font-size:10px;padding:6px 11px;border-radius:7px;cursor:pointer;
+    border:1px solid #3a3730;background:#1a1712;color:#c8bfa8;transition:.13s}
+  .fpBtn:hover,.fpStyle:hover{border-color:#6b6250;color:#e8dfc8}
+  .fpBtn.on{background:linear-gradient(180deg,#f0d08a,#d9a63c);color:#1a1408;border-color:#8a6a20;font-weight:700}
+  .fpStyle.on{background:rgba(240,182,74,.16);border-color:#d9a63c;color:#f0d08a;font-weight:700}
+  .fpBtnRow{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 8px}
+  .fpOut{background:#0a0906;border:1px solid #2a251c;border-radius:8px;padding:12px;margin-top:8px;
+    font-family:var(--mono);font-size:10px;line-height:1.5;color:#8fe8b8;white-space:pre;overflow:auto;max-height:340px}
+  .fpHint{font-size:11px;color:#c8bfa8;margin-top:8px;font-family:var(--mono)}
+  .fpHint b{color:#f0d08a}
 
   .doc{background:#faf8f2;color:#17140f;border-radius:9px;padding:18px 20px;font-family:var(--mono);font-size:10px;
     line-height:1.6;max-height:400px;overflow:auto}
@@ -882,7 +976,7 @@ const OPS={
 /* ───────── STATE ───────── */
 let F={};
 function freshFlight(){ const f={
-  callsign:"", type:"A320", route:null, rwy:null, cruiseFL:0, ci:30, oat:null,
+  source:'offline', sbRaw:null, sbFpl:'', callsign:"", type:"A320", route:null, rwy:null, cruiseFL:0, ci:30, oat:null,
   pax:{}, holds:{}, fuelExtra:0, block:0, taxiMin:12, fuelCalc:null,
   ls:null, lsOk:false, lsSigned:false, trim:0, lmc:[],
   perf:null, perfOk:false, perfAccepted:false, flap:2, thrust:"TOGA", flex:null, bleed:true, ai:false, cont:false,
@@ -896,6 +990,112 @@ function freshFlight(){ const f={
 let CAREER=(()=>{try{return JSON.parse(localStorage.getItem("odyssey_career_v2"))||
   {flights:0,hours:0,best:0,otp:100,safety:100,log:[]};}catch(e){return{flights:0,hours:0,best:0,otp:100,safety:100,log:[]};}})();
 function saveCareer(){try{localStorage.setItem("odyssey_career_v2",JSON.stringify(CAREER));}catch(e){}}
+/* ═══════════════════════ SimBrief INGEST (source of truth = SimBrief) ═══════════════════════ */
+async function fetchSimbriefInto(pid){
+  const SB_PROXY='https://simbrief-proxy.jhrishi7.workers.dev';
+  const r=await fetch(SB_PROXY+'/?userid='+encodeURIComponent(pid),{cache:'no-store'});
+  const j=await r.json();
+  if(!r.ok||j.error){ throw new Error(j.error||('HTTP '+r.status)+(j.detail?' — '+j.detail:'')); }
+  return j;
+}
+function ensureApt(icao, sb){
+  // register an airport ODYSSEY doesn't know about, from SimBrief data, so downstream code can reference it
+  if(!icao) return;
+  if(APT[icao]) {
+    // make sure the SimBrief runway exists on a known airport too
+    if(sb && sb.plan_rwy && APT[icao].rwys && !APT[icao].rwys[sb.plan_rwy]){
+      APT[icao].rwys[sb.plan_rwy]={len:(sb.plan_rwy_length? +sb.plan_rwy_length:3000), hdg:(parseInt(sb.plan_rwy)*10)||0, name:sb.plan_rwy};
+    }
+    return;
+  }
+  const rwy=(sb&&sb.plan_rwy)||'--';
+  APT[icao]={ icao, iata:(sb&&sb.iata_code)||icao.slice(1), name:(sb&&sb.name)||icao,
+    lat:+(sb&&sb.pos_lat||0), lon:+(sb&&sb.pos_long||0), elev:+(sb&&sb.elevation||0),
+    rwys:{ [rwy]:{len:(sb&&sb.plan_rwy_length?+sb.plan_rwy_length:3000), hdg:(parseInt(rwy)*10)||0, name:rwy} },
+    sids:[], stars:[], _sb:true };
+}
+// ── harvest real waypoint coords from a SimBrief navlog into a persistent fix store ──
+// Every fix SimBrief returns carries ident + pos_lat + pos_long — real published coordinates.
+// We save them so PYRGOS can plot enroute fixes at their true positions (no fabrication).
+function harvestSimbriefFixes(j){
+  try{
+    const nav=j.navlog&&j.navlog.fix; if(!nav) return 0;
+    const list=Array.isArray(nav)?nav:[nav];
+    const store=JSON.parse(localStorage.getItem('argus.fixdb')||'{}');
+    let added=0;
+    list.forEach(fx=>{
+      const id=(fx.ident||'').trim().toUpperCase();
+      const la=parseFloat(fx.pos_lat), lo=parseFloat(fx.pos_long);
+      if(!id || isNaN(la) || isNaN(lo)) return;
+      if(id.length<2) return;
+      // skip pure lat/long auto-names and airport idents already known
+      if(fx.type==='ltlg'||/^\d/.test(id)) return;
+      if(!store[id]){ added++; }
+      store[id]={ lat:+la.toFixed(4), lon:+lo.toFixed(4), t:(fx.type||'wpt'), awy:(fx.via_airway||''), src:'simbrief' };
+    });
+    localStorage.setItem('argus.fixdb', JSON.stringify(store));
+    return added;
+  }catch(e){ return 0; }
+}
+
+function ingestSimbrief(j){
+  const a=FLEET[F.type];
+  const g=j.general||{}, o=j.origin||{}, d=j.destination||{}, alt=j.alternate||{}, ac=j.aircraft||{}, w=j.weights||{}, f=j.fuel||{}, atc=j.atc||{};
+  // register any airports ODYSSEY doesn't already have (SimBrief uses the whole world)
+  ensureApt(o.icao_code, o); ensureApt(d.icao_code, d); ensureApt(alt.icao_code, alt);
+  // harvest the real enroute fix coordinates from this plan
+  const nFix=harvestSimbriefFixes(j); F._harvestedFixes=nFix;
+  // route — find or synthesise a route entry
+  const fromK=o.icao_code, toK=d.icao_code;
+  F.route={ from:fromK, to:toK, alt:(alt.icao_code)||F.route&&F.route.alt||toK,
+    dist:+(g.route_distance||0), altDist:+(alt.distance||0)||300, awy:(g.route||'DCT') };
+  F.callsign=(atc.callsign)||((g.icao_airline||'')+(g.flight_number||''))||F.callsign;
+  F.cruiseFL=Math.round((g.initial_altitude||F.cruiseFL*100||36000)/100);
+  F.ci=+(g.costindex||F.ci||30);
+  F.rwy=(o.plan_rwy)||F.rwy;
+  // fuel (kg)
+  const block=+(f.plan_ramp||f.plan_takeoff||0);
+  F.block=block||F.block;
+  F.fuelCalc={ trip:+(f.enroute_burn||0), cont:+(f.contingency||0), altn:+(f.alternate_burn||0),
+    fr:+(f.reserve||0), taxi:+(f.taxi||0), extra:+(f.extra||0)+ +(f.min_takeoff||0>block?0:0) };
+  // ── weights → distribute into ODYSSEY zones/holds so the trim sheet stays coherent ──
+  const zfw=+(w.est_zfw||0)*(String(w.units||'kgs').startsWith('lb')?0.4536:1);
+  const paxN=Math.round(+(w.pax_count||g.passengers||0));
+  const cargoTot=Math.max(0,+(w.cargo||w.freight_added||0));
+  // seats proportional across zones
+  const seats=a.zones; const totalSeats=Object.values(seats).reduce((s,z)=>s+z.seats,0);
+  let assigned=0, zoneKeys=Object.keys(seats);
+  F.pax={}; zoneKeys.forEach((z,idx)=>{
+    let n= idx===zoneKeys.length-1 ? Math.max(0,paxN-assigned) : Math.round(paxN*seats[z].seats/totalSeats);
+    n=Math.min(n,seats[z].seats); F.pax[z]=n; assigned+=n; });
+  // cargo across holds up to each max
+  F.holds={}; let rem=cargoTot;
+  Object.keys(a.holds).forEach(h=>{ const cap=a.holds[h].max; const put=Math.min(cap,rem); F.holds[h]=Math.round(put); rem-=put; });
+  // compute the loadsheet from these + SimBrief block fuel → consistent ZFW/TOW/CG
+  F.ls=OPS.loadsheet(a,F.pax,F.holds,F.block);
+  F.lsOk=OPS.inEnvelope(a,F.ls.towMac,F.ls.tow) && F.ls.zfw<=a.mzfw && F.ls.tow<=a.mtow;
+  F.lsSigned=true;   // SimBrief is the authority → loadsheet accepted
+  // trim (THS) from the computed CG
+  F.trim=OPS.trim(F.ls.towMac,a);
+  // ── performance / V-speeds — compute + accept, since SimBrief is the source of truth ──
+  const depApt=APT[F.route.from]||{elev:0};
+  const oat=(F.oat!=null?F.oat:(g.oat!=null?+g.oat:15));
+  F.oat=oat; F.flap=(F.flap!=null?F.flap:1);
+  const vs=OPS.vspeeds(a, F.ls.tow, F.flap, depApt.elev||0, oat, 0, false);
+  // SimBrief may provide its own V-speeds — prefer them when present, else use the computed ones
+  const sbTO=(j.tod||j.takeoff||{});
+  const tora=(depApt.rwys&&F.rwy&&depApt.rwys[F.rwy]&&depApt.rwys[F.rwy].len)||3500;
+  F.perf={ v1:+(sbTO.v1||vs.v1), vr:+(sbTO.vr||vs.vr), v2:+(sbTO.v2||vs.v2), todr:vs.todr,
+    tora:tora, margin:Math.round(tora-vs.todr), wc:{head:0,cross:0} };
+  F.perfOk = vs.todr<=tora && F.ls.tow<=a.mtow;
+  F.perfAccepted=true;   // authority accepts
+  F.flex=F.flex||(vs.todr<tora*0.85?55:'');
+  F.source='simbrief'; F.sbRaw=j;
+  // store the ready ICAO FPL for the generator
+  F.sbFpl = atc.flightplan_text || '';
+  return F.ls;
+}
+
 function resetLoad(){ const a=FLEET[F.type];
   F.pax={}; Object.keys(a.zones).forEach(z=>F.pax[z]=0);
   F.holds={}; Object.keys(a.holds).forEach(h=>F.holds[h]=0);
@@ -919,7 +1119,7 @@ function anim(fn){ let alive=true,id=null;
   const loop=(t)=>{ if(!alive)return; try{fn(t);}catch(e){console.error(e);alive=false;return;} id=requestAnimationFrame(loop); };
   id=requestAnimationFrame(loop);
   stopFns.push(()=>{alive=false;if(id)cancelAnimationFrame(id);}); }
-function fit(cv,h){ const r=cv.getBoundingClientRect(); const dpr=Math.min(2,devicePixelRatio||1);
+function fit(cv,h){ const r=cv.getBoundingClientRect(); const dpr=Math.min(3,Math.max(2,devicePixelRatio||1));
   const H=h||r.height||150, W=r.width||300;
   cv.width=Math.max(1,W*dpr); cv.height=Math.max(1,H*dpr);
   const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0);
@@ -3786,9 +3986,26 @@ function sDisp(el){
   <div class="stn-h"><div><div class="kick">Station 02 · Dispatch</div><h2>Flight Plan &amp; Fuel</h2>
     <p>Fuel is a legal minimum, not a guess: trip + 5% contingency + alternate + 30-minute final reserve + taxi.
     Every extra kilo you carry costs fuel to carry. Every kilo you skip, you'll want back at the destination.</p></div></div>
+  <div class="card srcCard" style="margin-bottom:14px">
+    <h3>Dispatch source</h3>
+    <p class="hint">Choose who plans this flight. This sets the numbers every later station uses — pick before you build the plan.</p>
+    <div class="srcRow">
+      <button class="srcBtn ${F.source!=='simbrief'?'on':''}" data-src="offline">⚙ ODYSSEY offline<small>You plan route, fuel &amp; weights</small></button>
+      <button class="srcBtn ${F.source==='simbrief'?'on':''}" data-src="simbrief">☁ SimBrief<small>Real computed plan · overwrites weights</small></button>
+    </div>
+    <div class="sbDispatch" id="sbDispatch" style="display:${F.source==='simbrief'?'block':'none'}">
+      <div class="sbRow">
+        <span class="fpLab">Pilot ID</span>
+        <input class="fpPidIn" id="sbPidD" placeholder="e.g. 1372687" value="${localStorage.getItem('odyssey.simbrief.pilotid')||''}">
+        <button class="btn primary" id="sbFetchD">☁ Fetch &amp; load SimBrief plan</button>
+      </div>
+      <p class="hint" style="margin-top:8px">Generate a plan on simbrief.com first. Fetching overwrites ODYSSEY's route, weights, fuel &amp; pax — Load &amp; Trim, Perf and the MCDU all rebuild from it.</p>
+      <div id="sbStatus" class="sbStatus"></div>
+    </div>
+  </div>
   <div class="g gB">
     <div>
-      <div class="card hl" style="margin-bottom:12px"><h3>Sector</h3>
+      <div class="card hl srcOffline" style="margin-bottom:12px"><h3>Sector</h3>
         <p class="hint">Within range of the ${F.type}${a.etops?' · ETOPS certified':''}.</p>
         <div id="rtList"></div></div>
       <div class="card"><h3>Cruise</h3>
@@ -3903,7 +4120,52 @@ function sDisp(el){
     }); })();
   if(F.route){ calc(); if(Object.keys(F.wx).length) show(!F.wx[F.route.from].sim); else pull(false); }
   else $('#fuBox').innerHTML='<div class="hint">Select a sector.</div>';
-  foot("Pick a <b>sector</b>, set the <b>cruise level</b>, confirm the <b>block fuel</b>.");
+
+  // ── dispatch source selector ──
+  function applySourceUI(){
+    $$('.srcBtn').forEach(x=>x.classList.toggle('on',x.dataset.src===(F.source||'offline')));
+    const sb=$('#sbDispatch'); if(sb) sb.style.display=F.source==='simbrief'?'block':'none';
+    // dim the offline sector/cruise/fuel cards when SimBrief is authoritative
+    $$('.g.gB .card').forEach(c=>{ c.style.opacity=F.source==='simbrief'?0.5:1; });
+    const src=$('.srcCard'); if(src) src.style.opacity=1;
+  }
+  $$('.srcBtn').forEach(b=>b.onclick=()=>{
+    const want=b.dataset.src;
+    if(want==='offline' && F.source==='simbrief'){
+      F.source='offline'; F.sbRaw=null; F.sbFpl=''; toast('Back to ODYSSEY offline dispatch — plan it yourself.','ok');
+    } else { F.source=want; }
+    applySourceUI();
+  });
+  const fetchBtn=$('#sbFetchD');
+  if(fetchBtn) fetchBtn.onclick=async ()=>{
+    const pid=($('#sbPidD').value||'').trim(); if(!pid){ $('#sbStatus').textContent='Enter your SimBrief Pilot ID first.'; return; }
+    localStorage.setItem('odyssey.simbrief.pilotid',pid);
+    $('#sbStatus').innerHTML='Fetching your latest SimBrief plan…';
+    try{
+      const j=await fetchSimbriefInto(pid);
+      // aircraft-type guard: ODYSSEY's trim model is the loaded airframe
+      const act=(j.aircraft&&j.aircraft.icaocode)||'';
+      ingestSimbrief(j);
+      const o=j.origin||{},d=j.destination||{},w=j.weights||{};
+      $('#sbStatus').innerHTML='✓ Loaded <b>'+(o.icao_code||'?')+' → '+(d.icao_code||'?')+'</b> · ZFW '+
+        ((F.ls.zfw/1000).toFixed(1))+'t · TOW '+((F.ls.tow/1000).toFixed(1))+'t · block '+((F.block/1000).toFixed(1))+'t'+
+        (act&&act!==F.type?'<br><span style="color:var(--amber)">⚠ SimBrief aircraft '+act+' differs from loaded '+F.type+' — weights imported, trim uses the '+F.type+' model.</span>':'')+
+        '<br>Load &amp; Trim, Perf and the MCDU now use these numbers. Continue to the next station.'+
+        (F._harvestedFixes?'<br><span style="color:#8fe8b8">✓ Learned '+F._harvestedFixes+' new waypoint'+(F._harvestedFixes>1?'s':'')+' from this route — they\'ll plot on the PYRGOS charts.</span>':'')+
+        '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn primary" id="sbCopyFpl">📋 Copy ICAO FPL for PYRGOS</button>'+
+        '<button class="btn" id="sbShowFpl">Show flight plan</button></div>'+
+        '<pre id="sbFplBox" style="display:none;margin-top:10px;background:#0a0906;border:1px solid #2a251c;border-radius:8px;padding:11px;font-family:var(--mono);font-size:10px;line-height:1.5;color:#8fe8b8;white-space:pre-wrap">'+(F.sbFpl||'').replace(/</g,'&lt;')+'</pre>';
+      renderHUD();
+      const cb=$('#sbCopyFpl'); if(cb) cb.onclick=()=>{ const t=F.sbFpl||''; if(navigator.clipboard) navigator.clipboard.writeText(t); toast('ICAO FPL copied — paste into PYRGOS Briefing.','ok'); };
+      const sb2=$('#sbShowFpl'); if(sb2) sb2.onclick=()=>{ const bx=$('#sbFplBox'); if(bx) bx.style.display=bx.style.display==='none'?'block':'none'; };
+      toast('SimBrief plan loaded — ODYSSEY rebuilt from it.','ok');
+      applySourceUI();
+    }catch(e){ $('#sbStatus').innerHTML='<span style="color:var(--red)">'+String(e.message||e)+'</span>'; }
+  };
+  applySourceUI();
+
+  foot("Choose your <b>dispatch source</b>, then pick a <b>sector</b> and confirm <b>block fuel</b> — or fetch it all from <b>SimBrief</b>.");
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -4542,33 +4804,176 @@ function sPrep(el){
     {id:"PERF",  ttl:"TAKE OFF",          key:"PERF"},
     {id:"FUEL",  ttl:"FUEL PRED",         key:"FUEL"}
   ];
-  const V=()=>({
+  const V=()=>{
+    const ls=F.ls||{}, perf=F.perf||{}, fc=F.fuelCalc||{}, trim=(typeof F.trim==='number'?F.trim:0);
+    const n=(x,dec)=> (x==null||isNaN(x))?'---':(x/1000).toFixed(dec==null?1:dec);
+    return {
     coRte:  dep.icao+des.icao.slice(2),
     fromTo: dep.icao+'/'+des.icao,
-    altn:   APT[F.route.alt].icao,
+    altn:   (F.route&&APT[F.route.alt]&&APT[F.route.alt].icao)||'----',
     flt:    F.callsign||'------',
-    crz:    'FL'+F.cruiseFL,
-    ci:     String(F.ci),
-    zfw:    (F.ls.zfw/1000).toFixed(1),
-    zfwcg:  F.ls.zfwMac.toFixed(1),
-    block:  (F.block/1000).toFixed(1),
-    v1:     String(F.perf.v1), vr:String(F.perf.vr), v2:String(F.perf.v2),
-    flap:   'CONF'+F.flap,
-    ths:    (F.trim>=0?'UP':'DN')+Math.abs(F.trim).toFixed(1),
+    crz:    'FL'+(F.cruiseFL||'---'),
+    ci:     String(F.ci==null?'--':F.ci),
+    zfw:    n(ls.zfw),
+    zfwcg:  (ls.zfwMac!=null&&!isNaN(ls.zfwMac))?ls.zfwMac.toFixed(1):'--.-',
+    block:  n(F.block),
+    v1:     perf.v1!=null?String(perf.v1):'---', vr:perf.vr!=null?String(perf.vr):'---', v2:perf.v2!=null?String(perf.v2):'---',
+    flap:   'CONF'+(F.flap==null?'-':F.flap),
+    ths:    (trim>=0?'UP':'DN')+Math.abs(trim).toFixed(1),
     flex:   F.flex?String(F.flex):'---',
-    rwy:    (dep.rwys[F.rwy]&&dep.rwys[F.rwy].name)||F.rwy,
-    sid:    F.sid,
-    trip:   (F.fuelCalc.trip/1000).toFixed(1),
-    rte:    F.route.awy
-  });
+    rwy:    (dep.rwys[F.rwy]&&dep.rwys[F.rwy].name)||F.rwy||'--',
+    sid:    F.sid||'',
+    trip:   n(fc.trip),
+    rte:    (F.route&&F.route.awy)||'DCT'
+  };};
   /* field → which MCDU key fills it, and what F.fmc flag it sets */
-  const FIELDS={
-    zfw:  {pg:0, side:'R', line:3, lbl:'ZFW/ZFWCG', flag:'zfw',  get:v=>v.zfw+'/'+v.zfwcg},
-    fuel: {pg:0, side:'R', line:4, lbl:'BLOCK',     flag:'fuel', get:v=>v.block},
-    route:{pg:1, side:'L', line:1, lbl:'DEPARTURE', flag:'route',get:v=>v.sid},
-    vspd: {pg:2, side:'L', line:1, lbl:'V1/VR/V2',  flag:'vspd', get:v=>v.v1+'/'+v.vr+'/'+v.v2},
-    trim: {pg:2, side:'L', line:3, lbl:'FLAPS/THS', flag:'trim', get:v=>v.flap+'/'+v.ths}
-  };
+  /* ═══════════════════════ MANUAL MCDU DATA + VALIDATION ═══════════════════════ */
+  /* every field the crew can type into, with a real validator + how to auto-fill it */
+  F.mcduData = F.mcduData || {};   // holds user-entered (or auto-filled) values
+  const MD = F.mcduData;
+
+  // helpers
+  const numRange=(min,max,dec)=>(s)=>{ if(!/^-?\d+(\.\d+)?$/.test(s)) return {err:'FORMAT ERROR'}; const n=parseFloat(s); if(n<min||n>max) return {err:'ENTRY OUT OF RANGE'}; return {val: dec!=null? n.toFixed(dec): String(n)}; };
+  const icaoV=(s)=>/^[A-Z]{4}$/.test(s)?{val:s}:{err:'FORMAT ERROR'};
+  const flV  =(s)=>/^(FL)?\d{2,3}$/.test(s)?{val:'FL'+s.replace('FL','')}:{err:'FORMAT ERROR'};
+
+  // the master field registry — keyed by page index
+  function mcduFields(){
+    const v=V(), a=FLEET[F.type], dep=APT[F.route.from], des=APT[F.route.to];
+    return {
+      // ── INIT (page 0) ──
+      fltnbr:{pg:0,side:'R',line:2,lbl:'FLT NBR', val:s=>/^[A-Z0-9]{2,8}$/.test(s)?{val:s}:{err:'FORMAT ERROR'}, auto:()=>v.flt, colr:'b'},
+      fromto:{pg:0,side:'R',line:1,lbl:'FROM/TO', val:s=>{const m=s.match(/^([A-Z]{4})\/([A-Z]{4})$/);return m?{val:s}:{err:'FORMAT ERROR'};}, auto:()=>v.fromTo, colr:'g'},
+      costidx:{pg:0,side:'L',line:4,lbl:'COST INDEX', val:numRange(0,999,0), auto:()=>v.ci, colr:'g'},
+      crzfl:{pg:0,side:'R',line:5,lbl:'CRZ FL', val:flV, auto:()=>v.crz, colr:'g'},
+      zfw:{pg:0,side:'R',line:4,lbl:'ZFW/ZFWCG', val:s=>{const m=s.match(/^(\d{2,3}(?:\.\d)?)\/(\d{2}(?:\.\d)?)$/);if(!m)return{err:'FORMAT ERROR'};const z=+m[1];if(z<35||z>64)return{err:'ENTRY OUT OF RANGE'};return{val:s};}, auto:()=>v.zfw+'/'+v.zfwcg, colr:'g'},
+      block:{pg:0,side:'R',line:6,lbl:'BLOCK', val:numRange(0,25,1), auto:()=>v.block, colr:'g'},
+      // ── F-PLN (page 1) ──
+      sid:{pg:1,side:'L',line:1,lbl:'DEPARTURE', val:s=>dep.sids.includes(s)?{val:s}:{err:'NOT IN DATA BASE'}, auto:()=>v.sid, colr:'g'},
+      // ── TAKE OFF / PERF (page 2) ──
+      v1:{pg:2,side:'L',line:1,lbl:'V1', val:numRange(100,200,0), auto:()=>String(v.v1), colr:'y'},
+      vr:{pg:2,side:'L',line:2,lbl:'VR', val:numRange(100,200,0), auto:()=>String(v.vr), colr:'y'},
+      v2:{pg:2,side:'L',line:3,lbl:'V2', val:numRange(100,200,0), auto:()=>String(v.v2), colr:'y'},
+      flaps:{pg:2,side:'L',line:4,lbl:'FLAPS', val:s=>/^[0-3]$/.test(s)?{val:s}:{err:'FORMAT ERROR'}, auto:()=>String(F.flap), colr:'g'},
+      ths:{pg:2,side:'L',line:5,lbl:'THS', val:s=>/^(UP|DN)\d(\.\d)?$/.test(s)?{val:s}:{err:'FORMAT ERROR'}, auto:()=>v.ths, colr:'g'},
+      flex:{pg:2,side:'R',line:4,lbl:'FLEX TO TEMP', val:numRange(0,75,0), auto:()=>v.flex, colr:'b'},
+      transalt:{pg:2,side:'R',line:6,lbl:'TRANS ALT', val:numRange(1000,19000,0), auto:()=>'5000', colr:'b'},
+      // ── FUEL PRED (page 3) ──
+      taxi:{pg:3,side:'L',line:5,lbl:'TAXI', val:numRange(0,2,1), auto:()=>'0.2', colr:'b'},
+    };
+  }
+
+  // cross-field validation (real MCDU logic): V1 ≤ VR ≤ V2
+  function crossValidate(key,val){
+    const g=(k)=> k===key? parseFloat(val) : (MD[k]!=null? parseFloat(MD[k]) : null);
+    if(['v1','vr','v2'].includes(key)){
+      const v1=g('v1'), vr=g('vr'), v2=g('v2');
+      if(v1!=null&&vr!=null&&v1>vr) return 'V1 ABOVE VR';
+      if(vr!=null&&v2!=null&&vr>v2) return 'VR ABOVE V2';
+    }
+    return null;
+  }
+
+  // auto-fill everything from the computed dispatch values
+  function mcduAutoFill(){
+    const fields=mcduFields();
+    Object.entries(fields).forEach(([k,f])=>{ try{ const a=f.auto(); if(a!=null&&a!=='---'&&a!=='') MD[k]=String(a); }catch(e){} });
+    M.msg='AUTO-FILLED FROM DISPATCH';
+    toast('MCDU auto-filled from the dispatch computation.','ok');
+    chk&&chk(); fmcList&&fmcList();
+  }
+
+
+  /* ═══════════════════════ MCDU STEP-BY-STEP GUIDE ═══════════════════════ */
+  // an ordered lesson: each step names the page, the field, what to type, and how to check it's done
+  function mcduGuideSteps(){
+    const v=V();
+    return [
+      {pg:0, page:'INIT', key:'fromto',  lsk:'1R', title:'Enter FROM/TO',
+        say:`Type the departure and destination as <b>${v.fromTo}</b>, then press <b>1R</b>.`,
+        type:v.fromTo, done:()=>MD.fromto!=null},
+      {pg:0, page:'INIT', key:'fltnbr',  lsk:'2R', title:'Enter the flight number',
+        say:`Type the callsign <b>${v.flt}</b>, then press <b>2R</b>.`,
+        type:v.flt, done:()=>MD.fltnbr!=null},
+      {pg:0, page:'INIT', key:'costidx', lsk:'4L', title:'Enter cost index',
+        say:`Type the cost index <b>${v.ci}</b>, then press <b>4L</b>. It balances fuel vs time.`,
+        type:v.ci, done:()=>MD.costidx!=null},
+      {pg:0, page:'INIT', key:'crzfl',   lsk:'5R', title:'Enter cruise level',
+        say:`Type <b>${v.crz.replace('FL','')}</b> for the cruise altitude, then press <b>5R</b>.`,
+        type:v.crz, done:()=>MD.crzfl!=null},
+      {pg:0, page:'INIT', key:'zfw',     lsk:'4R', title:'Enter ZFW / ZFWCG',
+        say:`Type the zero-fuel weight and CG as <b>${v.zfw}/${v.zfwcg}</b>, then press <b>4R</b>.`,
+        type:v.zfw+'/'+v.zfwcg, done:()=>MD.zfw!=null},
+      {pg:0, page:'INIT', key:'block',   lsk:'6R', title:'Enter block fuel',
+        say:`Type the block fuel <b>${v.block}</b> (tonnes), then press <b>6R</b>.`,
+        type:v.block, done:()=>MD.block!=null},
+      {pg:1, page:'F-PLN', key:'sid',    lsk:'1L', title:'Insert the departure (SID)',
+        say:`Go to <b>F-PLN</b>. Type the SID <b>${v.sid}</b>, then press <b>1L</b>.`,
+        type:v.sid, done:()=>MD.sid!=null},
+      {pg:2, page:'TAKE OFF', key:'v1',  lsk:'1L', title:'Enter V1',
+        say:`Go to <b>PERF</b>. Type <b>${v.v1}</b> for V1 (decision speed), then press <b>1L</b>.`,
+        type:v.v1, done:()=>MD.v1!=null},
+      {pg:2, page:'TAKE OFF', key:'vr',  lsk:'2L', title:'Enter VR',
+        say:`Type <b>${v.vr}</b> for VR (rotate speed), then press <b>2L</b>. Must be ≥ V1.`,
+        type:v.vr, done:()=>MD.vr!=null},
+      {pg:2, page:'TAKE OFF', key:'v2',  lsk:'3L', title:'Enter V2',
+        say:`Type <b>${v.v2}</b> for V2 (takeoff safety speed), then press <b>3L</b>. Must be ≥ VR.`,
+        type:v.v2, done:()=>MD.v2!=null},
+      {pg:2, page:'TAKE OFF', key:'flaps',lsk:'4L', title:'Enter takeoff flaps',
+        say:`Type the flap setting <b>${F.flap}</b>, then press <b>4L</b>.`,
+        type:String(F.flap), done:()=>MD.flaps!=null},
+      {pg:2, page:'TAKE OFF', key:'ths', lsk:'5L', title:'Enter the trim (THS)',
+        say:`Type the stabiliser trim <b>${v.ths}</b>, then press <b>5L</b>.`,
+        type:v.ths, done:()=>MD.ths!=null},
+    ];
+  }
+
+  function renderGuide(){
+    const host=$('#mcduGuide'); if(!host) return;
+    const steps=mcduGuideSteps();
+    const doneCount=steps.filter(s=>s.done()).length;
+    const cur=steps.find(s=>!s.done());
+    const pct=Math.round(doneCount/steps.length*100);
+    host.innerHTML=`
+      <div class="gdHead">
+        <div class="gdTitle">Step-by-step · MCDU setup</div>
+        <div class="gdProg"><div class="gdBar" style="width:${pct}%"></div></div>
+        <div class="gdCount">${doneCount}/${steps.length} done</div>
+      </div>
+      ${cur? `
+        <div class="gdNow">
+          <div class="gdStepNo">STEP ${steps.indexOf(cur)+1}</div>
+          <div class="gdStepTitle">${cur.title}</div>
+          <div class="gdSay">${cur.say}</div>
+          <div class="gdChips">
+            <span class="gdChip pg">Page: ${cur.page}</span>
+            <span class="gdChip">Type: <b>${cur.type}</b></span>
+            <span class="gdChip lsk">Key: ${cur.lsk}</span>
+          </div>
+          <div class="gdBtns">
+            <button class="gdBtn go" data-goto="${cur.pg}">Go to ${cur.page}</button>
+            <button class="gdBtn fill" data-fill="${cur.key}">Type it for me</button>
+          </div>
+        </div>` :
+        `<div class="gdDone">✓ All FMC entries complete. The box is programmed — request your clearance below.</div>`}
+      <details class="gdAll"><summary>Show all ${steps.length} steps</summary>
+        <ol class="gdList">${steps.map(s=>`<li class="${s.done()?'ok':''}"><b>${s.page} · ${s.lsk}</b> — ${s.title}${s.done()?' ✓':''}</li>`).join('')}</ol>
+      </details>`;
+    // wire
+    host.querySelectorAll('[data-goto]').forEach(btn=>btn.onclick=()=>{
+      const pg=+btn.dataset.goto; M.page=pg;
+      $$('#mFunc button').forEach(x=>x.classList.remove('on'));
+      const pk=['INIT','FPLN','PERF','FUEL'][pg]; const pb=document.querySelector('#mFunc button[data-fid="'+pk+'"]'); if(pb)pb.classList.add('on');
+      toast('Now on the '+['INIT','F-PLN','TAKE OFF','FUEL PRED'][pg]+' page.','ok');
+    });
+    host.querySelectorAll('[data-fill]').forEach(btn=>btn.onclick=()=>{
+      const step=steps.find(s=>s.key===btn.dataset.fill); if(!step) return;
+      M.page=step.pg; M.scratch=String(step.type);
+      $$('#mFunc button').forEach(x=>x.classList.remove('on'));
+      const pk=['INIT','FPLN','PERF','FUEL'][step.pg]; const pb=document.querySelector('#mFunc button[data-fid="'+pk+'"]'); if(pb)pb.classList.add('on');
+      toast('Value is in the scratchpad. Now press '+step.lsk+' to insert it.','ok');
+    });
+  }
 
   el.innerHTML=`
   <div class="stn-h"><div><div class="kick">Station 06 · Cockpit prep</div><h2>MCDU, Panel Flow &amp; Clearance</h2>
@@ -4576,9 +4981,11 @@ function sPrep(el){
     and it will fly the wrong numbers. Use the <b>line-select keys</b> down the sides, exactly as you would on the flight deck.</p></div></div>
   <div class="g gC">
     <div>
-      <div class="card hl" style="margin-bottom:12px"><h3>FMC entry</h3>
-        <p class="hint">Five fields must reach the box. Select a page, then press the LSK next to the field.</p>
-        <div id="fmcL"></div></div>
+      <div class="card hl" style="margin-bottom:12px"><h3>FMC entry — guided</h3>
+        <p class="hint">Follow the steps to program the box, or use AUTO FILL on the MCDU. The guide tracks your progress live.</p>
+        <div id="mcduGuide" class="mcduGuide"></div>
+        <details class="fmcChecklist"><summary>Field checklist</summary><div id="fmcL"></div></details>
+      </div>
       <div class="card"><h3>Departure clearance</h3><div id="clrB2"></div>
         <div class="btnrow"><button class="btn primary" id="getC">Request clearance</button></div></div>
     </div>
@@ -4587,12 +4994,18 @@ function sPrep(el){
         <!-- THE MCDU -->
         <div class="mcdu" id="mcduBox">
           <div class="mcHead"><span>MCDU</span><span>${a.reg}</span></div>
-          <div class="mScr"><canvas id="mcCv" height="336"></canvas>
-            <div class="lsk L">${[1,2,3,4,5,6].map(i=>`<button data-s="L" data-l="${i}" title="LSK ${i}L"></button>`).join('')}</div>
-            <div class="lsk R">${[1,2,3,4,5,6].map(i=>`<button data-s="R" data-l="${i}" title="LSK ${i}R"></button>`).join('')}</div>
+          <div class="mScr"><canvas id="mcCv" height="344"></canvas>
+            <div class="lsk L">${[1,2,3,4,5,6].map(i=>`<button data-s="L" data-l="${i}" title="Line-select key ${i}L"><span class="lskLbl">${i}L</span></button>`).join('')}</div>
+            <div class="lsk R">${[1,2,3,4,5,6].map(i=>`<button data-s="R" data-l="${i}" title="Line-select key ${i}R"><span class="lskLbl">${i}R</span></button>`).join('')}</div>
           </div>
-          <div class="mPg">${PAGES.map((p,i)=>`<button data-p="${i}" class="${M.page===i?'on':''}">${p.key}</button>`).join('')}</div>
+          <!-- real A320 function-key block: two rows of 6 + airport/slew row -->
+          <div class="mFunc" id="mFunc"></div>
           <div class="mKeys" id="mKeys"></div>
+          <div class="mAuto">
+            <button class="mAutoBtn" id="mcduAuto" title="Auto-fill every field from the dispatch computation">▣ AUTO FILL</button>
+            <button class="mAutoBtn clr" id="mcduClearAll" title="Clear all entered values">▢ CLEAR ALL</button>
+          </div>
+          <div class="mBright"><span class="knob"></span> BRT · MCDU · DIM</div>
         </div>
         <!-- OVERHEAD PANEL -->
         <div class="cv" style="margin:0"><span class="tag">Overhead panel · flow</span>
@@ -4607,71 +5020,72 @@ function sPrep(el){
 
   /* ═══ MCDU rendering ═══ */
   function mcduLines(){
-    const v=V(), pg=M.page;
+    const v=V(), pg=M.page, dep=APT[F.route.from], des=APT[F.route.to], a=FLEET[F.type];
+    const _trip=(F.fuelCalc&&F.fuelCalc.trip)||0, _block=F.block||0, _tow=(F.ls&&F.ls.tow)||0, _towMac=(F.ls&&F.ls.towMac)||28;
     const L=[];
-    const dash=(f)=>F.fmc[f]?null:'□□□□□';
+    // value or amber boxes if empty; returns [text, colorCode]
+    const fld=(key,boxes,filledCol)=> MD[key]!=null ? [MD[key], filledCol||'g'] : [boxes||'□□□□□','a'];
     if(pg===0){
+      const ft=fld('fromto','□□□□/□□□□','g'), fn=fld('fltnbr','________','b');
+      const ci=fld('costidx','___','g'), zf=fld('zfw','__._/__._','g');
+      const cz=fld('crzfl','□□□□□','g'), bl=fld('block','__._','g');
       L.push(['','INIT',''],
-        ['CO RTE','FROM/TO'],[v.coRte,v.fromTo,'g'],
-        ['ALTN/CO RTE','FLT NBR'],[v.altn+'/NONE',v.flt,'b'],
-        ['LAT','LONG'],['----.-','-----.-','d'],
-        ['COST INDEX','ZFW/ZFWCG'],[v.ci, F.fmc.zfw?(v.zfw+'/'+v.zfwcg):'--.-/--.-', F.fmc.zfw?'y':'d'],
-        ['CRZ FL/TEMP','BLOCK'],[v.crz+'/-56°', F.fmc.fuel?v.block:'--.-', F.fmc.fuel?'y':'d'],
+        ['CO RTE','FROM/TO'],['', ft[0], 'w', ft[1]],
+        ['ALTN/CO RTE','FLT NBR'],[v.altn+'/NONE', fn[0], 'b', fn[1]],
+        ['LAT','LONG'],['----.-','-----.-','d','d'],
+        ['COST INDEX','ZFW/ZFWCG'],[ci[0], zf[0], ci[1], zf[1]],
+        ['CRZ FL/TEMP','BLOCK'],[cz[0]+'/-56°', bl[0], cz[1], bl[1]],
         ['','']);
     } else if(pg===1){
+      const sid=fld('sid','□□□□□','g');
       L.push(['','F-PLN  '+dep.icao+'/'+des.icao,''],
         ['','TIME  SPD/ALT'],
-        [F.fmc.route?v.sid:'□□□□□','---- ---/-----', F.fmc.route?'g':'d'],
+        [sid[0],'---- ---/-----', sid[1],'d'],
         ['','C'],
-        [dep.icao+'  '+v.rwy,'0000  ---/'+dep.elev,'b'],
+        [dep.icao+'  '+v.rwy,'0000  ---/'+dep.elev,'b','b'],
         ['',''],
-        [v.rte,'----  M'+a.cruise.mach.toFixed(2)+'/'+v.crz,'b'],
+        [v.rte||'DCT','----  M'+a.cruise.mach.toFixed(2)+'/'+(MD.crzfl||v.crz),'b','b'],
         ['',''],
-        [des.icao,'----  ---/'+des.elev,'b'],
-        ['',''],
+        [des.icao,'----  ---/'+des.elev,'b','b'],
         ['DEST   EFOB','DIST'],
-        [des.icao+'  '+((F.block-F.fuelCalc.trip)/1000).toFixed(1),String(F.route.dist),'y']);
+        [des.icao+'  '+((_block-_trip)/1000).toFixed(1),String(F.route.dist||0),'y','y']);
     } else if(pg===2){
+      const v1=fld('v1','□□□','y'),vr=fld('vr','□□□','y'),v2=fld('v2','□□□','y');
+      const fl=fld('flaps','□','g'),th=fld('ths','□□□','g'),fx=fld('flex','___','b'),ta=fld('transalt','_____','b');
       L.push(['','TAKE OFF',''],
-        ['V1','FLP RETR'],
-        [F.fmc.vspd?v.v1:'□□□','F=---','y'],
-        ['VR','SLT RETR'],
-        [F.fmc.vspd?v.vr:'□□□','S=---','y'],
-        ['V2','CLEAN'],
-        [F.fmc.vspd?v.v2:'□□□','O=---','y'],
-        ['FLAPS/THS','FLEX TO TEMP'],
-        [F.fmc.trim?(v.flap+'/'+v.ths):'□□□□/□□□', v.flex, F.fmc.trim?'g':'d'],
-        ['THR RED/ACC','ENG OUT ACC'],
-        ['1500/1500','1500','b'],
-        ['RWY','TRANS ALT'],
-        [v.rwy,'5000','b']);
+        ['V1','FLP RETR'],[v1[0],'F=---', v1[1],'d'],
+        ['VR','SLT RETR'],[vr[0],'S=---', vr[1],'d'],
+        ['V2','CLEAN'],[v2[0],'O=---', v2[1],'d'],
+        ['FLAPS/THS','FLEX TO TEMP'],[fl[0]+'/'+th[0], fx[0], fl[1], fx[1]],
+        ['THR RED/ACC','ENG OUT ACC'],['1500/1500','1500','b','b'],
+        ['RWY','TRANS ALT'],[v.rwy, ta[0], 'b', ta[1]]);
     } else {
+      const tx=fld('taxi','_._','b');
       L.push(['','FUEL PRED',''],
         ['AT','UTC   EFOB'],
-        [des.icao,'----  '+((F.block-F.fuelCalc.trip)/1000).toFixed(1),'g'],
+        [des.icao,'----  '+((_block-_trip)/1000).toFixed(1),'g','g'],
         ['',''],
-        [APT[F.route.alt].icao,'----  '+((F.block-F.fuelCalc.trip-F.fuelCalc.altn)/1000).toFixed(1),'b'],
-        ['RTE RSV/%','BLOCK'],
-        [(F.fuelCalc.cont/1000).toFixed(1)+'/5.0', F.fmc.fuel?v.block:'--.-', F.fmc.fuel?'y':'d'],
-        ['ALTN','TRIP/TIME'],
-        [(F.fuelCalc.altn/1000).toFixed(1), v.trip,'b'],
-        ['FINAL/TIME','TOW'],
-        [(F.fuelCalc.fr/1000).toFixed(1)+'/0030',(F.ls.tow/1000).toFixed(1),'y'],
+        [(APT[F.route.alt]&&APT[F.route.alt].icao||'----'),'----  '+(((_block-_trip)/1000)-1.2).toFixed(1),'b','b'],
+        ['GW/CG',''],[(_tow/1000).toFixed(1)+'/'+_towMac.toFixed(1),'','g'],
+        ['TAXI','BLOCK'],[tx[0], (F.block/1000).toFixed(1), tx[1],'g'],
         ['','']);
     }
     return L;
   }
-  const CLR={g:'#3ee08f',b:'#6bb7ff',y:'#ffd98a',d:'#4a5a4a',w:'#f6f1e8'};
+  const CLR={g:'#4ade7a',b:'#3db8f5',y:'#e8c84a',d:'#3a5a4a',w:'#f4f4ec',a:'#e89a3c',m:'#e070e0',c:'#3db8f5'};
   (function(){ const cv=$('#mcCv'); let bt=0;
-    anim(()=>{ const {c,W,H}=fit(cv,336); if(!W)return; bt+=0.05;
-      c.fillStyle='#04120a'; c.fillRect(0,0,W,H);
+    anim(()=>{ const {c,W,H}=fit(cv,344); if(!W)return; bt+=0.05;
+      // authentic Airbus CRT: near-black background with subtle vignette
+      c.textBaseline='alphabetic'; if('imageSmoothingQuality' in c) c.imageSmoothingQuality='high';
+      const bgg=c.createLinearGradient(0,0,0,H); bgg.addColorStop(0,'#010604'); bgg.addColorStop(.5,'#020e08'); bgg.addColorStop(1,'#010604');
+      c.fillStyle=bgg; c.fillRect(0,0,W,H);
       const L=mcduLines();
       const PAD=9;
       // title + page counter (real MCDUs always tell you where you are)
-      c.fillStyle='#f6f1e8'; c.font='bold 11px ui-monospace'; c.textAlign='center';
-      c.fillText(L[0][1],W/2,15);
-      c.fillStyle='#3ee08f'; c.font='8px ui-monospace'; c.textAlign='right';
-      c.fillText((M.page+1)+'/'+PAGES.length, W-PAD, 15);
+      c.fillStyle='#f4f4ec'; c.font='bold 12px "Courier New",ui-monospace'; c.textAlign='center';
+      c.fillText(L[0][1],W/2,16);
+      c.fillStyle='#4ade7a'; c.font='9px "Courier New",ui-monospace'; c.textAlign='right';
+      c.fillText((M.page+1)+'/'+PAGES.length, W-PAD, 16);
       c.textAlign='left';
       c.strokeStyle='rgba(62,224,143,.22)'; c.lineWidth=1;
       c.beginPath(); c.moveTo(PAD,20); c.lineTo(W-PAD,20); c.stroke();
@@ -4684,12 +5098,12 @@ function sPrep(el){
         if(!lab) break;
         const cy=LSK0+k*LSKSTEP;
         const y=cy-7;
-        c.font='7px ui-monospace'; c.fillStyle='#59705c';
+        c.font='8px "Courier New",ui-monospace'; c.fillStyle='#6a8a6d';
         c.fillText(lab[0]||'',PAD,y);
         c.textAlign='right'; c.fillText(lab[1]||'',W-PAD,y); c.textAlign='left';
         if(val){
-          c.font='12px ui-monospace';
-          const cl=CLR[val[2]||'w']||'#f6f1e8';
+          c.font='13px "Courier New",ui-monospace';
+          const cl=CLR[val[2]||'w']||'#f4f4ec';
           const vy=cy+5;
           // LSK arrows: the screen shows you which side is selectable
           if(val[0]){ c.fillStyle=cl; c.fillText('←'+(val[0]||''),PAD,vy); }
@@ -4705,56 +5119,89 @@ function sPrep(el){
       else { c.fillStyle='#f6f1e8'; c.fillText(M.scratch,PAD,H-8);
         if(Math.sin(bt)>0){ c.fillStyle='#3ee08f';
           c.fillRect(PAD+c.measureText(M.scratch).width+1,H-18,7,12); } }
-      for(let sy=0;sy<H;sy+=3){ c.fillStyle='rgba(0,0,0,.20)'; c.fillRect(0,sy,W,1); }
-      const gg=c.createRadialGradient(W/2,H/2,10,W/2,H/2,H*0.85);
-      gg.addColorStop(0,'rgba(62,224,143,.06)'); gg.addColorStop(1,'rgba(62,224,143,0)');
+      for(let sy=0;sy<H;sy+=4){ c.fillStyle='rgba(0,0,0,.07)'; c.fillRect(0,sy,W,1); }
+      const gg=c.createRadialGradient(W/2,H/2,10,W/2,H/2,H*0.9);
+      gg.addColorStop(0,'rgba(74,222,122,.035)'); gg.addColorStop(1,'rgba(74,222,122,0)');
       c.fillStyle=gg; c.fillRect(0,0,W,H);
     });
   })();
-  // MCDU keypad
-  $('#mKeys').innerHTML=['A','B','C','D','E','F','G','1','2','3','H','I','J','K','L','M','N','4','5','6',
-    'O','P','Q','R','S','T','U','7','8','9','V','W','X','Y','Z','/','.','CLR','0','←']
-    .map(k=>`<button data-k="${k}">${k}</button>`).join('');
+  // ── real A320 function-key block ──
+  // map each real page key to one of our PAGES by id (only the ones we implement are active)
+  const PAGEIDX={}; PAGES.forEach((p,i)=>PAGEIDX[p.id]=i);
+  const FUNC=[
+    {t:'DIR',id:'DIR'},{t:'PROG',id:'PROG'},{t:'PERF',id:'PERF'},{t:'INIT',id:'INIT'},{t:'DATA',id:'DATA'},{t:'',blank:true},
+    {t:'F-PLN',id:'FPLN'},{t:'RAD<br>NAV',id:'RADNAV'},{t:'FUEL<br>PRED',id:'FUEL'},{t:'SEC<br>F-PLN',id:'SEC'},{t:'ATC<br>COMM',id:'ATC'},{t:'MCDU<br>MENU',id:'MENU'},
+    {t:'AIRPORT',id:'AIRPORT',cls:'airport'},{t:'',blank:true},{t:'◄',slew:true,k:'slewL'},{t:'►',slew:true,k:'slewR'},{t:'▲',slew:true,k:'slewU'},{t:'▼',slew:true,k:'slewD'}
+  ];
+  $('#mFunc').innerHTML=FUNC.map(f=>{
+    if(f.blank) return '<button class="blank"></button>';
+    const active = f.id && PAGEIDX[f.id]!=null;
+    const cls=['',f.cls||'',f.slew?'slew':'',active&&M.page===PAGEIDX[f.id]?'on':''].filter(Boolean).join(' ');
+    return `<button class="${cls}" data-fid="${f.id||''}" ${f.k?`data-k="${f.k}"`:''} title="${(f.t||'').replace(/<br>/,' ')}">${f.t}</button>`;
+  }).join('');
+  $$('#mFunc button:not(.blank)').forEach(b=>b.onclick=()=>{
+    if(b.dataset.k){ /* slew keys — page scroll hooks (no-op for now) */ M.msg=''; return; }
+    const id=b.dataset.fid; if(id!=null && PAGEIDX[id]!=null){ M.page=PAGEIDX[id]; M.msg='';
+      $$('#mFunc button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    } else if(id){ M.msg=id+' NOT IN THIS TRAINER'; }
+  });
+
+  // ── alphanumeric keypad — real MCDU grid (5 cols): letters A–Z, then digits + symbols ──
+  $('#mKeys').innerHTML=['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+    '/','SP','OVFY','CLR','1','2','3','4','5','6','7','8','9','.','0','+/-']
+    .map(k=>`<button data-k="${k}">${k==='OVFY'?'Δ':k}</button>`).join('');
   $$('#mKeys button').forEach(b=>b.onclick=()=>typeKey(b.dataset.k));
   function typeKey(k){
     M.msg="";
-    if(k==='CLR'||k==='←'){ M.scratch=M.scratch.slice(0,-1); return; }
+    if(k==='CLR'){ M.scratch=M.scratch.slice(0,-1); return; }
+    if(k==='SP'){ if(M.scratch.length<22)M.scratch+=' '; return; }
+    if(k==='OVFY'){ if(M.scratch.length<22)M.scratch+='Δ'; return; }
+    if(k==='+/-'){ M.scratch = M.scratch.startsWith('-')?M.scratch.slice(1):('-'+M.scratch); return; }
     if(M.scratch.length<22) M.scratch+=k;
+   
   }
-  $$('.mPg button').forEach(b=>b.onclick=()=>{ M.page=+b.dataset.p; M.msg="";
-    $$('.mPg button').forEach(x=>x.classList.toggle('on',x===b)); });
   $$('.lsk button').forEach(b=>b.onclick=()=>lsk(b.dataset.s,+b.dataset.l));
+  const _af=$('#mcduAuto'); if(_af) _af.onclick=()=>mcduAutoFill();
+  const _ca=$('#mcduClearAll'); if(_ca) _ca.onclick=()=>{ Object.keys(MD).forEach(k=>delete MD[k]); if(F.fmc){Object.keys(F.fmc).forEach(k=>F.fmc[k]=false);} M.msg='ALL FIELDS CLEARED'; toast('MCDU cleared — enter values manually.','ok'); chk&&chk(); fmcList&&fmcList(); };
 
   function lsk(side,line){
-    // which field lives at this page/side/line?
-    const hit=Object.entries(FIELDS).find(([k,f])=>f.pg===M.page&&f.side===side&&f.line===line);
-    if(!hit){ M.msg="NOT ALLOWED"; setTimeout(()=>{M.msg="";},1300); return; }
+    const fields=mcduFields();
+    const hit=Object.entries(fields).find(([k,f])=>f.pg===M.page&&f.side===side&&f.line===line);
+    if(!hit){ M.msg="NOT ALLOWED"; setTimeout(()=>{if(M.msg==="NOT ALLOWED")M.msg="";},1300); return; }
     const [key,f]=hit;
-    const want=f.get(V());
     if(M.scratch){
-      if(M.scratch.replace(/\s/g,'').toUpperCase()===want.replace(/\s/g,'').toUpperCase()){
-        F.fmc[f.flag]=true; M.scratch=""; M.msg="";
-        toast(f.lbl+" entered.","ok"); chk(); fmcList();
-      } else { M.msg="ENTRY OUT OF RANGE"; setTimeout(()=>{M.msg="";},1600);
-        toast("The box rejected that. It wants "+want+".","warn"); }
+      // CLR in scratchpad next to a field clears that field
+      if(M.scratch==='CLR'||M.scratch==='*DELETE*'){ delete MD[key]; delete (F.fmc||{})[f.flag||key]; M.scratch=''; M.msg=''; toast(f.lbl+' cleared.','ok'); chk&&chk(); fmcList&&fmcList(); return; }
+      const raw=M.scratch.trim().toUpperCase();
+      const res=f.val(raw);
+      if(res.err){ M.msg=res.err; setTimeout(()=>{if(M.msg===res.err)M.msg="";},1800);
+        toast('Rejected: '+res.err,'warn'); return; }
+      const xerr=crossValidate(key,res.val);
+      if(xerr){ M.msg=xerr; setTimeout(()=>{if(M.msg===xerr)M.msg="";},1800); toast('Rejected: '+xerr,'warn'); return; }
+      MD[key]=res.val; if(F.fmc) F.fmc[f.flag||key]=true; M.scratch=''; M.msg='';
+      toast(f.lbl+' entered: '+res.val,'ok'); chk&&chk(); fmcList&&fmcList();
     } else {
-      // empty scratchpad on an empty field = pull the computed value into the scratchpad
-      M.scratch=want; M.msg="";
-      toast("Computed value in the scratchpad. Press the LSK again to insert it.","ok");
+      // empty scratchpad + field has a value → copy it DOWN to the scratchpad (real MCDU behaviour)
+      if(MD[key]!=null){ M.scratch=MD[key]; M.msg=''; }
+      else { M.msg='NO DATA'; setTimeout(()=>{if(M.msg==='NO DATA')M.msg='';},1200); }
     }
   }
   function fmcList(){
-    $('#fmcL').innerHTML=Object.entries(FIELDS).map(([k,f])=>{
-      const v=f.get(V());
-      return `<div class="chk ${F.fmc[f.flag]?'on':''}" data-f="${k}"><span class="bx">✓</span>
+    const fields=mcduFields();
+    const MANDATORY=['fromto','fltnbr','costidx','crzfl','zfw','block','sid','v1','vr','v2','flaps','ths'];
+    $('#fmcL').innerHTML=MANDATORY.map(k=>{ const f=fields[k]; if(!f) return '';
+      const entered=MD[k]!=null;
+      return `<div class="chk ${entered?'on':''}" data-f="${k}"><span class="bx">✓</span>
         <span class="nm">${f.lbl} <span style="color:var(--faint)">· ${PAGES[f.pg].ttl} · ${f.side}${f.line}</span></span>
-        <span class="st2">${v}</span></div>`;}).join('');
-    $$('#fmcL .chk').forEach(c=>c.onclick=()=>{ const f=FIELDS[c.dataset.f];
-      M.page=f.pg; $$('.mPg button').forEach(x=>x.classList.toggle('on',+x.dataset.p===f.pg));
-      M.scratch=f.get(V());
-      toast("Jumped to "+PAGES[f.pg].ttl+". Press "+f.side+f.line+" to insert.","ok"); });
+        <span class="st2">${entered?MD[k]:'—'}</span></div>`;}).join('');
+    $$('#fmcL .chk').forEach(c=>c.onclick=()=>{ const f=fields[c.dataset.f];
+      M.page=f.pg; $$('#mFunc button').forEach(x=>x.classList.remove('on'));
+      const pgKey=['INIT','FPLN','PERF','FUEL'][f.pg]; const pb=document.querySelector('#mFunc button[data-fid="'+pgKey+'"]'); if(pb)pb.classList.add('on');
+      toast("Jumped to "+PAGES[f.pg].ttl+". Type the value, then press "+f.side+f.line+".","ok"); });
+    if(typeof renderGuide==='function') renderGuide();
   }
   fmcList();
+  if(typeof renderGuide==='function') renderGuide();
 
   /* ═══ OVERHEAD PANEL — switches that actually move ═══ */
   const anim0={};
@@ -4893,7 +5340,10 @@ function sPrep(el){
 
   function chk(){
     const need=PANEL.filter(p=>!p.optional).map(p=>p.k);
-    F.prepDone = need.every(k=>F.prep[k]) && Object.values(FIELDS).every(f=>F.fmc[f.flag]);
+    // mandatory MCDU fields that must be entered before prep is complete
+    const MANDATORY=['fromto','fltnbr','costidx','crzfl','zfw','block','sid','v1','vr','v2','flaps','ths'];
+    const allFmc = MANDATORY.every(k=>MD[k]!=null);
+    F.prepDone = need.every(k=>F.prep[k]) && allFmc;
     renderHUD();
   }
   chk();
@@ -7146,7 +7596,10 @@ function sBrief(el){
    ══════════════════════════════════════════════════════════════ */
 function showDocs(){
   if(!F.route){ modal(`<h3>No documents yet</h3><p>Plan the flight first — the OFP, loadsheet and takeoff card are generated from your own numbers.</p>`); return; }
-  const a=FLEET[F.type], dep=APT[F.route.from], des=APT[F.route.to], f=F.fuelCalc;
+  // guard: SimBrief may reference airports not in ODYSSEY's table — register stubs so nothing crashes
+  if(typeof ensureApt==='function'){ ensureApt(F.route.from); ensureApt(F.route.to); ensureApt(F.route.alt); }
+  const a=FLEET[F.type], dep=APT[F.route.from]||{icao:F.route.from,rwys:{},elev:0}, des=APT[F.route.to]||{icao:F.route.to,rwys:{},elev:0}, f=F.fuelCalc||{};
+  const altObj=APT[F.route.alt]||{icao:F.route.alt||'----'};
   const ofp=`<div class="doc"><h4>OPERATIONAL FLIGHT PLAN</h4>
     <div style="font-size:8.5px;color:#6b6250">${F.callsign||'—'} · ${new Date().toISOString().slice(0,10)} · ${nowZ()}</div>
     <div class="dl"></div><div class="sec">Flight</div>
@@ -7156,7 +7609,7 @@ function showDocs(){
     <div class="r"><span>Airway</span><span>${F.route.awy}</span></div>
     <div class="r"><span>Distance</span><span>${F.route.dist} NM</span></div>
     <div class="r"><span>Cruise</span><span>FL${F.cruiseFL} · M${a.cruise.mach}</span></div>
-    <div class="r"><span>Alternate</span><span>${APT[F.route.alt].icao} (${F.route.altDist} NM)</span></div>
+    <div class="r"><span>Alternate</span><span>${altObj.icao} (${F.route.altDist} NM)</span></div>
     ${f?`<div class="dl"></div><div class="sec">Fuel plan (kg)</div>
     <div class="r"><span>Trip</span><span>${fmt(f.trip)}</span></div>
     <div class="r"><span>Contingency 5%</span><span>${fmt(f.cont)}</span></div>
@@ -7198,7 +7651,7 @@ function showDocs(){
     <div class="r"><span>TOW</span><span>${fmt(F.ls.tow)} kg</span></div>
     <div class="r"><span>CG / THS</span><span>${F.ls.towMac.toFixed(1)}% / ${F.trim.toFixed(1)}</span></div>
     <div class="r"><span>OAT</span><span>${F.oat}°C</span></div>
-    <div class="r"><span>Wind component</span><span>${F.perf.wc.head>=0?'+':''}${F.perf.wc.head} kt · X${Math.abs(F.perf.wc.cross)}</span></div>
+    <div class="r"><span>Wind component</span><span>${((F.perf.wc&&F.perf.wc.head)||0)>=0?'+':''}${((F.perf.wc&&F.perf.wc.head)||0)} kt · X${Math.abs(((F.perf.wc&&F.perf.wc.cross)||0))}</span></div>
     <div class="r"><span>Flap / thrust</span><span>CONF ${F.flap} · ${F.thrust}${F.flex?' FLEX '+F.flex+'°':''}</span></div>
     <div class="dl"></div>
     <div class="r"><span><b>V1</b></span><span><b>${F.perf.v1} kt</b></span></div>
@@ -7209,10 +7662,256 @@ function showDocs(){
     <div class="r"><span>Margin</span><span>${F.perf.margin>=0?'+':''}${fmt(F.perf.margin)} m</span></div>
     <div class="r"><span>Status</span><span>${F.perfOk?'✓ ACCEPTABLE':'✗ FIELD LENGTH FAIL'}</span></div>
   </div>`:'';
+  const fpgenPanel=`
+    <div class="doc fpgen" style="margin-top:14px">
+      <h4>FLIGHT PLAN GENERATOR</h4>
+      <p style="font-size:9px;color:#6b6250;margin:4px 0 10px">Generate an OFP + ICAO flight plan for ATC. The ICAO block is read directly by PYRGOS Briefing.</p>
+      <div class="fpMethod">
+        <span class="fpLab">Method</span>
+        <button class="fpBtn on" data-method="offline">⚙ Offline generator</button>
+        <button class="fpBtn" data-method="simbrief" title="Real computed plan via SimBrief">☁ SimBrief (online)</button>
+      </div>
+      <div class="fpPid" id="fpPid" style="display:none">
+        <span class="fpLab">Pilot ID</span>
+        <input class="fpPidIn" id="sbPid" placeholder="e.g. 1372687" spellcheck="false">
+        <span class="fpPidNote">Generate a plan on simbrief.com first, then fetch your latest.</span>
+      </div>
+      <div class="fpStyles" id="fpStyles">
+        <span class="fpLab">OFP format</span>
+        <button class="fpStyle on" data-style="lido">Lido / Flight</button>
+        <button class="fpStyle" data-style="jeppesen">Jeppesen</button>
+        <button class="fpStyle" data-style="jetplan">JetPlan</button>
+      </div>
+      <div class="fpBtnRow">
+        <button class="btn primary" id="fpGen">Generate flight plan</button>
+        <button class="btn" id="fpCopyFpl" style="display:none">📋 Copy ICAO FPL</button>
+        <button class="btn" id="fpCopyAll" style="display:none">📋 Copy full OFP</button>
+      </div>
+      <pre class="fpOut" id="fpOut" style="display:none"></pre>
+      <div class="fpHint" id="fpHint" style="display:none"></div>
+    </div>`;
   modal(`<h3>Flight documents</h3><p style="margin-bottom:14px">Generated entirely from your own numbers.</p>
-    ${ofp}${ls}${tc}<div class="btnrow"><button class="btn" id="prn">🖨 Print / save as PDF</button></div>`);
+    ${ofp}${ls}${tc}${fpgenPanel}<div class="btnrow"><button class="btn" id="prn">🖨 Print / save as PDF</button></div>`);
   $('#prn').onclick=()=>window.print();
+  wireFpGen();
 }
+
+/* ── flight-plan generator UI wiring ── */
+function stripHtml(h){ const t=document.createElement('div'); t.innerHTML=h; return (t.textContent||'').replace(/\n{3,}/g,'\n\n').trim(); }
+function sbSummary(j){ const g=j.general||{},o=j.origin||{},d=j.destination||{},ac=j.aircraft||{},f=j.fuel||{},w=j.weights||{};
+  return ['SIMBREF OFP  ·  '+(j.params&&j.params.time_generated?new Date(j.params.time_generated*1000).toISOString().slice(0,16).replace('T',' '):'')+'Z',
+    '', 'FLIGHT   '+(g.icao_airline||'')+(g.flight_number||'')+'   '+(o.icao_code||'')+' → '+(d.icao_code||''),
+    'A/C      '+(ac.icaocode||'')+'/'+(ac.wtc||'')+'   REG '+(ac.reg||''),
+    'ROUTE    '+(g.route||''),
+    'CRZ      FL'+(g.initial_altitude?(''+Math.round(g.initial_altitude/100)).padStart(3,'0'):'---')+'   CI '+(g.costindex||'---')+'   DIST '+(g.route_distance||'?')+' NM',
+    'FUEL     BLOCK '+(f.plan_ramp||'?')+' kg   TRIP '+(f.enroute_burn||'?')+' kg',
+    'WEIGHTS  ZFW '+(w.est_zfw||'?')+'   TOW '+(w.est_tow||'?')+' kg'].join('\n'); }
+function buildFplFromSb(j){ const g=j.general||{},o=j.origin||{},d=j.destination||{},ac=j.aircraft||{},atc=j.atc||{};
+  const cs=(atc.callsign)||((g.icao_airline||'')+(g.flight_number||''));
+  return '(FPL-'+cs+'-IS\n-'+(ac.icaocode||'')+'/'+(ac.wtc||'M')+'-'+(atc.equipment||'SDFGHIRWY')+'/'+(atc.transponder||'S')+
+    '\n-'+(o.icao_code||'')+(atc.dep_time||'0000')+'\n-N0'+(g.cruise_tas||'450')+'F'+((''+Math.round((g.initial_altitude||36000)/100)).padStart(3,'0'))+' '+(g.route||'DCT')+
+    '\n-'+(d.icao_code||'')+(atc.eet||'0000')+' '+((j.alternate&&j.alternate.icao_code)||'')+
+    '\n-'+(atc.section18||('PBN/A1B1 DOF/000000 REG/'+(ac.reg||'')))+')'; }
+function wireFpGen(){
+  let method='offline', style='lido', lastFpl='', lastOfp='';
+  const out=$('#fpOut'), hint=$('#fpHint');
+  // prefill saved Pilot ID
+  const savedPid=localStorage.getItem('odyssey.simbrief.pilotid'); if(savedPid&&$('#sbPid')) $('#sbPid').value=savedPid;
+  function syncMethod(){
+    $('#fpStyles').style.opacity = method==='simbrief'?0.4:1;
+    $('#fpStyles').style.pointerEvents = method==='simbrief'?'none':'auto';
+    if($('#fpPid')) $('#fpPid').style.display = method==='simbrief'?'flex':'none';
+    if($('#fpGen')) $('#fpGen').textContent = method==='simbrief'?'☁ Fetch latest SimBrief plan':'Generate flight plan';
+  }
+  $$('.fpBtn').forEach(b=>b.onclick=()=>{ method=b.dataset.method; $$('.fpBtn').forEach(x=>x.classList.toggle('on',x===b)); syncMethod(); });
+  $$('.fpStyle').forEach(b=>b.onclick=()=>{ style=b.dataset.style; $$('.fpStyle').forEach(x=>x.classList.toggle('on',x===b));
+    if(lastOfp){ $('#fpGen').click(); } });
+  const SB_PROXY='https://simbrief-proxy.jhrishi7.workers.dev';
+  const SB_IDKEY='odyssey.simbrief.pilotid';
+  $('#fpGen').onclick=async ()=>{
+    if(method==='simbrief'){
+      const pid=($('#sbPid')&&$('#sbPid').value.trim())||localStorage.getItem(SB_IDKEY)||'';
+      if(!pid){ out.style.display='block'; out.textContent='Enter your SimBrief Pilot ID above, then fetch.'; return; }
+      localStorage.setItem(SB_IDKEY,pid);
+      out.style.display='block'; out.textContent='Fetching your latest SimBrief plan…';
+      hint.style.display='none';
+      try{
+        const r=await fetch(SB_PROXY+'/?userid='+encodeURIComponent(pid),{cache:'no-store'});
+        const j=await r.json();
+        if(!r.ok || j.error){ out.textContent='SimBrief: '+(j.error||('HTTP '+r.status))+(j.hint?'\n\n'+j.hint:''); return; }
+        // extract the ready-made ICAO FPL + OFP text from the SimBrief JSON
+        const atc=j.atc||{}, gen=j.general||{}, o=j.origin||{}, d=j.destination||{}, ac=j.aircraft||{};
+        lastFpl = atc.flightplan_text || buildFplFromSb(j);
+        const ofpText = (j.text&&j.text.plan_html) ? stripHtml(j.text.plan_html) : sbSummary(j);
+        lastOfp = ofpText;
+        out.textContent = ofpText + '\n\n[ ATC FLIGHT PLAN — from SimBrief ]\n' + lastFpl;
+        $('#fpCopyFpl').style.display='inline-block'; $('#fpCopyAll').style.display='inline-block';
+        hint.style.display='block';
+        hint.innerHTML='✓ Fetched '+(o.icao_code||'?')+' → '+(d.icao_code||'?')+' ('+(ac.icaocode||'?')+'). <b>Copy ICAO FPL</b> → paste into PYRGOS Briefing.';
+      }catch(e){ out.textContent='Could not reach the SimBrief proxy. Are you online, and is the worker deployed?\n\n'+e; }
+      return;
+    }
+    const d=FPGEN.buildData(F,APT,FLEET);
+    if(!d){ out.style.display='block'; out.textContent='No route planned yet — complete Dispatch first.'; return; }
+    lastFpl=(F.source==='simbrief' && F.sbFpl) ? F.sbFpl : FPGEN.icaoFPL(d);
+    lastOfp=FPGEN.ofpText(d,style)+(F.source==='simbrief'?'\n\n[ SOURCE: SimBrief computed plan ]':'');
+    out.style.display='block'; out.textContent=lastOfp;
+    $('#fpCopyFpl').style.display='inline-block'; $('#fpCopyAll').style.display='inline-block';
+    hint.style.display='block'; hint.innerHTML='✓ Generated. <b>Copy ICAO FPL</b> and paste it into PYRGOS Briefing — it parses this block directly.';
+  };
+  $('#fpCopyFpl').onclick=()=>{ const d=FPGEN.buildData(F,APT,FLEET); const fpl=FPGEN.icaoFPL(d);
+    navigator.clipboard&&navigator.clipboard.writeText(fpl); toast('ICAO FPL copied — paste into PYRGOS Briefing.','ok'); };
+  $('#fpCopyAll').onclick=()=>{ navigator.clipboard&&navigator.clipboard.writeText($('#fpOut').textContent); toast('Full OFP copied.','ok'); };
+}
+
+/* ═══════════════════════ FLIGHT PLAN GENERATOR (offline · 3 vendor styles) ═══════════════════════ */
+window.FPGEN = (function(){
+  const pad=(n,l)=>String(n).padStart(l,'0');
+  function nowZulu(){ const d=new Date(); return pad(d.getUTCHours(),2)+pad(d.getUTCMinutes(),2); }
+  function dof(){ const d=new Date(); return String(d.getUTCFullYear()).slice(2)+pad(d.getUTCMonth()+1,2)+pad(d.getUTCDate(),2); }
+
+  // build the structured flight-plan object from the ODYSSEY flight state
+  function buildData(F,APT,FLEET){
+    if(!F.route) return null;
+    const a=FLEET[F.type], dep=APT[F.route.from], des=APT[F.route.to], alt=APT[F.route.alt], f=F.fuelCalc;
+    const etd = (F.etd)||nowZulu();
+    const spd = 'N0'+Math.round((a.cruise&&a.cruise.mach?450:450)); // cruise TAS placeholder
+    const lvl = 'F'+pad(F.cruiseFL,3);
+    const eetH=Math.floor((F.route.dist/450)); const eetM=Math.round(((F.route.dist/450)-eetH)*60);
+    const eet = pad(eetH,2)+pad(eetM,2);
+    // wake→ ICAO
+    const wake = a.cat||'M';
+    return {
+      callsign:F.callsign||'',
+      actype:F.type, wake, reg:a.reg, eng:a.eng,
+      adep:dep.icao, ades:des.icao, altn:alt?alt.icao:'',
+      depRwy:(F.rwy&&dep.rwys[F.rwy]&&dep.rwys[F.rwy].name)||F.rwy||'',
+      etd, spd, lvl, cruiseFL:F.cruiseFL,
+      route:F.route.awy||'DCT', dist:F.route.dist, eet,
+      fuel:f?{trip:f.trip,cont:f.cont,altn:f.altn,fr:f.fr,taxi:f.taxi,extra:f.extra,block:F.block}:null,
+      ci:F.ci, oat:F.oat,
+      zfw:F.ls?(F.ls.zfw/1000).toFixed(1):'--.-', tow:F.ls?(F.ls.tow/1000).toFixed(1):'--.-',
+      v1:F.perf?F.perf.v1:'---', vr:F.perf?F.perf.vr:'---', v2:F.perf?F.perf.v2:'---',
+      flex:F.flex||'', flap:F.flap,
+      dofv:dof(), pax:a.seats
+    };
+  }
+
+  // ── the ICAO ATC flight plan block — the format PYRGOS parses ──
+  function icaoFPL(d){
+    const eq='SDFGHILORVWXY/SV1';   // typical A320 equipment/surveillance
+    const pbn='PBN/A1B1C1D1L1O1S1';
+    let field10 = d.actype+'/'+d.wake+'-'+eq;
+    let f18 = pbn+' DOF/'+d.dofv+' REG/'+d.reg+' SEL/JMLR RMK/TCAS EQUIPPED';
+    // wrap the route to ~66 chars per line with a leading space (ICAO style)
+    const rte = d.spd+d.lvl+' '+d.route;
+    return `(FPL-${d.callsign}-IS\n`+
+           `-${field10}\n`+
+           `-${d.adep}${d.etd}\n`+
+           `-${rte}\n`+
+           `-${d.ades}${d.eet} ${d.altn}\n`+
+           `-${f18})`;
+  }
+
+  // ── the route line the OFP shows (ADEP/RWY … ADES/RWY) ──
+  function routeLine(d){
+    return `${d.adep}/${d.depRwy||'--'} ${d.spd}${d.lvl} ${d.route} ${d.ades}/--`;
+  }
+
+  // ── OFP rendered in a chosen vendor style ──
+  function ofpText(d, style){
+    const H='══════════════════════════════════════════════════════';
+    const fuel=d.fuel;
+    const money=(fuel)?`TTL COSTS  ${Math.round(fuel.block*0.98)} USD`:'';
+    const common={
+      title:`${d.callsign}/${d.dofv.slice(4)} ${d.adep.slice(1)}-${d.ades.slice(1)}  A/C: ${d.reg}`,
+      fromto:`FROM: ${d.adep}   TO: ${d.ades}   ALTN: ${d.altn}   PAX: ${d.pax}`,
+      ac:`A/C: ${d.reg}   TYPE: ${d.actype}   ENG: ${d.eng}   CI: ${d.ci}`,
+      route:`ROUTE: ${d.route}`,
+    };
+    const fuelBlock = fuel? [
+      `             FUEL      TIME`,
+      `TRIP        ${pad(fuel.trip,6)}    ${d.eet}`,
+      `CONT  5%    ${pad(fuel.cont,6)}`,
+      `ALTN        ${pad(fuel.altn,6)}`,
+      `FINRES      ${pad(fuel.fr,6)}`,
+      `TAXI        ${pad(fuel.taxi,6)}`,
+      `EXTRA       ${pad(fuel.extra,6)}`,
+      `─────────────────────`,
+      `BLOCK       ${pad(fuel.block,6)}`,
+    ].join('\n') : 'FUEL: not computed';
+
+    if(style==='jeppesen'){
+      return [
+`╔${H}╗`,
+`  JEPPESEN JETPLANNER · OFP  ·  ${common.title}`,
+`╚${H}╝`,
+`[ OFP ]`,
+`RELEASE ${nowZulu()}Z   DOF ${d.dofv}   DSPCHR: ODYSSEY-AUTO`,
+``,
+common.fromto,
+common.ac,
+``,
+fuelBlock,
+``,
+`CRZ ${d.lvl}   SPD ${d.spd}   DIST ${d.dist} NM   ZFW ${d.zfw}   TOW ${d.tow}`,
+`V1 ${d.v1}   VR ${d.vr}   V2 ${d.v2}   FLAPS CONF${d.flap}${d.flex?'   FLEX '+d.flex:''}`,
+``,
+common.route,
+``,
+`[ ATC FLIGHT PLAN ]`,
+icaoFPL(d),
+      ].join('\n');
+    }
+    if(style==='jetplan'){
+      return [
+`***** JETPLAN OFP *****   ${common.title}`,
+`FLIGHT ${d.callsign}   ${d.adep}-${d.ades}   ETD ${d.etd}Z   DOF ${d.dofv}`,
+`AIRCRAFT ${d.actype}/${d.wake}   REG ${d.reg}   ENG ${d.eng}`,
+`------------------------------------------------------------`,
+fuelBlock,
+`------------------------------------------------------------`,
+`CRZ ${d.lvl}  MACH  DIST ${d.dist}NM  EET ${d.eet}  CI ${d.ci}`,
+`PERF  V1/${d.v1}  VR/${d.vr}  V2/${d.v2}  CONF${d.flap}${d.flex?'  FLEX'+d.flex:''}`,
+`ROUTE:`,
+`  ${d.route}`,
+``,
+`FILED ICAO FLIGHT PLAN:`,
+icaoFPL(d),
+`***** END JETPLAN *****`,
+      ].join('\n');
+    }
+    // default: LIDO style (matches the uploaded Air Arabia OFP layout)
+    return [
+`${d.callsign} ${d.dofv.slice(4)}/${d.dofv.slice(2,4)}/${d.adep.slice(1)}-${d.ades.slice(1)}  A/C: ${d.reg}    LIDO/FLIGHT`,
+`----------------------------------------------------------------------`,
+`[ OFP ]`,
+`----------------------------------------------------------------------`,
+`OFP: 1        ${d.callsign}       DOF ${d.dofv}      RELEASE ${nowZulu()} `,
+``,
+`              DSPCHR: ODYSSEY AUTO-DISPATCH`,
+``,
+`FROM: ${d.adep}   ${d.etd}Z         TO: ${d.ades}         PAX: ${d.pax}`,
+`A/C: ${d.reg}   TYPE ${d.actype}   ENG ${d.eng}   CI${d.ci}`,
+``,
+fuelBlock,
+``,
+`RAMP FUEL .....   PLD ${d.zfw}   TOW ${d.tow}   CRZ ${d.lvl}`,
+`V1 ${d.v1}  VR ${d.vr}  V2 ${d.v2}   FLAPS CONF${d.flap}${d.flex?'  FLEX '+d.flex:''}`,
+``,
+`${routeLine(d)}`,
+``,
+`CLEARANCE: ................................................`,
+``,
+`[ ATC Flight Plan ]`,
+`----------------------------------------------------------------------`,
+icaoFPL(d),
+    ].join('\n');
+  }
+
+  return { buildData, icaoFPL, routeLine, ofpText };
+})();
+
 
 /* ══════════════════════════════════════════════════════════════
    BOOT
