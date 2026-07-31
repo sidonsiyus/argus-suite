@@ -538,6 +538,57 @@ select{appearance:none;cursor:pointer;
 .la-letterbtn{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:none;border:1px solid var(--line2);
   color:var(--muted);border-radius:7px;padding:7px 12px;cursor:pointer;transition:.16s}
 .la-letterbtn:hover{border-color:var(--gold);color:var(--gold)}
+
+/* ═══════════════ COMMAND VIEW · REDESIGN ═══════════════ */
+/* status header: gauge + tiles + watchlist as one calm strip */
+.cmd-status{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center;
+  background:linear-gradient(135deg,var(--panel) 0%,var(--panel2) 100%);
+  border:1px solid var(--line);border-radius:18px;padding:22px 24px;margin-bottom:18px;position:relative;overflow:hidden}
+.cmd-status::before{content:"";position:absolute;top:0;right:0;width:280px;height:100%;
+  background:radial-gradient(circle at 100% 0%,var(--glow),transparent 68%);pointer-events:none;opacity:.5}
+.cmd-tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:11px}
+@media(max-width:820px){.cmd-status{grid-template-columns:1fr;gap:18px}.cmd-tiles{grid-template-columns:repeat(3,1fr)}}
+
+/* section nav — segmented control */
+.cmd-nav{display:inline-flex;gap:3px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:12px;padding:4px;margin-bottom:22px}
+.cmd-navbtn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;
+  background:none;border:none;border-radius:9px;color:var(--muted);padding:10px 20px;cursor:pointer;transition:.18s;position:relative}
+.cmd-navbtn:hover{color:var(--ink)}
+.cmd-navbtn.on{background:linear-gradient(180deg,var(--gold),var(--gold2));color:#231a04;box-shadow:0 4px 14px -4px var(--glow)}
+.cmd-navbtn .nc{display:inline-block;min-width:17px;height:16px;line-height:16px;font-size:9px;border-radius:8px;
+  background:rgba(0,0,0,.18);margin-left:7px;padding:0 5px}
+.cmd-navbtn:not(.on) .nc{background:var(--line2);color:var(--muted)}
+
+/* section panels */
+.cmd-sec{display:none} .cmd-sec.on{display:block;animation:viewIn .28s ease}
+
+/* two-column work layout, but calmer: forms left, live preview right (sticky) */
+.cmd-work{display:grid;grid-template-columns:1.05fr .95fr;gap:20px;align-items:start}
+@media(max-width:960px){.cmd-work{grid-template-columns:1fr}}
+.cmd-col{display:flex;flex-direction:column;gap:16px}
+.cmd-sticky{position:sticky;top:16px}
+
+/* refined card — softer, more air */
+.card2{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 22px 24px}
+.card2 .c2h{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.card2 .c2h .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 9px var(--gold)}
+.card2 .c2h h3{margin:0;font-size:14px;font-weight:660;letter-spacing:-.01em;color:var(--ink)}
+.card2 .c2h .c2sub{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase}
+
+/* watchlist chip strip inside status */
+.cmd-watch{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.cmd-watch .wlabel{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-right:4px}
+.cmd-wchip{font-family:var(--mono);font-size:10px;background:var(--panel);border:1px solid var(--line2);border-radius:7px;padding:5px 9px;color:var(--ink);white-space:nowrap}
+.cmd-wchip.hot{border-color:rgba(255,112,96,.4);color:var(--red)}
+.cmd-wchip.warn{border-color:rgba(240,182,74,.4);color:var(--gold2)}
+
+/* paper preview frame — quieter chrome */
+.cmd-paper{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.cmd-paper .pph{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.cmd-paper .pph .f{color:var(--gold2);text-transform:none;letter-spacing:.02em;font-size:10px}
+.cmd-paper .ppbody{max-height:640px;overflow:auto;padding:6px}
 </style>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -608,188 +659,224 @@ select{appearance:none;cursor:pointer;
   </div>
 
   <div class="view on" id="viewCommand">
-  <div class="glance card">
+
+  <!-- STATUS HEADER: gauge + tiles + watchlist -->
+  <div class="cmd-status">
     <div class="gauge-wrap">
       <svg class="gauge" viewBox="0 0 120 120"><circle class="g-track" cx="60" cy="60" r="52"/><circle class="g-arc" id="gArc" cx="60" cy="60" r="52"/></svg>
       <div class="g-val"><b id="gPct">0</b><span>% present</span></div>
     </div>
-    <div class="glance-tiles">
-      <div class="gtile g"><b id="sPresent">0</b><span>Present</span></div>
-      <div class="gtile r"><b id="sAbsent">0</b><span>Absent</span></div>
-      <div class="gtile grn"><b id="sOD">0</b><span>On Duty</span></div>
-      <div class="gtile"><b id="sInf">0</b><span>Informed</span></div>
-      <div class="gtile r"><b id="sUna">0</b><span>Unauthorized</span></div>
+    <div>
+      <div class="cmd-tiles">
+        <div class="gtile g"><b id="sPresent">0</b><span>Present</span></div>
+        <div class="gtile r"><b id="sAbsent">0</b><span>Absent</span></div>
+        <div class="gtile grn"><b id="sOD">0</b><span>On Duty</span></div>
+        <div class="gtile"><b id="sInf">0</b><span>Informed</span></div>
+        <div class="gtile r"><b id="sUna">0</b><span>Unauthorized</span></div>
+      </div>
+      <div class="cmd-watch" id="watchStrip" style="margin-top:14px">
+        <span class="wlabel">Watchlist</span>
+        <span id="watchBody"></span>
+        <span class="cnt" id="watchCnt" style="display:none"></span>
+      </div>
     </div>
-  </div>
-
-  <div class="card watch">
-    <h2>Defaulters watchlist <span class="cnt" id="watchCnt"></span></h2>
-    <div id="watchBody"></div>
   </div>
 
   <div id="viewBanner"></div>
 
-  <div class="grid">
-    <!-- LEFT -->
-    <div>
-      <div class="card">
-        <h2>Mark an absentee</h2>
-        <div class="row r-name">
-          <div>
-            <label>Student name</label>
-            <div class="namewrap">
-              <input id="fFilter" type="text" placeholder="Type to filter the list…" autocomplete="off" spellcheck="false">
-              <select id="fName"><option value="">— Select a student —</option></select>
+  <!-- SECTION NAV -->
+  <div class="cmd-nav">
+    <button class="cmd-navbtn on" id="csLog" onclick="showCmdSec('log')">Log<span class="nc" id="csLogN">0</span></button>
+    <button class="cmd-navbtn" id="csReport" onclick="showCmdSec('report')">Report</button>
+    <button class="cmd-navbtn" id="csTerm" onclick="showCmdSec('term')">Term</button>
+  </div>
+
+  <!-- ═══ SECTION: LOG ═══ -->
+  <div class="cmd-sec on" id="secLog">
+    <div class="cmd-work">
+      <div class="cmd-col">
+        <div class="card2">
+          <div class="c2h"><span class="dot"></span><h3>Mark an absentee</h3></div>
+          <div class="row r-name">
+            <div>
+              <label>Student name</label>
+              <div class="namewrap">
+                <input id="fFilter" type="text" placeholder="Type to filter the list…" autocomplete="off" spellcheck="false">
+                <select id="fName"><option value="">— Select a student —</option></select>
+              </div>
+            </div>
+            <div>
+              <label>Status</label>
+              <select id="fStatus" onchange="onStatusChange()">
+                <option value="informed">AUTH — Authorized (Informed)</option>
+                <option value="unauthorized">UNAUTH — Unauthorized</option>
+                <option value="groom">GROOM — Grooming</option>
+                <option value="od">OD — On Duty</option>
+                <option value="susp">SUSP — Suspended</option>
+              </select>
+            </div>
+            <div>
+              <label>Parent contacted?</label>
+              <select id="fParent" onchange="parentTouched=true">
+                <option value="N">N — Not contacted</option>
+                <option value="Y">Y — Contacted</option>
+              </select>
             </div>
           </div>
-          <div>
-            <label>Status</label>
-            <select id="fStatus" onchange="onStatusChange()">
-              <option value="informed">AUTH — Authorized (Informed)</option>
-              <option value="unauthorized">UNAUTH — Unauthorized</option>
-              <option value="groom">GROOM — Grooming</option>
-              <option value="od">OD — On Duty</option>
-              <option value="susp">SUSP — Suspended</option>
-            </select>
+          <div class="row">
+            <div>
+              <label>Reason for absence (remarks)</label>
+              <select id="fReasonSel"><option value="">— Select a reason —</option></select>
+            </div>
           </div>
-          <div>
-            <label>Parent contacted?</label>
-            <select id="fParent" onchange="parentTouched=true">
-              <option value="N">N — Not contacted</option>
-              <option value="Y">Y — Contacted</option>
-            </select>
+          <div class="row" id="otherRow" hidden>
+            <div>
+              <label>Specify the reason</label>
+              <textarea id="fReason" placeholder="Type the reason in your own words."></textarea>
+            </div>
           </div>
+          <div id="contact" class="contact"></div>
+          <div class="kbdhint"><b>N</b> jump to filter · type to narrow the list, then pick · <b>Enter</b> → reason → <b>Enter</b> adds</div>
+          <button class="btn" onclick="addAbsentee()">Add to today's log &nbsp;↵</button>
+          <button class="btn scanbtn" onclick="openScan()">📷 Scan register</button>
+          <div class="quick" id="quickRoster"></div>
         </div>
-        <div class="row">
-          <div>
-            <label>Reason for absence (remarks)</label>
-            <select id="fReasonSel"><option value="">— Select a reason —</option></select>
-          </div>
-        </div>
-        <div class="row" id="otherRow" hidden>
-          <div>
-            <label>Specify the reason</label>
-            <textarea id="fReason" placeholder="Type the reason in your own words."></textarea>
-          </div>
-        </div>
-        <div id="contact" class="contact"></div>
-        <div class="kbdhint"><b>N</b> jump to filter · type to narrow the list, then pick · <b>Enter</b> → reason → <b>Enter</b> adds</div>
-        <button class="btn" onclick="addAbsentee()">Add to today's log &nbsp;↵</button>
-        <button class="btn scanbtn" onclick="openScan()">📷 Scan register</button>
-        <div class="quick" id="quickRoster"></div>
-      </div>
 
-      <div class="card">
-        <h2>Today's log <span id="logCount" style="color:var(--faint);letter-spacing:.1em"></span></h2>
-        <div id="list"></div>
-      </div>
-
-      <div class="card">
-        <h2>Daily strength message</h2>
-        <div class="row r3">
-          <div><label>Absent</label><input type="number" id="mAbs" min="0" value="0"></div>
-          <div><label>OD (on duty)</label><input type="number" id="mOD" min="0" value="0"></div>
-          <div><label>Present (auto)</label><input type="number" id="mPres" disabled></div>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;margin:-2px 0 2px">
-          <button class="ghost" onclick="syncAbs()">Use log (<span id="mLogN">0</span>)</button>
-          <span style="font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint)">PRESENT = STRENGTH − ABSENT − OD</span>
-        </div>
-        <div class="msgbox" id="msgBox"></div>
-        <div class="acts" style="margin-top:12px">
-          <button class="btn" onclick="copyMsg()">Copy message</button>
-          <button class="btn line" onclick="shareMsg()">Share</button>
-        </div>
-        <button class="btn line" style="margin-top:10px" onclick="copyNotices()">Copy parent / student absence notices</button>
-      </div>
-
-      <div class="card">
-        <h2>Report parameters</h2>
-        <div class="row r2">
-          <div><label>Report date</label><input type="date" id="pDate"></div>
-          <div><label>Class / file code</label><input type="text" id="pClass" value="BscAero-IIA"></div>
-        </div>
-        <div class="row r2">
-          <div><label>Program name (for message)</label><input type="text" id="pProg" value="Bsc Aero - IIA"></div>
-          <div><label>&nbsp;</label><div style="font-family:var(--mono);font-size:9.5px;color:var(--faint);padding:11px 0">USED IN THE STRENGTH MESSAGE</div></div>
-        </div>
-        <div class="row r3">
-          <div><label>Class strength</label><input type="number" id="pStrength" value="43" min="0"></div>
-          <div><label>Late arrivals</label><input type="number" id="pLate" value="0" min="0"></div>
-          <div><label>Half day (informed)</label><input type="number" id="pHalf" value="0" min="0"></div>
-        </div>
-        <div class="row r2">
-          <div><label>Prepared by</label><input type="text" id="pBy" value="Class Coordinator"></div>
-          <div><label>Submitted to</label><input type="text" id="pTo" value="Chief Executive Officer"></div>
-        </div>
-        <div class="row">
-          <div><label>Subtitle line</label><input type="text" id="pSub" value="Prepared for the Office of the Chief Executive Officer"></div>
-        </div>
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--acc);margin-bottom:8px">MH COCKPIT SUBMISSION FORM</div>
-          <div class="row r2">
-            <div><label>Institution / College</label><input type="text" id="mhInst" value="MH Cockpit Aviation Academy"></div>
-            <div><label>Programme</label><input type="text" id="mhProg" value="B.Sc Aeronautical Science"></div>
-          </div>
-          <div class="row r2">
-            <div><label>Year &amp; Batch</label><input type="text" id="mhBatch" value="II Year - A"></div>
-            <div><label>Class In Charge</label><input type="text" id="mhIncharge" value="Class Coordinator"></div>
-          </div>
-          <div class="row r2">
-            <div><label>Coordinator (sign-off)</label><input type="text" id="mhCoord" value="Class Coordinator"></div>
-            <div><label>Submission time</label><input type="text" id="mhTime" value="12:30 PM"></div>
-          </div>
-          <div style="font-family:var(--mono);font-size:9.5px;color:var(--faint);margin-top:8px">These details fill Section A &amp; E of the submission form shown in the live preview →</div>
+        <div class="card2">
+          <div class="c2h"><span class="dot"></span><h3>Today's log</h3><span class="c2sub" id="logCount"></span></div>
+          <div id="list"></div>
         </div>
       </div>
 
-      <div class="card">
-        <h2>Daily logs &amp; reports</h2>
-        <div class="hist" id="hist"></div>
-      </div>
-
-      <div class="card">
-        <h2>Term attendance tracker <span style="margin-left:auto;font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:var(--faint);text-transform:none">BUILD&nbsp;0718-E</span></h2>
-        <div class="trk-summary" id="trkSummary">No data yet</div>
-        <div class="trk-chart" id="trkChart"></div>
-        <div class="trk-dow" id="trkDow"></div>
-        <div class="trk-heat" id="trkHeat"></div>
-        <div class="trk-donut" id="trkDonut"></div>
-        <div class="trk-term">
-          <div><label>Term start</label><input type="date" id="tStart"></div>
-          <div><label>Term end</label><input type="date" id="tEnd"></div>
-          <div><label>Classes held (override)</label><input type="number" id="tHeld" min="0" placeholder="auto"></div>
+      <div class="cmd-col">
+        <div class="cmd-sticky">
+          <div class="cmd-paper">
+            <div class="pph"><span>MH Cockpit — live preview</span><span class="f" id="fileName">—</span></div>
+            <div class="ppbody"><div id="paper"></div></div>
+          </div>
+          <div class="acts" style="margin-top:14px">
+            <button class="btn" onclick="exportMHDocx()">Download MH COCKPIT .docx</button>
+          </div>
+          <div class="acts">
+            <button class="btn line" onclick="clearDay()">Clear today's log</button>
+            <button class="btn line" onclick="prefillSample()">Load sample day</button>
+          </div>
         </div>
-        <div class="trk-toolbar">
-          <button class="btn line" onclick="exportTrackerCSV()">Export tracker CSV</button>
-          <button class="btn line" onclick="exportMonthlyRegister()">Export register</button>
-          <button class="btn line" onclick="copyLettersTier('det')">Shortage letters &lt;75%</button>
-          <button class="btn line" onclick="copyLettersTier('cond')">Condonation &lt;65%</button>
-          <button class="btn line" onclick="backupJSON()">Backup all data</button>
-          <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center">Restore backup<input type="file" accept="application/json,.json" onchange="restoreJSON(this)" style="display:none"></label>
-          <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center;grid-column:1 / -1">Import roster from CSV<input type="file" accept=".csv,text/csv" onchange="importRosterCSV(this)" style="display:none"></label>
-        </div>
-        <div class="trk-list" id="trkList"></div>
-        <div class="trk-note">GOLD BAR = BELOW 75% (DETENTION) &middot; RED = BELOW 65% (CONDONATION) &middot; TAP A NAME FOR DATES &amp; LETTER. % IS BASED ON LOGGED ABSENCES ACROSS SAVED REPORTS + TODAY.</div>
-      </div>
-    </div>
-
-    <!-- RIGHT -->
-    <div class="paperwrap">
-      <div class="papertop">
-        <span>MH Cockpit submission — live preview</span>
-        <span class="f" id="fileName">—</span>
-      </div>
-      <div id="paper"></div>
-      <div class="acts">
-        <button class="btn" onclick="exportMHDocx()">Download MH COCKPIT .docx</button>
-      </div>
-      <div class="acts">
-        <button class="btn line" onclick="clearDay()">Clear today's log</button>
-        <button class="btn line" onclick="prefillSample()">Load sample day</button>
       </div>
     </div>
   </div>
+
+  <!-- ═══ SECTION: REPORT ═══ -->
+  <div class="cmd-sec" id="secReport">
+    <div class="cmd-work">
+      <div class="cmd-col">
+        <div class="card2">
+          <div class="c2h"><span class="dot"></span><h3>Report parameters</h3></div>
+          <div class="row r2">
+            <div><label>Report date</label><input type="date" id="pDate"></div>
+            <div><label>Class / file code</label><input type="text" id="pClass" value="BscAero-IIA"></div>
+          </div>
+          <div class="row r2">
+            <div><label>Program name (for message)</label><input type="text" id="pProg" value="Bsc Aero - IIA"></div>
+            <div><label>&nbsp;</label><div style="font-family:var(--mono);font-size:9.5px;color:var(--faint);padding:11px 0">USED IN THE STRENGTH MESSAGE</div></div>
+          </div>
+          <div class="row r3">
+            <div><label>Class strength</label><input type="number" id="pStrength" value="43" min="0"></div>
+            <div><label>Late arrivals</label><input type="number" id="pLate" value="0" min="0"></div>
+            <div><label>Half day (informed)</label><input type="number" id="pHalf" value="0" min="0"></div>
+          </div>
+          <div class="row r2">
+            <div><label>Prepared by</label><input type="text" id="pBy" value="Class Coordinator"></div>
+            <div><label>Submitted to</label><input type="text" id="pTo" value="Chief Executive Officer"></div>
+          </div>
+          <div class="row">
+            <div><label>Subtitle line</label><input type="text" id="pSub" value="Prepared for the Office of the Chief Executive Officer"></div>
+          </div>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--gold);margin-bottom:10px">MH COCKPIT SUBMISSION FORM</div>
+            <div class="row r2">
+              <div><label>Institution / College</label><input type="text" id="mhInst" value="MH Cockpit Aviation Academy"></div>
+              <div><label>Programme</label><input type="text" id="mhProg" value="B.Sc Aeronautical Science"></div>
+            </div>
+            <div class="row r2">
+              <div><label>Year &amp; Batch</label><input type="text" id="mhBatch" value="II Year - A"></div>
+              <div><label>Class In Charge</label><input type="text" id="mhIncharge" value="Class Coordinator"></div>
+            </div>
+            <div class="row r2">
+              <div><label>Coordinator (sign-off)</label><input type="text" id="mhCoord" value="Class Coordinator"></div>
+              <div><label>Submission time</label><input type="text" id="mhTime" value="12:30 PM"></div>
+            </div>
+            <div style="font-family:var(--mono);font-size:9.5px;color:var(--faint);margin-top:10px">The coordinator name auto-fills the signature line. These details fill Section A &amp; E of the form.</div>
+          </div>
+        </div>
+
+        <div class="card2">
+          <div class="c2h"><span class="dot"></span><h3>Daily strength message</h3></div>
+          <div class="row r3">
+            <div><label>Absent</label><input type="number" id="mAbs" min="0" value="0"></div>
+            <div><label>OD (on duty)</label><input type="number" id="mOD" min="0" value="0"></div>
+            <div><label>Present (auto)</label><input type="number" id="mPres" disabled></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin:-2px 0 2px">
+            <button class="ghost" onclick="syncAbs()">Use log (<span id="mLogN">0</span>)</button>
+            <span style="font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint)">PRESENT = STRENGTH − ABSENT − OD</span>
+          </div>
+          <div class="msgbox" id="msgBox"></div>
+          <div class="acts" style="margin-top:12px">
+            <button class="btn" onclick="copyMsg()">Copy message</button>
+            <button class="btn line" onclick="shareMsg()">Share</button>
+          </div>
+          <button class="btn line" style="margin-top:10px" onclick="copyNotices()">Copy parent / student absence notices</button>
+        </div>
+
+        <div class="card2">
+          <div class="c2h"><span class="dot"></span><h3>Daily logs &amp; reports</h3></div>
+          <div class="hist" id="hist"></div>
+        </div>
+      </div>
+
+      <div class="cmd-col">
+        <div class="cmd-sticky">
+          <div class="cmd-paper">
+            <div class="pph"><span>MH Cockpit — live preview</span><span class="f" id="fileName2">—</span></div>
+            <div class="ppbody"><div id="paper2"></div></div>
+          </div>
+          <div class="acts" style="margin-top:14px">
+            <button class="btn" onclick="exportMHDocx()">Download MH COCKPIT .docx</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION: TERM ═══ -->
+  <div class="cmd-sec" id="secTerm">
+    <div class="card2">
+      <div class="c2h"><span class="dot"></span><h3>Term attendance tracker</h3><span class="c2sub">Logged absences across saved reports</span></div>
+      <div class="trk-summary" id="trkSummary">No data yet</div>
+      <div class="trk-chart" id="trkChart"></div>
+      <div class="trk-dow" id="trkDow"></div>
+      <div class="trk-heat" id="trkHeat"></div>
+      <div class="trk-donut" id="trkDonut"></div>
+      <div class="trk-term">
+        <div><label>Term start</label><input type="date" id="tStart"></div>
+        <div><label>Term end</label><input type="date" id="tEnd"></div>
+        <div><label>Classes held (override)</label><input type="number" id="tHeld" min="0" placeholder="auto"></div>
+      </div>
+      <div class="trk-toolbar">
+        <button class="btn line" onclick="exportTrackerCSV()">Export tracker CSV</button>
+        <button class="btn line" onclick="exportMonthlyRegister()">Export register</button>
+        <button class="btn line" onclick="copyLettersTier('det')">Shortage letters &lt;75%</button>
+        <button class="btn line" onclick="copyLettersTier('cond')">Condonation &lt;65%</button>
+        <button class="btn line" onclick="backupJSON()">Backup all data</button>
+        <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center">Restore backup<input type="file" accept="application/json,.json" onchange="restoreJSON(this)" style="display:none"></label>
+        <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center;grid-column:1 / -1">Import roster from CSV<input type="file" accept=".csv,text/csv" onchange="importRosterCSV(this)" style="display:none"></label>
+      </div>
+      <div class="trk-list" id="trkList"></div>
+      <div class="trk-note">GOLD BAR = BELOW 75% (DETENTION) &middot; RED = BELOW 65% (CONDONATION) &middot; TAP A NAME FOR DATES &amp; LETTER. % IS BASED ON LOGGED ABSENCES ACROSS SAVED REPORTS + TODAY.</div>
+    </div>
+  </div>
+
   </div><!-- /viewCommand -->
 
   <div class="view" id="viewLive">
@@ -1248,6 +1335,13 @@ function addAbsentee() {
   const status = $('fStatus').value;
   const reason = reasonValue() || '';
   if (!name) { toast('Select a student'); $('fName').focus(); return; }
+  // prevent the same student being logged twice on the same day
+  if (S.absentees.some(a => a.name.trim().toLowerCase() === name.toLowerCase())) {
+    toast(name + ' is already in today\u2019s log');
+    $('fName').value=''; if($('fFilter'))$('fFilter').value=''; if(typeof populateNames==='function')populateNames();
+    $('fName').focus();
+    return;
+  }
   if (!S.logDay) S.logDay = today();
   pushUndo();
   const r = byName(name);
@@ -1397,6 +1491,7 @@ function render() {
   const trueAbs = abs.length - odN;
   renderGlance();
   $('logCount').textContent = abs.length ? `· ${abs.length}` : '';
+  { const b=$('csLogN'); if(b){ b.textContent=abs.length; b.style.display=abs.length?'inline-block':'none'; } }
 
   $('list').innerHTML = abs.length ? abs.map((a, i) => { const c = absContact(a); return `
     <div class="ab ${a.status === 'informed' ? 'inf' : ''}">
@@ -1464,8 +1559,14 @@ function shareMsg() {
 }
 
 function renderPaper() {
-  $('fileName').textContent = 'MH-COCKPIT-Attendance-' + ($('pDate').value || new Date().toISOString().slice(0,10)) + '.docx';
-  const box = $('paper'); if(box) box.innerHTML = mhPreviewHTML();
+  { const _i=($('pDate').value||new Date().toISOString().slice(0,10)).split('-');
+    const _c=(($('pClass')&&$('pClass').value)||'BscAero-IIA').trim().replace(/([a-z])([A-Z])/g,'$1_$2').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'');
+    const fn=_c+' '+_i[2]+'-'+_i[1]+'-'+(_i[0]||'').slice(2)+'.docx';
+    if($('fileName')) $('fileName').textContent=fn;
+    if($('fileName2')) $('fileName2').textContent=fn; }
+  const html = mhPreviewHTML();
+  const box = $('paper'); if(box) box.innerHTML = html;
+  const box2 = $('paper2'); if(box2) box2.innerHTML = html;
 }
 
 function renderHist() {
@@ -2172,11 +2273,16 @@ function exportMHDocx(){
   kids.push(H('SECTION E \u2014 COORDINATOR SIGN-OFF'));
   kids.push(new Tb({width:{size:9360,type:W.DXA},borders,rows:[
     new R({tableHeader:true,children:[hcell('Coordinator Name',3120),hcell('Signature',3120),hcell('Date & Time of Submission',3120)]}),
-    new R({children:[cell(tr(d.coord),{w:3120,center:true}),cell(tr(''),{w:3120}),cell(tr(d.datePretty+'  '+d.time),{w:3120,center:true})]}),
+    new R({children:[cell(tr(d.coord),{w:3120,center:true}),cell(tr(d.coord,{i:true}),{w:3120,center:true}),cell(tr(d.datePretty+'  '+d.time),{w:3120,center:true})]}),
   ]}));
   const doc=new docx.Document({ styles:{ default:{ document:{ run:{ font:FONT, size:SZ } } } },
     sections:[{ properties:{ page:{ margin:{top:1152,bottom:1152,left:1440,right:1440} } }, children:kids }] });
-  const file='MH-COCKPIT-Attendance-'+d.date+'.docx';
+  // Filename: "BSC_AERO_IIA 31-07-26.docx" (class code + DD-MM-YY).
+  // '/' is illegal in filenames, so the date uses '-' while keeping the requested order.
+  const _iso = (d.date || new Date().toISOString().slice(0,10)).split('-'); // [YYYY,MM,DD]
+  const _dd = _iso[2], _mm = _iso[1], _yy = (_iso[0]||'').slice(2);
+  const _code = (($('pClass') && $('pClass').value) || 'BscAero-IIA').trim().replace(/([a-z])([A-Z])/g,'$1_$2').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'');
+  const file = _code + ' ' + _dd + '-' + _mm + '-' + _yy + '.docx';
   docx.Packer.toBlob(doc).then(blob=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=file; a.click(); toast('Downloaded '+file); });
 }
 
@@ -2213,6 +2319,17 @@ function showTab(which){
   document.getElementById('tabCommand').classList.toggle('on', cmd);
   document.getElementById('tabLive').classList.toggle('on', !cmd);
   if(!cmd && !LIVE.loaded){ loadLive(); }
+}
+
+/* Command sub-sections (Log / Report / Term) */
+function showCmdSec(which){
+  ['log','report','term'].forEach(k=>{
+    const cap=k.charAt(0).toUpperCase()+k.slice(1);
+    const sec=document.getElementById('sec'+cap); if(sec) sec.classList.toggle('on', k===which);
+    const btn=document.getElementById('cs'+cap); if(btn) btn.classList.toggle('on', k===which);
+  });
+  // re-render the preview for whichever section is now visible
+  if(typeof renderPaper==='function') renderPaper();
 }
 
 function showLaSub(which){
