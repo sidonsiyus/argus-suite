@@ -2369,7 +2369,7 @@ async function loadLive(force){
     }
     src.className='la-src live'; txt.textContent='Live · Google Sheet';
     const u=new Date(j.updated); document.getElementById('laUpdated').textContent='Synced '+u.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-    renderStats(); renderLive(); renderTrend(); renderDist(); renderGlance(); populateDayPicker(); renderDayDetail(); renderRisk();
+    renderStats(); renderLive(); renderTrend(); renderDist(); renderLaGlance(); populateDayPicker(); renderDayDetail(); renderRisk();
     document.getElementById('laNote').innerHTML=
       'Read-only, live from the department attendance sheet · OD counts as present · '+
       (j.summary&&j.summary.basis?j.summary.basis:((j.nDays||18)+' days'))+' × '+(j.periods||5)+' periods = base '+j.base+'. '+
@@ -2420,7 +2420,7 @@ function renderDist(){
   }).join('');
 }
 
-function renderGlance(){
+function renderLaGlance(){
   const d=LIVE.data; const el=document.getElementById('laGlance'); if(!d)return;
   const ss=d.students.slice();
   const top=ss.reduce((a,x)=>x.pct>a.pct?x:a); const bot=ss.reduce((a,x)=>x.pct<a.pct?x:a);
