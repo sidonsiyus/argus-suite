@@ -945,7 +945,8 @@ select{appearance:none;cursor:pointer;
         <button class="btn line" onclick="copyLettersTier('det')">Shortage letters &lt;75%</button>
         <button class="btn line" onclick="copyLettersTier('cond')">Condonation &lt;65%</button>
         <button class="btn line" onclick="backupJSON()">Backup all data</button>
-        <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center">Restore backup<input type="file" accept="application/json,.json" onchange="restoreJSON(this)" style="display:none"></label>
+        <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center">Restore backup (file)<input type="file" accept="application/json,.json" onchange="restoreJSON(this)" style="display:none"></label>
+        <button class="btn line" style="grid-column:1 / -1" onclick="openServerBackups()">☁ Restore from server backup</button>
         <button class="btn line" style="grid-column:1 / -1" onclick="openRoster()">✎ Edit class roster &amp; phone numbers</button>
         <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center;grid-column:1 / -1">Import roster from CSV<input type="file" accept=".csv,text/csv" onchange="importRosterCSV(this)" style="display:none"></label>
       </div>
@@ -3100,7 +3101,54 @@ async function combineAllMonths(){
     +(list.length>12?'<div class="la-note">Showing the 12 lowest. Combined % = total periods attended (incl. OD) ÷ total periods, across every month sheet.</div>':'<div class="la-note">Combined % = total periods attended (incl. OD) ÷ total periods, across every month sheet.</div>');
 }
 
-/* Esc closes the roster / parent modals */
+/* ── restore from server backup (argus-vault worker: /backups, /backup?ts=) ── */
+async function openServerBackups(){
+  if(typeof syncOn!=='function' || !syncOn()){ if(typeof toast==='function')toast('Connect cloud sync first (⚙)'); if(_g('sSetup'))_g('sSetup').hidden=false; return; }
+  var host=ensureModal('bakModal');
+  host.innerHTML='<div class="mdl-card" style="max-width:520px"><div class="mdl-head"><b>Server backups</b><button class="kh-x" onclick="closeModal(\'bakModal\')">✕</button></div><div class="mdl-sub">Loading backups from your worker…</div></div>';
+  host.classList.add('on');
+  try{
+    var r=await fetch(SYNC.url+'/backups',{headers:{'X-Sync-Key':SYNC.key},cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var j=await r.json(); var list=(j&&j.backups)||[];
+    var rows=list.length? list.map(function(ts){ var dt=new Date(+ts);
+      return '<div class="pbrow" style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+        +'<div><b>'+dt.toLocaleDateString(undefined,{day:"numeric",month:"short"})+'</b> <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">'+dt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})+'</span></div>'
+        +'<button class="wab wapar" style="border:0;cursor:pointer" onclick="restoreServerBackup(\''+ts+'\')">Restore</button></div>'; }).join('')
+      : '<div class="la-empty">No server backups yet — they accumulate as you use the synced dashboard.</div>';
+    var card=document.querySelector('#bakModal .mdl-card');
+    card.innerHTML='<div class="mdl-head"><b>Server backups · '+list.length+'</b><button class="kh-x" onclick="closeModal(\'bakModal\')">✕</button></div>'
+      +'<div class="mdl-sub">Newest first. Restoring replaces the current data on this device and re-syncs it to every device on this key. Your worker also keeps a snapshot of the current state before this one, so you can step back.</div>'
+      +'<div class="pblist">'+rows+'</div>';
+  }catch(e){
+    var card2=document.querySelector('#bakModal .mdl-card');
+    card2.innerHTML='<div class="mdl-head"><b>Server backups</b><button class="kh-x" onclick="closeModal(\'bakModal\')">✕</button></div>'
+      +'<div class="la-error" style="padding:16px">Couldn’t load backups — '+_escd(String(e.message||e))+'<br><span style="font-size:10px;color:var(--faint)">Your sync worker needs the <b>/backups</b> route (deploy the argus-vault worker).</span></div>';
+  }
+}
+async function restoreServerBackup(ts){
+  if(!confirm('Restore the backup from '+new Date(+ts).toLocaleString()+'?\n\nThis replaces the current data on every device that uses this key.')) return;
+  try{
+    var r=await fetch(SYNC.url+'/backup?ts='+encodeURIComponent(ts),{headers:{'X-Sync-Key':SYNC.key},cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var data=await r.json();
+    if(!data || typeof data!=='object' || Array.isArray(data)) throw new Error('empty or invalid backup');
+    S=Object.assign({}, data);
+    if(Array.isArray(S.classRoster)&&S.classRoster.length) ROSTER=S.classRoster.slice().sort(function(a,b){return (+a.n||0)-(+b.n||0);});
+    if(_g('tStart'))_g('tStart').value=(S.term&&S.term.start)||'';
+    if(_g('tEnd'))_g('tEnd').value=(S.term&&S.term.end)||'';
+    if(_g('tHeld'))_g('tHeld').value=(S.term&&S.term.held)||'';
+    var th=(typeof THR==='function')?THR():{det:75,cond:65}; if(_g('tDet'))_g('tDet').value=th.det; if(_g('tCond'))_g('tCond').value=th.cond;
+    try{ localStorage.setItem('argus_dash_v1', JSON.stringify(S)); }catch(_){}
+    if(typeof populateNames==='function')populateNames();
+    if(typeof rehydrate==='function')rehydrate(); else if(typeof render==='function')render();
+    if(typeof save==='function')save();            // bumps _ts + pushes to the cloud so all devices get it
+    closeModal('bakModal');
+    if(typeof toast==='function')toast('Restored backup from '+new Date(+ts).toLocaleDateString());
+  }catch(e){ if(typeof toast==='function')toast('Restore failed: '+(e.message||e)); }
+}
+
+/* Esc closes the roster / parent / backup modals */
 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var open=document.querySelector('.mdl.on'); if(open){ e.preventDefault(); e.stopImmediatePropagation(); open.classList.remove('on'); } } }, true);
 </script>
 </body>
