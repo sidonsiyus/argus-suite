@@ -946,7 +946,8 @@ select{appearance:none;cursor:pointer;
         <button class="btn line" onclick="copyLettersTier('cond')">Condonation &lt;65%</button>
         <button class="btn line" onclick="backupJSON()">Backup all data</button>
         <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center">Restore backup (file)<input type="file" accept="application/json,.json" onchange="restoreJSON(this)" style="display:none"></label>
-        <button class="btn line" style="grid-column:1 / -1" onclick="openServerBackups()">☁ Restore from server backup</button>
+        <button class="btn line" onclick="backupNow()">☁ Back up now</button>
+        <button class="btn line" onclick="openServerBackups()">☁ Restore from server</button>
         <button class="btn line" style="grid-column:1 / -1" onclick="openRoster()">✎ Edit class roster &amp; phone numbers</button>
         <label class="btn line" style="cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center;grid-column:1 / -1">Import roster from CSV<input type="file" accept=".csv,text/csv" onchange="importRosterCSV(this)" style="display:none"></label>
       </div>
@@ -3099,6 +3100,19 @@ async function combineAllMonths(){
   box.innerHTML='<div class="la-combine"><span class="big">'+overall+'%</span><div><div class="lbl">Overall · all months</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px">'+months.length+' months · '+list.length+' students · '+below.length+' below '+th.det+'%</div></div></div>'
     +'<div class="la-dist" style="margin-top:14px">'+rows+'</div>'
     +(list.length>12?'<div class="la-note">Showing the 12 lowest. Combined % = total periods attended (incl. OD) ÷ total periods, across every month sheet.</div>':'<div class="la-note">Combined % = total periods attended (incl. OD) ÷ total periods, across every month sheet.</div>');
+}
+
+/* ── force an immediate server-side backup snapshot ── */
+async function backupNow(){
+  if(typeof syncOn!=='function' || !syncOn()){ if(typeof toast==='function')toast('Connect cloud sync first (⚙)'); if(_g('sSetup'))_g('sSetup').hidden=false; return; }
+  if(typeof toast==='function')toast('Backing up…');
+  try{
+    if(typeof save==='function')save();                 // capture latest form state + bump _ts
+    var r=await fetch(SYNC.url+'?snapshot=1',{method:'POST',headers:{'X-Sync-Key':SYNC.key,'Content-Type':'application/json'},body:JSON.stringify(S),cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var j={}; try{ j=await r.json(); }catch(_){}
+    if(typeof toast==='function') toast(j&&j.snapshot===false ? 'Saved · snapshot throttled, retry shortly' : 'Backed up to server ✓');
+  }catch(e){ if(typeof toast==='function')toast('Backup failed: '+(e.message||e)); }
 }
 
 /* ── restore from server backup (argus-vault worker: /backups, /backup?ts=) ── */
