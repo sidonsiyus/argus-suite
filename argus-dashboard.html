@@ -654,6 +654,20 @@ select{appearance:none;cursor:pointer;
 .la-alert{background:rgba(236,106,95,.1);border:1px solid rgba(236,106,95,.4);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--ink);line-height:1.5}
 .la-alert b{color:var(--red)}
 .la-alert .aok{color:var(--green)}
+.la-overall{font-family:var(--mono);text-align:right;min-width:52px;padding-right:2px;border-right:1px solid var(--line2);margin-right:2px}
+.la-overall b{display:block;font-size:16px;font-weight:700;line-height:1;color:var(--ink)}
+.la-overall span{font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.la-overall.low b{color:var(--red)} .la-overall.mid b{color:var(--gold2)} .la-overall.hi b{color:var(--green)} .la-overall.loading b{color:var(--faint)}
+.am-tools{display:flex;align-items:center;gap:6px;margin:14px 0 4px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.am-list{display:flex;flex-direction:column;gap:6px;max-height:440px;overflow:auto;margin-top:10px}
+.am-row{display:grid;grid-template-columns:28px minmax(0,1fr) 130px auto 52px;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:8px 12px}
+.am-n{font-family:var(--mono);font-size:10px;color:var(--faint);text-align:center}
+.am-nm{font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.am-bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.am-bar i{display:block;height:100%;border-radius:3px}
+.am-att{font-family:var(--mono);font-size:10px;color:var(--faint);text-align:right}
+.am-pct{font-family:var(--mono);font-size:14px;font-weight:700;text-align:right}
+@media(max-width:640px){.am-row{grid-template-columns:24px minmax(0,1fr) auto}.am-bar,.am-att{display:none}}
 .la-combine{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .la-combine .big{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--ink);line-height:1}
 .la-combine .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
@@ -978,8 +992,8 @@ select{appearance:none;cursor:pointer;
     <div class="la-sub on" id="laOverview">
       <div class="la-stats" id="laStats"></div>
       <div class="la-card">
-        <div class="la-card-h" style="display:flex;align-items:center;justify-content:space-between;gap:10px">Overall attendance · all months combined<button class="la-refresh" onclick="combineAllMonths()">Combine all months</button></div>
-        <div id="laAllMonths"><div class="la-empty">Tap “Combine all months” to total every month sheet into one overall %.</div></div>
+        <div class="la-card-h" style="display:flex;align-items:center;justify-content:space-between;gap:10px">Overall attendance · every student, all months<button class="la-refresh" onclick="combineAllMonths()">Show all students</button></div>
+        <div id="laAllMonths"><div class="la-empty">Tap “Show all students” to compute each student’s overall % (day 1 → last marked date) across every month sheet.</div></div>
       </div>
       <div class="la-card">
         <div class="la-card-h">Attendance rate · day by day</div>
@@ -1026,6 +1040,7 @@ select{appearance:none;cursor:pointer;
         <button class="la-sortbtn" id="laSortName" onclick="setSort('name')">By name</button>
         <button class="la-sortbtn" id="laSortReg" onclick="setSort('sno')">By roll</button>
         <button class="la-sortbtn" id="laSortLow" onclick="setSort('low')">Defaulters</button>
+        <button class="la-sortbtn" id="laOverallBtn" onclick="loadOverall(true)" title="Recompute each student's overall % across every month (day 1 → last marked date)">Overall (all months)</button>
       </div>
       <div class="la-list" id="laList"><div class="la-loading">Loading live attendance…</div></div>
     </div>
@@ -2467,6 +2482,8 @@ function showLaSub(which){
     document.getElementById('la'+cap).classList.toggle('on', k===which);
     document.getElementById('ls'+cap).classList.toggle('on', k===which);
   });
+  // auto-compute each student's overall % the first time the Students tab is opened
+  if(which==='students' && LIVE.loaded && !LIVE.overall && !LIVE.overallLoading && typeof loadOverall==='function'){ loadOverall(); }
 }
 
 function setSort(s){
@@ -2487,6 +2504,8 @@ async function loadLive(force){
     const j = await r.json();
     if(j.error) throw new Error(j.error+(j.detail?(' — '+j.detail):''));
     LIVE.data=j; LIVE.loaded=true;
+    LIVE.overall=null; LIVE.overallLoading=false;
+    const _ob=document.getElementById('laOverallBtn'); if(_ob){ _ob.classList.remove('on'); _ob.textContent='Overall (all months)'; }
     try{
       const _key='argus_snap_'+(j.sheet||'default');
       const _prev=JSON.parse(localStorage.getItem(_key)||'null');
@@ -2524,11 +2543,15 @@ async function loadLive(force){
 
 function renderStats(){
   const d=LIVE.data; if(!d) return;
-  const s=d.summary, tot=d.students.reduce((a,x)=>({p:a.p+x.present,o:a.o+x.od,ab:a.ab+x.absent}),{p:0,o:0,ab:0});
+  const s=d.summary, tot=d.students.reduce((a,x)=>({p:a.p+x.present,o:a.o+x.od,ab:a.ab+x.absent,base:a.base+(+x.base||0)}),{p:0,o:0,ab:0,base:0});
+  const denom = tot.base || (tot.p+tot.o+tot.ab);
+  const overall = denom ? Math.round(((tot.p+tot.o)/denom)*1000)/10 : (s.avgPct||0);
+  const det = (typeof THR==='function')?THR().det:75;
   document.getElementById('laStats').innerHTML=[
+    ['grn', overall+'%', 'Class overall · since day 1'],
     ['gold', s.count, 'Students'],
     ['', s.avgPct+'%', 'Cohort average'],
-    ['red', s.below75, 'Below 75%'],
+    ['red', s.below75, 'Below '+det+'%'],
     ['grn', tot.p, 'Present hrs'],
     ['gold', tot.o, 'OD hrs'],
     ['red', tot.ab, 'Absent hrs'],
@@ -2643,7 +2666,8 @@ function renderLive(){
         (low?'<span class="la-flag">Defaulter · below '+_det+'%</span>':'')+'</div>'+
       '<div class="la-metrics">'+
         '<div class="la-split"><span class="p">'+s.present+' P</span> · <span class="o">'+s.od+' OD</span><br><span class="a">'+s.absent+' A</span> · '+s.total+'/'+s.base+'</div>'+
-        '<div class="la-pct '+cls+'">'+s.pct+'<span style="font-size:11px">%</span></div>'+
+        (typeof overallBox==='function'?overallBox(s):'')+
+        '<div class="la-pct '+cls+'" title="Selected month">'+s.pct+'<span style="font-size:11px">%</span></div>'+
       '</div></div>';
   }).join('');
 }
@@ -3074,32 +3098,86 @@ function newlyAtRiskBanner(){
 }
 
 /* ── combine all month sheets into one overall attendance figure ── */
-async function combineAllMonths(){
+var _amSort='sno';
+function _amSetSort(s){ _amSort=s; combineAllMonths(true); }
+async function combineAllMonths(useCache){
   var box=_g('laAllMonths'); if(!box) return;
-  var sheets=(LIVE.data&&LIVE.data.availableSheets)||[];
-  var months=sheets.filter(function(n){return /attendance/i.test(n);}); if(!months.length) months=sheets.slice();
-  if(!months.length){ box.innerHTML='<div class="la-empty">No month sheets detected.</div>'; return; }
-  box.innerHTML='<div class="la-empty">Combining '+months.length+' month'+(months.length===1?'':'s')+'…</div>';
-  var agg={};
-  try{
-    for(var i=0;i<months.length;i++){
-      var r=await fetch(LIVE_WORKER+'?sheet='+encodeURIComponent(months[i]),{cache:'no-store'});
-      var j=await r.json(); if(!j||!Array.isArray(j.students))continue;
-      j.students.forEach(function(s){ var k=s.reg||s.sno||s.name; if(!agg[k])agg[k]={name:s.name,reg:s.reg,sno:s.sno,att:0,base:0};
-        agg[k].att+=(+s.total||((+s.present||0)+(+s.od||0))); agg[k].base+=(+s.base||0); });
-    }
-  }catch(e){ box.innerHTML='<div class="la-error">Could not combine months — '+_escd(String(e.message||e))+'</div>'; return; }
-  var list=Object.keys(agg).map(function(k){var a=agg[k]; a.pct=a.base?Math.round(a.att/a.base*1000)/10:0; return a;}).sort(function(a,b){return a.pct-b.pct;});
+  var res;
+  if(useCache && LIVE.overall){ res=LIVE.overall; }
+  else {
+    box.innerHTML='<div class="la-empty">Combining every month sheet…</div>';
+    try{ res = await fetchAllMonths(); LIVE.overall=res; }
+    catch(e){ box.innerHTML='<div class="la-error">Could not combine months — '+_escd(String(e.message||e))+'</div>'; return; }
+  }
+  // res.map is keyed by both reg and sno — dedupe into a unique student list
+  var seen={}, list=[];
+  Object.keys(res.map).forEach(function(k){ var m=res.map[k]; var id=(m.reg!=null?('r'+m.reg):('s'+m.sno)); if(seen[id])return; seen[id]=1; list.push(m); });
   if(!list.length){ box.innerHTML='<div class="la-empty">No combined data returned.</div>'; return; }
-  var totAtt=list.reduce(function(s,a){return s+a.att;},0), totBase=list.reduce(function(s,a){return s+a.base;},0);
-  var overall=totBase?Math.round(totAtt/totBase*1000)/10:0;
   var th=(typeof THR==='function')?THR():{det:75,cond:65};
+  if(_amSort==='pct') list.sort(function(a,b){return a.pct-b.pct;});
+  else if(_amSort==='name') list.sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
+  else list.sort(function(a,b){return (+a.sno||0)-(+b.sno||0);});
+  var totAtt=list.reduce(function(s,a){return s+a.total;},0), totHeld=list.reduce(function(s,a){return s+a.held;},0);
+  var overall=totHeld?Math.round(totAtt/totHeld*1000)/10:0;
   var below=list.filter(function(a){return a.pct<th.det;});
-  var rows=list.slice(0,12).map(function(a){var c=a.pct<th.cond?'var(--red)':a.pct<th.det?'var(--gold2)':'var(--green)';
-    return '<div class="la-distrow"><span class="dl">'+_escd(a.name)+'</span><div class="db"><i style="width:'+Math.min(100,a.pct)+'%;background:'+c+'"></i></div><span class="dv">'+a.pct+'%</span></div>';}).join('');
-  box.innerHTML='<div class="la-combine"><span class="big">'+overall+'%</span><div><div class="lbl">Overall · all months</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px">'+months.length+' months · '+list.length+' students · '+below.length+' below '+th.det+'%</div></div></div>'
-    +'<div class="la-dist" style="margin-top:14px">'+rows+'</div>'
-    +(list.length>12?'<div class="la-note">Showing the 12 lowest. Combined % = total periods attended (incl. OD) ÷ total periods, across every month sheet.</div>':'<div class="la-note">Combined % = total periods attended (incl. OD) ÷ total periods, across every month sheet.</div>');
+  var rows=list.map(function(a){var c=a.pct<th.cond?'var(--red)':a.pct<th.det?'var(--gold2)':'var(--green)';
+    return '<div class="am-row">'
+      +'<span class="am-n">'+(a.sno!=null?a.sno:'')+'</span>'
+      +'<span class="am-nm">'+_escd(a.name)+' <span style="font-family:var(--mono);font-size:9px;color:var(--faint)">'+_escd(String(a.reg||''))+'</span></span>'
+      +'<div class="am-bar"><i style="width:'+Math.min(100,a.pct)+'%;background:'+c+'"></i></div>'
+      +'<span class="am-att">'+a.total+'/'+a.held+'</span>'
+      +'<span class="am-pct" style="color:'+c+'">'+a.pct+'%</span></div>';}).join('');
+  box.innerHTML='<div class="la-combine"><span class="big">'+overall+'%</span><div><div class="lbl">Class overall · since day 1</div>'
+      +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px">'+res.months+' month'+(res.months===1?'':'s')+' · '+list.length+' students · '+below.length+' below '+th.det+'%'+(res.lastDate?' · to '+res.lastDate:'')+'</div></div></div>'
+    +'<div class="am-tools"><span>Sort:</span>'
+      +'<button class="la-sortbtn'+(_amSort==='sno'?' on':'')+'" onclick="_amSetSort(\'sno\')">Roll</button>'
+      +'<button class="la-sortbtn'+(_amSort==='pct'?' on':'')+'" onclick="_amSetSort(\'pct\')">Lowest %</button>'
+      +'<button class="la-sortbtn'+(_amSort==='name'?' on':'')+'" onclick="_amSetSort(\'name\')">Name</button></div>'
+    +'<div class="am-list">'+rows+'</div>'
+    +'<div class="la-note">Summed sheets: <b>'+_escd((res.sheets||[]).join(' · '))+'</b>. Overall % = periods attended (incl. OD) ÷ periods held, from day 1 to the last marked date.'+(res.months===1?'<br><b style="color:var(--gold2)">Only one sheet returned data</b> — the other months either aren’t in the worker’s sheet list or have no attendance filled in yet.':'')+'</div>';
+}
+
+/* ── each student's OVERALL % = periods attended (present+OD) ÷ periods HELD,
+      summed across every month sheet. Held = present+absent+od, i.e. only days
+      that have actually been marked — so the window runs from day 1 (≈ Jul 2)
+      to the last marked date and extends automatically as new days are marked. ── */
+async function fetchAllMonths(){
+  // one request; the worker sums every month tab server-side (day 1 → last marked date)
+  var r=await fetch(LIVE_WORKER+'?all=1',{cache:'no-store'});
+  var j=await r.json();
+  if(j && j.error) throw new Error(j.error+(j.detail?(' — '+j.detail):''));
+  if(!j || !Array.isArray(j.students) || !j.students.length) throw new Error('worker returned no combined data (needs the ?all=1 endpoint)');
+  var byAny={};
+  j.students.forEach(function(s){
+    var held=(s.held!=null)?s.held:((+s.present||0)+(+s.absent||0)+(+s.od||0));
+    var total=(s.total!=null)?s.total:((+s.present||0)+(+s.od||0));
+    var m={name:s.name,reg:s.reg,sno:s.sno,present:+s.present||0,od:+s.od||0,absent:+s.absent||0,total:total,held:held,base:held,pct:s.pct};
+    if(m.reg!=null)byAny[m.reg]=m; if(m.sno!=null)byAny[m.sno]=m;
+  });
+  return {map:byAny, months:j.months||((j.sheetsUsed||[]).length||1), sheets:j.sheetsUsed||[], count:j.students.length, lastDate:j.lastDate||''};
+}
+/* small per-student box shown in the Students list */
+function overallBox(s){
+  if(LIVE.overallLoading) return '<div class="la-overall loading"><b>…</b><span>overall</span></div>';
+  if(!(LIVE.overall && LIVE.overall.map)) return '';
+  var o=LIVE.overall.map[s.reg]||LIVE.overall.map[s.sno]; if(!o) return '';
+  var th=(typeof THR==='function')?THR():{det:75,cond:65};
+  var c=o.pct<th.cond?'low':o.pct<th.det?'mid':'hi';
+  return '<div class="la-overall '+c+'" title="Overall '+o.total+'/'+o.held+' periods since day 1"><b>'+o.pct+'%</b><span>overall</span></div>';
+}
+/* fetch + cache the overall figures, then repaint the list */
+async function loadOverall(force){
+  if(LIVE.overallLoading) return;
+  if(LIVE.overall && !force) return;
+  if(force) LIVE.overall=null;
+  LIVE.overallLoading=true;
+  var btn=_g('laOverallBtn'); if(btn){ btn.classList.add('on'); btn.textContent='Loading overall…'; }
+  if(typeof renderLive==='function')renderLive();
+  try{ LIVE.overall=await fetchAllMonths(); }
+  catch(e){ if(typeof toast==='function')toast('Overall unavailable: '+(e.message||e)); }
+  LIVE.overallLoading=false;
+  if(btn){ if(LIVE.overall){ btn.textContent='Overall ✓ '+(LIVE.overall.months)+' mo'+(LIVE.overall.lastDate?' · to '+LIVE.overall.lastDate:''); btn.classList.add('on'); } else { btn.textContent='Overall (all months)'; btn.classList.remove('on'); } }
+  if(typeof renderLive==='function')renderLive();
 }
 
 /* ── force an immediate server-side backup snapshot ── */
