@@ -992,7 +992,7 @@ select{appearance:none;cursor:pointer;
     <div class="la-sub on" id="laOverview">
       <div class="la-stats" id="laStats"></div>
       <div class="la-card">
-        <div class="la-card-h" style="display:flex;align-items:center;justify-content:space-between;gap:10px">Overall attendance · every student, all months<button class="la-refresh" onclick="combineAllMonths()">Show all students</button></div>
+        <div class="la-card-h" style="display:flex;align-items:center;justify-content:space-between;gap:10px">Overall attendance · every student, all months<span style="display:flex;gap:6px"><button class="la-refresh" onclick="combineAllMonths()">Show all students</button><button class="la-refresh" onclick="exportOverallPNG()">⬇ Export PNG</button></span></div>
         <div id="laAllMonths"><div class="la-empty">Tap “Show all students” to compute each student’s overall % (day 1 → last marked date) across every month sheet.</div></div>
       </div>
       <div class="la-card">
@@ -3100,6 +3100,66 @@ function newlyAtRiskBanner(){
 /* ── combine all month sheets into one overall attendance figure ── */
 var _amSort='sno';
 function _amSetSort(s){ _amSort=s; combineAllMonths(true); }
+async function exportOverallPNG(){
+  if(typeof LIVE==='undefined' || !LIVE.loaded){ toast('Open Live Attendance first'); return; }
+  if(!LIVE.overall){ toast('Combining months…'); try{ await loadOverall(true); }catch(e){} }
+  if(!LIVE.overall || !LIVE.overall.map){ toast('No combined data to export'); return; }
+  // dedupe (map is keyed by both reg and sno) + sort by roll
+  const seen={}, list=[];
+  Object.keys(LIVE.overall.map).forEach(k=>{ const m=LIVE.overall.map[k]; const id=(m.reg!=null?('r'+m.reg):('s'+m.sno)); if(seen[id])return; seen[id]=1; list.push(m); });
+  if(!list.length){ toast('No data'); return; }
+  list.sort((a,b)=>(+a.sno||0)-(+b.sno||0));
+  const th=(typeof THR==='function')?THR():{det:75,cond:65};
+  const totAtt=list.reduce((s,a)=>s+(a.total||0),0), totHeld=list.reduce((s,a)=>s+(a.held||0),0);
+  const overall=totHeld?Math.round(totAtt/totHeld*1000)/10:0;
+  const below=list.filter(a=>a.pct<th.det).length;
+  const cls=(($('pProg')&&$('pProg').value)||($('pClass')&&$('pClass').value)||'Class').trim();
+  const months=(LIVE.overall.months)||1, lastDate=LIVE.overall.lastDate||'';
+  const when=new Date().toLocaleString();
+  // layout
+  const S=2, W=940, head=104, colY=head+30, rowH=30, foot=42;
+  const H=colY + list.length*rowH + foot;
+  const cv=document.createElement('canvas'); cv.width=W*S; cv.height=H*S;
+  const g=cv.getContext('2d'); g.scale(S,S);
+  g.textBaseline='middle';
+  g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
+  // header band
+  g.fillStyle='#1F4E79'; g.fillRect(0,0,W,head);
+  g.fillStyle='#ffffff'; g.font='700 22px Arial'; g.textBaseline='alphabetic';
+  g.fillText('Overall Attendance — All Months', 26, 40);
+  g.font='13px Arial'; g.fillStyle='#cfe0f0';
+  g.fillText(cls+'  ·  '+months+' month'+(months===1?'':'s')+(lastDate?('  ·  to '+lastDate):'')+'  ·  '+list.length+' students', 26, 64);
+  g.fillText('Generated '+when+'  ·  Detention <'+th.det+'%  ·  Condonation <'+th.cond+'%  ·  '+below+' below '+th.det+'%', 26, 84);
+  // big overall %
+  g.textBaseline='alphabetic'; g.font='700 34px Arial'; g.fillStyle='#ffffff'; g.textAlign='right';
+  g.fillText(overall+'%', W-26, 46); g.font='11px Arial'; g.fillStyle='#cfe0f0'; g.fillText('CLASS OVERALL', W-26, 66); g.textAlign='left';
+  // column headers
+  const cX={n:26, name:70, reg:430, ah:600, pct:760, st:820};
+  g.fillStyle='#1F4E79'; g.font='700 12px Arial'; g.textBaseline='middle';
+  g.fillText('#',cX.n,colY-6); g.fillText('Name',cX.name,colY-6); g.fillText('Reg',cX.reg,colY-6);
+  g.fillText('Att/Held',cX.ah,colY-6); g.fillText('%',cX.pct,colY-6);
+  g.strokeStyle='#1F4E79'; g.lineWidth=1; g.beginPath(); g.moveTo(20,colY+8); g.lineTo(W-20,colY+8); g.stroke();
+  // rows
+  const esc2=(typeof esc==='function')?esc:(x=>x);
+  list.forEach((a,i)=>{
+    const y=colY+22+i*rowH;
+    if(i%2){ g.fillStyle='#f3f7fb'; g.fillRect(20,y-rowH/2+4,W-40,rowH); }
+    const col = a.pct<th.cond?'#c0392b' : a.pct<th.det?'#b8860b' : '#1a8a4f';
+    g.fillStyle='#333'; g.font='13px Arial';
+    g.fillText(String(a.sno!=null?a.sno:i+1), cX.n, y);
+    g.fillText(String(a.name||'').slice(0,42), cX.name, y);
+    g.fillStyle='#666'; g.font='12px Arial'; g.fillText(String(a.reg||''), cX.reg, y);
+    g.fillStyle='#333'; g.fillText((a.total||0)+'/'+(a.held||0), cX.ah, y);
+    g.fillStyle=col; g.font='700 13px Arial'; g.fillText((a.pct!=null?a.pct:0)+'%', cX.pct, y);
+  });
+  // footer
+  g.fillStyle='#888'; g.font='10px Arial';
+  g.fillText('ARGUS · Attendance Command — overall % = periods attended (incl. OD) ÷ periods held, across every month sheet.', 26, H-16);
+  // download
+  const fname='Overall_Attendance_'+(cls.replace(/[^A-Za-z0-9]+/g,'_'))+'_'+new Date().toISOString().slice(0,10)+'.png';
+  try{ const aEl=document.createElement('a'); aEl.download=fname; aEl.href=cv.toDataURL('image/png'); document.body.appendChild(aEl); aEl.click(); aEl.remove(); toast('Exported '+fname); }
+  catch(e){ toast('Export failed: '+(e.message||e)); }
+}
 async function combineAllMonths(useCache){
   var box=_g('laAllMonths'); if(!box) return;
   var res;
