@@ -1,1094 +1,604 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ARGUS Suite · Aviation Engineering Tools</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#05070b" />
+<meta name="description" content="ARGUS — an aviation & aerospace engineering terminal. Live flight & satellite tracking, ATC and flight-ops simulators, a careers desk, dashboards and research, all in the browser." />
+<title>ARGUS · Aviation Terminal</title>
 <style>
-  /* Paint the ROOT dark, not just <body>. Otherwise the browser paints its own
-     canvas underneath — white when the OS is in light mode — and it shows through
-     on the overscroll bounce, on the first frame, and in the scrollbar. */
-  :root{ color-scheme: dark; }
-  html,body{ background:#08070a; overscroll-behavior:none; }
-  /* a real painted layer, not just a background property — nothing can override it */
-  #backdrop{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#08070a;z-index:0;pointer-events:none}
+:root{
+  --bg:#05070b; --bg2:#070a0f; --panel:#0c121a; --panel2:#0f1621; --raised:#121b27;
+  --line:#1b2735; --line2:#26384a; --line3:#324a60;
+  --ink:#e2ecf5; --dim:#8aa0b2; --faint:#5a7285; --faint2:#40566a;
+  --teal:#2ec4b6; --teal2:#4de1d6; --gold:#f0b64a; --amber:#ff9e64; --blue:#4a9eff; --violet:#8b93ff; --red:#ff5a63; --green:#31c56a;
+  --mono:"SF Mono",ui-monospace,Menlo,Consolas,"Roboto Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --glow:0 0 24px -6px;
+}
+*{box-sizing:border-box}
+::selection{background:rgba(46,196,182,.26)}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(ellipse 60% 45% at 12% -8%,rgba(46,196,182,.07),transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 0%,rgba(240,182,74,.05),transparent 52%),
+    radial-gradient(ellipse 60% 50% at 60% 120%,rgba(74,158,255,.05),transparent 55%);
+  background-attachment:fixed;}
+a{color:inherit;text-decoration:none}
+h1,h2,h3{margin:0;font-weight:750;letter-spacing:-.015em}
+button{font-family:inherit}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5}
 
-  :root{
-    --bg:#08070a; --panel:#100d15; --panel2:#171320; --line:#221c2c; --line2:#2d2639;
-    --ink:#f6f1e8; --muted:#a49a8f; --faint:#6a6377; --gold:#f0b64a; --gold2:#ffd98a;
-    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
-    -webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh}
-  a{color:inherit;text-decoration:none}
-  /* canvas is a replaced element: inset:0 alone leaves it at its intrinsic
-     300x150 in the corner. It needs an explicit width/height to fill the screen. */
-  #stars{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none;display:block}
-  .wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:0 24px 40px}
+/* ══════════ shell ══════════ */
+.app{position:relative;z-index:1;display:flex;min-height:100vh}
 
-  .top{display:flex;align-items:center;justify-content:space-between;padding:22px 0 4px}
-  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.28em;color:var(--gold)}
-  .rt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--faint)}
-  .rt b{color:var(--ink)}
+/* ── sidebar ── */
+.side{width:246px;flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;
+  background:linear-gradient(180deg,rgba(12,18,26,.92),rgba(5,7,11,.96));
+  border-right:1px solid var(--line);backdrop-filter:blur(8px);display:flex;flex-direction:column;z-index:20}
+.side::-webkit-scrollbar{width:7px}.side::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+.brand{padding:20px 18px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.brandEmblem{width:38px;height:38px;flex:none;border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--gold);
+  border:1px solid rgba(240,182,74,.3);background:radial-gradient(circle at 50% 35%,rgba(240,182,74,.16),rgba(240,182,74,.02));box-shadow:inset 0 0 18px -6px rgba(240,182,74,.5)}
+.brandEmblem svg{width:24px;height:24px}
+.brandName{font-family:var(--mono);font-weight:700;letter-spacing:.32em;font-size:17px;color:var(--ink)}
+.brandSub{font-family:var(--mono);font-size:7.5px;letter-spacing:.2em;color:var(--faint);text-transform:uppercase;margin-top:3px}
+.nav{padding:12px 10px;flex:1}
+.navGroup{font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:var(--faint);text-transform:uppercase;padding:14px 12px 7px;display:flex;align-items:center;gap:8px}
+.navGroup::after{content:"";flex:1;height:1px;background:var(--line)}
+.ni{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:10px;cursor:pointer;color:var(--dim);
+  font-size:13px;font-weight:520;transition:all .15s;margin-bottom:2px;position:relative;overflow:hidden}
+.ni svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.85;color:var(--acc,var(--dim))}
+.ni .nTxt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.ni .nName{font-weight:600;color:var(--ink);opacity:.86;letter-spacing:.01em}
+.ni .nTag{font-family:var(--mono);font-size:7.5px;letter-spacing:.09em;color:var(--faint);text-transform:uppercase;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ni .nLock{font-size:10px;opacity:.8}
+.ni:hover{background:var(--panel2);color:var(--ink)}
+.ni:hover .nName{opacity:1}
+.ni:hover svg{opacity:1;filter:drop-shadow(0 0 6px var(--acc,transparent))}
+.ni.on{background:linear-gradient(90deg,rgba(46,196,182,.12),transparent)}
+.ni.on::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--acc,var(--teal));box-shadow:0 0 10px var(--acc,var(--teal))}
+.ni.on .nName{opacity:1;color:var(--ink)}
+.sideFoot{padding:10px 12px 16px;border-top:1px solid var(--line);display:flex;gap:8px}
+.sideFoot button{flex:1;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--panel);border:1px solid var(--line2);border-radius:9px;padding:9px;color:var(--dim);cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.sideFoot button:hover{border-color:var(--line3);color:var(--ink);background:var(--panel2)}
 
-  /* ── the compass stage ── */
-  .stage{position:relative;width:min(78vw,580px);aspect-ratio:1/1;margin:14px auto 0}
-  .stage canvas.scope{position:absolute;inset:0;width:100%;height:100%;z-index:0}
+/* ── main ── */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
 
-  /* centre hub */
-  .hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    width:44%;aspect-ratio:1/1;border-radius:50%;z-index:2;
-    background:radial-gradient(circle at 50% 38%,#191320,#0c0a11 70%);
-    border:1px solid var(--line2);display:grid;place-items:center;overflow:hidden;
-    box-shadow:0 0 0 1px rgba(240,182,74,.07),inset 0 0 44px rgba(0,0,0,.75),0 22px 60px -30px #000}
-  .hub canvas{position:absolute;inset:0;width:100%;height:100%}
-  .face{grid-area:1/1;position:relative;z-index:2;width:100%;height:100%;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:0 13%;transition:opacity .32s}
-  .fRead{opacity:0;pointer-events:none}
-  .hub.on .fHome{opacity:0}
-  .hub.on .fRead{opacity:1}
-  .word{font-family:var(--mono);font-size:clamp(15px,2.9vw,21px);letter-spacing:.30em;font-weight:700;
-    margin-top:6px}
-  .wsub{font-family:var(--mono);font-size:8.5px;letter-spacing:.42em;color:var(--gold);margin-top:5px}
-  .htag{font-size:10.5px;line-height:1.55;color:var(--muted);margin-top:11px;max-width:88%}
-  .hhint{font-family:var(--mono);font-size:8px;letter-spacing:.19em;color:var(--faint);margin-top:13px}
-  .rBrg{font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:var(--acc,#f0b64a)}
-  .rName{font-size:clamp(13px,2.4vw,17px);font-weight:750;margin-top:5px;letter-spacing:-.01em}
-  .rTag{font-family:var(--mono);font-size:7.5px;letter-spacing:.14em;color:var(--faint);margin-top:4px}
-  .rDesc{font-size:10.2px;line-height:1.55;color:var(--muted);margin-top:9px}
-  .rCta{font-family:var(--mono);font-size:8px;letter-spacing:.16em;color:var(--acc,#f0b64a);margin-top:11px}
+/* announcement ticker */
+.ticker{position:sticky;top:0;z-index:15;display:flex;align-items:center;gap:14px;padding:0 22px;height:46px;
+  background:linear-gradient(90deg,rgba(9,13,19,.96),rgba(9,13,19,.88));border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}
+.ticker .tkTag{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--bg);
+  background:var(--gold);padding:4px 9px;border-radius:5px;font-weight:700;flex:none;display:flex;align-items:center;gap:6px}
+.ticker .tkTag i{width:6px;height:6px;border-radius:50%;background:var(--bg);animation:pulse 1.4s infinite}
+.ticker[data-level="alert"] .tkTag{background:var(--red);color:#fff}
+.ticker[data-level="success"] .tkTag{background:var(--green);color:#04240f}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.tkText{flex:1;min-width:0;font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ticker[data-level="alert"] .tkText{color:#ff8f95}
+.ticker[data-level="success"] .tkText{color:#6fe0a0}
+.tkCur{display:inline-block;width:8px;height:1.05em;background:currentColor;vertical-align:-2px;margin-left:1px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.tkMore{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:none;border:1px solid var(--line2);border-radius:7px;padding:6px 10px;cursor:pointer;flex:none}
+.tkMore:hover{border-color:var(--gold);color:var(--gold)}
 
-  /* waypoints on the ring */
-  .wp{--acc:#f0b64a;position:absolute;z-index:3;transform:translate(-50%,-50%);
-    display:flex;flex-direction:column;align-items:center;gap:7px;
-    transition:transform .3s cubic-bezier(.2,1.6,.4,1);cursor:pointer;
-    opacity:0;animation:pop .55s cubic-bezier(.2,1.3,.4,1) forwards}
-  @keyframes pop{to{opacity:1}}
-  .disc{position:relative;width:clamp(46px,8.6vw,58px);aspect-ratio:1/1;border-radius:50%;
-    display:grid;place-items:center;color:var(--faint);
-    background:radial-gradient(circle at 50% 35%,#1d1826,#100d15);
-    border:1px solid var(--line2);transition:.28s}
-  .disc svg{width:44%;height:44%;fill:none;stroke:currentColor;stroke-width:1.6;
-    stroke-linecap:round;stroke-linejoin:round}
-  .disc::after{content:"";position:absolute;inset:-5px;border-radius:50%;
-    border:1px solid var(--acc);opacity:0;transition:.28s;transform:scale(.85)}
-  .wpName{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--faint);
-    white-space:nowrap;transition:color .25s}
-  .wp:hover{transform:translate(-50%,-50%) scale(1.10)}
-  .wp:hover .disc{color:var(--ink);border-color:var(--acc);
-    box-shadow:0 0 26px -6px var(--acc),inset 0 0 20px -8px var(--acc)}
-  .wp:hover .disc::after{opacity:.55;transform:scale(1)}
-  .wp:hover .wpName{color:var(--ink)}
-  .wp.live .disc{border-color:rgba(240,182,74,.4)}
-  .wp .pip{position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;
-    background:var(--acc);box-shadow:0 0 7px var(--acc);opacity:0}
-  .wp.live .pip{opacity:1;animation:bl 1.8s ease-in-out infinite}
-  @keyframes bl{0%,100%{opacity:1}50%{opacity:.25}}
+.stage{flex:1;padding:24px 30px 70px;max-width:1400px;width:100%}
 
-  /* link banner */
-  .link{margin:34px auto 0;max-width:760px;padding:14px 17px;border-radius:12px;
-    border:1px dashed rgba(240,182,74,.33);background:rgba(240,182,74,.045);
-    display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--muted);line-height:1.55}
-  .link b{color:var(--gold)}
-  .link .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex:none;
-    box-shadow:0 0 10px var(--gold);animation:pl 1.9s ease-in-out infinite}
-  @keyframes pl{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.7)}}
+/* header row: dashboards (left) + greeting/clock/weather (right) */
+.hdr{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:16px;margin-bottom:18px}
+@media(max-width:1080px){.hdr{grid-template-columns:1fr}}
 
-  /* research */
-  .research{margin:38px auto 0;max-width:760px}
-  .rh{display:flex;align-items:center;gap:12px;margin-bottom:13px;font-family:var(--mono);
-    font-size:9.5px;letter-spacing:.24em;color:var(--faint)}
-  .rh::after{content:"";flex:1;height:1px;background:var(--line)}
-  .rcard{--acc:#8b93ff;position:relative;display:flex;overflow:hidden;background:var(--panel);
-    border:1px solid var(--line2);border-radius:16px;transition:.34s}
-  .rcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--acc);opacity:.85}
-  .rcard:hover{border-color:var(--acc);transform:translateY(-2px);box-shadow:0 22px 50px -32px var(--acc)}
-  .rvis{flex:none;width:172px;border-right:1px solid var(--line);background:#0a0810}
-  .rvis canvas{display:block;width:100%;height:100%}
-  .rbody{padding:19px 21px;flex:1;min-width:0}
-  .rkick{font-family:var(--mono);font-size:8.5px;letter-spacing:.2em;color:var(--acc);margin-bottom:7px}
-  .rbody h3{font-size:16.5px;font-weight:750;margin-bottom:6px}
-  .rbody p{color:var(--muted);font-size:12.3px;line-height:1.6}
-  .rpills{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
-  .rpill{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;color:var(--muted);
-    border:1px solid var(--line2);border-radius:20px;padding:3px 9px}
-  @media(max-width:620px){.rcard{flex-direction:column}
-    .rvis{width:100%;height:96px;border-right:none;border-bottom:1px solid var(--line)}}
+.dashWrap{display:flex;flex-direction:column;gap:10px}
+.dashLbl{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:8px}
+.dashLbl::after{content:"";flex:1;height:1px;background:var(--line)}
+.dashRow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.dashRow{grid-template-columns:1fr}}
+.dtile{position:relative;border:1px solid var(--line);border-radius:16px;background:linear-gradient(160deg,var(--panel2),var(--panel));
+  padding:16px 16px 15px;overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s;display:flex;flex-direction:column;gap:9px;min-height:132px}
+.dtile::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--dc);opacity:.9}
+.dtile::after{content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,var(--dc),transparent 68%);opacity:.1}
+.dtile:hover{transform:translateY(-3px);border-color:var(--dc);box-shadow:var(--glow) color-mix(in srgb,var(--dc) 45%,transparent)}
+.dtIco{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--dc);
+  border:1px solid color-mix(in srgb,var(--dc) 40%,transparent);background:color-mix(in srgb,var(--dc) 12%,transparent)}
+.dtIco svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.dtName{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:15px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.dtName .lk{font-size:12px}
+.dtSub{font-size:12px;color:var(--dim);margin-top:-4px}
+.dtGo{margin-top:auto;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dc);display:flex;align-items:center;gap:6px}
 
-  footer{position:relative;z-index:1;text-align:center;color:var(--faint);font-family:var(--mono);
-    font-size:9.5px;letter-spacing:.11em;padding:30px 24px 30px}
-  footer b{color:var(--muted);font-weight:500}
+/* greeting / clock / weather */
+.welcome{border:1px solid var(--line);border-radius:16px;background:linear-gradient(160deg,var(--panel2),var(--panel));padding:18px 20px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.welcome::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--teal),transparent)}
+.wGreet{font-size:21px;font-weight:750;letter-spacing:-.02em;line-height:1.15}
+.wGreet .hand{color:var(--teal)}
+.wDate{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--faint);text-transform:uppercase;margin-top:5px}
+.wClock{font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:.02em;line-height:1;margin:14px 0 2px;color:var(--ink);font-variant-numeric:tabular-nums}
+.wClock small{font-size:14px;color:var(--dim);margin-left:4px;letter-spacing:.05em}
+.wWeather{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.wwIco{font-size:30px;line-height:1;filter:saturate(1.1)}
+.wwTemp{font-family:var(--mono);font-size:24px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.wwMeta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.wwCond{font-size:12.5px;color:var(--ink);opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wwLoc{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--faint);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:5px}
+.wwLoc svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.6}
 
-  /* mobile: the ring becomes a list */
-  @media(max-width:600px){
-    .stage{width:100%;aspect-ratio:auto;height:auto;display:block;margin-top:18px}
-    .stage canvas.scope{display:none}
-    .hub{position:static;transform:none;width:100%;aspect-ratio:auto;border-radius:14px;
-      padding:22px 18px;margin-bottom:14px;min-height:150px}
-    .hub .fRead{display:none}
-    .wp{position:static!important;transform:none!important;flex-direction:row;width:100%;
-      gap:13px;padding:11px 13px;margin-bottom:8px;border:1px solid var(--line2);border-radius:12px}
-    .wp:hover{transform:none!important}
-    .wpName{color:var(--ink);font-size:11px}
-  }
-  @media(prefers-reduced-motion:reduce){.wp{animation:none;opacity:1}}
+/* section titles */
+.sec{margin:22px 0 14px;display:flex;align-items:center;gap:12px}
+.sec .st{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:9px}
+.sec .st b{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+.sec::after{content:"";flex:1;height:1px;background:var(--line)}
 
-  /* ═══ attendance dashboard dock ═══ */
-  .dashdock{position:fixed;right:22px;bottom:20px;z-index:40;
-    display:flex;flex-direction:column;align-items:flex-end;gap:8px;
-    animation:ddIn .7s .5s both}
-  @keyframes ddIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-  .ddlabel{font-family:var(--mono);font-size:8.5px;letter-spacing:.26em;color:var(--faint);
-    padding-right:4px}
-  .ddrow{display:flex;gap:9px}
-  .ddash{position:relative;width:74px;height:74px;border-radius:15px;
-    background:linear-gradient(160deg,rgba(22,20,26,.92),rgba(12,10,16,.92));
-    border:1px solid var(--line);backdrop-filter:blur(8px);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-    text-decoration:none;overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s}
-  .ddash::before{content:"";position:absolute;inset:0;background:var(--dc);opacity:0;transition:opacity .18s}
-  .ddash::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--dc);opacity:.9}
-  .ddash svg{width:22px;height:22px;fill:none;stroke:var(--dc);stroke-width:1.7;
-    stroke-linecap:round;stroke-linejoin:round;transition:transform .18s}
-  .ddash span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--ink);font-weight:600}
-  .ddash em{font-family:var(--mono);font-size:6.5px;letter-spacing:.08em;color:var(--faint);font-style:normal}
-  .ddash:hover,.ddash:focus{transform:translateY(-4px);border-color:var(--dc);
-    box-shadow:0 10px 26px -12px var(--dc),0 0 0 1px var(--dc) inset;outline:none}
-  .ddash:hover svg{transform:scale(1.12)}
-  .ddash:hover span{color:#fff}
-  @media(max-width:640px){
-    .dashdock{right:12px;bottom:12px}
-    .ddash{width:60px;height:60px;border-radius:12px}
-    .ddash svg{width:18px;height:18px}
-    .ddash em{display:none}
-  }
-  /* MENTOR dock — bottom-left */
-  .dashdock-left{right:auto;left:22px;align-items:flex-start;animation-delay:.6s}
-  .dashdock-left .ddlabel{padding-right:0;padding-left:4px}
-  .ddash-lock .ddLock{position:absolute;top:6px;right:7px;font-size:9px;opacity:.8;filter:grayscale(.2)}
-  @media(max-width:640px){ .dashdock-left{left:12px;bottom:12px} }
+/* news + otd */
+.feedRow{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+@media(max-width:900px){.feedRow{grid-template-columns:1fr}}
+.card{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:18px 20px;position:relative;overflow:hidden}
+.cardHead{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.cardHead .ch{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);opacity:.9}
+.cardHead .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+.cardHead .live{margin-left:auto;font-family:var(--mono);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);border:1px solid rgba(46,196,182,.35);border-radius:20px;padding:3px 9px;display:flex;align-items:center;gap:5px}
+.cardHead .live::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--teal);animation:pulse 1.4s infinite}
+.ncList{display:flex;flex-direction:column;gap:2px}
+.ncItem{display:block;padding:11px 12px;border-radius:11px;transition:background .14s,transform .14s;border:1px solid transparent}
+.ncItem:hover{background:var(--panel2);border-color:var(--line);transform:translateX(2px)}
+.ncTitle{font-size:13.5px;line-height:1.4;color:var(--ink);font-weight:520}
+.ncMeta{display:flex;gap:12px;margin-top:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--faint);text-transform:uppercase}
+.ncMeta span:first-child{color:var(--teal)}
+.ncSkel{height:46px;border-radius:11px;margin-bottom:8px;background:linear-gradient(90deg,var(--panel2),var(--raised),var(--panel2));background-size:200% 100%;animation:shim 1.3s infinite}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.ncState{padding:16px 12px;font-size:12.5px;color:var(--faint);line-height:1.6}
+.ncRefresh{margin-top:12px;width:100%;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:10px;color:var(--dim);cursor:pointer;transition:.15s}
+.ncRefresh:hover{border-color:var(--teal);color:var(--teal)}
 
-  /* ═══ STAGE 1 · two-column landing: ASCENT teaser left, ring right ═══ */
-  .cols{ display:flex; gap:26px; align-items:flex-start; margin-top:14px; }
-  .colLeft{ flex:0 0 300px; max-width:300px; }
-  .colRight{ flex:1; min-width:0; }
-  .colRight .stage{ margin-top:0; }
+.otd{background:linear-gradient(180deg,rgba(139,147,255,.07),var(--panel));border-color:rgba(139,147,255,.18)}
+.otd .cardHead .dot{background:var(--violet);box-shadow:0 0 8px var(--violet)}
+.otd .ch{color:var(--violet);opacity:1}
+.otdDate{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase}
+.otdYear{font-size:38px;font-weight:800;line-height:1;color:var(--ink);margin:6px 0 10px;font-variant-numeric:tabular-nums;
+  background:linear-gradient(120deg,var(--violet),#c8ccff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.otdText{font-size:12.5px;line-height:1.6;color:var(--dim)}
+.otdWing{position:absolute;right:-16px;bottom:-16px;width:96px;height:96px;opacity:.08;color:var(--violet)}
+.otdWing svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1}
 
-  .ascentCard{
-    position:relative; border:1px solid var(--line); border-radius:16px;
-    background:linear-gradient(180deg,rgba(255,158,100,.06),rgba(16,13,21,.4));
-    padding:16px 15px 14px; overflow:hidden;
-    box-shadow:0 18px 50px -30px rgba(255,158,100,.5);
-  }
-  .ascentCard::before{ content:""; position:absolute; inset:0 0 auto 0; height:2px;
-    background:linear-gradient(90deg,transparent,#ff9e64,transparent); opacity:.7; }
-  .acHead{ display:flex; align-items:center; gap:9px; margin-bottom:3px; }
-  .acLogo{ font-family:var(--mono); font-weight:700; letter-spacing:.22em; font-size:14px; color:#ff9e64; }
-  .acLive{ margin-left:auto; display:inline-flex; align-items:center; gap:5px;
-    font-family:var(--mono); font-size:8px; letter-spacing:.14em; color:#ff9e64; opacity:.9; }
-  .acLive i{ width:6px;height:6px;border-radius:50%;background:#ff9e64;box-shadow:0 0 8px #ff9e64;
-    animation:acPulse 1.8s infinite; }
-  @keyframes acPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
-  .acSub{ font-family:var(--mono); font-size:8.5px; letter-spacing:.12em; color:var(--dim,#a49a8f);
-    text-transform:uppercase; margin-bottom:12px; }
-  .acList{ display:flex; flex-direction:column; gap:8px; min-height:120px; }
-  .acJob{ display:block; text-decoration:none; color:inherit; border:1px solid var(--line);
-    border-left:2px solid #ff9e64; border-radius:9px; padding:9px 10px;
-    background:rgba(8,7,10,.5); transition:transform .15s, border-color .15s, background .15s; }
-  .acJob:hover{ transform:translateX(3px); border-color:#ff9e64; background:rgba(255,158,100,.06); }
-  .acTitle{ font-size:12.5px; font-weight:640; line-height:1.25; color:var(--ink); }
-  .acCo{ font-family:var(--mono); font-size:9px; color:var(--dim,#a49a8f); margin-top:3px;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .acMeta{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
-  .acPill{ font-family:var(--mono); font-size:8px; letter-spacing:.05em; padding:2px 6px;
-    border-radius:20px; border:1px solid var(--line); color:var(--dim,#a49a8f); }
-  .acPill.src{ color:#ff9e64; border-color:rgba(255,158,100,.4); }
-  .acState{ font-family:var(--mono); font-size:9.5px; color:var(--dim,#a49a8f);
-    text-align:center; padding:26px 8px; line-height:1.6; }
-  .acSkel{ height:54px; border-radius:9px; border:1px solid var(--line);
-    background:linear-gradient(100deg,rgba(255,255,255,.02),rgba(255,158,100,.05),rgba(255,255,255,.02));
-    background-size:200% 100%; animation:acShimmer 1.3s infinite; }
-  @keyframes acShimmer{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-  .acFoot{ margin-top:13px; }
-  .acOpen{ display:flex; align-items:center; justify-content:center; gap:7px; width:100%;
-    text-decoration:none; font-family:var(--mono); font-size:10px; letter-spacing:.14em;
-    text-transform:uppercase; color:#08070a; font-weight:700; padding:10px;
-    border-radius:10px; background:linear-gradient(90deg,#ff9e64,#ffb98a);
-    transition:filter .15s, transform .15s; }
-  .acOpen:hover{ filter:brightness(1.08); transform:translateY(-1px); }
-  .acRefresh{ display:block; margin:8px auto 0; background:none; border:none; cursor:pointer;
-    font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; color:var(--dim,#a49a8f); }
-  .acRefresh:hover{ color:#ff9e64; }
+/* ascent portal */
+.ascent{display:block;border:1px solid var(--line);border-radius:18px;background:
+  radial-gradient(ellipse 80% 120% at 100% 0%,rgba(255,158,100,.12),transparent 55%),linear-gradient(160deg,var(--panel2),var(--panel));
+  padding:22px 24px;position:relative;overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s}
+.ascent:hover{transform:translateY(-2px);border-color:rgba(255,158,100,.5);box-shadow:var(--glow) rgba(255,158,100,.3)}
+.ascent::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--amber),transparent)}
+.ascTop{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.ascLogo{font-family:var(--mono);font-weight:700;letter-spacing:.28em;font-size:17px;color:var(--amber)}
+.ascLive{margin-left:auto;font-family:var(--mono);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);border:1px solid rgba(255,158,100,.4);border-radius:20px;padding:3px 9px;display:flex;align-items:center;gap:5px}
+.ascLive i{width:5px;height:5px;border-radius:50%;background:var(--amber);animation:pulse 1.4s infinite}
+.ascGrid{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.ascIco{width:64px;height:64px;flex:none;border-radius:16px;display:flex;align-items:center;justify-content:center;color:var(--amber);
+  border:1px solid rgba(255,158,100,.32);background:rgba(255,158,100,.08)}
+.ascIco svg{width:34px;height:34px;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.ascBody{flex:1;min-width:220px}
+.ascBlurb{font-size:13px;color:var(--dim);line-height:1.6;max-width:640px}
+.ascPills{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.ascPill{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line2);border-radius:20px;padding:5px 11px}
+.ascPill.src{color:var(--amber);border-color:rgba(255,158,100,.4)}
+.ascOpen{margin-top:14px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);display:flex;align-items:center;gap:7px}
 
-  @media(max-width:900px){
-    .cols{ flex-direction:column; }
-    .colLeft{ flex:none; max-width:none; width:100%; order:2; }
-    .colRight{ order:1; width:100%; }
-  }
+/* halcyon research */
+.research{display:block;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:linear-gradient(160deg,var(--panel2),var(--panel));transition:transform .18s,border-color .18s,box-shadow .18s;position:relative}
+.research:hover{transform:translateY(-2px);border-color:rgba(139,147,255,.5);box-shadow:var(--glow) rgba(139,147,255,.28)}
+.rcInner{display:flex;gap:0;align-items:stretch;flex-wrap:wrap}
+.rcVis{width:230px;flex:none;position:relative;background:radial-gradient(circle at 50% 50%,rgba(139,147,255,.14),transparent 70%);border-right:1px solid var(--line)}
+.rcVis canvas{width:100%;height:100%;display:block}
+@media(max-width:640px){.rcVis{width:100%;height:150px;border-right:none;border-bottom:1px solid var(--line)}}
+.rcBody{flex:1;min-width:240px;padding:20px 22px}
+.rcKick{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--violet);margin-bottom:8px}
+.rcBody h3{font-size:17px;letter-spacing:-.01em}
+.rcBody p{font-size:12.5px;color:var(--dim);line-height:1.65;margin:8px 0 0;max-width:560px}
+.rcPills{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.rcPill{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line2);border-radius:20px;padding:5px 11px}
 
+footer{padding:26px 30px;color:var(--faint);font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border-top:1px solid var(--line)}
+footer b{color:var(--dim)}
 
-  /* static ASCENT panel (no live listings) */
-  a.ascentCard{ display:block; text-decoration:none; color:inherit; cursor:pointer;
-    transition:transform .18s, border-color .18s, box-shadow .18s; }
-  a.ascentCard:hover{ transform:translateY(-3px); border-color:rgba(255,158,100,.55);
-    box-shadow:0 24px 60px -28px rgba(255,158,100,.7); }
-  /* ═══ MENTOR card (blue) — lower left, below ASCENT ═══ */
-  a.mentorCard{ display:block; text-decoration:none; color:inherit; cursor:pointer; margin-top:16px;
-    position:relative; border:1px solid var(--line); border-radius:16px; overflow:hidden;
-    background:linear-gradient(180deg,rgba(56,140,255,.08),rgba(13,16,24,.5));
-    padding:16px 15px 14px; box-shadow:0 18px 50px -30px rgba(56,140,255,.55);
-    transition:transform .18s, border-color .18s, box-shadow .18s; }
-  a.mentorCard:hover{ transform:translateY(-3px); border-color:rgba(90,160,255,.55);
-    box-shadow:0 24px 60px -28px rgba(56,140,255,.7); }
-  a.mentorCard::before{ content:""; position:absolute; inset:0 0 auto 0; height:2px;
-    background:linear-gradient(90deg,transparent,#4a9eff,transparent); opacity:.75; }
-  .mcHead{ display:flex; align-items:center; gap:9px; margin-bottom:3px; }
-  .mcLogo{ font-family:var(--mono); font-weight:700; letter-spacing:.24em; font-size:14px; color:#5aa2ff; }
-  .mcTag{ margin-left:auto; display:inline-flex; align-items:center; gap:5px;
-    font-family:var(--mono); font-size:8px; letter-spacing:.14em; color:#5aa2ff; opacity:.9; }
-  .mcTag i{ width:6px;height:6px;border-radius:50%;background:#5aa2ff;box-shadow:0 0 8px #5aa2ff; animation:acPulse 2.2s infinite; }
-  .mcSub{ font-family:var(--mono); font-size:8.5px; letter-spacing:.12em; color:var(--dim,#a49a8f);
-    text-transform:uppercase; margin-bottom:6px; }
-  .mcIconWrap{ display:flex; justify-content:center; margin:14px 0 12px; }
-  .mcIcon{ width:60px; height:60px; border-radius:16px; display:flex; align-items:center; justify-content:center;
-    color:#5aa2ff; border:1px solid rgba(90,162,255,.35);
-    background:radial-gradient(circle at 50% 35%,rgba(74,158,255,.2),rgba(74,158,255,.03));
-    box-shadow:inset 0 0 22px -8px rgba(74,158,255,.65); }
-  .mcIcon svg{ width:30px; height:30px; }
-  .mcBlurb{ font-size:11.5px; line-height:1.6; color:var(--dim,#a49a8f); text-align:center; margin-bottom:13px; }
-  .mcFeat{ display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:15px; }
-  .mcPill{ font-family:var(--mono); font-size:8px; letter-spacing:.05em; padding:2px 6px;
-    border-radius:20px; border:1px solid var(--line); color:var(--dim,#a49a8f); }
-  .mcPill.hl{ color:#5aa2ff; border-color:rgba(90,162,255,.4); }
-  .mcOpen{ display:flex; align-items:center; justify-content:center; gap:7px; width:100%;
-    font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase;
-    color:#07101f; font-weight:700; padding:10px; border-radius:10px;
-    background:linear-gradient(90deg,#4a9eff,#77b8ff); }
-  .acIconWrap{ display:flex; justify-content:center; margin:14px 0 12px; }
-  .acIcon{ width:60px; height:60px; border-radius:16px; display:flex; align-items:center; justify-content:center;
-    color:#ff9e64; border:1px solid rgba(255,158,100,.35);
-    background:radial-gradient(circle at 50% 35%,rgba(255,158,100,.18),rgba(255,158,100,.03));
-    box-shadow:inset 0 0 22px -8px rgba(255,158,100,.6); }
-  .acIcon svg{ width:30px; height:30px; }
-  .acBlurb{ font-size:11.5px; line-height:1.6; color:var(--dim,#a49a8f); text-align:center; margin-bottom:13px; }
-  .acFeat{ display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:15px; }
-  .acOpen{ pointer-events:none; }
+/* ══════════ announcement popover + admin (reused) ══════════ */
+.annScrim{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(3,5,8,.72);backdrop-filter:blur(7px)}
+.annScrim[hidden]{display:none!important}
+.annPop,.adminPanel{position:relative;width:min(520px,95vw);max-height:84vh;overflow:auto;border:1px solid var(--line2);border-radius:20px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:26px;box-shadow:0 40px 90px -30px #000;animation:mIn .35s cubic-bezier(.2,.9,.25,1.05)}
+@keyframes mIn{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+.annPopGlow{position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--gold),transparent)}
+.annPopClose{position:absolute;top:15px;right:15px;background:none;border:none;color:var(--dim);font-size:17px;cursor:pointer}
+.annPopClose:hover{color:var(--ink)}
+.annPopKicker{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:14px}
+.annPopList{display:flex;flex-direction:column;gap:10px}
+.annCard{border:1px solid var(--line);border-radius:13px;padding:13px 15px;background:var(--panel2);animation:mIn .4s both}
+.annCard[data-level="alert"]{border-color:rgba(255,90,99,.4)}
+.annCard[data-level="success"]{border-color:rgba(49,197,106,.4)}
+.annCardTitle{font-size:13.5px;font-weight:650;color:var(--ink)}
+.annCardBody{font-size:12.5px;color:var(--dim);margin-top:5px;line-height:1.55}
+.annCardTime{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--faint);margin-top:8px;text-transform:uppercase}
+.annEmpty{color:var(--faint);font-size:12.5px;padding:18px;text-align:center}
+.adminFab{position:fixed;bottom:20px;right:20px;z-index:120;width:44px;height:44px;border-radius:50%;border:1px solid var(--line2);background:var(--panel2);color:var(--dim);font-size:18px;cursor:pointer;box-shadow:0 10px 30px -10px #000;transition:.16s}
+.adminFab:hover{color:var(--gold);border-color:var(--gold);transform:rotate(45deg)}
+.adminHint{font-size:12.5px;color:var(--dim);margin:0 0 14px;line-height:1.55}
+.adminInput{width:100%;background:var(--bg2);border:1px solid var(--line2);border-radius:10px;padding:11px 13px;color:var(--ink);font-size:13px;font-family:inherit;margin-bottom:10px;transition:border-color .15s}
+.adminInput:focus{outline:none;border-color:var(--teal)}
+.adminRow{display:flex;gap:10px;align-items:center}
+.adminBtn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line2);border-radius:10px;padding:11px 16px;background:var(--panel);color:var(--ink);cursor:pointer;transition:.15s;font-weight:600}
+.adminBtn:hover{border-color:var(--line3)}
+.adminBtn.pri{background:linear-gradient(100deg,var(--teal),var(--teal2));color:#04241f;border:none}
+.adminMsg{font-size:11.5px;margin-top:8px;min-height:15px;color:var(--dim);font-family:var(--mono)}
+.adminMsg.err{color:var(--red)} .adminMsg.ok{color:var(--green)}
+.adminDivider{height:1px;background:var(--line);margin:18px 0}
+.adminForm{display:flex;flex-direction:column}
+.adminList{display:flex;flex-direction:column;gap:8px}
+.adminItem{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:var(--panel2)}
+.adminItemMain{flex:1;min-width:0}
+.adminItemTitle{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.annBadge{width:8px;height:8px;border-radius:50%;background:var(--gold);flex:none}
+.annBadge.alert{background:var(--red)} .annBadge.success{background:var(--green)}
+.adminItemBody{font-size:12px;color:var(--dim);margin-top:5px;line-height:1.5}
+.adminItemDel{background:none;border:none;color:var(--faint);cursor:pointer;font-size:14px;flex:none}
+.adminItemDel:hover{color:var(--red)}
 
-
-  /* ═══ STAGE 3 · three columns: ASCENT | ring | news ═══ */
-  .cols{ display:flex; gap:20px; align-items:flex-start; margin-top:14px; }
-  .colLeft{ flex:0 0 244px; max-width:244px; }
-  .colRight{ flex:1 1 auto; min-width:0; display:flex; justify-content:center; }
-  .colNews{ flex:0 0 250px; max-width:250px; display:flex; flex-direction:column; gap:16px; }
-  /* keep the ring inside its own column so waypoints never spill onto the news panel */
-  .colRight .stage{ width:100%; max-width:520px; margin:0 auto; }
-
-  .newsCard, .otdCard{ position:relative; border:1px solid var(--line); border-radius:16px;
-    background:linear-gradient(180deg,rgba(240,182,74,.05),rgba(16,13,21,.4)); padding:15px 14px; overflow:hidden; }
-  .ncHead{ display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:9px;
-    letter-spacing:.16em; color:var(--acc,#f0b64a); margin-bottom:12px; }
-  .ncDot{ width:6px;height:6px;border-radius:50%;background:var(--acc,#f0b64a);
-    box-shadow:0 0 8px var(--acc,#f0b64a); animation:ncPulse 1.9s infinite; }
-  @keyframes ncPulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
-  .ncLive{ margin-left:auto; font-size:8px; letter-spacing:.12em; color:var(--dim,#a49a8f); text-transform:uppercase; }
-  .ncList{ display:flex; flex-direction:column; gap:2px; }
-  .ncItem{ display:block; text-decoration:none; color:inherit; padding:9px 2px; border-bottom:1px solid var(--line);
-    transition:padding-left .15s, color .15s; }
-  .ncItem:last-child{ border-bottom:none; }
-  .ncItem:hover{ padding-left:6px; }
-  .ncTitle{ font-size:11.5px; line-height:1.4; color:var(--ink); font-weight:560;
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .ncItem:hover .ncTitle{ color:var(--acc,#f0b64a); }
-  .ncMeta{ font-family:var(--mono); font-size:8px; letter-spacing:.05em; color:var(--dim,#a49a8f); margin-top:4px;
-    display:flex; gap:6px; }
-  .ncState{ font-family:var(--mono); font-size:9px; color:var(--dim,#a49a8f); text-align:center; padding:22px 6px; line-height:1.6; }
-  .ncSkel{ height:40px; margin:6px 0; border-radius:7px; border:1px solid var(--line);
-    background:linear-gradient(100deg,rgba(255,255,255,.02),rgba(240,182,74,.05),rgba(255,255,255,.02));
-    background-size:200% 100%; animation:ncShim 1.3s infinite; }
-  @keyframes ncShim{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-  .ncRefresh{ display:block; margin:10px auto 0; background:none; border:none; cursor:pointer;
-    font-family:var(--mono); font-size:8px; letter-spacing:.1em; color:var(--dim,#a49a8f); }
-  .ncRefresh:hover{ color:var(--acc,#f0b64a); }
-
-  .otdCard{ background:linear-gradient(180deg,rgba(139,147,255,.06),rgba(16,13,21,.4)); }
-  .otdCard::before{ content:""; position:absolute; inset:0 0 auto 0; height:2px;
-    background:linear-gradient(90deg,transparent,#8b93ff,transparent); opacity:.6; }
-  .otdHead{ font-family:var(--mono); font-size:9px; letter-spacing:.16em; color:#8b93ff; margin-bottom:10px; }
-  .otdDate{ font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; color:var(--dim,#a49a8f); text-transform:uppercase; }
-  .otdYear{ font-size:30px; font-weight:800; line-height:1; color:var(--ink); margin:3px 0 8px;
-    background:linear-gradient(120deg,#fff,#8b93ff); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
-  .otdText{ font-size:11.5px; line-height:1.55; color:var(--dim,#a49a8f); }
-
-  @media(max-width:1160px){
-    .cols{ flex-wrap:wrap; }
-    .colLeft{ order:2; flex:1 1 264px; }
-    .colRight{ order:1; flex:1 1 100%; }
-    .colNews{ order:3; flex:1 1 264px; flex-direction:row; }
-    .colNews .newsCard, .colNews .otdCard{ flex:1; }
-  }
-  @media(max-width:760px){
-    .colNews{ flex-direction:column; }
-  }
-
-
-  /* ═══ STAGE 2 · announcements ═══ */
-  .annBar{ display:flex; align-items:center; gap:10px; margin:12px 0 2px; padding:9px 14px;
-    border:1px solid var(--line); border-radius:12px; position:relative; overflow:hidden;
-    background:linear-gradient(90deg,rgba(240,182,74,.1),rgba(240,182,74,.02));
-    animation:annBarIn .5s cubic-bezier(.2,.8,.2,1); }
-  .annBar[data-level="alert"]{ background:linear-gradient(90deg,rgba(230,80,80,.14),rgba(230,80,80,.02)); }
-  .annBar[data-level="success"]{ background:linear-gradient(90deg,rgba(49,197,106,.13),rgba(49,197,106,.02)); }
-  .annBar::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
-    background:var(--acc,#f0b64a); box-shadow:0 0 12px var(--acc,#f0b64a); }
-  .annBar[data-level="alert"]::before{ background:#e65050; box-shadow:0 0 12px #e65050; }
-  .annBar[data-level="success"]::before{ background:#31c56a; box-shadow:0 0 12px #31c56a; }
-  @keyframes annBarIn{ from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
-  .annBarIcon{ font-size:14px; flex:none; }
-  .annBarText{ flex:1; min-width:0; font-size:12.5px; color:var(--ink); font-weight:560;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .annBarMore{ flex:none; font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase;
-    background:none; border:1px solid var(--line); color:var(--acc,#f0b64a); padding:4px 9px; border-radius:20px; cursor:pointer;
-    transition:background .15s,color .15s; }
-  .annBarMore:hover{ background:var(--acc,#f0b64a); color:#08070a; }
-  .annBarClose{ flex:none; background:none; border:none; color:var(--dim,#a49a8f); cursor:pointer; font-size:13px; padding:2px 4px; }
-  .annBarClose:hover{ color:var(--ink); }
-
-  /* scrim + pop-up */
-  .annScrim[hidden]{ display:none !important; }
-  .annScrim{ position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
-    padding:22px; background:rgba(4,3,7,.72); backdrop-filter:blur(6px);
-    animation:scrimIn .28s ease; }
-  @keyframes scrimIn{ from{opacity:0} to{opacity:1} }
-  .annPop, .adminPanel{ position:relative; width:min(460px,94vw); max-height:82vh; overflow:auto;
-    border:1px solid rgba(240,182,74,.3); border-radius:20px; padding:26px 24px 24px;
-    background:linear-gradient(180deg,#141019,#0c0a11);
-    box-shadow:0 40px 100px -30px rgba(240,182,74,.4), 0 0 0 1px rgba(255,255,255,.03) inset;
-    animation:popIn .42s cubic-bezier(.2,.9,.25,1.05); }
-  @keyframes popIn{ from{opacity:0; transform:translateY(24px) scale(.94)} to{opacity:1; transform:none} }
-  .annPopGlow{ position:absolute; inset:-1px auto auto -1px; right:-1px; height:3px; border-radius:20px 20px 0 0;
-    background:linear-gradient(90deg,transparent,var(--acc,#f0b64a),transparent); opacity:.8; }
-  .annPopClose{ position:absolute; top:14px; right:14px; background:none; border:none; color:var(--dim,#a49a8f);
-    font-size:16px; cursor:pointer; line-height:1; }
-  .annPopClose:hover{ color:var(--ink); }
-  .annPopKicker{ font-family:var(--mono); font-size:9px; letter-spacing:.22em; color:var(--acc,#f0b64a); margin-bottom:14px; }
-  .annPopList{ display:flex; flex-direction:column; gap:12px; }
-  .annCard{ border:1px solid var(--line); border-left:3px solid var(--acc,#f0b64a); border-radius:12px;
-    padding:13px 14px; background:rgba(8,7,10,.5); animation:cardIn .4s both; }
-  .annCard[data-level="alert"]{ border-left-color:#e65050; }
-  .annCard[data-level="success"]{ border-left-color:#31c56a; }
-  @keyframes cardIn{ from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:none} }
-  .annCardTitle{ font-size:14px; font-weight:680; color:var(--ink); margin-bottom:4px; }
-  .annCardBody{ font-size:12.5px; line-height:1.55; color:var(--dim,#a49a8f); }
-  .annCardTime{ font-family:var(--mono); font-size:8.5px; letter-spacing:.05em; color:var(--dim,#a49a8f); opacity:.7; margin-top:8px; }
-  .annEmpty{ font-family:var(--mono); font-size:10px; color:var(--dim,#a49a8f); text-align:center; padding:28px 8px; }
-
-  /* admin fab */
-  .adminFab{ position:fixed; left:16px; bottom:16px; z-index:70; width:38px; height:38px; border-radius:11px;
-    border:1px solid var(--line); background:rgba(16,13,21,.85); color:var(--dim,#a49a8f); font-size:16px; cursor:pointer;
-    display:flex; align-items:center; justify-content:center; transition:color .15s,border-color .15s,transform .15s; }
-  .adminFab:hover{ color:var(--acc,#f0b64a); border-color:var(--acc,#f0b64a); transform:rotate(40deg); }
-
-  /* admin panel */
-  .adminHint{ font-size:12px; color:var(--dim,#a49a8f); line-height:1.5; margin:0 0 14px; }
-  .adminInput{ width:100%; box-sizing:border-box; background:rgba(8,7,10,.6); border:1px solid var(--line);
-    border-radius:9px; padding:10px 12px; color:var(--ink); font-size:13px; font-family:inherit; margin-bottom:10px; }
-  .adminInput:focus{ outline:none; border-color:var(--acc,#f0b64a); }
-  .adminForm{ display:flex; flex-direction:column; }
-  .adminRow{ display:flex; gap:8px; align-items:stretch; }
-  .adminBtn{ font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; cursor:pointer;
-    border:1px solid var(--line); border-radius:9px; padding:10px 16px; background:none; color:var(--ink); transition:filter .15s,transform .15s; }
-  .adminBtn.pri{ background:linear-gradient(90deg,var(--acc,#f0b64a),#ffd98a); color:#08070a; border:none; font-weight:700; }
-  .adminBtn.pri:hover{ filter:brightness(1.08); transform:translateY(-1px); }
-  .adminMsg{ font-size:11px; min-height:15px; margin:2px 0 6px; }
-  .adminMsg.err{ color:#e65050; } .adminMsg.ok{ color:#31c56a; }
-  .adminDivider{ height:1px; background:var(--line); margin:18px 0 14px; }
-  .adminList{ display:flex; flex-direction:column; gap:8px; }
-  .adminItem{ display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:9px; padding:9px 11px; background:rgba(8,7,10,.4); }
-  .adminItemMain{ flex:1; min-width:0; }
-  .adminItemTitle{ font-size:12.5px; font-weight:620; color:var(--ink); }
-  .adminItemBody{ font-size:11px; color:var(--dim,#a49a8f); margin-top:2px;
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .adminItemDel{ flex:none; background:none; border:none; color:var(--dim,#a49a8f); cursor:pointer; font-size:13px; }
-  .adminItemDel:hover{ color:#e65050; }
-  .annBadge{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; vertical-align:middle; }
-  .annBadge.info{ background:var(--acc,#f0b64a); } .annBadge.alert{ background:#e65050; } .annBadge.success{ background:#31c56a; }
-
+@media(max-width:820px){
+  .app{flex-direction:column}
+  .side{width:100%;height:auto;position:static;flex-direction:column}
+  .stage{padding:18px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<div id="backdrop"></div>
 <canvas id="stars"></canvas>
-<div class="wrap">
-  <div class="top">
-    <div class="eyebrow">ARGUS SUITE · AVIATION ENGINEERING</div>
-    <div class="rt"><b>8</b> modules · <b>1</b> research project</div>
-  </div>
+<div class="app">
 
-  <div class="annBar" id="annBar" hidden>
-    <span class="annBarIcon" id="annBarIcon">📢</span>
-    <span class="annBarText" id="annBarText"></span>
-    <button class="annBarMore" id="annBarMore">view all</button>
-    <button class="annBarClose" id="annBarClose" title="dismiss">✕</button>
-  </div>
-
-  <div class="cols">
-   <div class="colLeft">
-    <a class="ascentCard" href="ascent.html">
-      <div class="acHead">
-        <span class="acLogo">ASCENT</span>
-        <span class="acLive"><i></i>LIVE</span>
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <aside class="side">
+    <div class="brand">
+      <div class="brandEmblem">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" opacity=".4"/><circle cx="12" cy="12" r="4.4"/>
+          <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/>
+        </svg>
       </div>
-      <div class="acSub">Aviation &amp; aerospace careers</div>
-      <div class="acIconWrap"><div class="acIcon">
-        <svg viewBox="0 0 24 24"><path d="M2 12h20M12 2l4 10-4 10-4-10z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
-      </div></div>
-      <div class="acBlurb">The suite’s live job board — real aviation &amp; aerospace vacancies, an application tracker, a résumé-fit analyzer and official recruitment notices.</div>
-      <div class="acFeat">
-        <span class="acPill src">Live vacancies</span>
-        <span class="acPill">Saved &amp; tracker</span>
-        <span class="acPill">Résumé fit</span>
-        <span class="acPill">Official notices</span>
-      </div>
-      <div class="acOpen">Open the job board →</div>
-    </a>
-   </div>
-   <div class="colRight">
-  <div class="stage" id="stage">
-    <canvas class="scope" id="scope"></canvas>
-    <div class="hub" id="hub">
-      <canvas id="hubCv"></canvas>
-      <div class="face fHome">
-        <div class="word">ARGUS</div>
-        <div class="wsub">SUITE</div>
-        <div class="htag">Interactive aviation &amp; aerospace engineering — flight ops, tower control,
-          aerodynamics, CAD, NDT, and live trackers from the runway to a black hole.</div>
-        <div class="hhint">SELECT A MODULE</div>
-      </div>
-      <div class="face fRead" id="fRead">
-        <div class="rBrg">BRG <span id="rBrg">—</span>°</div>
-        <div class="rName" id="rName"></div>
-        <div class="rTag" id="rTag"></div>
-        <div class="rDesc" id="rDesc"></div>
-        <div class="rCta">CLICK TO LAUNCH →</div>
+      <div>
+        <div class="brandName">ARGUS</div>
+        <div class="brandSub">Aviation Terminal</div>
       </div>
     </div>
-  </div>
-   </div>
-   <div class="colNews">
-    <div class="newsCard">
-      <div class="ncHead"><span class="ncDot"></span>AVIATION NEWS<span class="ncLive" id="ncLive">live</span></div>
-      <div class="ncList" id="ncList">
-        <div class="ncSkel"></div><div class="ncSkel"></div><div class="ncSkel"></div>
-      </div>
-      <button class="ncRefresh" id="ncRefresh">↻ refresh headlines</button>
-    </div>
-    <div class="otdCard">
-      <div class="otdHead">ON THIS DAY IN AVIATION</div>
-      <div class="otdDate" id="otdDate">—</div>
-      <div class="otdYear" id="otdYear">—</div>
-      <div class="otdText" id="otdText">—</div>
-    </div>
-   </div>
-  </div>
 
-  <div class="link"><span class="dot"></span>
-    <span><b>ODYSSEY and PYRGOS are linked.</b> Dispatch a flight through Chennai, Delhi or Heathrow
-      in ODYSSEY and it appears on the tower board in PYRGOS — the same callsign, type, runway, SID
-      and V-speeds you filed.</span></div>
+    <nav class="nav" id="nav">
+      <div class="navGroup">Console</div>
+      <a class="ni on" href="index.html" style="--acc:var(--teal)">
+        <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9.5 20v-6h5v6"/></svg>
+        <span class="nTxt"><span class="nName">Home</span><span class="nTag">Terminal overview</span></span>
+      </a>
 
-  <div class="research">
-    <div class="rh">MY RESEARCH</div>
-    <a class="rcard" href="halcyon.html">
-      <div class="rvis"><canvas id="rcv"></canvas></div>
-      <div class="rbody">
-        <div class="rkick">HALCYON &middot; MSc DISSERTATION</div>
-        <h3>Control of a Fixed-Wing Multibody UAV</h3>
-        <p>An interactive companion to the thesis — hinged multibody aircraft, roll-yaw instability,
-           and the LQR / LQG control that tames it. Every rig solves the control maths live in the browser.</p>
-        <div class="rpills"><span class="rpill">4 live rigs</span><span class="rpill">LQR · LQG</span>
-          <span class="rpill">Bode · Nyquist</span><span class="rpill">Kalman filter</span></div>
+      <div class="navGroup">Live Ops</div>
+      <a class="ni" href="odyssey.html" style="--acc:#f0b64a">
+        <svg viewBox="0 0 24 24"><path d="M2.5 14.6 21.5 9.2"/><path d="M6.6 13.4 4.2 9.9l1.9-.5 3.3 2.5"/><path d="M9.8 19.3 8.1 16.2"/><path d="M3.5 20.5h7"/><circle cx="18.6" cy="10" r="1"/></svg>
+        <span class="nTxt"><span class="nName">Odyssey</span><span class="nTag">Flight ops · gate-to-gate</span></span>
+      </a>
+      <a class="ni" href="argus.html" style="--acc:#2ec4b6">
+        <svg viewBox="0 0 24 24"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span class="nTxt"><span class="nName">Argus</span><span class="nTag">Live · global radar</span></span>
+      </a>
+      <a class="ni" href="oracle.html" style="--acc:#4de1d6">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.6"/><path d="M12 6.4c-2.1 1.7-2.1 9.5 0 11.2M12 6.4c2.1 1.7 2.1 9.5 0 11.2"/><path d="M6.4 12h11.2"/><ellipse cx="12" cy="12" rx="10.4" ry="4" transform="rotate(-27 12 12)"/><circle cx="20.6" cy="8.9" r="1"/></svg>
+        <span class="nTxt"><span class="nName">Oracle</span><span class="nTag">Orbital · live satellites</span></span>
+      </a>
+      <a class="ni" href="pyrgos.html" style="--acc:#f0b64a">
+        <svg viewBox="0 0 24 24"><path d="M7 21h10"/><path d="M9.5 21V10h5v11"/><path d="M8.6 10 12 5.6 15.4 10"/><path d="M12 5.6V2.8"/><path d="M4.5 14.5 7 13.5M19.5 14.5 17 13.5"/></svg>
+        <span class="nTxt"><span class="nName">Pyrgos</span><span class="nTag">ATC · tower control</span></span>
+      </a>
+
+      <div class="navGroup">Engineering</div>
+      <a class="ni" href="aircraft-cutaway-explorer.html" style="--acc:#22d3ee">
+        <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.6a1.6 1.6 0 0 0-3.2 0V9l-8 5v2l8-2.4V19l-2.2 1.5V22l3.8-1.1L15 22v-1.5L12.8 19v-4.6z"/></svg>
+        <span class="nTxt"><span class="nName">Cutaway</span><span class="nTag">3D · systems</span></span>
+      </a>
+      <a class="ni" href="wind-tunnel-simulator.html" style="--acc:#ff5a63">
+        <svg viewBox="0 0 24 24"><path d="M3 8h11a2.4 2.4 0 1 0-2.4-2.4"/><path d="M3 12h16a2.4 2.4 0 1 1-2.4 2.4"/><path d="M3 16h8.5a2 2 0 1 1-2 2"/></svg>
+        <span class="nTxt"><span class="nName">Wind Tunnel</span><span class="nTag">Aerodynamics</span></span>
+      </a>
+      <a class="ni" href="technical-drawing-lab.html" style="--acc:#5b8def">
+        <svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg>
+        <span class="nTxt"><span class="nName">CATIA V5</span><span class="nTag">CAD · drafting</span></span>
+      </a>
+      <a class="ni" href="ndt-inspection-bay.html" style="--acc:#f59e0b">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2"/><path d="M20 20l-3.8-3.8"/><path d="M8 11h1.5l1-2.6 1.7 4.8 1.1-2.2H15"/></svg>
+        <span class="nTxt"><span class="nName">NDT Bay</span><span class="nTag">Non-destructive testing</span></span>
+      </a>
+      <a class="ni" href="aircraft-maintenance-hangar.html" style="--acc:#31c56a">
+        <svg viewBox="0 0 24 24"><path d="M3 20.5V11l9-6 9 6v9.5"/><path d="M2 20.5h20"/><path d="M8.5 20.5v-5.5h7v5.5"/><path d="M12 8.8v2.4"/></svg>
+        <span class="nTxt"><span class="nName">Hangar</span><span class="nTag">Maintenance</span></span>
+      </a>
+
+      <div class="navGroup">Careers</div>
+      <a class="ni" href="ascent.html" style="--acc:#ff9e64">
+        <svg viewBox="0 0 24 24"><path d="M3 20.5h18"/><path d="M6.5 20.5V13"/><path d="M11.5 20.5V9"/><path d="M16.5 20.5V5"/><path d="M14 3h6v6"/><path d="M20 3 12.5 10.5"/></svg>
+        <span class="nTxt"><span class="nName">Ascent</span><span class="nTag">Careers · aviation jobs</span></span>
+      </a>
+
+      <div class="navGroup">Research</div>
+      <a class="ni" href="halcyon.html" style="--acc:#8b93ff">
+        <svg viewBox="0 0 24 24"><path d="M3 12c3-5 6-5 9 0s6 5 9 0"/><path d="M3 17c3-5 6-5 9 0s6 5 9 0"/></svg>
+        <span class="nTxt"><span class="nName">Halcyon</span><span class="nTag">MSc dissertation</span></span>
+      </a>
+      <a class="ni" href="gargantua/index.html" style="--acc:#b98cff">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.1"/><circle cx="12" cy="12" r="6.6"/><ellipse cx="12" cy="12" rx="10.6" ry="3.1" transform="rotate(-18 12 12)"/><path d="M2.4 8.6c2.6 1.5 6 2.3 9.6 2.3s7-.8 9.6-2.3"/></svg>
+        <span class="nTxt"><span class="nName">Gargantua</span><span class="nTag">Relativity · raytracer</span></span>
+      </a>
+
+      <div class="navGroup">Dashboards</div>
+      <a class="ni" href="argus-dashboard.html" style="--acc:#f0b64a">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>
+        <span class="nTxt"><span class="nName">Attendance</span><span class="nTag">Argus · Bsc Aero IIA</span></span>
+      </a>
+      <a class="ni" href="mentor.html" style="--acc:#4a9eff">
+        <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/><circle cx="20" cy="7" r="1.6" fill="currentColor" stroke="none"/></svg>
+        <span class="nTxt"><span class="nName">Mentor <span class="nLock">🔒</span></span><span class="nTag">Mentee dashboard · locked</span></span>
+      </a>
+    </nav>
+
+    <div class="sideFoot">
+      <button id="adminBtnSide">⚙ Admin</button>
+      <button id="annViewSide">📢 Notices</button>
+    </div>
+  </aside>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <main class="main">
+
+    <!-- announcement ticker -->
+    <div class="ticker" id="ticker" data-level="info">
+      <span class="tkTag"><i></i><span id="tkTagText">NOTICE</span></span>
+      <div class="tkText" id="tkText"><span id="tkType"></span><span class="tkCur"></span></div>
+      <button class="tkMore" id="annBarMore">View all</button>
+    </div>
+
+    <div class="stage">
+
+      <!-- header: dashboards (left) + greeting/clock/weather (right) -->
+      <div class="hdr">
+        <div class="dashWrap">
+          <div class="dashLbl">Dashboards</div>
+          <div class="dashRow">
+            <a class="dtile" href="argus-dashboard.html" style="--dc:#f0b64a">
+              <div class="dtIco"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg></div>
+              <div class="dtName">ARGUS</div>
+              <div class="dtSub">Attendance · Bsc Aero IIA</div>
+              <div class="dtGo">Open dashboard →</div>
+            </a>
+            <a class="dtile" href="mentor.html" style="--dc:#4a9eff">
+              <div class="dtIco"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/><circle cx="20" cy="7" r="1.6" fill="currentColor" stroke="none"/></svg></div>
+              <div class="dtName">MENTOR <span class="lk">🔒</span></div>
+              <div class="dtSub">Mentee dashboard · locked</div>
+              <div class="dtGo">Open dashboard →</div>
+            </a>
+          </div>
+        </div>
+
+        <div class="welcome">
+          <div class="wGreet"><span class="hand" id="greetHand">Good day</span><span id="greetTail"></span></div>
+          <div class="wDate" id="wDate">—</div>
+          <div class="wClock" id="wClock">--:--<small id="wSec">00</small></div>
+          <div class="wWeather" id="wWeather">
+            <div class="wwIco" id="wwIco">🛰️</div>
+            <div class="wwTemp" id="wwTemp">--°</div>
+            <div class="wwMeta">
+              <div class="wwCond" id="wwCond">Reading local conditions…</div>
+              <div class="wwLoc" id="wwLoc"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.5-6.5-10a6.5 6.5 0 0 1 13 0c0 4.5-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg><span id="wwLocText">locating…</span></div>
+            </div>
+          </div>
+        </div>
       </div>
-    </a>
+
+      <!-- news + on this day -->
+      <div class="sec"><span class="st"><b></b>Daily aviation intel</span></div>
+      <div class="feedRow">
+        <div class="card">
+          <div class="cardHead"><span class="dot"></span><span class="ch">Aviation News</span><span class="live" id="ncLive">live</span></div>
+          <div class="ncList" id="ncList"><div class="ncSkel"></div><div class="ncSkel"></div><div class="ncSkel"></div></div>
+          <button class="ncRefresh" id="ncRefresh">↻ Refresh headlines</button>
+        </div>
+        <div class="card otd">
+          <div class="cardHead"><span class="dot"></span><span class="ch">On This Day in Aviation</span></div>
+          <div class="otdDate" id="otdDate">—</div>
+          <div class="otdYear" id="otdYear">—</div>
+          <div class="otdText" id="otdText">—</div>
+          <div class="otdWing"><svg viewBox="0 0 24 24"><path d="M2 13.5 22 8l-5.5 3.2L21 15l-6-1.5-2 4-1-5z"/></svg></div>
+        </div>
+      </div>
+
+      <!-- ascent job portal -->
+      <div class="sec"><span class="st"><b style="background:var(--amber);box-shadow:0 0 8px var(--amber)"></b>Careers desk</span></div>
+      <a class="ascent" href="ascent.html">
+        <div class="ascTop"><span class="ascLogo">ASCENT</span><span class="ascLive"><i></i>LIVE</span></div>
+        <div class="ascGrid">
+          <div class="ascIco"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2l4 10-4 10-4-10z"/></svg></div>
+          <div class="ascBody">
+            <div class="ascBlurb">The suite's live job board — real aviation &amp; aerospace vacancies with salary bands and deadline countdowns, an application tracker, a résumé-fit analyzer and official recruitment notices.</div>
+            <div class="ascPills">
+              <span class="ascPill src">Live vacancies</span>
+              <span class="ascPill">Saved &amp; tracker</span>
+              <span class="ascPill">Résumé fit</span>
+              <span class="ascPill">Official notices</span>
+            </div>
+            <div class="ascOpen">Open the job board →</div>
+          </div>
+        </div>
+      </a>
+
+      <!-- research -->
+      <div class="sec"><span class="st"><b style="background:var(--violet);box-shadow:0 0 8px var(--violet)"></b>Research</span></div>
+      <a class="research" href="halcyon.html">
+        <div class="rcInner">
+          <div class="rcVis"><canvas id="rcv"></canvas></div>
+          <div class="rcBody">
+            <div class="rcKick">HALCYON · MSc DISSERTATION</div>
+            <h3>Control of a Fixed-Wing Multibody UAV</h3>
+            <p>An interactive companion to the thesis — hinged multibody aircraft, roll-yaw instability, and the LQR / LQG control that tames it. Every rig solves the control maths live in the browser.</p>
+            <div class="rcPills"><span class="rcPill">4 live rigs</span><span class="rcPill">LQR · LQG</span><span class="rcPill">Bode · Nyquist</span><span class="rcPill">Kalman filter</span></div>
+          </div>
+        </div>
+      </a>
+
+    </div>
+    <footer>ARGUS · <b>eleven browser-based modules</b> + research · aviation &amp; aerospace engineering terminal</footer>
+  </main>
+</div>
+
+<!-- ══════════ announcement popover ══════════ -->
+<div class="annScrim" id="annScrim" hidden>
+  <div class="annPop" role="dialog" aria-modal="true">
+    <div class="annPopGlow"></div>
+    <button class="annPopClose" id="annPopClose" aria-label="close">✕</button>
+    <div class="annPopKicker">Announcements</div>
+    <div class="annPopList" id="annPopList"></div>
   </div>
 </div>
-<footer>ARGUS SUITE · <b>ten browser-based modules</b> + research · made by sid</footer>
+
+<!-- ══════════ admin ══════════ -->
+<button class="adminFab" id="adminFab" title="Admin">⚙</button>
+<div class="annScrim" id="adminScrim" hidden>
+  <div class="adminPanel" role="dialog" aria-modal="true">
+    <div class="annPopGlow"></div>
+    <button class="annPopClose" id="adminClose" aria-label="close">✕</button>
+    <div id="adminLogin">
+      <div class="annPopKicker">Admin · Sign in</div>
+      <p class="adminHint">Enter the admin password to post or remove the terminal announcements.</p>
+      <input type="password" id="adminPass" class="adminInput" placeholder="Password" autocomplete="off">
+      <div class="adminMsg" id="adminLoginMsg"></div>
+      <button class="adminBtn pri" id="adminLoginBtn">Unlock</button>
+    </div>
+    <div id="adminPanelBody" hidden>
+      <div class="annPopKicker">Admin · Announcements</div>
+      <div class="adminForm">
+        <input type="text" id="annTitle" class="adminInput" placeholder="Title (e.g. Holiday tomorrow)">
+        <textarea id="annBody" class="adminInput" style="min-height:80px;resize:vertical" placeholder="Details (optional)"></textarea>
+        <div class="adminRow">
+          <select id="annLevel" class="adminInput" style="flex:1;margin-bottom:0">
+            <option value="info">Info (gold)</option>
+            <option value="alert">Alert (red)</option>
+            <option value="success">Good news (green)</option>
+          </select>
+          <button class="adminBtn pri" id="annPost">Post</button>
+        </div>
+        <div class="adminMsg" id="adminPostMsg"></div>
+      </div>
+      <div class="adminDivider"></div>
+      <div class="annPopKicker" style="margin-bottom:8px">Posted · tap 🗑 to remove</div>
+      <div class="adminList" id="adminList"></div>
+    </div>
+  </div>
+</div>
+
 <script>
-/* favicon injected as a Blob — no data-URI escaping to get wrong */
+/* ═══ favicon (blob) ═══ */
 (function(){
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-    <rect width="32" height="32" rx="7" fill="#08070a"/>
-    <circle cx="16" cy="16" r="10.5" fill="none" stroke="#f0b64a" stroke-width="1.4" opacity=".5"/>
-    <path d="M16 4.5 18.3 13.7 27.5 16l-9.2 2.3L16 27.5l-2.3-9.2L4.5 16l9.2-2.3z" fill="#f0b64a"/>
-  </svg>`;
-  const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
-  const l=document.createElement('link'); l.rel='icon'; l.type='image/svg+xml'; l.href=url;
-  document.head.appendChild(l);
+  var svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#07090d"/><circle cx="16" cy="16" r="10.5" fill="none" stroke="#2ec4b6" stroke-width="1.4" opacity=".5"/><path d="M16 4.5 18.3 13.7 27.5 16l-9.2 2.3L16 27.5l-2.3-9.2L4.5 16l9.2-2.3z" fill="#2ec4b6"/></svg>';
+  var url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
+  var l=document.createElement('link'); l.rel='icon'; l.type='image/svg+xml'; l.href=url; document.head.appendChild(l);
 })();
 
-/* ═══ ICONS ═══ */
-const ICON={
-  ascent: '<path d="M3 20.5h18"/><path d="M6.5 20.5V13"/><path d="M11.5 20.5V9"/><path d="M16.5 20.5V5"/><path d="M14 3h6v6"/><path d="M20 3 12.5 10.5"/>',
-  argus:  '<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
-  pyrgos: '<path d="M7 21h10"/><path d="M9.5 21V10h5v11"/><path d="M8.6 10 12 5.6 15.4 10"/><path d="M12 5.6V2.8"/><path d="M4.5 14.5 7 13.5M19.5 14.5 17 13.5"/>',
-  odyssey:'<path d="M2.5 14.6 21.5 9.2"/><path d="M6.6 13.4 4.2 9.9l1.9-.5 3.3 2.5"/><path d="M9.8 19.3 8.1 16.2"/><path d="M3.5 20.5h7"/><circle cx="18.6" cy="10" r="1"/>',
-  cutaway:'<path d="M21 16v-2l-8-5V3.6a1.6 1.6 0 0 0-3.2 0V9l-8 5v2l8-2.4V19l-2.2 1.5V22l3.8-1.1L15 22v-1.5L12.8 19v-4.6z"/>',
-  tunnel: '<path d="M3 8h11a2.4 2.4 0 1 0-2.4-2.4"/><path d="M3 12h16a2.4 2.4 0 1 1-2.4 2.4"/><path d="M3 16h8.5a2 2 0 1 1-2 2"/>',
-  catia:  '<path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>',
-  ndt:    '<circle cx="11" cy="11" r="6.2"/><path d="M20 20l-3.8-3.8"/><path d="M8 11h1.5l1-2.6 1.7 4.8 1.1-2.2H15"/>',
-  hangar: '<path d="M3 20.5V11l9-6 9 6v9.5"/><path d="M2 20.5h20"/><path d="M8.5 20.5v-5.5h7v5.5"/><path d="M12 8.8v2.4"/>',
-  oracle: '<circle cx="12" cy="12" r="5.6"/><path d="M12 6.4c-2.1 1.7-2.1 9.5 0 11.2M12 6.4c2.1 1.7 2.1 9.5 0 11.2"/><path d="M6.4 12h11.2"/><ellipse cx="12" cy="12" rx="10.4" ry="4" transform="rotate(-27 12 12)"/><circle cx="20.6" cy="8.9" r="1"/>',
-  gargantua: '<circle cx="12" cy="12" r="4.1"/><circle cx="12" cy="12" r="6.6"/><ellipse cx="12" cy="12" rx="10.6" ry="3.1" transform="rotate(-18 12 12)"/><path d="M2.4 8.6c2.6 1.5 6 2.3 9.6 2.3s7-.8 9.6-2.3"/>'
-};
-
-/* ═══ the module previews — these play INSIDE the hub on hover ═══ */
-const PREV={
-  argus(c,W,H,t){
-    const cx=W*.5, cy=H*.5, R=Math.min(W,H)*.40;
-    c.strokeStyle='rgba(46,196,182,.16)'; c.lineWidth=1;
-    for(let i=1;i<=3;i++){ c.beginPath(); c.arc(cx,cy,R*i/3,0,7); c.stroke(); }
-    const a=t*1.2;
-    c.save(); c.beginPath(); c.moveTo(cx,cy); c.arc(cx,cy,R,a-.6,a); c.closePath();
-    const lg=c.createRadialGradient(cx,cy,0,cx,cy,R);
-    lg.addColorStop(0,'rgba(46,196,182,.35)'); lg.addColorStop(1,'rgba(46,196,182,0)');
-    c.fillStyle=lg; c.fill(); c.restore();
-    c.strokeStyle='rgba(46,196,182,.85)'; c.lineWidth=1.3;
-    c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R); c.stroke();
-    for(let i=0;i<10;i++){
-      const ba=i*.628+1.1, br=R*(.28+((i*37)%100)/100*.66);
-      const bx=cx+Math.cos(ba)*br, by=cy+Math.sin(ba)*br;
-      const d=((a-ba)%6.283+6.283)%6.283, f=Math.max(0,1-d/2.3);
-      c.fillStyle='rgba(46,196,182,'+(.12+f*.88)+')';
-      c.beginPath(); c.arc(bx,by,1.4+f*1.7,0,7); c.fill();
-    }
-  },
-  pyrgos(c,W,H,t){
-    const ry=H*.66;
-    c.fillStyle='rgba(255,255,255,.055)';
-    c.beginPath(); c.moveTo(W*.33,ry); c.lineTo(W*.67,ry); c.lineTo(W*.83,H*.97); c.lineTo(W*.17,H*.97); c.closePath(); c.fill();
-    c.strokeStyle='rgba(240,182,74,.45)'; c.lineWidth=1; c.setLineDash([4,6]);
-    c.beginPath(); c.moveTo(W*.5,ry); c.lineTo(W*.5,H*.97); c.stroke(); c.setLineDash([]);
-    for(let i=0;i<8;i++){
-      const p=i/8, y=ry-5-p*H*.40, w=W*(.055-p*.032);
-      const ph=(t*2)%1, lit=Math.max(0,1-Math.abs(((1-p)-ph)*3.2));
-      c.fillStyle='rgba(255,240,190,'+(.07+lit*.93)+')';
-      c.fillRect(W*.5-w/2,y,w,1.8);
-    }
-    const app=(t*.20)%1, sc=.4+app*.75;
-    c.save(); c.translate(W*.5,H*.14+app*(ry-H*.18)); c.scale(sc,sc);
-    c.fillStyle='#ffd98a';
-    c.beginPath(); c.moveTo(0,-7); c.lineTo(9,5); c.lineTo(0,2); c.lineTo(-9,5); c.closePath(); c.fill();
-    c.restore();
-  },
-  odyssey(c,W,H,t){
-    const ph=['DISP','LOAD','PERF','RAMP','PREP','TURN','FLY','LAND'];
-    const n=8, y=H*.66, x0=W*.13, x1=W*.87;
-    c.strokeStyle='rgba(240,182,74,.18)'; c.lineWidth=2;
-    c.beginPath(); c.moveTo(x0,y); c.lineTo(x1,y); c.stroke();
-    const pr=(t*.13)%1;
-    c.strokeStyle='#f0b64a'; c.lineWidth=2;
-    c.beginPath(); c.moveTo(x0,y); c.lineTo(x0+(x1-x0)*pr,y); c.stroke();
-    for(let i=0;i<n;i++){
-      const px=x0+(x1-x0)*(i/(n-1)), dn=pr>=i/(n-1);
-      c.fillStyle=dn?'#f0b64a':'rgba(240,182,74,.20)';
-      c.beginPath(); c.arc(px,y,dn?3:2,0,7); c.fill();
-    }
-    const idx=Math.min(n-1,Math.floor(pr*n));
-    c.fillStyle='rgba(255,217,138,.9)'; c.font='7px ui-monospace'; c.textAlign='center';
-    c.fillText(ph[idx], W*.5, y+16); c.textAlign='left';
-    const ax=x0+(x1-x0)*pr, cl=pr>.70?(pr-.70)/.30:0, ay=y-16-cl*H*.30;
-    c.save(); c.translate(ax,ay); c.rotate(-cl*.5);
-    c.fillStyle='#ffd98a';
-    c.beginPath(); c.moveTo(9,0); c.lineTo(-4,-4); c.lineTo(-1,0); c.lineTo(-4,4); c.closePath(); c.fill();
-    c.fillRect(-6,-1,4,2); c.restore();
-  },
-  cutaway(c,W,H,t){
-    const cx=W/2, cy=H/2, a=t*.55, s=Math.min(W,H)*.026;
-    const V=[[0,0,7],[0,0,-6],[6,0,-1],[-6,0,-1],[0,-2.4,-5],[2.4,0,1],[-2.4,0,1]].map(([x,y,z])=>{
-      const X=x*Math.cos(a)-z*Math.sin(a), Z=x*Math.sin(a)+z*Math.cos(a), d=1/(1+Z*.045);
-      return [cx+X*s*3*d, cy+(y*.9+Z*.30)*s*3*d]; });
-    c.strokeStyle='rgba(34,211,238,.8)'; c.lineWidth=1.2;
-    [[0,1],[2,5],[3,6],[5,6],[1,4],[0,5],[0,6],[2,1],[3,1]].forEach(([i,j])=>{
-      c.beginPath(); c.moveTo(V[i][0],V[i][1]); c.lineTo(V[j][0],V[j][1]); c.stroke(); });
-    c.fillStyle='rgba(34,211,238,.95)';
-    V.forEach(p=>{ c.beginPath(); c.arc(p[0],p[1],1.5,0,7); c.fill(); });
-  },
-  tunnel(c,W,H,t){
-    const cx=W*.5, cy=H*.5, ch=W*.24;
-    for(let i=0;i<10;i++){
-      const y0=H*.14+i*H*.08;
-      c.strokeStyle='rgba(255,90,99,'+(.14+.30*Math.abs(Math.sin(i*.7)))+')'; c.lineWidth=1;
-      c.beginPath();
-      for(let x=0;x<=W;x+=5){
-        const d=(x-cx)/ch;
-        const infl=Math.exp(-d*d*1.5)*(y0<cy?-1:1)*Math.exp(-Math.abs(y0-cy)/(H*.22))*H*.10;
-        const y=y0+infl+Math.sin(x*.05-t*3+i)*.8;
-        x?c.lineTo(x,y):c.moveTo(x,y);
-      }
-      c.stroke();
-    }
-    c.fillStyle='rgba(246,241,232,.92)';
-    c.beginPath(); c.moveTo(cx-ch,cy+2);
-    c.bezierCurveTo(cx-ch*.5,cy-ch*.28, cx+ch*.4,cy-ch*.18, cx+ch,cy+1);
-    c.bezierCurveTo(cx+ch*.4,cy+ch*.10, cx-ch*.5,cy+ch*.14, cx-ch,cy+2);
-    c.closePath(); c.fill();
-    const sp=.5+.3*Math.sin(t*1.1);
-    c.strokeStyle='rgba(255,217,138,'+(.4+.35*Math.sin(t*3))+')'; c.lineWidth=1.8;
-    c.beginPath(); c.moveTo(cx+ch*(sp-.3),cy-H*.24); c.lineTo(cx+ch*(sp-.15),cy+H*.22); c.stroke();
-  },
-  catia(c,W,H,t){
-    const cx=W*.5, cy=H*.5, s=Math.min(W,H)*.17, k=Math.sin(t*.8)*.5+.5;
-    c.strokeStyle='rgba(91,141,239,.16)'; c.lineWidth=1; c.setLineDash([2,3]);
-    for(let i=-2;i<=2;i++){
-      c.beginPath(); c.moveTo(0,cy+i*s*.7); c.lineTo(W,cy+i*s*.7); c.stroke();
-      c.beginPath(); c.moveTo(cx+i*s*.9,0); c.lineTo(cx+i*s*.9,H); c.stroke();
-    }
-    c.setLineDash([]);
-    const iso=(x,y,z)=>[cx+(x-z)*s*.86, cy+(x+z)*s*.5-y*s];
-    const V=[[0,0,0],[1,0,0],[1,0,1],[0,0,1],[0,1,0],[1,1,0],[1,1,1],[0,1,1]]
-      .map(v=>iso(v[0]-.5,v[1]-.5,v[2]-.5));
-    const E=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-    E.forEach(([i,j],n)=>{
-      const p=Math.max(0,Math.min(1,k*E.length*1.3-n)); if(p<=0)return;
-      c.strokeStyle='rgba(91,141,239,.95)'; c.lineWidth=1.4;
-      c.beginPath(); c.moveTo(V[i][0],V[i][1]);
-      c.lineTo(V[i][0]+(V[j][0]-V[i][0])*p, V[i][1]+(V[j][1]-V[i][1])*p); c.stroke();
-    });
-    c.fillStyle='rgba(91,141,239,.9)';
-    V.forEach(v=>{ c.beginPath(); c.arc(v[0],v[1],1.4,0,7); c.fill(); });
-  },
-  ndt(c,W,H,t){
-    const base=H*.62;
-    c.strokeStyle='rgba(245,158,11,.16)'; c.lineWidth=1;
-    for(let i=0;i<=3;i++){ const y=H*.22+i*(base-H*.22)/3;
-      c.beginPath(); c.moveTo(W*.12,y); c.lineTo(W*.88,y); c.stroke(); }
-    c.strokeStyle='#f59e0b'; c.lineWidth=1.5; c.beginPath();
-    for(let x=W*.12;x<=W*.88;x+=2){
-      const u=(x-W*.12)/(W*.76); let y=base;
-      const pl=(u0,amp,wd)=>{ const d=(u-u0)/wd; y-=amp*Math.exp(-d*d)*Math.cos(d*6); };
-      pl(.10,H*.30,.020); pl(.52,H*.19*(.6+.4*Math.sin(t*2)),.016); pl(.88,H*.23,.020);
-      y+=Math.sin(x*.6+t*9)*.6;
-      x>W*.12?c.lineTo(x,y):c.moveTo(x,y);
-    }
-    c.stroke();
-    c.fillStyle='rgba(246,241,232,.14)'; c.fillRect(W*.12,base+6,W*.76,H*.13);
-    c.fillStyle='#f59e0b'; c.fillRect(W*.12+((t*.42)%1)*W*.73, base+2, 7, 5);
-    c.fillStyle='rgba(255,84,112,.95)';
-    c.beginPath(); c.arc(W*.12+W*.76*.52, base+H*.11, 2.4, 0, 7); c.fill();
-  },
-  oracle(c,W,H,t){
-    const cx=W*.5, cy=H*.52, R=Math.min(W,H)*.235;
-    for(let i=0;i<32;i++){                                   // twinkling field
-      const sx=((i*137)%1000)/1000*W, sy=((i*311)%1000)/1000*H;
-      const tw=.22+.78*Math.abs(Math.sin(t*1.9+i*1.7));
-      c.fillStyle='rgba(190,230,255,'+(tw*.55).toFixed(3)+')';
-      c.fillRect(sx,sy,1.3,1.3);
-    }
-    const rot=-0.48, RX=R*1.9, RY=R*0.58, ang=t*0.9;
-    const ox=Math.cos(ang)*RX, oy=Math.sin(ang)*RY;
-    const px=cx+ox*Math.cos(rot)-oy*Math.sin(rot);
-    const py=cy+ox*Math.sin(rot)+oy*Math.cos(rot);
-    const behind=Math.sin(ang)<0;
-    const sat=()=>{
-      const gg=c.createRadialGradient(px,py,0,px,py,6.5);
-      gg.addColorStop(0,'rgba(255,255,255,.95)');
-      gg.addColorStop(.34,'rgba(77,225,214,.72)');
-      gg.addColorStop(1,'rgba(77,225,214,0)');
-      c.fillStyle=gg; c.beginPath(); c.arc(px,py,6.5,0,7); c.fill();
-      c.fillStyle='#fff'; c.beginPath(); c.arc(px,py,1.5,0,7); c.fill();
-    };
-    c.save(); c.translate(cx,cy); c.rotate(rot);
-    c.strokeStyle='rgba(77,225,214,.30)'; c.lineWidth=1;
-    c.beginPath(); c.ellipse(0,0,RX,RY,0,0,7); c.stroke(); c.restore();
-    if(behind) sat();
-    const g=c.createRadialGradient(cx-R*.35,cy-R*.4,R*.12,cx,cy,R);
-    g.addColorStop(0,'rgba(112,192,236,.78)');
-    g.addColorStop(.65,'rgba(28,92,152,.66)');
-    g.addColorStop(1,'rgba(8,30,60,.88)');
-    c.fillStyle=g; c.beginPath(); c.arc(cx,cy,R,0,7); c.fill();
-    c.save(); c.beginPath(); c.arc(cx,cy,R,0,7); c.clip();
-    c.strokeStyle='rgba(77,225,214,.26)'; c.lineWidth=.8;
-    for(let i=1;i<=3;i++){ c.beginPath(); c.ellipse(cx,cy,R*(i/3.2),R,0,0,7); c.stroke(); }
-    for(let i=-2;i<=2;i++){ const yy=cy+R*(i/3), rr=Math.sqrt(Math.max(0,R*R-(R*i/3)*(R*i/3)));
-      c.beginPath(); c.moveTo(cx-rr,yy); c.lineTo(cx+rr,yy); c.stroke(); }
-    c.restore();
-    c.strokeStyle='rgba(77,225,214,.62)'; c.lineWidth=1.1;
-    c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
-    const hg=c.createRadialGradient(cx,cy,R*.92,cx,cy,R*1.4);   // atmospheric halo
-    hg.addColorStop(0,'rgba(77,225,214,.26)'); hg.addColorStop(1,'rgba(77,225,214,0)');
-    c.fillStyle=hg; c.beginPath(); c.arc(cx,cy,R*1.4,0,7); c.fill();
-    if(!behind) sat();
-  },
-  gargantua(c,W,H,t){
-    const cx=W*.5, cy=H*.5, R=Math.min(W,H)*.20;      // shadow radius
-    const RP=R*1.045;                                  // photon ring
-    // background: faint lensed grid — straight lines bent around the hole
-    c.strokeStyle='rgba(120,150,220,.30)'; c.lineWidth=.7;
-    const bend=(x,y)=>{                                // cheap deflection field
-      const dx=x-cx, dy=y-cy, r=Math.max(Math.hypot(dx,dy),R*.6);
-      const k=(R*R*2.35)/(r*r);                        // ~ 1/r falloff
-      return [x+dx/r*k*R, y+dy/r*k*R];
-    };
-    for(let i=-6;i<=6;i++){
-      c.beginPath();
-      for(let s=0;s<=48;s++){
-        const x=cx+(s/48-.5)*W*1.25, y=cy+i*H*.115;
-        const [bx,by]=bend(x,y); s?c.lineTo(bx,by):c.moveTo(bx,by);
-      }
-      c.stroke();
-      c.beginPath();
-      for(let s=0;s<=48;s++){
-        const y=cy+(s/48-.5)*H*1.35, x=cx+i*W*.085;
-        const [bx,by]=bend(x,y); s?c.lineTo(bx,by):c.moveTo(bx,by);
-      }
-      c.stroke();
-    }
-    // a few lensed stars swept round the ring
-    for(let i=0;i<14;i++){
-      const a=t*.28+i*.449, rr=RP*(1.35+((i*53)%100)/100*1.9);
-      const x=cx+Math.cos(a)*rr, y=cy+Math.sin(a)*rr*.72;
-      const tw=.35+.65*Math.abs(Math.sin(t*2.1+i));
-      c.fillStyle='rgba(215,230,255,'+tw.toFixed(3)+')';
-      c.beginPath(); c.arc(x,y,1.15,0,7); c.fill();
-    }
-    // the shadow: genuinely black, punched out of everything behind it
-    c.globalCompositeOperation='destination-out';
-    c.beginPath(); c.arc(cx,cy,R,0,7); c.fill();
-    c.globalCompositeOperation='source-over';
-    c.fillStyle='#000'; c.beginPath(); c.arc(cx,cy,R,0,7); c.fill();
-    // photon ring: thin, hot, with a soft halo either side
-    const g=c.createRadialGradient(cx,cy,R*.93,cx,cy,RP*1.5);
-    g.addColorStop(0,'rgba(255,190,110,0)');
-    g.addColorStop(.42,'rgba(255,208,140,.85)');
-    g.addColorStop(.52,'rgba(255,246,225,1)');
-    g.addColorStop(.72,'rgba(190,150,255,.28)');
-    g.addColorStop(1,'rgba(150,120,255,0)');
-    c.strokeStyle=g; c.lineWidth=R*.50;
-    c.beginPath(); c.arc(cx,cy,RP*1.10,0,7); c.stroke();
-    c.strokeStyle='rgba(255,252,240,.95)'; c.lineWidth=1.25;
-    c.beginPath(); c.arc(cx,cy,RP,0,7); c.stroke();
-  },
-  hangar(c,W,H,t){
-    const gy=H*.76, bob=Math.sin(t*1.2)*1.2;
-    c.strokeStyle='rgba(49,197,106,.22)'; c.lineWidth=1;
-    c.beginPath(); c.moveTo(W*.1,gy); c.lineTo(W*.9,gy); c.stroke();
-    c.strokeStyle='rgba(49,197,106,.18)'; c.lineWidth=1.3;
-    c.beginPath(); c.moveTo(W*.14,gy); c.lineTo(W*.14,H*.44);
-    c.quadraticCurveTo(W*.5,H*.14,W*.86,H*.44); c.lineTo(W*.86,gy); c.stroke();
-    c.fillStyle='rgba(246,241,232,.13)'; c.strokeStyle='rgba(246,241,232,.5)'; c.lineWidth=1;
-    c.beginPath(); c.ellipse(W*.52,H*.54+bob,W*.24,H*.085,0,0,7); c.fill(); c.stroke();
-    const sw=(Math.sin(t*.9)*.5+.5)*.95;
-    c.save(); c.translate(W*.46,H*.58+bob); c.rotate(sw*.95);
-    c.fillStyle='rgba(49,197,106,.30)'; c.strokeStyle='#31c56a'; c.lineWidth=1;
-    c.fillRect(0,0,W*.10,H*.055); c.strokeRect(0,0,W*.10,H*.055);
-    c.restore();
-    [.34,.70].forEach(fx=>{
-      c.strokeStyle='rgba(49,197,106,.8)'; c.lineWidth=1.8;
-      c.beginPath(); c.moveTo(W*fx,H*.61+bob); c.lineTo(W*fx,gy); c.stroke();
-      c.beginPath(); c.moveTo(W*fx-5,gy); c.lineTo(W*fx+5,gy); c.stroke();
-    });
-  }
-};
-
-/* ═══ MODULES — order sets the bearing round the ring ═══ */
-const MODULES=[
-  {f:"odyssey.html",                   acc:"#f0b64a", k:"odyssey", n:"ODYSSEY",  live:1,
-   tag:"FLIGHT OPS · GATE-TO-GATE",
-   d:"A full airline rotation — dispatch, loadsheet &amp; trim, performance, ramp safety, MCDU prep, engine start, then fly it."},
-  {f:"argus.html",                     acc:"#2ec4b6", k:"argus",   n:"ARGUS",    live:1,
-   tag:"LIVE · GLOBAL RADAR",
-   d:"Real aircraft worldwide, streaming live. Routes, altitudes, ETAs, weather radar and ATC audio."},
-  {f:"oracle.html",                    acc:"#4de1d6", k:"oracle",  n:"ORACLE",   live:1,
-   tag:"ORBITAL &middot; LIVE SATELLITES",
-   d:"Every tracked object in orbit, live from CelesTrak — Starlink, GPS, debris — with the ISS downlink and the Artemis II flight reconstructed."},
-  {f:"pyrgos.html",                    acc:"#f0b64a", k:"pyrgos",  n:"PYRGOS",   live:1,
-   tag:"ATC · TOWER CONTROL",
-   d:"Work the tower across four airports — holding stacks, wake spacing, SIDs and runway incursions."},
-  {f:"aircraft-cutaway-explorer.html", acc:"#22d3ee", k:"cutaway", n:"CUTAWAY",
-   tag:"3D · SYSTEMS",
-   d:"An interactive 3-D aircraft cutaway plus a fully-lit flight simulator with a live moving map."},
-  {f:"wind-tunnel-simulator.html",     acc:"#ff5a63", k:"tunnel",  n:"WIND TUNNEL",
-   tag:"AERODYNAMICS",
-   d:"Subsonic, transonic and supersonic flow over airfoils — live pressure, velocity and shock structure."},
-  {f:"technical-drawing-lab.html",     acc:"#5b8def", k:"catia",   n:"CATIA V5",
-   tag:"CAD · DRAFTING",
-   d:"Ten guided drawing experiments with walkthroughs, an orbit camera and a CATIA-style workbench."},
-  {f:"ndt-inspection-bay.html",        acc:"#f59e0b", k:"ndt",     n:"NDT BAY",
-   tag:"NON-DESTRUCTIVE TESTING",
-   d:"Five NDT units across eight method visualisers — ultrasonic, eddy current, radiography and more."},
-  {f:"aircraft-maintenance-hangar.html",acc:"#31c56a",k:"hangar",  n:"HANGAR",
-   tag:"MAINTENANCE",
-   d:"A virtual hangar floor — work a 100-hour inspection work pack at the task bench, through to sign-off."},
-  {f:"ascent.html",                    acc:"#ff9e64", k:"ascent",  n:"ASCENT",   live:1,
-   tag:"CAREERS &middot; AVIATION JOBS",
-   d:"Live aviation and aerospace openings with real salary bands, deadline countdowns, an application tracker and a side-by-side compare view."},
-  {f:"gargantua/index.html",           acc:"#b98cff", k:"gargantua", n:"GARGANTUA",
-   tag:"RELATIVITY &middot; RAYTRACER",
-   d:"A Schwarzschild black hole integrated per pixel — real null geodesics, the shadow at 3&radic;3 M, and the photon ring."}
-];
-const N=MODULES.length;
-
-/* ═══ build the ring ═══ */
-const stage=document.getElementById('stage');
-const hub=document.getElementById('hub');
-const WPS=[];
-MODULES.forEach((m,i)=>{
-  const a=document.createElement('a');
-  a.className='wp'+(m.live?' live':'');
-  a.href=m.f; a.style.setProperty('--acc',m.acc);
-  a.style.animationDelay=(120+i*70)+'ms';
-  a.innerHTML='<div class="disc"><span class="pip"></span><svg viewBox="0 0 24 24">'+ICON[m.k]+'</svg></div>'+
-              '<div class="wpName">'+m.n+'</div>';
-  stage.appendChild(a);
-  a.addEventListener('mouseenter',()=>activate(i));
-  a.addEventListener('focus',()=>activate(i));
-  a.addEventListener('mouseleave',deactivate);
-  a.addEventListener('blur',deactivate);
-  WPS.push(a);
-});
-
-/* ═══ lay the waypoints out on the circle ═══ */
-let ANG=[], RPX=0, CXY=[0,0];
-function layout(){
-  const W=stage.clientWidth, H=stage.clientHeight;
-  if(!W) return;
-  const cx=W/2, cy=H/2, r=Math.min(W,H)*0.395;
-  CXY=[cx,cy]; RPX=r; ANG=[];
-  WPS.forEach((el,i)=>{
-    const deg=i*360/N;
-    const rad=(-90+deg)*Math.PI/180;
-    ANG.push(rad);
-    el.style.left=(cx+r*Math.cos(rad))+'px';
-    el.style.top =(cy+r*Math.sin(rad))+'px';
-    el.dataset.brg=Math.round(deg);
-  });
-}
-addEventListener('resize',layout);
-
-/* ═══ hub readout ═══ */
-let ACTIVE=-1;
-function activate(i){
-  ACTIVE=i;
-  const m=MODULES[i];
-  hub.classList.add('on');
-  hub.style.setProperty('--acc',m.acc);
-  document.getElementById('rBrg').textContent=String(WPS[i].dataset.brg).padStart(3,'0');
-  document.getElementById('rName').textContent=m.n;
-  document.getElementById('rTag').innerHTML=m.tag;
-  document.getElementById('rDesc').innerHTML=m.d;
-  document.getElementById('fRead').style.setProperty('--acc',m.acc);
-}
-function deactivate(){ ACTIVE=-1; hub.classList.remove('on'); }
-
-/* ═══ canvases ═══ */
-const DPR=Math.min(2,devicePixelRatio||1);
-function fit(cv){
-  const r=cv.getBoundingClientRect();
-  if(!r.width||!r.height) return null;
-  const w=Math.round(r.width*DPR), h=Math.round(r.height*DPR);
-  if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; }
-  const c=cv.getContext('2d'); c.setTransform(DPR,0,0,DPR,0,0);
-  return {c,W:r.width,H:r.height};
-}
-const scope=document.getElementById('scope');
-const hubCv=document.getElementById('hubCv');
-const rcv=document.getElementById('rcv');
-const stars=document.getElementById('stars');
-let T=0, STARS=null;
-
-/* traffic drifting round the scope */
-const TRAF=[];
-for(let i=0;i<7;i++) TRAF.push({a:Math.random()*6.28, r:.42+Math.random()*.52,
-  s:(Math.random()>.5?1:-1)*(0.05+Math.random()*0.10)});
-
-function drawScope(){
-  const g=fit(scope); if(!g) return; const {c,W,H}=g;
-  c.clearRect(0,0,W,H);
-  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.395;
-  /* rings */
-  c.strokeStyle='rgba(45,38,57,.9)'; c.lineWidth=1;
-  c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
-  c.strokeStyle='rgba(45,38,57,.5)';
-  c.beginPath(); c.arc(cx,cy,R*0.74,0,7); c.stroke();
-  c.beginPath(); c.arc(cx,cy,R*0.52,0,7); c.stroke();
-  /* compass ticks — majors at each module bearing */
-  const maj=new Set(); for(let i=0;i<N;i++) maj.add(Math.round(i*360/N));
-  for(let d=0; d<360; d+=5){
-    const rad=(-90+d)*Math.PI/180, isM=maj.has(d);
-    const r0=R+3, r1=R+(isM?12:6);
-    c.strokeStyle=isM?'rgba(240,182,74,.55)':'rgba(45,38,57,.9)';
-    c.lineWidth=isM?1.5:1;
-    c.beginPath();
-    c.moveTo(cx+r0*Math.cos(rad), cy+r0*Math.sin(rad));
-    c.lineTo(cx+r1*Math.cos(rad), cy+r1*Math.sin(rad));
-    c.stroke();
-  }
-  /* the sweep */
-  const a=T*0.55;
-  c.save();
-  c.beginPath(); c.moveTo(cx,cy); c.arc(cx,cy,R,a-0.85,a); c.closePath();
-  const lg=c.createRadialGradient(cx,cy,R*0.24,cx,cy,R);
-  lg.addColorStop(0,'rgba(240,182,74,.02)');
-  lg.addColorStop(1,'rgba(240,182,74,.13)');
-  c.fillStyle=lg; c.fill(); c.restore();
-  c.strokeStyle='rgba(240,182,74,.55)'; c.lineWidth=1.3;
-  c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx+Math.cos(a)*R, cy+Math.sin(a)*R); c.stroke();
-  /* traffic blips, brightening as the beam crosses them */
-  TRAF.forEach(p=>{
-    p.a+=p.s*0.006;
-    const bx=cx+Math.cos(p.a)*R*p.r, by=cy+Math.sin(p.a)*R*p.r;
-    const d=((a-p.a)%6.283+6.283)%6.283, f=Math.max(0,1-d/2.2);
-    c.fillStyle='rgba(240,182,74,'+(0.10+f*0.80)+')';
-    c.save(); c.translate(bx,by); c.rotate(p.a+(p.s>0?Math.PI/2:-Math.PI/2));
-    c.beginPath(); c.moveTo(0,-3.4); c.lineTo(2.4,2.4); c.lineTo(0,1.2); c.lineTo(-2.4,2.4);
-    c.closePath(); c.fill(); c.restore();
-  });
-  /* pointer from hub to the active waypoint */
-  if(ACTIVE>=0 && ANG.length){
-    const rad=ANG[ACTIVE], hubR=Math.min(W,H)*0.22;
-    c.setLineDash([3,5]); c.lineWidth=1;
-    c.strokeStyle=MODULES[ACTIVE].acc;
-    c.globalAlpha=0.55+0.25*Math.sin(T*4);
-    c.beginPath();
-    c.moveTo(cx+Math.cos(rad)*(hubR+6), cy+Math.sin(rad)*(hubR+6));
-    c.lineTo(cx+Math.cos(rad)*(R-32),   cy+Math.sin(rad)*(R-32));
-    c.stroke();
-    c.globalAlpha=1; c.setLineDash([]);
-  }
-}
-
-/* the hub: ARGUS mark at rest, the module's own preview on hover */
-function drawHub(){
-  const g=fit(hubCv); if(!g) return; const {c,W,H}=g;
-  c.clearRect(0,0,W,H);
-  if(ACTIVE>=0){
-    const d=PREV[MODULES[ACTIVE].k];
-    if(d){ c.globalAlpha=0.85; try{ d(c,W,H,T*1.5); }catch(e){} c.globalAlpha=1; }
-    // scrim so the readout stays legible over a busy preview
-    const sg=c.createRadialGradient(W/2,H/2,Math.min(W,H)*0.06,W/2,H/2,Math.min(W,H)*0.52);
-    sg.addColorStop(0,'rgba(12,10,17,.90)');
-    sg.addColorStop(0.62,'rgba(12,10,17,.62)');
-    sg.addColorStop(1,'rgba(12,10,17,0)');
-    c.fillStyle=sg; c.fillRect(0,0,W,H);
-    return;
-  }
-  /* idle: aircraft orbiting the ARGUS mark */
-  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.33;
-  // two inclined orbits
-  c.save(); c.translate(cx,cy); c.rotate(-0.35);
-  c.strokeStyle='rgba(240,182,74,.20)'; c.lineWidth=1;
-  c.beginPath(); c.ellipse(0,0,R,R*0.42,0,0,7); c.stroke();
-  c.strokeStyle='rgba(240,182,74,.11)';
-  c.beginPath(); c.ellipse(0,0,R*0.62,R*0.92,0,0,7); c.stroke();
-  c.restore();
-  // slow sweeping arc round the outside
-  c.strokeStyle='rgba(240,182,74,.50)'; c.lineWidth=1.6; c.lineCap='round';
-  c.beginPath(); c.arc(cx,cy,R*1.16,T*0.6,T*0.6+1.25); c.stroke();
-  c.strokeStyle='rgba(240,182,74,.16)'; c.lineWidth=1;
-  c.beginPath(); c.arc(cx,cy,R*1.16,0,7); c.stroke();
-  c.lineCap='butt';
-  // the aircraft, with a fading trail
-  for(let i=13;i>=0;i--){
-    const aa=T*0.85-i*0.075;
-    const px=cx+Math.cos(aa)*R, py=cy+Math.sin(aa)*R*0.72;
-    if(i===0){
-      c.save(); c.translate(px,py); c.rotate(aa+Math.PI/2);
-      c.shadowColor='rgba(255,217,138,.9)'; c.shadowBlur=9;
-      c.fillStyle='#ffd98a';
-      c.beginPath(); c.moveTo(0,-6); c.lineTo(4.4,4); c.lineTo(0,1.9); c.lineTo(-4.4,4);
-      c.closePath(); c.fill();
-      c.shadowBlur=0; c.restore();
-    } else {
-      c.fillStyle='rgba(255,217,138,'+(0.30*(1-i/14))+')';
-      c.beginPath(); c.arc(px,py,2.0*(1-i/16),0,7); c.fill();
-    }
-  }
-  // second aircraft, opposite orbit
-  const a2=-T*0.62+2.1;
-  const qx=cx+Math.cos(a2)*R*0.62, qy=cy+Math.sin(a2)*R*0.92;
-  c.save(); c.translate(qx,qy); c.rotate(a2-Math.PI/2);
-  c.fillStyle='rgba(255,217,138,.55)';
-  c.beginPath(); c.moveTo(0,-4); c.lineTo(3,2.6); c.lineTo(0,1.2); c.lineTo(-3,2.6);
-  c.closePath(); c.fill(); c.restore();
-  // pulsing core
-  const pu=0.55+0.45*Math.abs(Math.sin(T*1.3));
-  c.fillStyle='rgba(240,182,74,'+(0.30*pu)+')';
-  c.beginPath(); c.arc(cx,cy,4.5+pu*2.5,0,7); c.fill();
-  c.fillStyle='#f0b64a';
-  c.beginPath(); c.arc(cx,cy,2,0,7); c.fill();
-}
-
-/* research: poles migrating into the stable half-plane */
-const P0=[[.55,.9],[.55,-.9],[-.35,1.7],[-.35,-1.7]];
-const P1=[[-1.35,.75],[-1.35,-.75],[-2.1,1.5],[-2.1,-1.5]];
-function drawRes(){
-  const g=fit(rcv); if(!g) return; const {c,W,H}=g;
-  c.clearRect(0,0,W,H);
-  const cx=W*.62, cy=H/2, s=Math.min(W,H)*.24;
-  c.fillStyle='rgba(139,147,255,.05)'; c.fillRect(0,0,cx,H);
-  c.strokeStyle='rgba(139,147,255,.35)'; c.lineWidth=1;
-  c.beginPath(); c.moveTo(cx,0); c.lineTo(cx,H); c.stroke();
-  c.strokeStyle='rgba(139,147,255,.18)';
-  c.beginPath(); c.moveTo(0,cy); c.lineTo(W,cy); c.stroke();
-  const k=Math.sin(T*.55)*.5+.5;
-  P0.forEach((p,i)=>{
-    const q=P1[i];
-    const x=cx+(p[0]+(q[0]-p[0])*k)*s, y=cy-(p[1]+(q[1]-p[1])*k)*s;
-    c.strokeStyle='rgba(139,147,255,.22)'; c.lineWidth=1; c.setLineDash([2,2]);
-    c.beginPath(); c.moveTo(cx+p[0]*s,cy-p[1]*s); c.lineTo(cx+q[0]*s,cy-q[1]*s); c.stroke();
-    c.setLineDash([]);
-    c.strokeStyle='#8b93ff'; c.lineWidth=1.6;
-    c.beginPath(); c.moveTo(x-4,y-4); c.lineTo(x+4,y+4); c.moveTo(x+4,y-4); c.lineTo(x-4,y+4); c.stroke();
-  });
-  c.fillStyle='rgba(139,147,255,.5)'; c.font='7px ui-monospace';
-  c.fillText('STABLE',6,H-8);
-}
-function drawStars(){
-  const g=fit(stars); if(!g) return; const {c,W,H}=g;
-  if(!STARS||STARS.W!==W||STARS.H!==H){
-    STARS={W,H,pts:[]};
-    for(let i=0;i<90;i++) STARS.pts.push({x:Math.random()*W,y:Math.random()*H,
-      r:Math.random()*1.1+.2, s:Math.random()*2+.5});
-  }
-  c.clearRect(0,0,W,H);
-  STARS.pts.forEach(p=>{
-    const tw=.35+.65*Math.abs(Math.sin(T*p.s+p.x));
-    c.fillStyle='rgba(246,241,232,'+(tw*.26)+')';
-    c.beginPath(); c.arc(p.x,p.y,p.r,0,7); c.fill();
-  });
-}
-
-let lastW=0;
-function loop(){
-  T+=0.016;
-  if(stage.clientWidth!==lastW){ lastW=stage.clientWidth; layout(); }
-  drawScope(); drawHub(); drawRes(); drawStars();
-  requestAnimationFrame(loop);
-}
-layout();
-requestAnimationFrame(loop);
-
-
-
-
-/* ═══ STAGE 3 · aviation news + on-this-day ═══ */
+/* ═══ starfield backdrop ═══ */
 (function(){
-  var NEWS_PROXY='https://news-proxy.jhrishi7.workers.dev';  /* paste your news-proxy worker URL here to switch on live news */
+  var cv=document.getElementById('stars'); if(!cv) return; var ctx=cv.getContext('2d'); var stars=[],W,H,dpr=Math.min(2,window.devicePixelRatio||1);
+  function resize(){ W=cv.width=innerWidth*dpr; H=cv.height=innerHeight*dpr; cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
+    stars=[]; var n=Math.round(innerWidth*innerHeight/12000); for(var i=0;i<n;i++){ stars.push({x:Math.random()*W,y:Math.random()*H,r:(Math.random()*1.2+.2)*dpr,a:Math.random()*.5+.15,t:Math.random()*6.28,s:Math.random()*.02+.004}); } }
+  function draw(){ ctx.clearRect(0,0,W,H); for(var i=0;i<stars.length;i++){ var st=stars[i]; st.t+=st.s; var tw=st.a*(0.6+0.4*Math.sin(st.t)); ctx.beginPath(); ctx.arc(st.x,st.y,st.r,0,6.28); ctx.fillStyle='rgba(150,190,220,'+tw+')'; ctx.fill(); } requestAnimationFrame(draw); }
+  resize(); draw(); addEventListener('resize',resize);
+})();
 
-  /* ---- On this day in aviation (offline, date-keyed "MM-DD") ---- */
+/* ═══ greeting + live clock ═══ */
+(function(){
+  function tick(){
+    var now=new Date();
+    var h=now.getHours();
+    var hand = h<5?'Good night' : h<12?'Good morning' : h<17?'Good afternoon' : h<21?'Good evening' : 'Good night';
+    var he=document.getElementById('greetHand'); if(he) he.textContent=hand;
+    var days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var de=document.getElementById('wDate'); if(de) de.textContent=days[now.getDay()]+' · '+now.getDate()+' '+months[now.getMonth()]+' '+now.getFullYear();
+    var hh=now.getHours(), mm=now.getMinutes(), ss=now.getSeconds();
+    var ce=document.getElementById('wClock'); var se=document.getElementById('wSec');
+    var p=function(n){return n<10?'0'+n:''+n;};
+    if(ce&&ce.childNodes[0]){ ce.childNodes[0].nodeValue=p(hh)+':'+p(mm); }
+    if(se){ se.textContent=':'+p(ss); }
+  }
+  tick(); setInterval(tick,1000);
+})();
+
+/* ═══ weather (geolocation → Open-Meteo, no key) ═══ */
+(function(){
+  var WMO={0:['Clear sky','☀️'],1:['Mainly clear','🌤️'],2:['Partly cloudy','⛅'],3:['Overcast','☁️'],
+    45:['Fog','🌫️'],48:['Rime fog','🌫️'],51:['Light drizzle','🌦️'],53:['Drizzle','🌦️'],55:['Heavy drizzle','🌦️'],
+    56:['Freezing drizzle','🌧️'],57:['Freezing drizzle','🌧️'],61:['Light rain','🌧️'],63:['Rain','🌧️'],65:['Heavy rain','🌧️'],
+    66:['Freezing rain','🌧️'],67:['Freezing rain','🌧️'],71:['Light snow','🌨️'],73:['Snow','🌨️'],75:['Heavy snow','❄️'],
+    77:['Snow grains','🌨️'],80:['Light showers','🌦️'],81:['Showers','🌦️'],82:['Violent showers','⛈️'],
+    85:['Snow showers','🌨️'],86:['Snow showers','🌨️'],95:['Thunderstorm','⛈️'],96:['Storm · hail','⛈️'],99:['Storm · hail','⛈️']};
+  function set(temp,code,loc){
+    var w=WMO[code]||['Conditions','🛰️'];
+    var it=document.getElementById('wwIco'); if(it) it.textContent=w[1];
+    var tp=document.getElementById('wwTemp'); if(tp) tp.textContent=(temp==null?'--':Math.round(temp))+'°';
+    var cd=document.getElementById('wwCond'); if(cd) cd.textContent=w[0];
+    var lt=document.getElementById('wwLocText'); if(lt&&loc) lt.textContent=loc;
+  }
+  function fetchWx(lat,lon,label){
+    fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code')
+      .then(function(r){return r.json();})
+      .then(function(d){ var c=d&&d.current; if(c) set(c.temperature_2m,c.weather_code,label); })
+      .catch(function(){ var cd=document.getElementById('wwCond'); if(cd) cd.textContent='Weather unavailable'; });
+    if(!label){
+      fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+lat+'&longitude='+lon+'&localityLanguage=en')
+        .then(function(r){return r.json();})
+        .then(function(g){ var name=g.city||g.locality||g.principalSubdivision||''; var cc=g.countryCode?', '+g.countryCode:''; var lt=document.getElementById('wwLocText'); if(lt&&name) lt.textContent=name+cc; })
+        .catch(function(){});
+    }
+  }
+  function fallback(){ /* generic fallback so weather still shows if location denied */
+    var lt=document.getElementById('wwLocText'); if(lt) lt.textContent='Chennai, IN';
+    fetchWx(13.0827,80.2707,'Chennai, IN');
+  }
+  if(navigator.geolocation){
+    var done=false; var t=setTimeout(function(){ if(!done) fallback(); },6000);
+    navigator.geolocation.getCurrentPosition(
+      function(pos){ done=true; clearTimeout(t); fetchWx(pos.coords.latitude,pos.coords.longitude,''); },
+      function(){ done=true; clearTimeout(t); fallback(); },
+      {timeout:5500,maximumAge:600000}
+    );
+  } else { fallback(); }
+})();
+
+/* ═══ halcyon mini visual ═══ */
+(function(){
+  var cv=document.getElementById('rcv'); if(!cv) return; var ctx=cv.getContext('2d'); var W,H,dpr=Math.min(2,window.devicePixelRatio||1),t=0;
+  function fit(){ var r=cv.parentNode.getBoundingClientRect(); W=cv.width=Math.max(1,r.width*dpr); H=cv.height=Math.max(1,r.height*dpr); }
+  function draw(){ if(!W){fit();} ctx.clearRect(0,0,W,H); t+=0.02;
+    ctx.strokeStyle='rgba(139,147,255,.55)'; ctx.lineWidth=1.4*dpr; ctx.beginPath();
+    for(var x=0;x<=W;x+=4*dpr){ var y=H/2 + Math.sin(x*0.02/dpr + t)*H*0.16*Math.exp(-x/(W*1.4)) ; if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); } ctx.stroke();
+    ctx.strokeStyle='rgba(139,147,255,.25)'; ctx.beginPath();
+    for(var x2=0;x2<=W;x2+=4*dpr){ var y2=H/2 + Math.sin(x2*0.02/dpr + t+1.6)*H*0.22*Math.exp(-x2/(W*1.1)); if(x2===0)ctx.moveTo(x2,y2); else ctx.lineTo(x2,y2); } ctx.stroke();
+    requestAnimationFrame(draw); }
+  fit(); draw(); addEventListener('resize',fit);
+})();
+
+/* ═══ aviation news + on-this-day (reused) ═══ */
+(function(){
+  var NEWS_PROXY='https://news-proxy.jhrishi7.workers.dev';
   var OTD={
-    "01-01":[1914,"The world's first scheduled airline flight took off \u2014 the St. Petersburg\u2013Tampa Airboat Line in Florida."],
-    "01-09":[2007,"Aviation and tech converged as the smartphone era began \u2014 reshaping cockpit EFBs and flight apps within a decade."],
-    "01-15":[2009,"US Airways Flight 1549 ditched safely on the Hudson River after a bird strike \u2014 the \u201cMiracle on the Hudson.\u201d"],
+    "01-01":[1914,"The world's first scheduled airline flight took off — the St. Petersburg–Tampa Airboat Line in Florida."],
+    "01-09":[2007,"Aviation and tech converged as the smartphone era began — reshaping cockpit EFBs and flight apps within a decade."],
+    "01-15":[2009,"US Airways Flight 1549 ditched safely on the Hudson River after a bird strike — the “Miracle on the Hudson.”"],
     "01-27":[1967,"The Apollo 1 crew was lost in a launch-pad fire, driving sweeping spacecraft safety reforms."],
     "02-06":[1996,"The Boeing 777 entered commercial service with United Airlines."],
-    "02-09":[1969,"The Boeing 747 \u2014 the first \u201cJumbo Jet\u201d \u2014 made its maiden flight."],
+    "02-09":[1969,"The Boeing 747 — the first “Jumbo Jet” — made its maiden flight."],
     "02-20":[1962,"John Glenn became the first American to orbit the Earth aboard Friendship 7."],
     "03-02":[1969,"Concorde made its maiden flight from Toulouse, France."],
-    "03-08":[2014,"Malaysia Airlines Flight 370 vanished \u2014 spurring global flight-tracking mandates."],
-    "03-27":[1977,"The Tenerife disaster \u2014 the deadliest accident in aviation history \u2014 reshaped runway and radio procedures worldwide."],
+    "03-08":[2014,"Malaysia Airlines Flight 370 vanished — spurring global flight-tracking mandates."],
+    "03-27":[1977,"The Tenerife disaster — the deadliest accident in aviation history — reshaped runway and radio procedures worldwide."],
     "04-12":[1961,"Yuri Gagarin became the first human in space aboard Vostok 1."],
     "04-28":[1988,"Aloha Airlines Flight 243 survived explosive decompression, transforming aircraft ageing and inspection rules."],
     "05-15":[1930,"Ellen Church became the world's first flight attendant, aboard a Boeing Air Transport flight."],
@@ -1097,7 +607,7 @@ requestAnimationFrame(loop);
     "06-18":[1928,"Amelia Earhart became the first woman to cross the Atlantic by air."],
     "06-23":[1931,"Wiley Post and Harold Gatty began their record round-the-world flight in the Winnie Mae."],
     "07-02":[1937,"Amelia Earhart disappeared over the Pacific during her attempt to circumnavigate the globe."],
-    "07-15":[1954,"The Boeing 367-80 \u2014 prototype of the 707 \u2014 first flew, launching the American jet age."],
+    "07-15":[1954,"The Boeing 367-80 — prototype of the 707 — first flew, launching the American jet age."],
     "07-20":[1969,"Apollo 11's Eagle landed on the Moon; Neil Armstrong took humanity's first steps on another world."],
     "07-25":[2000,"Air France Concorde Flight 4590 crashed near Paris, beginning the end of Concorde service."],
     "07-27":[1949,"The de Havilland Comet, the world's first commercial jet airliner, made its maiden flight."],
@@ -1107,30 +617,25 @@ requestAnimationFrame(loop);
     "08-01":[1919,"KLM, the world's oldest airline still operating under its original name, was founded."],
     "08-19":[1871,"Orville Wright, co-inventor of the first powered aircraft, was born."],
     "08-25":[1919,"The world's first daily international scheduled air service began, London to Paris."],
-    "09-08":[2004,"NASA's Genesis capsule returned \u2014 part of the era's push in aerospace sample-return engineering."],
+    "09-08":[2004,"NASA's Genesis capsule returned — part of the era's push in aerospace sample-return engineering."],
     "09-15":[1928,"The de Havilland Gipsy engine era advanced light aviation and pilot training worldwide."],
-    "10-04":[1957,"Sputnik 1, the first artificial satellite, was launched \u2014 opening the space race."],
+    "10-04":[1957,"Sputnik 1, the first artificial satellite, was launched — opening the space race."],
     "10-14":[1947,"Chuck Yeager broke the sound barrier in the Bell X-1, reaching Mach 1.06."],
     "10-24":[2003,"Concorde made its final commercial flight, retiring supersonic passenger travel."],
-    "11-10":[1935,"The Hawker Hurricane first flew \u2014 a fighter that would prove decisive in the Battle of Britain."],
-    "11-13":[1907,"Paul Corn\u00fa achieved the first free flight of a rotary-wing aircraft \u2014 an early helicopter."],
+    "11-10":[1935,"The Hawker Hurricane first flew — a fighter that would prove decisive in the Battle of Britain."],
+    "11-13":[1907,"Paul Cornú achieved the first free flight of a rotary-wing aircraft — an early helicopter."],
     "12-14":[1903,"The Wright brothers made their first flight attempt at Kitty Hawk, three days before success."],
     "12-17":[1903,"The Wright brothers achieved the first powered, sustained, controlled aeroplane flight at Kitty Hawk."],
     "12-23":[1986,"Voyager completed the first non-stop, non-refuelled flight around the world."],
-    "12-31":[1968,"The Tupolev Tu-144, the first supersonic transport to fly, made its maiden flight \u2014 ahead of Concorde."]
+    "12-31":[1968,"The Tupolev Tu-144, the first supersonic transport to fly, made its maiden flight — ahead of Concorde."]
   };
   function pad(n){ return n<10?'0'+n:''+n; }
   function nearestOTD(d){
     var key=pad(d.getMonth()+1)+'-'+pad(d.getDate());
     if(OTD[key]) return {key:key,f:OTD[key],exact:true};
-    /* find the closest keyed date (either side) in the year */
-    var keys=Object.keys(OTD).sort();
-    var best=keys[0], bestDist=999;
-    for(var i=0;i<keys.length;i++){
-      var mm=parseInt(keys[i].slice(0,2),10), dd=parseInt(keys[i].slice(3),10);
-      var dist=Math.abs((mm*31+dd)-((d.getMonth()+1)*31+d.getDate()));
-      if(dist<bestDist){ bestDist=dist; best=keys[i]; }
-    }
+    var keys=Object.keys(OTD).sort(); var best=keys[0], bestDist=999;
+    for(var i=0;i<keys.length;i++){ var mm=parseInt(keys[i].slice(0,2),10), dd=parseInt(keys[i].slice(3),10);
+      var dist=Math.abs((mm*31+dd)-((d.getMonth()+1)*31+d.getDate())); if(dist<bestDist){ bestDist=dist; best=keys[i]; } }
     return {key:best,f:OTD[best],exact:false};
   }
   function renderOTD(){
@@ -1138,12 +643,9 @@ requestAnimationFrame(loop);
     var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
     var mm=parseInt(o.key.slice(0,2),10)-1, dd=parseInt(o.key.slice(3),10);
     var de=document.getElementById('otdDate'), ye=document.getElementById('otdYear'), te=document.getElementById('otdText');
-    if(de) de.textContent = o.exact ? (months[mm]+' '+dd) : ('Nearest milestone \u00b7 '+months[mm]+' '+dd);
-    if(ye) ye.textContent=o.f[0];
-    if(te) te.textContent=o.f[1];
+    if(de) de.textContent = o.exact ? (months[mm]+' '+dd) : ('Nearest milestone · '+months[mm]+' '+dd);
+    if(ye) ye.textContent=o.f[0]; if(te) te.textContent=o.f[1];
   }
-
-  /* ---- Live news ---- */
   var listEl=document.getElementById('ncList'), refreshEl=document.getElementById('ncRefresh'), liveEl=document.getElementById('ncLive');
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function skel(){ if(listEl) listEl.innerHTML='<div class="ncSkel"></div><div class="ncSkel"></div><div class="ncSkel"></div>'; }
@@ -1154,57 +656,62 @@ requestAnimationFrame(loop);
       '<div class="ncMeta"><span>'+esc(a.source||'')+'</span>'+(a.published?'<span>'+esc(a.published)+'</span>':'')+'</div></a>';
   }
   function loadNews(){
-    if(!NEWS_PROXY){ if(liveEl) liveEl.textContent='off'; state('Live news isn\u2019t switched on yet. Deploy the news-proxy worker and paste its URL into NEWS_PROXY.'); return; }
+    if(!NEWS_PROXY){ if(liveEl) liveEl.textContent='off'; state('Live news isn’t switched on yet.'); return; }
     if(liveEl) liveEl.textContent='live'; skel();
     var ctrl=new AbortController(); var to=setTimeout(function(){ctrl.abort();},11000);
     fetch(NEWS_PROXY.replace(/\/$/,'')+'/news',{signal:ctrl.signal})
       .then(function(r){ clearTimeout(to); return r.json(); })
-      .then(function(d){
-        var items=(d&&d.items)||[];
-        if(!items.length){ state('No headlines right now \u2014 try refresh in a bit.'); return; }
-        listEl.innerHTML=items.slice(0,6).map(item).join('');
-      })
-      .catch(function(){ clearTimeout(to); state('Couldn\u2019t load headlines \u2014 tap refresh to retry.'); });
+      .then(function(d){ var items=(d&&d.items)||[]; if(!items.length){ state('No headlines right now — try refresh in a bit.'); return; }
+        listEl.innerHTML=items.slice(0,6).map(item).join(''); })
+      .catch(function(){ clearTimeout(to); state('Couldn’t load headlines — tap refresh to retry.'); });
   }
   if(refreshEl) refreshEl.addEventListener('click',loadNews);
-  renderOTD();
-  loadNews();
+  renderOTD(); loadNews();
 })();
 
-
-/* ═══ STAGE 2 · announcements (worker-synced) ═══ */
+/* ═══ announcements + terminal typewriter ticker ═══ */
 function initAnnouncements(){
-  /* HARD GUARD: never let any overlay be open on load */
-  try{
-    var _as=document.getElementById('adminScrim'); if(_as) _as.hidden=true;
-    var _ns=document.getElementById('annScrim'); if(_ns) _ns.hidden=true;
-  }catch(e){}
-  var ANNOUNCE_PROXY='https://announcment-proxy.jhrishi7.workers.dev';  /* paste your announce-proxy worker URL here */
-  var SEEN_KEY='argus.annSeen';
-
-  var bar=document.getElementById('annBar'), barText=document.getElementById('annBarText'), barIcon=document.getElementById('annBarIcon');
+  try{ var _as=document.getElementById('adminScrim'); if(_as) _as.hidden=true; var _ns=document.getElementById('annScrim'); if(_ns) _ns.hidden=true; }catch(e){}
+  var ANNOUNCE_PROXY='https://announcment-proxy.jhrishi7.workers.dev';
+  var ticker=document.getElementById('ticker'), tagText=document.getElementById('tkTagText'), typeEl=document.getElementById('tkType');
   var popScrim=document.getElementById('annScrim'), popList=document.getElementById('annPopList');
   var adminScrim=document.getElementById('adminScrim');
   var ITEMS=[]; var ADMIN_KEY_CACHE='';
+  /* idle terminal messages when there are no real announcements */
+  var IDLE=[{title:'WELCOME TO ARGUS TERMINAL',level:'info'},{title:'ALL SYSTEMS NOMINAL · LIVE TRACKERS ONLINE',level:'info'},{title:'SELECT A MODULE FROM THE SIDEBAR TO BEGIN',level:'info'}];
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function icon(l){ return l==='alert'?'⚠️':l==='success'?'✅':'📢'; }
   function timeAgo(iso){ try{ var d=new Date(iso); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+
+  /* ---- typewriter engine (airport-terminal feel) ---- */
+  var tw={seq:[],i:0,ch:0,del:false,timer:null};
+  function twStop(){ if(tw.timer){ clearTimeout(tw.timer); tw.timer=null; } }
+  function twStart(seq){
+    twStop(); tw.seq=seq.length?seq:IDLE; tw.i=0; tw.ch=0; tw.del=false; step();
+  }
+  function step(){
+    var cur=tw.seq[tw.i%tw.seq.length]; var txt=(cur.title||cur.body||'').toString();
+    if(ticker) ticker.setAttribute('data-level',cur.level||'info');
+    if(tagText) tagText.textContent=(cur.level==='alert'?'ALERT':cur.level==='success'?'NOTICE':'NOTICE');
+    if(!tw.del){
+      tw.ch++; if(typeEl) typeEl.textContent=txt.slice(0,tw.ch);
+      if(tw.ch>=txt.length){ tw.del=true; tw.timer=setTimeout(step, tw.seq.length>1?2600:5200); return; }
+      tw.timer=setTimeout(step, 42+Math.random()*40);
+    } else {
+      if(tw.seq.length<=1){ /* single message: don't delete, just hold + retype subtly */ tw.del=false; tw.ch=txt.length; tw.timer=setTimeout(step,5000); return; }
+      tw.ch--; if(typeEl) typeEl.textContent=txt.slice(0,tw.ch);
+      if(tw.ch<=0){ tw.del=false; tw.i=(tw.i+1)%tw.seq.length; tw.timer=setTimeout(step,320); return; }
+      tw.timer=setTimeout(step,22);
+    }
+  }
 
   function fetchItems(){
     if(!ANNOUNCE_PROXY){ return Promise.resolve([]); }
     return fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/',{cache:'no-store'})
       .then(function(r){return r.json();}).then(function(d){ return (d&&d.items)||[]; }).catch(function(){ return []; });
   }
-
-  function renderBar(){
-    if(!ITEMS.length){ bar.hidden=true; return; }
-    var top=ITEMS[0];
-    bar.hidden=false;
-    bar.setAttribute('data-level',top.level||'info');
-    barIcon.textContent=icon(top.level);
-    barText.textContent=top.title||top.body||'';
-  }
+  function renderBar(){ twStart(ITEMS.length?ITEMS:IDLE); }
   function renderPop(){
     if(!ITEMS.length){ popList.innerHTML='<div class="annEmpty">No announcements right now.</div>'; return; }
     popList.innerHTML=ITEMS.map(function(a,i){
@@ -1216,179 +723,68 @@ function initAnnouncements(){
   }
   function openPop(){ renderPop(); popScrim.hidden=false; }
   function closePop(){ popScrim.hidden=true; }
+  function load(){ fetchItems().then(function(items){ ITEMS=items; renderBar(); }); }
 
-  /* auto-show once per browser session, only if there's something and it's unseen */
-  function maybeAutoShow(){
-    if(!ITEMS.length) return;
-    var sig=ITEMS.map(function(a){return a.id;}).join(',');
-    var seen=''; try{ seen=sessionStorage.getItem(SEEN_KEY)||''; }catch(e){}
-    if(seen!==sig){ openPop(); try{ sessionStorage.setItem(SEEN_KEY,sig); }catch(e){} }
-  }
-
-  function load(auto){
-    fetchItems().then(function(items){ ITEMS=items; renderBar(); if(auto) maybeAutoShow(); });
-  }
-
-  /* bar controls */
   document.getElementById('annBarMore').addEventListener('click',openPop);
-  document.getElementById('annBarClose').addEventListener('click',function(){ bar.hidden=true; });
+  var annViewSide=document.getElementById('annViewSide'); if(annViewSide) annViewSide.addEventListener('click',openPop);
   document.getElementById('annPopClose').addEventListener('click',closePop);
   popScrim.addEventListener('click',function(e){ if(e.target===popScrim) closePop(); });
 
   /* ---- admin ---- */
-  var fab=document.getElementById('adminFab');
   var loginBox=document.getElementById('adminLogin'), panelBody=document.getElementById('adminPanelBody');
   var passInput=document.getElementById('adminPass'), loginMsg=document.getElementById('adminLoginMsg');
   function openAdmin(){ adminScrim.hidden=false; loginBox.hidden=false; panelBody.hidden=true; loginMsg.textContent=''; passInput.value=''; setTimeout(function(){passInput.focus();},60); }
   function closeAdmin(){ adminScrim.hidden=true; }
-  fab.addEventListener('click',openAdmin);
+  document.getElementById('adminFab').addEventListener('click',openAdmin);
+  var adminBtnSide=document.getElementById('adminBtnSide'); if(adminBtnSide) adminBtnSide.addEventListener('click',openAdmin);
   document.getElementById('adminClose').addEventListener('click',closeAdmin);
   adminScrim.addEventListener('click',function(e){ if(e.target===adminScrim) closeAdmin(); });
-
   function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Key':ADMIN_KEY_CACHE}; }
-
   function doLogin(){
-    if(!ANNOUNCE_PROXY){ loginMsg.className='adminMsg err'; loginMsg.textContent='Announcements aren\u2019t switched on. Deploy the announce-proxy worker and set ANNOUNCE_PROXY.'; return; }
+    if(!ANNOUNCE_PROXY){ loginMsg.className='adminMsg err'; loginMsg.textContent='Announcements aren’t switched on.'; return; }
     var pass=passInput.value.trim(); if(!pass){ return; }
-    loginMsg.className='adminMsg'; loginMsg.textContent='Checking\u2026';
+    loginMsg.className='adminMsg'; loginMsg.textContent='Checking…';
     fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/verify',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Key':pass}})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
-      .then(function(res){
-        if(res.d&&res.d.ok){ ADMIN_KEY_CACHE=pass; loginBox.hidden=true; panelBody.hidden=false; renderAdminList(); }
-        else { loginMsg.className='adminMsg err'; loginMsg.textContent='Wrong password.'; }
-      })
-      .catch(function(){ loginMsg.className='adminMsg err'; loginMsg.textContent='Couldn\u2019t reach the announcements service.'; });
+      .then(function(res){ if(res.d&&res.d.ok){ ADMIN_KEY_CACHE=pass; loginBox.hidden=true; panelBody.hidden=false; renderAdminList(); }
+        else { loginMsg.className='adminMsg err'; loginMsg.textContent='Wrong password.'; } })
+      .catch(function(){ loginMsg.className='adminMsg err'; loginMsg.textContent='Couldn’t reach the announcements service.'; });
   }
   document.getElementById('adminLoginBtn').addEventListener('click',doLogin);
   passInput.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); doLogin(); } });
-
   function renderAdminList(){
     var el=document.getElementById('adminList');
     if(!ITEMS.length){ el.innerHTML='<div class="annEmpty">Nothing posted yet.</div>'; return; }
     el.innerHTML=ITEMS.map(function(a){
-      return '<div class="adminItem" data-id="'+esc(a.id)+'">'+
-        '<div class="adminItemMain"><div class="adminItemTitle"><span class="annBadge '+esc(a.level||'info')+'"></span>'+esc(a.title||'(no title)')+'</div>'+
-        (a.body?'<div class="adminItemBody">'+esc(a.body)+'</div>':'')+'</div>'+
-        '<button class="adminItemDel" data-del="'+esc(a.id)+'" title="Remove">🗑</button></div>';
+      return '<div class="adminItem" data-id="'+esc(a.id)+'"><div class="adminItemMain"><div class="adminItemTitle"><span class="annBadge '+esc(a.level||'info')+'"></span>'+esc(a.title||'(no title)')+'</div>'+
+        (a.body?'<div class="adminItemBody">'+esc(a.body)+'</div>':'')+'</div><button class="adminItemDel" data-del="'+esc(a.id)+'" title="Remove">🗑</button></div>';
     }).join('');
-    [].forEach.call(el.querySelectorAll('[data-del]'),function(btn){
-      btn.addEventListener('click',function(){ delItem(btn.getAttribute('data-del')); });
-    });
+    [].forEach.call(el.querySelectorAll('[data-del]'),function(btn){ btn.addEventListener('click',function(){ delItem(btn.getAttribute('data-del')); }); });
   }
-
   var postMsg=document.getElementById('adminPostMsg');
   function doPost(){
-    var title=document.getElementById('annTitle').value.trim();
-    var body=document.getElementById('annBody').value.trim();
-    var level=document.getElementById('annLevel').value;
+    var title=document.getElementById('annTitle').value.trim(); var body=document.getElementById('annBody').value.trim(); var level=document.getElementById('annLevel').value;
     if(!title&&!body){ postMsg.className='adminMsg err'; postMsg.textContent='Type a title or some details first.'; return; }
-    postMsg.className='adminMsg'; postMsg.textContent='Posting\u2026';
+    postMsg.className='adminMsg'; postMsg.textContent='Posting…';
     fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/',{method:'POST',headers:adminHeaders(),body:JSON.stringify({title:title,body:body,level:level})})
       .then(function(r){return r.json();})
-      .then(function(d){
-        if(d.ok){ ITEMS=d.items||[]; postMsg.className='adminMsg ok'; postMsg.textContent='Posted.';
-          document.getElementById('annTitle').value=''; document.getElementById('annBody').value='';
-          renderBar(); renderAdminList(); }
-        else { postMsg.className='adminMsg err'; postMsg.textContent=d.error||'Could not post.'; }
-      })
+      .then(function(d){ if(d.ok){ ITEMS=d.items||[]; postMsg.className='adminMsg ok'; postMsg.textContent='Posted.';
+          document.getElementById('annTitle').value=''; document.getElementById('annBody').value=''; renderBar(); renderAdminList(); }
+        else { postMsg.className='adminMsg err'; postMsg.textContent=d.error||'Could not post.'; } })
       .catch(function(){ postMsg.className='adminMsg err'; postMsg.textContent='Network error.'; });
   }
   document.getElementById('annPost').addEventListener('click',doPost);
-
   function delItem(id){
     if(!confirm('Remove this announcement for everyone?')) return;
     fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/delete',{method:'POST',headers:adminHeaders(),body:JSON.stringify({id:id})})
-      .then(function(r){return r.json();})
-      .then(function(d){ if(d.ok){ ITEMS=d.items||[]; renderBar(); renderAdminList(); } });
+      .then(function(r){return r.json();}).then(function(d){ if(d.ok){ ITEMS=d.items||[]; renderBar(); renderAdminList(); } });
   }
 
-    load(false);   /* no auto-popup on load — announcements show in the bar; click ‘view all’ to open */
+  renderBar();   /* start idle typewriter immediately */
+  load();        /* then swap in real announcements when they arrive */
 }
 if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',initAnnouncements); }
 else { initAnnouncements(); }
-
 </script>
-
-  <!-- ═══ ATTENDANCE DASHBOARDS · bottom-right dock ═══ -->
-  <div class="dashdock" id="dashdock">
-    <div class="ddlabel">ATTENDANCE</div>
-    <div class="ddrow">
-      <a class="ddash" href="argus-dashboard.html" style="--dc:#f0b64a" title="ARGUS · Bsc Aero - IIA">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>
-        <span>ARGUS</span><em>Bsc Aero · IIA</em>
-      </a>
-      <a class="ddash" href="absence-audit-report.html" style="--dc:#c8202f" title="Absence Audit · BBA - Aviation IIC">
-        <svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
-        <span>AUDIT</span><em>BBA Avn · IIC</em>
-      </a>
-      <a class="ddash" href="muster.html" style="--dc:#1f6f68" title="MUSTER · BBA - Aviation IIA">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.4l3 3 5.2-5.6"/></svg>
-        <span>MUSTER</span><em>BBA Avn · IIA</em>
-      </a>
-      <a class="ddash" href="olympia.html" style="--dc:#d81f2a" title="OLYMPIA · BBA - Aviation IIIB">
-        <svg viewBox="0 0 24 24"><path d="M12 3.5l2.5 5.2 5.7.8-4.1 4 1 5.6L12 21.4 6.9 24.1l1-5.6-4.1-4 5.7-.8z"/></svg>
-        <span>OLYMPIA</span><em>BBA Avn · IIIB</em>
-      </a>
-    </div>
-  </div>
-
-<!-- ═══ MENTOR · bottom-left dock (password locked) ═══ -->
-  <div class="dashdock dashdock-left" id="dashdockLeft">
-    <div class="ddlabel">MENTORING</div>
-    <div class="ddrow">
-      <a class="ddash ddash-lock" href="mentor.html" id="mentorTile" style="--dc:#4a9eff" title="MENTOR · Mentee dashboard (locked)">
-        <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/><circle cx="20" cy="7" r="1.6" fill="currentColor" stroke="none"/></svg>
-        <span>MENTOR</span><em>Bsc Aero · IIA</em>
-        <span class="ddLock">🔒</span>
-      </a>
-    </div>
-  </div>
-
-<!-- ═══ STAGE 2 · announcements ═══ -->
-<button class="adminFab" id="adminFab" title="Admin">⚙</button>
-
-<div class="annScrim" id="annScrim" hidden>
-  <div class="annPop" id="annPop" role="dialog" aria-modal="true">
-    <div class="annPopGlow"></div>
-    <button class="annPopClose" id="annPopClose" aria-label="close">✕</button>
-    <div class="annPopKicker">ANNOUNCEMENTS</div>
-    <div class="annPopList" id="annPopList"></div>
-  </div>
-</div>
-
-<div class="annScrim" id="adminScrim" hidden>
-  <div class="adminPanel" id="adminPanel" role="dialog" aria-modal="true">
-    <button class="annPopClose" id="adminClose" aria-label="close">✕</button>
-
-    <div id="adminLogin">
-      <div class="annPopKicker">ADMIN · SIGN IN</div>
-      <p class="adminHint">Enter the admin password to post or remove announcements.</p>
-      <input type="password" id="adminPass" class="adminInput" placeholder="Password" autocomplete="off">
-      <div class="adminMsg" id="adminLoginMsg"></div>
-      <button class="adminBtn pri" id="adminLoginBtn">Unlock</button>
-    </div>
-
-    <div id="adminPanelBody" hidden>
-      <div class="annPopKicker">ADMIN · ANNOUNCEMENTS</div>
-      <div class="adminForm">
-        <input type="text" id="annTitle" class="adminInput" placeholder="Title (e.g. Holiday tomorrow)">
-        <textarea id="annBody" class="adminInput" style="min-height:80px;resize:vertical" placeholder="Details (optional)"></textarea>
-        <div class="adminRow">
-          <select id="annLevel" class="adminInput" style="flex:1">
-            <option value="info">Info (gold)</option>
-            <option value="alert">Alert (red)</option>
-            <option value="success">Good news (green)</option>
-          </select>
-          <button class="adminBtn pri" id="annPost">Post</button>
-        </div>
-        <div class="adminMsg" id="adminPostMsg"></div>
-      </div>
-      <div class="adminDivider"></div>
-      <div class="annPopKicker" style="margin-bottom:8px">POSTED · tap ✕ to remove</div>
-      <div class="adminList" id="adminList"></div>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
