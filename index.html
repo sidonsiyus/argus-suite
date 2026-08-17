@@ -86,7 +86,10 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5}
 .tkMore{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:none;border:1px solid var(--line2);border-radius:7px;padding:6px 10px;cursor:pointer;flex:none}
 .tkMore:hover{border-color:var(--gold);color:var(--gold)}
 
-.stage{flex:1;padding:24px 30px 70px;max-width:1400px;width:100%}
+.stage{flex:1;padding:24px 30px 70px;max-width:1840px;width:100%;display:grid;grid-template-columns:minmax(0,1fr) 342px;gap:22px;align-items:start}
+.stageMain{min-width:0;display:flex;flex-direction:column}
+.rail{display:flex;flex-direction:column;gap:14px}
+@media(max-width:1200px){.stage{grid-template-columns:1fr}}
 
 /* header row: dashboards (left) + greeting/clock/weather (right) */
 .hdr{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:16px;margin-bottom:18px}
@@ -200,6 +203,31 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5}
 
 footer{padding:26px 30px;color:var(--faint);font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border-top:1px solid var(--line)}
 footer b{color:var(--dim)}
+
+/* ── right rail widgets ── */
+.wcard{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:15px 16px;position:relative;overflow:hidden}
+.wcTitle{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.wcTitle b{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+/* world clocks */
+.clkRow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.clkRow:last-child{border-bottom:none}
+.clkCode{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--gold);width:32px;flex:none}
+.clkCity{flex:1;min-width:0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clkTime{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+/* departures board */
+.brdRow{display:grid;grid-template-columns:36px 1fr auto;gap:9px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);text-decoration:none}
+.brdRow:last-child{border-bottom:none}
+.brdGate{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--acc,var(--teal))}
+.brdName{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .14s}
+.brdRow:hover .brdName{color:var(--ink)}
+.brdStat{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);display:flex;align-items:center;gap:5px}
+.brdStat i{width:5px;height:5px;border-radius:50%;background:var(--teal);animation:pulse 1.4s infinite}
+/* quick launch */
+.qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.qtile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:11px 3px;border:1px solid var(--line);border-radius:11px;background:var(--panel2);transition:.15s;text-decoration:none}
+.qtile:hover{border-color:var(--acc,var(--teal));transform:translateY(-2px);background:var(--panel);box-shadow:var(--glow) color-mix(in srgb,var(--acc,var(--teal)) 40%,transparent)}
+.qtile svg{width:19px;height:19px;stroke:var(--acc,var(--teal));fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.qtile span{font-family:var(--mono);font-size:7.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);text-align:center;line-height:1.2}
 
 /* ══════════ announcement popover + admin (reused) ══════════ */
 .annScrim{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(3,5,8,.72);backdrop-filter:blur(7px)}
@@ -359,9 +387,7 @@ footer b{color:var(--dim)}
     </div>
 
     <div class="stage">
-
-      <!-- header: dashboards (left) + greeting/clock/weather (right) -->
-      <div class="hdr">
+     <div class="stageMain">
         <div class="dashWrap">
           <div class="dashLbl">Dashboards</div>
           <div class="dashRow">
@@ -379,21 +405,6 @@ footer b{color:var(--dim)}
             </a>
           </div>
         </div>
-
-        <div class="welcome">
-          <div class="wGreet"><span class="hand" id="greetHand">Good day</span><span id="greetTail"></span></div>
-          <div class="wDate" id="wDate">—</div>
-          <div class="wClock" id="wClock">--:--<small id="wSec">00</small></div>
-          <div class="wWeather" id="wWeather">
-            <div class="wwIco" id="wwIco">🛰️</div>
-            <div class="wwTemp" id="wwTemp">--°</div>
-            <div class="wwMeta">
-              <div class="wwCond" id="wwCond">Reading local conditions…</div>
-              <div class="wwLoc" id="wwLoc"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.5-6.5-10a6.5 6.5 0 0 1 13 0c0 4.5-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg><span id="wwLocText">locating…</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- news + on this day -->
       <div class="sec"><span class="st"><b></b>Daily aviation intel</span></div>
@@ -444,6 +455,60 @@ footer b{color:var(--dim)}
           </div>
         </div>
       </a>
+
+     </div><!-- /stageMain -->
+
+     <aside class="rail">
+       <!-- greeting / clock / weather -->
+       <div class="welcome">
+         <div class="wGreet"><span class="hand" id="greetHand">Good day</span><span id="greetTail"></span></div>
+         <div class="wDate" id="wDate">—</div>
+         <div class="wClock" id="wClock">--:--<small id="wSec">00</small></div>
+         <div class="wWeather" id="wWeather">
+           <div class="wwIco" id="wwIco">🛰️</div>
+           <div class="wwTemp" id="wwTemp">--°</div>
+           <div class="wwMeta">
+             <div class="wwCond" id="wwCond">Reading local conditions…</div>
+             <div class="wwLoc" id="wwLoc"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.5-6.5-10a6.5 6.5 0 0 1 13 0c0 4.5-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg><span id="wwLocText">locating…</span></div>
+           </div>
+         </div>
+       </div>
+
+       <!-- world clocks -->
+       <div class="wcard">
+         <div class="wcTitle"><b></b>World clocks · hubs</div>
+         <div id="clocks"></div>
+       </div>
+
+       <!-- departures board · live modules -->
+       <div class="wcard">
+         <div class="wcTitle"><b style="background:var(--gold);box-shadow:0 0 8px var(--gold)"></b>Departures · live now</div>
+         <a class="brdRow" href="odyssey.html" style="--acc:#f0b64a"><span class="brdGate">OD1</span><span class="brdName">Odyssey · flight ops</span><span class="brdStat"><i></i>Boarding</span></a>
+         <a class="brdRow" href="argus.html" style="--acc:#2ec4b6"><span class="brdGate">AR2</span><span class="brdName">Argus · global radar</span><span class="brdStat"><i></i>Live</span></a>
+         <a class="brdRow" href="oracle.html" style="--acc:#4de1d6"><span class="brdGate">OR3</span><span class="brdName">Oracle · satellites</span><span class="brdStat"><i></i>In orbit</span></a>
+         <a class="brdRow" href="pyrgos.html" style="--acc:#f0b64a"><span class="brdGate">PY4</span><span class="brdName">Pyrgos · tower</span><span class="brdStat"><i></i>On freq</span></a>
+         <a class="brdRow" href="ascent.html" style="--acc:#ff9e64"><span class="brdGate">AS5</span><span class="brdName">Ascent · careers</span><span class="brdStat"><i></i>Hiring</span></a>
+       </div>
+
+       <!-- quick launch -->
+       <div class="wcard">
+         <div class="wcTitle"><b style="background:var(--amber);box-shadow:0 0 8px var(--amber)"></b>Quick launch</div>
+         <div class="qgrid">
+           <a class="qtile" href="odyssey.html" style="--acc:#f0b64a"><svg viewBox="0 0 24 24"><path d="M2.5 14.6 21.5 9.2"/><path d="M6.6 13.4 4.2 9.9l1.9-.5 3.3 2.5"/><path d="M9.8 19.3 8.1 16.2"/><path d="M3.5 20.5h7"/><circle cx="18.6" cy="10" r="1"/></svg><span>Odyssey</span></a>
+           <a class="qtile" href="argus.html" style="--acc:#2ec4b6"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span>Argus</span></a>
+           <a class="qtile" href="oracle.html" style="--acc:#4de1d6"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.6"/><path d="M12 6.4c-2.1 1.7-2.1 9.5 0 11.2M12 6.4c2.1 1.7 2.1 9.5 0 11.2"/><path d="M6.4 12h11.2"/><ellipse cx="12" cy="12" rx="10.4" ry="4" transform="rotate(-27 12 12)"/></svg><span>Oracle</span></a>
+           <a class="qtile" href="pyrgos.html" style="--acc:#f0b64a"><svg viewBox="0 0 24 24"><path d="M7 21h10"/><path d="M9.5 21V10h5v11"/><path d="M8.6 10 12 5.6 15.4 10"/><path d="M12 5.6V2.8"/></svg><span>Pyrgos</span></a>
+           <a class="qtile" href="aircraft-cutaway-explorer.html" style="--acc:#22d3ee"><svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.6a1.6 1.6 0 0 0-3.2 0V9l-8 5v2l8-2.4V19l-2.2 1.5V22l3.8-1.1L15 22v-1.5L12.8 19v-4.6z"/></svg><span>Cutaway</span></a>
+           <a class="qtile" href="wind-tunnel-simulator.html" style="--acc:#ff5a63"><svg viewBox="0 0 24 24"><path d="M3 8h11a2.4 2.4 0 1 0-2.4-2.4"/><path d="M3 12h16a2.4 2.4 0 1 1-2.4 2.4"/><path d="M3 16h8.5a2 2 0 1 1-2 2"/></svg><span>Tunnel</span></a>
+           <a class="qtile" href="technical-drawing-lab.html" style="--acc:#5b8def"><svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg><span>CATIA</span></a>
+           <a class="qtile" href="ndt-inspection-bay.html" style="--acc:#f59e0b"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2"/><path d="M20 20l-3.8-3.8"/><path d="M8 11h1.5l1-2.6 1.7 4.8 1.1-2.2H15"/></svg><span>NDT</span></a>
+           <a class="qtile" href="aircraft-maintenance-hangar.html" style="--acc:#31c56a"><svg viewBox="0 0 24 24"><path d="M3 20.5V11l9-6 9 6v9.5"/><path d="M2 20.5h20"/><path d="M8.5 20.5v-5.5h7v5.5"/></svg><span>Hangar</span></a>
+           <a class="qtile" href="ascent.html" style="--acc:#ff9e64"><svg viewBox="0 0 24 24"><path d="M3 20.5h18"/><path d="M6.5 20.5V13"/><path d="M11.5 20.5V9"/><path d="M16.5 20.5V5"/><path d="M14 3h6v6"/><path d="M20 3 12.5 10.5"/></svg><span>Ascent</span></a>
+           <a class="qtile" href="halcyon.html" style="--acc:#8b93ff"><svg viewBox="0 0 24 24"><path d="M3 12c3-5 6-5 9 0s6 5 9 0"/><path d="M3 17c3-5 6-5 9 0s6 5 9 0"/></svg><span>Halcyon</span></a>
+           <a class="qtile" href="gargantua/index.html" style="--acc:#b98cff"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.1"/><circle cx="12" cy="12" r="6.6"/><ellipse cx="12" cy="12" rx="10.6" ry="3.1" transform="rotate(-18 12 12)"/></svg><span>Gargantua</span></a>
+         </div>
+       </div>
+     </aside>
 
     </div>
     <footer>ARGUS · <b>eleven browser-based modules</b> + research · aviation &amp; aerospace engineering terminal</footer>
@@ -529,6 +594,29 @@ footer b{color:var(--dim)}
     if(se){ se.textContent=':'+p(ss); }
   }
   tick(); setInterval(tick,1000);
+})();
+
+/* ═══ world clocks · aviation hubs ═══ */
+(function(){
+  var HUBS=[
+    {code:'LOC',city:'Local time',tz:undefined},
+    {code:'LHR',city:'London',tz:'Europe/London'},
+    {code:'JFK',city:'New York',tz:'America/New_York'},
+    {code:'DXB',city:'Dubai',tz:'Asia/Dubai'},
+    {code:'SIN',city:'Singapore',tz:'Asia/Singapore'}
+  ];
+  var el=document.getElementById('clocks'); if(!el) return;
+  el.innerHTML=HUBS.map(function(h,i){ return '<div class="clkRow"><span class="clkCode">'+h.code+'</span><span class="clkCity">'+h.city+'</span><span class="clkTime" data-i="'+i+'">--:--</span></div>'; }).join('');
+  function upd(){
+    var now=new Date();
+    HUBS.forEach(function(h,i){
+      try{ var opt={hour:'2-digit',minute:'2-digit',hour12:false}; if(h.tz) opt.timeZone=h.tz;
+        var t=new Intl.DateTimeFormat('en-GB',opt).format(now);
+        var node=el.querySelector('[data-i="'+i+'"]'); if(node) node.textContent=t;
+      }catch(e){}
+    });
+  }
+  upd(); setInterval(upd,10000);
 })();
 
 /* ═══ weather (geolocation → Open-Meteo, no key) ═══ */
