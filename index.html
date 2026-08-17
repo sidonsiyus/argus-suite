@@ -229,6 +229,24 @@ footer b{color:var(--dim)}
 .qtile svg{width:19px;height:19px;stroke:var(--acc,var(--teal));fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .qtile span{font-family:var(--mono);font-size:7.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--dim);text-align:center;line-height:1.2}
 
+/* ── local skies: live flights + METAR/TAF ── */
+.skiesRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px}
+@media(max-width:900px){.skiesRow{grid-template-columns:1fr}}
+.skStat{display:flex;align-items:baseline;gap:10px;margin:4px 0 12px}
+.skNum{font-family:var(--mono);font-size:42px;font-weight:800;line-height:1;color:var(--teal);font-variant-numeric:tabular-nums;text-shadow:0 0 22px rgba(46,196,182,.35)}
+.skUnit{font-size:12px;color:var(--dim)}
+.skNearest{font-size:12.5px;color:var(--dim);line-height:1.6;border-top:1px solid var(--line);padding-top:12px;min-height:44px}
+.skNearest b{color:var(--ink);font-weight:600}
+.skNearest .cs{font-family:var(--mono);color:var(--teal);font-weight:700;letter-spacing:.04em}
+.skLink{display:inline-block;margin-top:12px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal)}
+.metar .cardHead .dot{background:var(--faint);box-shadow:none}
+.mtRaw{font-family:var(--mono);font-size:12px;line-height:1.55;color:var(--ink);letter-spacing:.02em;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;word-break:break-word}
+.mtChips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.mtChip{font-family:var(--mono);font-size:9px;letter-spacing:.03em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line2);border-radius:20px;padding:5px 10px;display:flex;gap:6px;align-items:center}
+.mtChip b{color:var(--ink);font-weight:700}
+.mtTaf{margin-top:12px}
+.mtTafLabel{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+
 /* ══════════ announcement popover + admin (reused) ══════════ */
 .annScrim{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(3,5,8,.72);backdrop-filter:blur(7px)}
 .annScrim[hidden]{display:none!important}
@@ -405,6 +423,23 @@ footer b{color:var(--dim)}
             </a>
           </div>
         </div>
+
+      <!-- local skies: live flights + METAR/TAF -->
+      <div class="sec"><span class="st"><b></b>Local skies</span></div>
+      <div class="skiesRow">
+        <div class="card">
+          <div class="cardHead"><span class="dot"></span><span class="ch">Skies overhead</span><span class="live">radar</span></div>
+          <div class="skStat"><span class="skNum" id="skCount">—</span><span class="skUnit">aircraft within 60&nbsp;nm</span></div>
+          <div class="skNearest" id="skNearest">Scanning the local sector…</div>
+          <a class="skLink" href="argus.html">Open live radar →</a>
+        </div>
+        <div class="card metar">
+          <div class="cardHead"><span class="dot" id="mtCat"></span><span class="ch">Terminal METAR / TAF</span><span class="live" id="mtIcao" style="border-color:var(--line2);color:var(--dim)">VOMM</span></div>
+          <div class="mtRaw mono" id="mtRaw">Fetching current observation…</div>
+          <div class="mtChips" id="mtChips"></div>
+          <div class="mtTaf" id="mtTaf" hidden><div class="mtTafLabel">TAF · forecast</div><div class="mtRaw mono" id="mtTafRaw"></div></div>
+        </div>
+      </div>
 
       <!-- news + on this day -->
       <div class="sec"><span class="st"><b></b>Daily aviation intel</span></div>
@@ -619,7 +654,22 @@ footer b{color:var(--dim)}
   upd(); setInterval(upd,10000);
 })();
 
-/* ═══ weather (geolocation → Open-Meteo, no key) ═══ */
+/* ═══ shared location coordinator — one geolocation prompt for every widget ═══ */
+(function(){
+  var LOC={lat:13.0827,lon:80.2707,label:'Chennai, IN',precise:false,settled:false,subs:[]};
+  window.ARGUS_LOC=LOC;
+  window.onLoc=function(fn){ if(LOC.settled){ try{fn(LOC);}catch(e){} } else LOC.subs.push(fn); };
+  function settle(){ if(LOC.settled) return; LOC.settled=true; var s=LOC.subs; LOC.subs=[]; s.forEach(function(f){ try{f(LOC);}catch(e){} }); }
+  if(navigator.geolocation){
+    var done=false, t=setTimeout(function(){ if(!done){done=true;settle();} },6000);
+    navigator.geolocation.getCurrentPosition(
+      function(p){ if(done)return; done=true; clearTimeout(t); LOC.lat=p.coords.latitude; LOC.lon=p.coords.longitude; LOC.label=''; LOC.precise=true; settle(); },
+      function(){ if(done)return; done=true; clearTimeout(t); settle(); },
+      {timeout:5500,maximumAge:600000});
+  } else { setTimeout(settle,10); }
+})();
+
+/* ═══ weather (Open-Meteo, no key) ═══ */
 (function(){
   var WMO={0:['Clear sky','☀️'],1:['Mainly clear','🌤️'],2:['Partly cloudy','⛅'],3:['Overcast','☁️'],
     45:['Fog','🌫️'],48:['Rime fog','🌫️'],51:['Light drizzle','🌦️'],53:['Drizzle','🌦️'],55:['Heavy drizzle','🌦️'],
@@ -635,6 +685,7 @@ footer b{color:var(--dim)}
     var lt=document.getElementById('wwLocText'); if(lt&&loc) lt.textContent=loc;
   }
   function fetchWx(lat,lon,label){
+    var lt=document.getElementById('wwLocText'); if(lt&&label) lt.textContent=label;
     fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code')
       .then(function(r){return r.json();})
       .then(function(d){ var c=d&&d.current; if(c) set(c.temperature_2m,c.weather_code,label); })
@@ -646,18 +697,79 @@ footer b{color:var(--dim)}
         .catch(function(){});
     }
   }
-  function fallback(){ /* generic fallback so weather still shows if location denied */
-    var lt=document.getElementById('wwLocText'); if(lt) lt.textContent='Chennai, IN';
-    fetchWx(13.0827,80.2707,'Chennai, IN');
+  window.onLoc(function(LOC){ fetchWx(LOC.lat,LOC.lon,LOC.label); });
+})();
+
+/* ═══ flights overhead — reuses the Argus flight-proxy worker ═══ */
+(function(){
+  var FLIGHT_PROXY='https://flight-proxy.jhrishi7.workers.dev';   /* same worker your Argus radar uses */
+  var countEl=document.getElementById('skCount'), nearEl=document.getElementById('skNearest');
+  var lat0=null, lon0=null;
+  function toRad(d){return d*Math.PI/180;}
+  function distNm(a,b,c,d){ var R=3440.065,dLat=toRad(c-a),dLon=toRad(d-b);
+    var s=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)*Math.sin(dLon/2);
+    return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s)); }
+  function compass(a,b,c,d){ var y=Math.sin(toRad(d-b))*Math.cos(toRad(c)),
+    x=Math.cos(toRad(a))*Math.sin(toRad(c))-Math.sin(toRad(a))*Math.cos(toRad(c))*Math.cos(toRad(d-b));
+    var br=(Math.atan2(y,x)*180/Math.PI+360)%360; return ['N','NE','E','SE','S','SW','W','NW'][Math.round(br/45)%8]; }
+  function load(){
+    if(lat0==null) return;
+    fetch(FLIGHT_PROXY+'/flights?lat='+lat0+'&lon='+lon0+'&dist=60',{cache:'no-store'})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var ac=(d&&(d.ac||d.aircraft))||[];
+        var pos=ac.filter(function(a){return a.lat!=null&&a.lon!=null;});
+        if(countEl) countEl.textContent=pos.length;
+        if(!pos.length){ if(nearEl) nearEl.innerHTML='No aircraft in the local sector right now.'; return; }
+        pos.forEach(function(a){ a._d=distNm(lat0,lon0,a.lat,a.lon); });
+        pos.sort(function(a,b){return a._d-b._d;});
+        var n=pos[0];
+        var cs=((n.flight||n.callsign||n.hex||'unknown')+'').trim();
+        var alt=n.alt!=null?(n.alt>=18000?('FL'+Math.round(n.alt/100)):(Math.round(n.alt).toLocaleString()+' ft')):'—';
+        var gs=n.gs!=null?(Math.round(n.gs)+' kt'):'';
+        var typ=n.t?(' · '+n.t):'';
+        if(nearEl) nearEl.innerHTML='Nearest &middot; <span class="cs">'+cs+'</span>'+typ+'<br><b>'+alt+'</b>'+(gs?(' · '+gs):'')+' · '+n._d.toFixed(0)+' nm '+compass(lat0,lon0,n.lat,n.lon);
+      })
+      .catch(function(){ if(nearEl) nearEl.innerHTML='Live radar feed unavailable right now.'; if(countEl&&countEl.textContent==='—') countEl.textContent='–'; });
   }
-  if(navigator.geolocation){
-    var done=false; var t=setTimeout(function(){ if(!done) fallback(); },6000);
-    navigator.geolocation.getCurrentPosition(
-      function(pos){ done=true; clearTimeout(t); fetchWx(pos.coords.latitude,pos.coords.longitude,''); },
-      function(){ done=true; clearTimeout(t); fallback(); },
-      {timeout:5500,maximumAge:600000}
-    );
-  } else { fallback(); }
+  window.onLoc(function(LOC){ lat0=LOC.lat; lon0=LOC.lon; load(); });
+  setInterval(load,45000);
+})();
+
+/* ═══ METAR / TAF — reuses the Argus flight-proxy + aviationweather.gov ═══ */
+(function(){
+  var FLIGHT_PROXY='https://flight-proxy.jhrishi7.workers.dev';
+  var ICAO='VOMM';   /* Chennai / MAA · change to any ICAO code */
+  var catColor={VFR:'#31c56a',MVFR:'#4a9eff',IFR:'#ff5a63',LIFR:'#b98cff'};
+  var rawEl=document.getElementById('mtRaw'), chipsEl=document.getElementById('mtChips'),
+      catEl=document.getElementById('mtCat'), icaoEl=document.getElementById('mtIcao');
+  if(icaoEl) icaoEl.textContent=ICAO;
+  function chip(l,v){ return '<span class="mtChip">'+l+' <b>'+v+'</b></span>'; }
+  function pad3(n){ n=''+n; while(n.length<3)n='0'+n; return n; }
+  function renderMetar(m){
+    if(!m||!m.rawOb){ if(rawEl) rawEl.textContent='No current observation for '+ICAO+'.'; return; }
+    if(rawEl) rawEl.textContent=m.rawOb;
+    var cat=m.fltCat||''; if(catEl){ catEl.style.background=catColor[cat]||'var(--faint)'; catEl.style.boxShadow=catColor[cat]?('0 0 8px '+catColor[cat]):'none'; }
+    var c=[];
+    if(m.wdir!=null) c.push(chip('Wind',(isNaN(+m.wdir)?m.wdir:pad3(m.wdir))+'° '+(m.wspd||0)+'kt'+(m.wgst?('G'+m.wgst):'')));
+    if(m.visib!=null) c.push(chip('Vis',(''+m.visib)+' sm'));
+    if(m.temp!=null) c.push(chip('Temp',Math.round(m.temp)+'°C'));
+    if(m.dewp!=null) c.push(chip('Dew',Math.round(m.dewp)+'°C'));
+    if(m.altim!=null) c.push(chip('QNH', m.altim>100?(Math.round(m.altim)+' hPa'):(Number(m.altim).toFixed(2)+' inHg')));
+    if(cat) c.push(chip('Cat',cat));
+    if(m.wxString) c.push(chip('Wx',m.wxString));
+    if(chipsEl) chipsEl.innerHTML=c.join('');
+  }
+  fetch(FLIGHT_PROXY+'/metar?ids='+ICAO,{cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(d){ var m=(d&&d.metar&&d.metar[0])||(Array.isArray(d)&&d[0])||(d&&d.rawOb?d:null); renderMetar(m); })
+    .catch(function(){ if(rawEl) rawEl.textContent='METAR unavailable right now.'; });
+  /* TAF — best effort, direct from aviationweather.gov */
+  fetch('https://aviationweather.gov/api/data/taf?ids='+ICAO+'&format=json',{cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(d){ var t=(Array.isArray(d)&&d[0])||(d&&d.taf&&d.taf[0])||null; var raw=t&&(t.rawTAF||t.raw_text);
+      if(raw){ var box=document.getElementById('mtTaf'), tr=document.getElementById('mtTafRaw'); if(tr) tr.textContent=raw; if(box) box.hidden=false; } })
+    .catch(function(){});
 })();
 
 /* ═══ halcyon mini visual ═══ */
