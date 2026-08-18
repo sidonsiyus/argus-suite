@@ -136,7 +136,8 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5}
 .sec::after{content:"";flex:1;height:1px;background:var(--line)}
 
 /* news + otd */
-.feedRow{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+.feedRow{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+.feedSide{display:flex;flex-direction:column;gap:16px;min-width:0}
 @media(max-width:900px){.feedRow{grid-template-columns:1fr}}
 .card{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--panel2),var(--panel));padding:18px 20px;position:relative;overflow:hidden}
 .cardHead{display:flex;align-items:center;gap:9px;margin-bottom:14px}
@@ -160,11 +161,21 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5}
 .otd .cardHead .dot{background:var(--violet);box-shadow:0 0 8px var(--violet)}
 .otd .ch{color:var(--violet);opacity:1}
 .otdDate{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase}
-.otdYear{font-size:38px;font-weight:800;line-height:1;color:var(--ink);margin:6px 0 10px;font-variant-numeric:tabular-nums;
+.otdYear{font-size:26px;font-weight:800;line-height:1;color:var(--ink);margin:5px 0 7px;font-variant-numeric:tabular-nums;
   background:linear-gradient(120deg,var(--violet),#c8ccff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.otdText{font-size:12.5px;line-height:1.6;color:var(--dim)}
-.otdWing{position:absolute;right:-16px;bottom:-16px;width:96px;height:96px;opacity:.08;color:var(--violet)}
+.otdText{font-size:12px;line-height:1.55;color:var(--dim)}
+.otdWing{position:absolute;right:-14px;bottom:-14px;width:72px;height:72px;opacity:.08;color:var(--violet)}
 .otdWing svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:1}
+/* term of the day */
+.term .ch{color:var(--gold);opacity:1}
+.term .cardHead .dot{background:var(--gold);box-shadow:0 0 8px var(--gold)}
+.termWord{font-family:var(--mono);font-size:23px;font-weight:800;letter-spacing:.05em;color:var(--ink);line-height:1}
+.termFull{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:6px 0 9px}
+.termDef{font-size:12px;color:var(--dim);line-height:1.6}
+/* did you know */
+.fact .ch{color:var(--teal2);opacity:1}
+.fact .cardHead .dot{background:var(--teal2);box-shadow:0 0 8px var(--teal2)}
+.factText{font-size:12px;color:var(--dim);line-height:1.65}
 
 /* ascent portal */
 .ascent{display:block;border:1px solid var(--line);border-radius:18px;background:
@@ -449,12 +460,24 @@ footer b{color:var(--dim)}
           <div class="ncList" id="ncList"><div class="ncSkel"></div><div class="ncSkel"></div><div class="ncSkel"></div></div>
           <button class="ncRefresh" id="ncRefresh">↻ Refresh headlines</button>
         </div>
-        <div class="card otd">
-          <div class="cardHead"><span class="dot"></span><span class="ch">On This Day in Aviation</span></div>
-          <div class="otdDate" id="otdDate">—</div>
-          <div class="otdYear" id="otdYear">—</div>
-          <div class="otdText" id="otdText">—</div>
-          <div class="otdWing"><svg viewBox="0 0 24 24"><path d="M2 13.5 22 8l-5.5 3.2L21 15l-6-1.5-2 4-1-5z"/></svg></div>
+        <div class="feedSide">
+          <div class="card otd">
+            <div class="cardHead"><span class="dot"></span><span class="ch">On This Day in Aviation</span></div>
+            <div class="otdDate" id="otdDate">—</div>
+            <div class="otdYear" id="otdYear">—</div>
+            <div class="otdText" id="otdText">—</div>
+            <div class="otdWing"><svg viewBox="0 0 24 24"><path d="M2 13.5 22 8l-5.5 3.2L21 15l-6-1.5-2 4-1-5z"/></svg></div>
+          </div>
+          <div class="card term">
+            <div class="cardHead"><span class="dot"></span><span class="ch">Term of the day</span></div>
+            <div class="termWord" id="termWord">—</div>
+            <div class="termFull" id="termFull">—</div>
+            <div class="termDef" id="termDef">—</div>
+          </div>
+          <div class="card fact">
+            <div class="cardHead"><span class="dot"></span><span class="ch">Did you know</span></div>
+            <div class="factText" id="factText">—</div>
+          </div>
         </div>
       </div>
 
@@ -654,6 +677,53 @@ footer b{color:var(--dim)}
   upd(); setInterval(upd,10000);
 })();
 
+/* ═══ aviation term of the day + did-you-know (offline, rotates daily) ═══ */
+(function(){
+  var TERMS=[
+    ['METAR','Meteorological Aerodrome Report','A routine coded weather observation issued for an airport, usually every half hour.'],
+    ['TAF','Terminal Aerodrome Forecast','A coded forecast of expected weather at an airport over the next 24–30 hours.'],
+    ['QNH','Altimeter setting','The pressure setting that makes the altimeter read height above mean sea level.'],
+    ['ILS','Instrument Landing System','Radio beams (localiser + glideslope) that guide an aircraft down to the runway in poor visibility.'],
+    ['V1','Decision speed','The take-off speed past which the pilot must continue the take-off rather than abort.'],
+    ['TCAS','Traffic Collision Avoidance System','Onboard system that warns of nearby traffic and issues climb/descend commands to avoid collisions.'],
+    ['SID','Standard Instrument Departure','A published route flown just after take-off to get aircraft safely from the runway onto the airway.'],
+    ['STAR','Standard Terminal Arrival Route','A published route that funnels arriving traffic from the airway toward the approach.'],
+    ['ATIS','Automatic Terminal Information Service','A looped broadcast of an airport’s current weather, runway and NOTAM information.'],
+    ['Mach','Mach number','Aircraft speed as a fraction of the local speed of sound; Mach 1 is the sound barrier.'],
+    ['NOTAM','Notice to Air Missions','A time-critical notice of hazards or changes — closed runways, unserviceable aids, airspace restrictions.'],
+    ['AoA','Angle of Attack','The angle between the wing chord and the oncoming air; exceed the critical AoA and the wing stalls.'],
+    ['QFE','Field pressure setting','An altimeter setting that reads zero at the airfield, so it shows height above the field.'],
+    ['ETOPS','Extended-range Twin OPS','Rules letting twin-engine jets fly routes far from a diversion airport, e.g. across oceans.'],
+    ['FL','Flight Level','Altitude in hundreds of feet on the standard 1013 hPa setting — FL350 is ~35,000 ft.'],
+    ['MTOW','Max Take-Off Weight','The heaviest an aircraft is certified to be at the start of its take-off roll.'],
+    ['VOR','VHF Omnidirectional Range','A ground beacon giving aircraft a bearing to or from the station for navigation.'],
+    ['Squawk','Transponder code','The four-digit code ATC assigns so an aircraft shows up tagged on radar.']
+  ];
+  var FACTS=[
+    'The Boeing 747’s wingspan is longer than the Wright brothers’ entire first flight of 1903.',
+    'Airliners cruise around 35,000 ft partly because thinner air means less drag and better fuel economy.',
+    'The tiny hole in an aircraft window is a breather hole that manages cabin pressure across the panes.',
+    'A jet engine’s fan can ingest well over a tonne of air every second at take-off thrust.',
+    'Contrails are just condensed water vapour freezing into ice crystals in the cold air behind engines.',
+    'The black box is actually bright orange, so it’s easier to spot in wreckage.',
+    'Pilots and co-pilots are often served different meals to reduce the chance of both getting food poisoning.',
+    'Runway numbers are the runway’s magnetic heading divided by ten — Runway 09 points roughly east.',
+    'The coldest air an airliner flies through can be below −60°C at cruising altitude.',
+    'Winglets on the wingtips cut drag from wingtip vortices and can save airlines millions in fuel.',
+    'A commercial jet’s tyres are inflated to around 200 psi — roughly six times a car tyre.',
+    'The average cruising speed of a modern airliner is about 900 km/h, near Mach 0.85.',
+    'Lightning strikes airliners fairly often; the metal skin channels the charge safely around the cabin.',
+    'The QWERTY of the sky — the phonetic alphabet — uses Alpha, Bravo, Charlie so letters aren’t misheard on radio.',
+    'Concorde flew so fast it could arrive in New York at an earlier local time than it left London.'
+  ];
+  var now=new Date();
+  var doy=Math.floor((now-new Date(now.getFullYear(),0,0))/86400000);
+  var t=TERMS[doy%TERMS.length];
+  var w=document.getElementById('termWord'), f=document.getElementById('termFull'), d=document.getElementById('termDef');
+  if(w) w.textContent=t[0]; if(f) f.textContent=t[1]; if(d) d.textContent=t[2];
+  var fx=document.getElementById('factText'); if(fx) fx.textContent=FACTS[(doy*3)%FACTS.length];
+})();
+
 /* ═══ shared location coordinator — one geolocation prompt for every widget ═══ */
 (function(){
   var LOC={lat:13.0827,lon:80.2707,label:'Chennai, IN',precise:false,settled:false,subs:[]};
@@ -760,10 +830,17 @@ footer b{color:var(--dim)}
     if(m.wxString) c.push(chip('Wx',m.wxString));
     if(chipsEl) chipsEl.innerHTML=c.join('');
   }
-  fetch(FLIGHT_PROXY+'/metar?ids='+ICAO,{cache:'no-store'})
-    .then(function(r){return r.json();})
-    .then(function(d){ var m=(d&&d.metar&&d.metar[0])||(Array.isArray(d)&&d[0])||(d&&d.rawOb?d:null); renderMetar(m); })
-    .catch(function(){ if(rawEl) rawEl.textContent='METAR unavailable right now.'; });
+  function pickMetar(d){ return (Array.isArray(d)&&d[0]) || (d&&d.metar&&d.metar[0]) || (d&&d.rawOb?d:null); }
+  function fetchMetar(url){ return fetch(url,{cache:'no-store'}).then(function(r){return r.json();}).then(pickMetar); }
+  /* primary: aviationweather.gov (same source the Argus radar uses); fallback: flight-proxy */
+  fetchMetar('https://aviationweather.gov/api/data/metar?ids='+ICAO+'&format=json')
+    .catch(function(){ return null; })
+    .then(function(m){
+      if(m&&m.rawOb){ renderMetar(m); return; }
+      return fetchMetar(FLIGHT_PROXY+'/metar?ids='+ICAO)
+        .then(function(m2){ renderMetar(m2); })
+        .catch(function(){ if(rawEl) rawEl.textContent='METAR unavailable right now.'; });
+    });
   /* TAF — best effort, direct from aviationweather.gov */
   fetch('https://aviationweather.gov/api/data/taf?ids='+ICAO+'&format=json',{cache:'no-store'})
     .then(function(r){return r.json();})
