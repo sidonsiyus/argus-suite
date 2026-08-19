@@ -304,6 +304,18 @@ footer b{color:var(--dim)}
   .stage{padding:18px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* wind & weather map */
+.windTabs{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.wTab{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:6px 10px;cursor:pointer;transition:.14s;text-decoration:none}
+.wTab:hover{color:var(--ink);border-color:var(--line3)}
+.wTab.on{background:var(--brand-soft);color:var(--brand);border-color:var(--brand)}
+.wTab.wOpen{color:var(--teal);border-color:transparent}
+.wTab.wOpen:hover{border-color:var(--teal)}
+.windWrap{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;height:470px;background:var(--panel2)}
+.windWrap iframe{width:100%;height:100%;border:0;display:block}
+.windNote{font-size:11.5px;color:var(--faint);margin-top:10px;line-height:1.5}
+@media(max-width:700px){.windWrap{height:340px}}
 </style>
 </head>
 <body>
@@ -450,6 +462,22 @@ footer b{color:var(--dim)}
           <div class="mtChips" id="mtChips"></div>
           <div class="mtTaf" id="mtTaf" hidden><div class="mtTafLabel">TAF · forecast</div><div class="mtRaw mono" id="mtTafRaw"></div></div>
         </div>
+      </div>
+
+      <!-- wind & weather map across india -->
+      <div class="sec"><span class="st"><b style="background:var(--blue);box-shadow:0 0 8px var(--blue)"></b>Weather &amp; winds · India</span></div>
+      <div class="card">
+        <div class="cardHead"><span class="dot" style="background:var(--blue);box-shadow:0 0 8px var(--blue)"></span><span class="ch">Live wind &amp; weather map</span>
+          <div class="windTabs" id="windTabs">
+            <button class="wTab on" data-ov="wind">Wind</button>
+            <button class="wTab" data-ov="rain">Rain</button>
+            <button class="wTab" data-ov="temp">Temp</button>
+            <button class="wTab" data-ov="clouds">Clouds</button>
+            <a class="wTab wOpen" href="https://www.windy.com/?22.5,80,5" target="_blank" rel="noopener">Full map ↗</a>
+          </div>
+        </div>
+        <div class="windWrap"><iframe id="windyFrame" title="Wind and weather map of India" loading="lazy" referrerpolicy="no-referrer"></iframe></div>
+        <div class="windNote">Live winds (in knots), rain, temperature and cloud cover across India — tap a layer to switch. Data via Windy (ECMWF &amp; GFS models).</div>
       </div>
 
       <!-- news + on this day -->
@@ -939,7 +967,8 @@ footer b{color:var(--dim)}
     fetch(NEWS_PROXY.replace(/\/$/,'')+'/news',{signal:ctrl.signal})
       .then(function(r){ clearTimeout(to); return r.json(); })
       .then(function(d){ var items=(d&&d.items)||[]; if(!items.length){ state('No headlines right now — try refresh in a bit.'); return; }
-        listEl.innerHTML=items.slice(0,6).map(item).join(''); })
+        listEl.innerHTML=items.slice(0,6).map(item).join('');
+        var _t=items.slice(0,8).map(function(a){return a.title;}); window.__ARGUS_NEWS=_t; if(window.__setTickerNews) window.__setTickerNews(_t); })
       .catch(function(){ clearTimeout(to); state('Couldn’t load headlines — tap refresh to retry.'); });
   }
   if(refreshEl) refreshEl.addEventListener('click',loadNews);
@@ -956,6 +985,8 @@ function initAnnouncements(){
   var ITEMS=[]; var ADMIN_KEY_CACHE='';
   /* idle terminal messages when there are no real announcements */
   var IDLE=[{title:'WELCOME TO ARGUS TERMINAL',level:'info'},{title:'ALL SYSTEMS NOMINAL · LIVE TRACKERS ONLINE',level:'info'},{title:'SELECT A MODULE FROM THE SIDEBAR TO BEGIN',level:'info'}];
+  var NEWSITEMS=[];
+  window.__setTickerNews=function(titles){ NEWSITEMS=(titles||[]).slice(0,8).map(function(t){return {title:'✈ '+t,level:'info',tag:'AVIATION NEWS'};}); renderBar(); };
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function icon(l){ return l==='alert'?'⚠️':l==='success'?'✅':'📢'; }
@@ -970,7 +1001,7 @@ function initAnnouncements(){
   function step(){
     var cur=tw.seq[tw.i%tw.seq.length]; var txt=(cur.title||cur.body||'').toString();
     if(ticker) ticker.setAttribute('data-level',cur.level||'info');
-    if(tagText) tagText.textContent=(cur.level==='alert'?'ALERT':cur.level==='success'?'NOTICE':'NOTICE');
+    if(tagText) tagText.textContent=(cur.tag || (cur.level==='alert'?'ALERT':cur.level==='success'?'NOTICE':'NOTICE'));
     if(!tw.del){
       tw.ch++; if(typeEl) typeEl.textContent=txt.slice(0,tw.ch);
       if(tw.ch>=txt.length){ tw.del=true; tw.timer=setTimeout(step, tw.seq.length>1?2600:5200); return; }
@@ -988,7 +1019,7 @@ function initAnnouncements(){
     return fetch(ANNOUNCE_PROXY.replace(/\/$/,'')+'/',{cache:'no-store'})
       .then(function(r){return r.json();}).then(function(d){ return (d&&d.items)||[]; }).catch(function(){ return []; });
   }
-  function renderBar(){ twStart(ITEMS.length?ITEMS:IDLE); }
+  function renderBar(){ var seq=ITEMS.concat(NEWSITEMS); twStart(seq.length?seq:IDLE); }
   function renderPop(){
     if(!ITEMS.length){ popList.innerHTML='<div class="annEmpty">No announcements right now.</div>'; return; }
     popList.innerHTML=ITEMS.map(function(a,i){
@@ -1059,7 +1090,16 @@ function initAnnouncements(){
 
   renderBar();   /* start idle typewriter immediately */
   load();        /* then swap in real announcements when they arrive */
+  if(window.__ARGUS_NEWS&&window.__ARGUS_NEWS.length) window.__setTickerNews(window.__ARGUS_NEWS);
 }
+/* ═══ wind & weather map (Windy embed · India) ═══ */
+(function(){
+  var frame=document.getElementById('windyFrame'); if(!frame) return;
+  function url(ov){ return 'https://embed.windy.com/embed2.html?lat=22.5&lon=80&detailLat=22.5&detailLon=80&zoom=5&level=surface&overlay='+ov+'&menu=&message=&marker=&calendar=&pressure=&type=map&location=coordinates&detail=&metricWind=kt&metricTemp=%C2%B0C&radarRange=-1'; }
+  frame.src=url('wind');
+  var tabs=Array.prototype.slice.call(document.querySelectorAll('#windTabs .wTab[data-ov]'));
+  tabs.forEach(function(t){ t.addEventListener('click',function(){ tabs.forEach(function(x){x.classList.remove('on');}); t.classList.add('on'); frame.src=url(t.getAttribute('data-ov')); }); });
+})();
 if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',initAnnouncements); }
 else { initAnnouncements(); }
 </script>
