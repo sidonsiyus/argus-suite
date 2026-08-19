@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MENTOR · Aviation Mentee Console</title>
+<title>MENTOR · Mentee Console</title>
 <style>
 :root{
   /* ── MH Cockpit Dashboard design tokens · DARK (mentor default) ── */
@@ -384,6 +384,19 @@ details.intake .intakeBody{padding:4px 16px 16px;border-top:1px solid var(--hori
 .checks{display:flex;gap:8px;flex-wrap:wrap} .chk{font-size:12.5px;color:var(--ink);border:1px solid var(--horizon2);border-radius:8px;padding:5px 9px}
 .ck.yes{color:var(--climb)} .ck.no{color:var(--descent)}
 
+
+/* manual-backup safety net */
+.ghost.needsave{border-color:var(--amber)!important;color:var(--amber)!important;position:relative}
+.ghost.needsave::after{content:"";position:absolute;top:6px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 7px var(--amber)}
+.saveBanner{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:400;width:min(700px,94vw);
+  background:var(--raised);border:1px solid var(--horizon2);border-left:3px solid var(--amber);border-radius:13px;
+  padding:13px 15px;display:flex;align-items:center;gap:14px;box-shadow:0 18px 44px -16px #000;font-size:12.5px;line-height:1.5;color:var(--ink)}
+.saveBanner b{color:var(--amber)}
+.saveBanner .sbBtns{margin-left:auto;display:flex;gap:8px;flex:none}
+.saveBanner button{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;border-radius:8px;padding:9px 12px;cursor:pointer;border:1px solid var(--horizon2);background:var(--surface2);color:var(--ink);white-space:nowrap}
+.saveBanner button.pri{background:var(--amber);color:#3d2600;border:none;font-weight:700}
+.saveBanner.hidden{display:none!important}
+@media(max-width:600px){.saveBanner{flex-direction:column;align-items:stretch}.saveBanner .sbBtns{margin-left:0}}
 </style>
 </head>
 <body>
@@ -430,7 +443,8 @@ window.__errs=[];
     </div>
     <button type="button" class="lockBtn" id="lockBtn" onclick="window.__mentorUnlock&&window.__mentorUnlock()">Unlock console</button>
     <div class="lockMsg" id="lockMsg"></div>
-    <div class="lockFoot">II B.Sc Aeronautical Science · Sec A · VISTAS</div>
+    <div class="lockFoot" id="lockCohort">Mentee Console</div>
+    <script>try{var _c=localStorage.getItem('mentor.cohort');if(_c&&document.getElementById('lockCohort'))document.getElementById('lockCohort').textContent=_c;}catch(e){}</script>
   </div>
 </div>
 <script>
@@ -461,7 +475,7 @@ window.__errs=[];
   <aside class="rail">
     <div class="mark">
       <div class="markName">MENTOR</div>
-      <div class="markSub">II B.Sc Aeronautical · Sec A<br>VISTAS · AY 2026-27</div>
+      <div class="markSub" id="cohortLabel" title="Click to rename cohort" style="cursor:pointer">Mentee Console</div>
     </div>
     <nav class="nav" id="nav">
       <div class="navLabel">Console</div>
@@ -480,6 +494,8 @@ window.__errs=[];
       <button class="ghost" id="lockNowBtn">🔒 Lock console</button>
       <button class="ghost" id="importBtn">↑ Restore</button>
       <input type="file" id="importFile" accept="application/json" class="hidden">
+      <button class="ghost" id="csvBtn">⇪ Import CSV</button>
+      <input type="file" id="csvFile" accept=".csv,text/csv" class="hidden">
     </div>
   </aside>
   <main class="stage" id="stage"></main>
@@ -501,7 +517,7 @@ const AI_PROXY='https://mentor-ai-proxy.jhrishi7.workers.dev';
 let __mem=null, __stoWarned=false;
 const store={
   load(){ try{ const v=localStorage.getItem(LS); if(v) return JSON.parse(v); }catch(e){} try{ return __mem?JSON.parse(__mem):null; }catch(e){ return null; } },
-  save(){ let data; try{ data=JSON.stringify(DB); }catch(e){ return; } __mem=data; try{ localStorage.setItem(LS,data); }catch(e){ if(!__stoWarned){ __stoWarned=true; try{ toast('Heads up: this browser is blocking local storage for downloaded files, so changes stay only in this tab.'); }catch(_){} } } }
+  save(){ let data; try{ data=JSON.stringify(DB); }catch(e){ return; } __mem=data; try{ localStorage.setItem(LS,data); }catch(e){ window.STORAGE_OK=false; } try{ if(window.__markDirty) window.__markDirty(); }catch(_){} }
 };
 
 /* the full aviation-role taxonomy for career goals */
@@ -911,10 +927,11 @@ function profileView(id){
       <div class="pBadge ${st}">${esc(initials(s.name))}</div>
       <div class="pInfo">
         <div class="pName">${esc(tc(s.name))}</div>
-        <div class="pReg">#${esc(s.reg)} · Roll ${s.sno} · II B.Sc Aeronautical Sci · Sec A</div>
+        <div class="pReg">#${esc(s.reg)} · Roll ${s.sno}${cohortText()?(' · '+esc(cohortText())):''}</div>
         <div class="pContact">
           <span>☎ <b>${esc(s.phone||'—')}</b></span>
           <span>parent <b>${esc(s.parent||'—')}</b></span>
+          ${s.email?`<span>✉ <b>${esc(s.email)}</b></span>`:''}
           ${s.standing?`<span>standing <b>${esc(s.standing)}</b></span>`:''}
         </div>
       </div>
@@ -2132,7 +2149,7 @@ function roadmapView(){
   const total=M.length, complete=autoDone+manualDone;
   return `
     <div class="head"><div>
-      <div class="kicker">Semester plan · AY 2026-27</div>
+      <div class="kicker">Semester plan${cohortText()?(' · '+esc(cohortText())):''}</div>
       <h1 class="title">Roadmap</h1>
       <div class="lede">What should happen by when. Milestones tied to your data tick themselves off as you work through the batch; the rest you mark manually. A clear path from day one to the end-of-semester report.</div>
     </div>
@@ -2187,13 +2204,255 @@ $('#scrim').addEventListener('click',e=>{ if(e.target===$('#scrim')) closeModal(
 $$('.navItem').forEach(n=>n.onclick=()=>{ VIEW=n.dataset.view; CURRENT=null; try{ render(); }catch(err){ (window.__banner||console.error)('render '+VIEW+': '+(err&&err.message||err)); } });
 
 $('#exportBtn').onclick=()=>{ const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mentor-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click(); toast('Backup downloaded'); };
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mentor-backup-'+new Date().toISOString().slice(0,10)+'.json'; a.click(); if(window.__markSaved)window.__markSaved(); toast('Backup downloaded — keep it safe, Restore it next time'); };
 $('#importBtn').onclick=()=>$('#importFile').click();
 $('#importFile').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader();
   r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.students||!Array.isArray(d.students)) throw 0; DB=d;
     DB.students.forEach(s=>{ s.strengths=s.strengths||[]; s.weaknesses=s.weaknesses||[]; s.skills=s.skills||[]; s.sessions=s.sessions||[]; s.poa=s.poa||[]; });
-    store.save(); CURRENT=null; render(); toast('Restored · '+d.students.length+' cadets'); }catch(_){ toast('That file could not be read'); } };
+    store.save(); if(window.__markSaved)window.__markSaved(); CURRENT=null; render(); toast('Restored · '+d.students.length+' cadets'); }catch(_){ toast('That file could not be read'); } };
   r.readAsText(f); };
+
+
+
+/* ═══ cohort label (editable, replaces the old fixed class name) ═══ */
+DB.meta = DB.meta || {};
+if(typeof DB.meta.cohort !== 'string') DB.meta.cohort = '';
+function cohortText(){ return (DB.meta && DB.meta.cohort) || ''; }
+function applyCohortLabels(){
+  var c = cohortText();
+  var ml = document.getElementById('cohortLabel'); if(ml) ml.textContent = c || 'Mentee Console';
+  var lf = document.getElementById('lockCohort'); if(lf) lf.textContent = c || 'Mentee Console';
+  try{ localStorage.setItem('mentor.cohort', c); }catch(e){}
+}
+function openCohortRename(){
+  modal('<button class="mClose" data-close>✕</button>'+
+    '<div class="kicker">Cohort</div>'+
+    '<h2 style="font-size:19px;margin-bottom:12px">Rename this cohort</h2>'+
+    '<label class="fl">Cohort name — shown on the console &amp; lock screen</label>'+
+    '<input class="field full" id="cohName" value="'+esc(cohortText())+'" placeholder="e.g. your cohort or class name">'+
+    '<div style="display:flex;gap:10px;margin-top:14px"><button class="btn go" id="cohSave" style="flex:1">Save</button><button class="btn" data-close>Cancel</button></div>');
+  $('#cohSave').onclick=function(){ DB.meta=DB.meta||{}; DB.meta.cohort=$('#cohName').value.trim(); store.save(); applyCohortLabels(); closeModal(); render(); toast('Cohort updated'); };
+}
+
+/* ═══ CSV import — add / merge cadets from any CSV ═══ */
+function ensureStudent(s){
+  s.strengths=s.strengths||[]; s.weaknesses=s.weaknesses||[]; s.skills=s.skills||[];
+  s.sessions=s.sessions||[]; s.poa=s.poa||[]; s.expertise=s.expertise||''; s.goal=s.goal||'';
+  s.standing=s.standing||''; s.history=s.history||[]; s.ratedSkills=s.ratedSkills||[];
+  s.internships=s.internships||[]; s.achievements=s.achievements||[];
+  return s;
+}
+function normReg(x){ return String(x==null?'':x).toLowerCase().replace(/\s+/g,''); }
+function matchRole(raw){
+  if(!raw) return '';
+  var low=String(raw).toLowerCase().trim();
+  for(var i=0;i<ROLES.length;i++){ if(ROLES[i].toLowerCase()===low) return ROLES[i]; }
+  for(var j=0;j<ROLES.length;j++){ var rl=ROLES[j].toLowerCase(); if(rl.indexOf(low)>=0 || low.indexOf(rl.split(' ')[0])>=0) return ROLES[j]; }
+  return raw;
+}
+function parseCSV(text){
+  text=String(text).replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  var rows=[], row=[], cur='', inq=false;
+  for(var i=0;i<text.length;i++){ var ch=text[i];
+    if(inq){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else inq=false; } else cur+=ch; }
+    else { if(ch==='"') inq=true; else if(ch===','){ row.push(cur); cur=''; }
+      else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; } else cur+=ch; }
+  }
+  if(cur!=='' || row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(function(r){ return r.some(function(c){ return (c||'').trim()!==''; }); });
+}
+function autoMap(headers){
+  var used={};
+  function find(res){ for(var i=0;i<headers.length;i++){ if(used[i]) continue; var h=(headers[i]||'').toLowerCase().trim();
+    for(var j=0;j<res.length;j++){ if(res[j].test(h)){ return i; } } } return -1; }
+  var m={};
+  m.parent=find([/parent/,/guardian/,/father/,/mother/,/emergency/]); if(m.parent>=0) used[m.parent]=1;
+  m.email=find([/e-?mail/]); if(m.email>=0) used[m.email]=1;
+  m.name=find([/student.*name/,/full.*name/,/^name$/,/\bname\b/]); if(m.name>=0) used[m.name]=1;
+  m.reg=find([/reg.*no/,/registration/,/\breg\b/,/admission/,/enroll/,/univ.*no/]); if(m.reg>=0) used[m.reg]=1;
+  m.sno=find([/roll/,/s\.?\s?no/,/serial/,/sl\.?no/,/^no$/,/^#$/]); if(m.sno>=0) used[m.sno]=1;
+  m.phone=find([/student.*(phone|mobile)/,/^(phone|mobile|contact|cell)/,/phone/,/mobile/,/contact/,/cell/]); if(m.phone>=0) used[m.phone]=1;
+  m.goal=find([/career.*goal/,/\bgoal\b/,/aspiration/,/ambition/,/career/]); if(m.goal>=0) used[m.goal]=1;
+  m.section=find([/section/,/\bclass\b/,/batch/,/cohort/,/group/,/division/]);
+  return m;
+}
+function doCsvImport(rows, map, cohortVal){
+  var body=rows.slice(1);
+  var byReg={}; DB.students.forEach(function(s){ byReg[normReg(s.reg)]=s; });
+  var maxSno=DB.students.reduce(function(mx,s){ return Math.max(mx, s.sno||0); }, 0);
+  var added=0, updated=0, stamp=Date.now();
+  body.forEach(function(r){
+    function cell(idx){ return (idx>=0 && idx<r.length) ? (r[idx]||'').trim() : ''; }
+    var name=cell(map.name), reg=cell(map.reg);
+    if(!name && !reg) return;
+    var email=cell(map.email), phone=cell(map.phone), parent=cell(map.parent), goal=matchRole(cell(map.goal));
+    var ex = reg ? byReg[normReg(reg)] : null;
+    if(!ex && !reg && name){ ex = DB.students.filter(function(s){ return s.name && s.name.toLowerCase().trim()===name.toLowerCase().trim(); })[0]; }
+    if(ex){
+      if(name) ex.name=name; if(phone) ex.phone=phone; if(parent) ex.parent=parent;
+      if(email) ex.email=email; if(goal && !ex.goal) ex.goal=goal;
+      ex.updated=new Date().toISOString(); updated++;
+    } else {
+      var snoCsv=parseInt(cell(map.sno),10);
+      var sno=(!isNaN(snoCsv)&&snoCsv>0)?snoCsv:(++maxSno);
+      var id = reg || ('c'+stamp.toString(36)+'-'+added);
+      var st = ensureStudent({ id:id, sno:sno, name:name||('Cadet '+sno), reg:reg||id,
+        phone:phone, parent:parent, email:email, goal:goal||'', expertise:'', standing:'', created:new Date().toISOString() });
+      DB.students.push(st); if(reg) byReg[normReg(reg)]=st; added++;
+    }
+  });
+  if(cohortVal!=null){ DB.meta=DB.meta||{}; DB.meta.cohort=cohortVal; }
+  store.save(); applyCohortLabels(); CURRENT=null; VIEW='roster'; render();
+  toast('CSV imported · '+added+' new, '+updated+' updated');
+}
+function openCsvMap(rows){
+  var headers=rows[0]; var m=autoMap(headers);
+  var fields=[['name','Name'],['reg','Reg / registration no'],['sno','Roll / serial no'],
+    ['phone','Student phone'],['parent','Parent / guardian phone'],['email','Email'],['goal','Career goal']];
+  function opts(sel){ return '<option value="-1">— none —</option>'+headers.map(function(h,i){
+    return '<option value="'+i+'"'+(i===sel?' selected':'')+'>'+esc(h||('Column '+(i+1)))+'</option>'; }).join(''); }
+  var cohortDefault=cohortText();
+  if(m.section>=0){ var vals={}; rows.slice(1).forEach(function(r){ var v=(r[m.section]||'').trim(); if(v) vals[v]=(vals[v]||0)+1; });
+    var best='',bc=0; Object.keys(vals).forEach(function(k){ if(vals[k]>bc){bc=vals[k];best=k;} }); if(best) cohortDefault=best; }
+  modal('<button class="mClose" data-close>✕</button>'+
+    '<div class="kicker">Import CSV · '+(rows.length-1)+' rows</div>'+
+    '<h2 style="font-size:19px;margin-bottom:6px">Match your columns</h2>'+
+    '<div class="lede" style="margin-bottom:14px">Choose which CSV column feeds each field. New cadets are added; existing ones (matched by Reg&nbsp;no, or name if no reg) are updated — their sessions, notes, skills and plans are kept.</div>'+
+    fields.map(function(fl){ var sel=(m[fl[0]]!=null?m[fl[0]]:-1);
+      return '<label class="fl">'+fl[1]+'</label><select class="field full" data-map="'+fl[0]+'" style="margin-bottom:10px">'+opts(sel)+'</select>'; }).join('')+
+    '<label class="fl">Cohort name (shown on the console)</label>'+
+    '<input class="field full" id="csvCohort" value="'+esc(cohortDefault)+'" placeholder="e.g. your cohort or class name" style="margin-bottom:14px">'+
+    '<div style="display:flex;gap:10px"><button class="btn go" id="csvGo" style="flex:1">Import cadets</button><button class="btn" data-close>Cancel</button></div>');
+  $('#csvGo').onclick=function(){
+    var map={}; $$('[data-map]').forEach(function(sel){ map[sel.getAttribute('data-map')]=parseInt(sel.value,10); });
+    if(map.name<0 && map.reg<0){ toast('Pick at least a Name or Reg column'); return; }
+    var cv=$('#csvCohort').value.trim(); doCsvImport(rows, map, cv); closeModal();
+  };
+}
+
+/* ═══ rich intake import — Google-Forms style profile CSV (auto-detected) ═══ */
+function isRichIntake(headers){
+  var set=headers.map(function(h){return (h||'').trim().toLowerCase();});
+  return set.indexOf('primary career goal')>=0 && set.some(function(h){return /rate yourself/.test(h);});
+}
+function richCohortDefault(rows){
+  var headers=rows[0], hm={}; headers.forEach(function(h,i){ hm[(h||'').trim().toLowerCase()]=i; });
+  function col(n){ var k=n.toLowerCase(); return hm.hasOwnProperty(k)?hm[k]:-1; }
+  var r1=rows[1]||[], pi=col('institution & programme'), si=col('section'), yi=col('year of study');
+  var prog=pi>=0?(r1[pi]||'').trim():'', sec=si>=0?(r1[si]||'').trim():'';
+  var course = prog.indexOf('—')>=0 ? prog.split('—').pop().trim() : prog;
+  course = course || prog;
+  var c = (course||'') + (sec? ' · Sec '+sec : '');
+  return c.trim() || cohortText();
+}
+function doRichImport(rows, cohortVal){
+  var headers=rows[0], hm={}; headers.forEach(function(h,i){ hm[(h||'').trim().toLowerCase()]=i; });
+  function gi(n){ var k=n.trim().toLowerCase(); return hm.hasOwnProperty(k)?hm[k]:-1; }
+  function gv(row,n){ var i=gi(n); return (i>=0 && i<row.length)?(row[i]||'').trim():''; }
+  function splitTags(v){ return String(v||'').split(/[,\n;]+/).map(function(x){return x.trim();}).filter(Boolean); }
+  function yes(v){ return /^(y|yes|true|1|done)/i.test(String(v||'').trim()); }
+  var RMAP={'communication skills':'Communication','english speaking':'English','leadership':'Leadership','teamwork':'Teamwork','problem solving':'Problem Solving','computer skills':'Computer','public speaking':'Public Speaking','confidence':'Confidence','time management':'Time Management','discipline':'Discipline'};
+  var HMAP={'resume prepared':'resume','linkedin profile':'linkedin','passport':'passport','driving license':'license','pan card':'pan','aadhaar card':'aadhaar'};
+  var ratingCols=[], haveCols=[];
+  headers.forEach(function(h,i){ var t=(h||'').toLowerCase(); var mb=(h||'').match(/\[(.+?)\]/);
+    if(/rate yourself/.test(t)&&mb) ratingCols.push([i,mb[1].trim()]);
+    if(/do you already have/.test(t)&&mb) haveCols.push([i,mb[1].trim()]); });
+  var byReg={}; DB.students.forEach(function(s){ byReg[normReg(s.reg)]=s; });
+  var maxSno=DB.students.reduce(function(mx,s){return Math.max(mx,s.sno||0);},0);
+  var added=0, updated=0, stamp=Date.now();
+  rows.slice(1).forEach(function(row){
+    var name=gv(row,'Student Name'), reg=gv(row,'Register / Application No.');
+    if(!name && !reg) return;
+    var ratings={}; ratingCols.forEach(function(rc){ var key=RMAP[rc[1].toLowerCase()]; var val=parseInt((row[rc[0]]||'').trim(),10); if(key&&!isNaN(val)) ratings[key]=val; });
+    var have={}; haveCols.forEach(function(hc){ var key=HMAP[hc[1].toLowerCase()]; if(key) have[key]=yes(row[hc[0]]); });
+    var intake={ gender:gv(row,'Gender'), dob:gv(row,'Date of Birth'), blood:gv(row,'Blood Group'),
+      email:gv(row,'Student Email'), emgNum:gv(row,'Emergency Contact Number'), emgWho:gv(row,'Emergency Contact Person & Relationship'),
+      father:gv(row,"Father's Name"), fatherOcc:gv(row,"Father's Occupation"), fatherMob:gv(row,"Father's Mobile"),
+      mother:gv(row,"Mother's Name"), motherOcc:gv(row,"Mother's Occupation"), income:gv(row,'Annual Family Income'),
+      sslc:gv(row,'SSLC — Percentage / CGPA'), hsc:gv(row,'HSC — Percentage / CGPA'),
+      why:gv(row,'Why did you choose Aviation?'), inspired:gv(row,'What or who inspired you?'),
+      certs:gv(row,'If Yes, list your certifications'), primaryGoal:gv(row,'Primary Career Goal'),
+      considering:splitTags(gv(row,'Other Careers You Are Also Considering')), dream:gv(row,'Dream Company / Organisation'),
+      afterGrad:gv(row,'Career Goal after Graduation'), fiveYr:gv(row,'Five-Year Career Plan'),
+      languages:gv(row,'Languages Known'), software:gv(row,'Software Skills'), sports:gv(row,'Sports'),
+      hobbies:gv(row,'Hobbies'), clubs:gv(row,'Club Interests'), medical:gv(row,'Medical Conditions'),
+      allergies:gv(row,'Allergies'), medication:gv(row,'Regular Medication'), fitness:gv(row,'Physical Fitness Issues'),
+      challenge:gv(row,'Your Biggest Challenge'), help:gv(row,'How can your mentor help you?'),
+      learning:gv(row,'Preferred Learning Style'), comm:gv(row,'Preferred Communication with Mentor'),
+      dgca:gv(row,'DGCA Papers Cleared'), have:have };
+    var strengths=splitTags(gv(row,'Your Strengths'));
+    var weaknesses=splitTags(gv(row,'Areas for Improvement'));
+    var goal=matchRole(gv(row,'Primary Career Goal'));
+    var internOrg=gv(row,'Internship Organisation'), internDone=yes(gv(row,'Internship Completed'));
+    var achievements=[]; splitTags(gv(row,'Certifications Completed')).forEach(function(c){ if(c && !/^none$/i.test(c)) achievements.push({title:c,category:'Certification',date:'',note:'From intake form'}); });
+    var ratedSkills=Object.keys(ratings).map(function(k){return {skill:k,level:ratings[k]||0,note:''};});
+    var phone=gv(row,'Student Mobile Number'), parent=gv(row,"Father's Mobile")||gv(row,'Emergency Contact Number'), email=gv(row,'Student Email');
+    var interns=(internDone&&internOrg)?[{org:internOrg,role:'',days:'',status:'done',start:'',note:'From intake form'}]:[];
+    var ex = reg ? byReg[normReg(reg)] : null;
+    if(!ex && !reg && name){ ex=DB.students.filter(function(s){return s.name&&s.name.toLowerCase().trim()===name.toLowerCase().trim();})[0]; }
+    if(ex){
+      if(name) ex.name=name; if(phone) ex.phone=phone; if(parent) ex.parent=parent; if(email) ex.email=email;
+      if(goal && !ex.goal) ex.goal=goal;
+      if((!ex.strengths||!ex.strengths.length)&&strengths.length) ex.strengths=strengths;
+      if((!ex.weaknesses||!ex.weaknesses.length)&&weaknesses.length) ex.weaknesses=weaknesses;
+      if((!ex.ratedSkills||!ex.ratedSkills.length)&&ratedSkills.length) ex.ratedSkills=ratedSkills;
+      if((!ex.internships||!ex.internships.length)&&interns.length) ex.internships=interns;
+      if((!ex.achievements||!ex.achievements.length)&&achievements.length) ex.achievements=achievements;
+      ex.intake=intake; ex.updated=new Date().toISOString(); updated++;
+    } else {
+      var sno=(++maxSno), id=reg||('c'+stamp.toString(36)+'-'+added);
+      var st=ensureStudent({id:id,sno:sno,name:name||('Cadet '+sno),reg:reg||id,phone:phone,parent:parent,email:email,
+        goal:goal||'',expertise:'',standing:'',strengths:strengths,weaknesses:weaknesses,ratedSkills:ratedSkills,
+        internships:interns,achievements:achievements,intake:intake,created:new Date().toISOString()});
+      DB.students.push(st); if(reg) byReg[normReg(reg)]=st; added++;
+    }
+  });
+  if(cohortVal!=null){ DB.meta=DB.meta||{}; DB.meta.cohort=cohortVal; }
+  store.save(); applyCohortLabels(); CURRENT=null; VIEW='roster'; render();
+  toast('Intake imported · '+added+' new, '+updated+' updated');
+}
+function openRichImport(rows){
+  var cohortDefault=richCohortDefault(rows);
+  modal('<button class="mClose" data-close>✕</button>'+
+    '<div class="kicker">Import intake form · '+(rows.length-1)+' students</div>'+
+    '<h2 style="font-size:19px;margin-bottom:6px">Full profile CSV detected</h2>'+
+    '<div class="lede" style="margin-bottom:14px">This looks like the student intake form. It will set up each cadet with their career goal, the ten self-ratings, strengths, gaps, internship, achievements and full background. New cadets are added; existing ones (matched by Register no.) are updated — sessions and notes are kept.</div>'+
+    '<label class="fl">Cohort name (shown on the console)</label>'+
+    '<input class="field full" id="richCohort" value="'+esc(cohortDefault)+'" placeholder="e.g. your cohort or class name" style="margin-bottom:14px">'+
+    '<div style="display:flex;gap:10px"><button class="btn go" id="richGo" style="flex:1">Set up cadets</button><button class="btn" data-close>Cancel</button></div>');
+  $('#richGo').onclick=function(){ doRichImport(rows, $('#richCohort').value.trim()); closeModal(); };
+}
+
+var __csvBtn=document.getElementById('csvBtn'); if(__csvBtn) __csvBtn.onclick=function(){ document.getElementById('csvFile').click(); };
+var __csvFile=document.getElementById('csvFile');
+if(__csvFile) __csvFile.onchange=function(e){ var fl=e.target.files[0]; if(!fl) return; var rd=new FileReader();
+  rd.onload=function(){ try{ var rows=parseCSV(rd.result); if(rows.length<2){ toast('That CSV looks empty'); return; } if(isRichIntake(rows[0])) openRichImport(rows); else openCsvMap(rows); }
+    catch(err){ toast('Could not read that CSV'); } };
+  rd.readAsText(fl); e.target.value=''; };
+var __cohEl=document.getElementById('cohortLabel'); if(__cohEl) __cohEl.onclick=openCohortRename;
+applyCohortLabels();
+
+/* ═══ manual backup safety net (browser blocking disk storage) ═══ */
+(function(){
+  try{ localStorage.setItem('mentor.__t','1'); localStorage.removeItem('mentor.__t'); window.STORAGE_OK=true; }
+  catch(e){ window.STORAGE_OK=false; }
+  var DIRTY=false, dismissed=false;
+  window.__markDirty=function(){ DIRTY=true; if(!window.STORAGE_OK){ var b=document.getElementById('exportBtn'); if(b) b.classList.add('needsave'); if(!dismissed) showBanner(); } };
+  window.__markSaved=function(){ DIRTY=false; var b=document.getElementById('exportBtn'); if(b) b.classList.remove('needsave'); hideBanner(); };
+  function showBanner(){ var el=document.getElementById('saveBanner'); if(el){ el.classList.remove('hidden'); return; }
+    el=document.createElement('div'); el.id='saveBanner'; el.className='saveBanner';
+    el.innerHTML='<span>⚠ This browser isn’t saving to disk, so changes stay only in this tab. <b>Back up before you close</b> — use Restore to load them next time.</span>'+
+      '<span class="sbBtns"><button class="pri" id="sbBackup">Back up now</button><button id="sbDismiss">Dismiss</button></span>';
+    document.body.appendChild(el);
+    document.getElementById('sbBackup').onclick=function(){ var e=document.getElementById('exportBtn'); if(e) e.click(); };
+    document.getElementById('sbDismiss').onclick=function(){ dismissed=true; hideBanner(); };
+  }
+  function hideBanner(){ var el=document.getElementById('saveBanner'); if(el) el.classList.add('hidden'); }
+  /* if storage is blocked, tell the user up front (once), even before first change */
+  if(!window.STORAGE_OK){ setTimeout(showBanner, 600); }
+  /* last-ditch guard: warn before leaving with unsaved changes */
+  window.addEventListener('beforeunload', function(e){ if(!window.STORAGE_OK && DIRTY){ e.preventDefault(); e.returnValue=''; } });
+})();
 
 
 /* ── theme (day / night) ── */
