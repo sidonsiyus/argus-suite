@@ -5,6 +5,7 @@ import { MODULES, GROUPS } from "@/lib/modules";
 import LiveBoard from "@/components/LiveBoard";
 import FlightLog from "@/components/FlightLog";
 import { useNews, shortDate } from "@/lib/useNews";
+import { AIRPORTS, AIRPORT_BY_ICAO } from "@/lib/airports";
 
 /* ── gate / flight metadata (airport metaphor) ── */
 const GROUP_GATE = { live: "A", eng: "B", careers: "C", academy: "D", research: "E", dash: "F" };
@@ -271,20 +272,68 @@ function NewsDesk({ news }) {
   );
 }
 
-/* ── radar scope (hero console panel) ── */
+/* ── live radar scope (real aircraft around a chosen airport) ── */
+const SCOPE_RANGE_NM = 80;   // outer ring
+const SCOPE_R = 46;          // outer ring radius in the 100x100 viewBox
+function altColor(alt) {
+  if (alt == null) return "var(--dim)";
+  if (alt < 10000) return "#e0a83c";      // low — amber
+  if (alt < 30000) return "var(--teal)";   // mid — teal
+  return "#4a9eff";                        // high — blue
+}
 function RadarScope() {
   const now = useNow();
-  // fixed decorative contacts so SSR/CSR match
-  const blips = [
-    { x: 66, y: 40, c: "var(--teal)", d: 0 },
-    { x: 38, y: 62, c: "var(--gold)", d: 0.7 },
-    { x: 74, y: 72, c: "#22d3ee", d: 1.4 },
-    { x: 52, y: 30, c: "var(--accent)", d: 2.1 },
-  ];
+  const [icao, setIcao] = useState("VABB");
+  const [state, setState] = useState({ status: "loading", planes: [], count: 0 });
+  const ap = AIRPORT_BY_ICAO[icao];
+
+  useEffect(() => {
+    let alive = true;
+    setState({ status: "loading", planes: [], count: 0 });
+    async function load() {
+      try {
+        const r = await fetch(`/api/flights?lat=${ap.lat}&lon=${ap.lon}&dist=${SCOPE_RANGE_NM}`, { cache: "no-store" });
+        const d = await r.json();
+        const ac = (d && (d.ac || d.aircraft)) || [];
+        const R = 3440.065, toRad = (x) => (x * Math.PI) / 180;
+        const planes = [];
+        for (const a of ac) {
+          if (a.lat == null || a.lon == null) continue;
+          const dLat = toRad(a.lat - ap.lat), dLon = toRad(a.lon - ap.lon);
+          const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(ap.lat)) * Math.cos(toRad(a.lat)) * Math.sin(dLon / 2) ** 2;
+          const dist = R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+          if (dist > SCOPE_RANGE_NM) continue;
+          const y = Math.sin(toRad(a.lon - ap.lon)) * Math.cos(toRad(a.lat));
+          const x = Math.cos(toRad(ap.lat)) * Math.sin(toRad(a.lat)) - Math.sin(toRad(ap.lat)) * Math.cos(toRad(a.lat)) * Math.cos(toRad(a.lon - ap.lon));
+          const brg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+          const rr = (dist / SCOPE_RANGE_NM) * SCOPE_R;
+          planes.push({
+            id: a.hex || a.flight || `${a.lat},${a.lon}`,
+            cx: 50 + rr * Math.sin(toRad(brg)),
+            cy: 50 - rr * Math.cos(toRad(brg)),
+            hdg: a.track ?? a.heading ?? brg,
+            color: altColor(a.alt),
+          });
+        }
+        if (alive) setState({ status: "ok", planes: planes.slice(0, 60), count: planes.length });
+      } catch {
+        if (alive) setState((s) => ({ ...s, status: "error" }));
+      }
+    }
+    load();
+    const t = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, [icao, ap.lat, ap.lon]);
+
   return (
     <div className="scope">
       <div className="scope-head mono">
-        <span><span className="scope-live" /> SECTOR VOMM</span>
+        <span className="scope-sel-wrap">
+          <span className="scope-live" />
+          <select className="scope-sel" value={icao} onChange={(e) => setIcao(e.target.value)} aria-label="Radar airport">
+            {AIRPORTS.map((a) => <option key={a.icao} value={a.icao}>{a.icao} · {a.city}</option>)}
+          </select>
+        </span>
         <span suppressHydrationWarning>{now ? now.toISOString().slice(11, 19) : "--:--:--"}Z</span>
       </div>
       <div className="scope-face">
@@ -299,14 +348,23 @@ function RadarScope() {
           <line x1="4" y1="50" x2="96" y2="50" className="scope-cross" />
           <line x1="50" y1="4" x2="50" y2="96" className="scope-cross" />
           <g className="scope-sweep"><path d="M50 50 L50 4 A46 46 0 0 1 82 18 Z" fill="url(#rg)" /></g>
-          {blips.map((b, i) => (
-            <circle key={i} cx={b.x} cy={b.y} r="1.5" fill={b.c} className="scope-blip" style={{ animationDelay: `${b.d}s` }} />
+          {/* field centre */}
+          <circle cx="50" cy="50" r="1.1" fill="var(--teal)" />
+          {/* live aircraft */}
+          {state.planes.map((p) => (
+            <g key={p.id} transform={`translate(${p.cx.toFixed(2)} ${p.cy.toFixed(2)}) rotate(${Math.round(p.hdg)})`}>
+              <path d="M0 -2 L1.5 2 L0 1 L-1.5 2 Z" fill={p.color} className="scope-ac" />
+            </g>
           ))}
         </svg>
       </div>
       <div className="scope-foot mono">
-        <span>{MODULES.filter((m) => m.live).length} contacts</span>
-        <span className="scope-ok">tracking</span>
+        <span>
+          {state.status === "loading" && "scanning…"}
+          {state.status === "error" && "feed offline"}
+          {state.status === "ok" && `${state.count} contact${state.count === 1 ? "" : "s"} · ${SCOPE_RANGE_NM}nm`}
+        </span>
+        <span className="scope-ok">{state.status === "ok" ? "tracking" : state.status === "loading" ? "acquiring" : "—"}</span>
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ function SkiesCard({ loc }) {
     let alive = true;
     async function load() {
       try {
-        const r = await fetch(`${FLIGHT_PROXY}/flights?lat=${loc.lat}&lon=${loc.lon}&dist=60`, { cache: "no-store" });
+        const r = await fetch(`/api/flights?lat=${loc.lat}&lon=${loc.lon}&dist=60`, { cache: "no-store" });
         const d = await r.json();
         const ac = (d && (d.ac || d.aircraft)) || [];
         const pos = ac.filter((a) => a.lat != null && a.lon != null);
