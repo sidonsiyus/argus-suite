@@ -281,15 +281,24 @@ function altColor(alt) {
   if (alt < 30000) return "var(--teal)";   // mid — teal
   return "#4a9eff";                        // high — blue
 }
+const CAT_TINT = { VFR: "#31c56a", MVFR: "#4a9eff", IFR: "#ff5a63", LIFR: "#b98cff" };
+function fmtAlt(a) {
+  if (a == null) return "—";
+  return a >= 18000 ? "FL" + Math.round(a / 100) : Math.round(a).toLocaleString() + " ft";
+}
 function RadarScope() {
   const now = useNow();
   const [icao, setIcao] = useState("OMDB"); // busiest / most consistent ADS-B coverage
   const [state, setState] = useState({ status: "loading", planes: [], count: 0, stale: false });
+  const [sel, setSel] = useState(null);      // clicked aircraft
+  const [metar, setMetar] = useState(null);  // selected airport weather
   const ap = AIRPORT_BY_ICAO[icao];
 
+  // aircraft feed
   useEffect(() => {
     let alive = true;
     setState({ status: "loading", planes: [], count: 0, stale: false }); // new airport → clear
+    setSel(null);
     async function load() {
       try {
         const r = await fetch(`/api/flights?lat=${ap.lat}&lon=${ap.lon}&dist=${SCOPE_RANGE_NM}`, { cache: "no-store" });
@@ -307,20 +316,19 @@ function RadarScope() {
           const x = Math.cos(toRad(ap.lat)) * Math.sin(toRad(a.lat)) - Math.sin(toRad(ap.lat)) * Math.cos(toRad(a.lat)) * Math.cos(toRad(a.lon - ap.lon));
           const brg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
           const rr = (dist / SCOPE_RANGE_NM) * SCOPE_R;
+          const hdg = a.track ?? a.heading ?? brg;
           planes.push({
             id: a.hex || a.flight || `${a.lat},${a.lon}`,
             label: (a.flight || "").trim() || (a.hex || "").toUpperCase(),
             cx: 50 + rr * Math.sin(toRad(brg)),
             cy: 50 - rr * Math.cos(toRad(brg)),
-            hdg: a.track ?? a.heading ?? brg,
-            color: altColor(a.alt),
+            hdg, alt: a.alt, gs: a.gs, dist: Math.round(dist), color: altColor(a.alt),
           });
         }
         if (!alive) return;
         if (planes.length) {
           setState({ status: "ok", planes: planes.slice(0, 60), count: planes.length, stale: false });
         } else {
-          // feed hiccup → keep the last good picture instead of blanking
           setState((s) => (s.planes.length ? { ...s, stale: true } : { status: "empty", planes: [], count: 0, stale: false }));
         }
       } catch {
@@ -332,6 +340,22 @@ function RadarScope() {
     return () => { alive = false; clearInterval(t); };
   }, [icao, ap.lat, ap.lon]);
 
+  // weather for the selected airport
+  useEffect(() => {
+    let alive = true;
+    setMetar(null);
+    fetch(`/api/metar?ids=${icao}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (alive) setMetar((d.metar && d.metar[0]) || null); })
+      .catch(() => {});
+    const t = setInterval(() => {
+      fetch(`/api/metar?ids=${icao}`, { cache: "no-store" }).then((r) => r.json())
+        .then((d) => { if (alive) setMetar((d.metar && d.metar[0]) || null); }).catch(() => {});
+    }, 300000);
+    return () => { alive = false; clearInterval(t); };
+  }, [icao]);
+
+  const cat = metar?.fltCat;
   return (
     <div className="scope">
       <div className="scope-head mono">
@@ -343,8 +367,21 @@ function RadarScope() {
         </span>
         <span suppressHydrationWarning>{now ? now.toISOString().slice(11, 19) : "--:--:--"}Z</span>
       </div>
+
+      {/* selected-airport weather */}
+      <div className="scope-wx mono">
+        {metar && metar.rawOb ? (
+          <>
+            <span className="scope-wx-cat" style={{ color: CAT_TINT[cat] || "var(--dim)" }}>● {cat || "—"}</span>
+            <span>{metar.wdir != null ? `${String(metar.wdir).padStart(3, "0")}°/${metar.wspd || 0}kt` : ""}</span>
+            <span>{metar.temp != null ? `${Math.round(metar.temp)}°C` : ""}</span>
+            <span className="scope-wx-qnh">{metar.altim != null ? `Q${Math.round(metar.altim)}` : ""}</span>
+          </>
+        ) : <span className="scope-wx-dim">weather · {icao}</span>}
+      </div>
+
       <div className="scope-face">
-        <svg viewBox="0 0 100 100" className="scope-svg">
+        <svg viewBox="0 0 100 100" className="scope-svg" onClick={(e) => { if (e.target.tagName === "svg") setSel(null); }}>
           <defs>
             <radialGradient id="rg" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="var(--teal)" stopOpacity="0.5" />
@@ -355,11 +392,11 @@ function RadarScope() {
           <line x1="4" y1="50" x2="96" y2="50" className="scope-cross" />
           <line x1="50" y1="4" x2="50" y2="96" className="scope-cross" />
           <g className="scope-sweep"><path d="M50 50 L50 4 A46 46 0 0 1 82 18 Z" fill="url(#rg)" /></g>
-          {/* field centre */}
           <circle cx="50" cy="50" r="1.1" fill="var(--teal)" />
-          {/* live aircraft — blip (rotated to heading) + upright data tag */}
           {state.planes.map((p) => (
-            <g key={p.id} transform={`translate(${p.cx.toFixed(2)} ${p.cy.toFixed(2)})`}>
+            <g key={p.id} transform={`translate(${p.cx.toFixed(2)} ${p.cy.toFixed(2)})`} className="scope-plane" onClick={() => setSel(p)}>
+              <circle r="3" fill="transparent" />{/* larger hit target */}
+              {sel && sel.id === p.id && <circle r="2.6" fill="none" stroke="var(--teal)" strokeWidth="0.5" className="scope-lock" />}
               <g transform={`rotate(${Math.round(p.hdg)})`}>
                 <path d="M0 -2 L1.5 2 L0 1 L-1.5 2 Z" fill={p.color} className="scope-ac" />
               </g>
@@ -367,7 +404,25 @@ function RadarScope() {
             </g>
           ))}
         </svg>
+
+        {sel && (
+          <div className="scope-pop mono">
+            <button className="scope-pop-x" onClick={() => setSel(null)} aria-label="Close">✕</button>
+            <div className="scope-pop-cs">{sel.label || "UNKNOWN"}</div>
+            <div className="scope-pop-row"><span>ALT</span><b style={{ color: sel.color }}>{fmtAlt(sel.alt)}</b></div>
+            <div className="scope-pop-row"><span>SPD</span><b>{sel.gs != null ? Math.round(sel.gs) + " kt" : "—"}</b></div>
+            <div className="scope-pop-row"><span>HDG</span><b>{Math.round(sel.hdg)}°</b></div>
+            <div className="scope-pop-row"><span>RNG</span><b>{sel.dist} nm</b></div>
+          </div>
+        )}
       </div>
+
+      <div className="scope-legend mono">
+        <span><i style={{ background: "#e0a83c" }} />&lt;10k</span>
+        <span><i style={{ background: "var(--teal)" }} />10–30k</span>
+        <span><i style={{ background: "#4a9eff" }} />&gt;30k ft</span>
+      </div>
+
       <div className="scope-foot mono">
         <span>
           {state.status === "loading" && "scanning…"}

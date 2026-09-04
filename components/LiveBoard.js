@@ -99,7 +99,7 @@ function MetarCard({ icao = DEFAULT_ICAO }) {
 
     (async () => {
       let m = null;
-      try { m = pick(await getJson(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`)); } catch {}
+      try { m = pick(await getJson(`/api/metar?ids=${icao}`)); } catch {}
       if (!m || !m.rawOb) {
         try { m = pick(await getJson(`${FLIGHT_PROXY}/metar?ids=${icao}`)); } catch {}
       }
