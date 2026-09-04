@@ -284,12 +284,12 @@ function altColor(alt) {
 function RadarScope() {
   const now = useNow();
   const [icao, setIcao] = useState("OMDB"); // busiest / most consistent ADS-B coverage
-  const [state, setState] = useState({ status: "loading", planes: [], count: 0 });
+  const [state, setState] = useState({ status: "loading", planes: [], count: 0, stale: false });
   const ap = AIRPORT_BY_ICAO[icao];
 
   useEffect(() => {
     let alive = true;
-    setState({ status: "loading", planes: [], count: 0 });
+    setState({ status: "loading", planes: [], count: 0, stale: false }); // new airport → clear
     async function load() {
       try {
         const r = await fetch(`/api/flights?lat=${ap.lat}&lon=${ap.lon}&dist=${SCOPE_RANGE_NM}`, { cache: "no-store" });
@@ -309,15 +309,22 @@ function RadarScope() {
           const rr = (dist / SCOPE_RANGE_NM) * SCOPE_R;
           planes.push({
             id: a.hex || a.flight || `${a.lat},${a.lon}`,
+            label: (a.flight || "").trim() || (a.hex || "").toUpperCase(),
             cx: 50 + rr * Math.sin(toRad(brg)),
             cy: 50 - rr * Math.cos(toRad(brg)),
             hdg: a.track ?? a.heading ?? brg,
             color: altColor(a.alt),
           });
         }
-        if (alive) setState({ status: "ok", planes: planes.slice(0, 60), count: planes.length });
+        if (!alive) return;
+        if (planes.length) {
+          setState({ status: "ok", planes: planes.slice(0, 60), count: planes.length, stale: false });
+        } else {
+          // feed hiccup → keep the last good picture instead of blanking
+          setState((s) => (s.planes.length ? { ...s, stale: true } : { status: "empty", planes: [], count: 0, stale: false }));
+        }
       } catch {
-        if (alive) setState((s) => ({ ...s, status: "error" }));
+        if (alive) setState((s) => (s.planes.length ? { ...s, stale: true } : { ...s, status: "error", stale: false }));
       }
     }
     load();
@@ -350,10 +357,13 @@ function RadarScope() {
           <g className="scope-sweep"><path d="M50 50 L50 4 A46 46 0 0 1 82 18 Z" fill="url(#rg)" /></g>
           {/* field centre */}
           <circle cx="50" cy="50" r="1.1" fill="var(--teal)" />
-          {/* live aircraft */}
+          {/* live aircraft — blip (rotated to heading) + upright data tag */}
           {state.planes.map((p) => (
-            <g key={p.id} transform={`translate(${p.cx.toFixed(2)} ${p.cy.toFixed(2)}) rotate(${Math.round(p.hdg)})`}>
-              <path d="M0 -2 L1.5 2 L0 1 L-1.5 2 Z" fill={p.color} className="scope-ac" />
+            <g key={p.id} transform={`translate(${p.cx.toFixed(2)} ${p.cy.toFixed(2)})`}>
+              <g transform={`rotate(${Math.round(p.hdg)})`}>
+                <path d="M0 -2 L1.5 2 L0 1 L-1.5 2 Z" fill={p.color} className="scope-ac" />
+              </g>
+              {p.label && <text className="scope-tag" x="2.3" y="1">{p.label}</text>}
             </g>
           ))}
         </svg>
@@ -362,9 +372,12 @@ function RadarScope() {
         <span>
           {state.status === "loading" && "scanning…"}
           {state.status === "error" && "feed offline"}
+          {state.status === "empty" && "no returns"}
           {state.status === "ok" && `${state.count} contact${state.count === 1 ? "" : "s"} · ${SCOPE_RANGE_NM}nm`}
         </span>
-        <span className="scope-ok">{state.status === "ok" ? "tracking" : state.status === "loading" ? "acquiring" : "—"}</span>
+        <span className={state.stale ? "scope-stale" : "scope-ok"}>
+          {state.stale ? "holding" : state.status === "ok" ? "tracking" : state.status === "loading" ? "acquiring" : "—"}
+        </span>
       </div>
     </div>
   );

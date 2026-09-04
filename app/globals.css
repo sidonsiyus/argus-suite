@@ -230,31 +230,34 @@ button { font-family: inherit; cursor: pointer; }
 @media (max-width: 900px) { .hero-split { grid-template-columns: 1fr; gap: 26px; } .scope { max-width: 340px; } }
 
 /* radar scope panel */
-.scope { border: 1px solid var(--line-2); border-radius: 16px; background: var(--console); overflow: hidden; box-shadow: var(--shadow-md); align-self: stretch; }
-.scope-head, .scope-foot { display: flex; align-items: center; justify-content: space-between; padding: 11px 15px; font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(251, 250, 245, 0.62); }
-.scope-head { border-bottom: 1px solid rgba(255,255,255,0.08); }
-.scope-foot { border-top: 1px solid rgba(255,255,255,0.08); }
+/* blended into the page — no dark panel, just a faint framed radar */
+.scope { border: 1px solid var(--line); border-radius: 16px; background: transparent; overflow: hidden; align-self: stretch; }
+.scope-head, .scope-foot { display: flex; align-items: center; justify-content: space-between; padding: 11px 15px; font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+.scope-head { border-bottom: 1px solid var(--line); }
+.scope-foot { border-top: 1px solid var(--line); }
 .scope-live { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 8px var(--teal); margin-right: 7px; animation: pulse 1.4s infinite; }
-.scope-ok { color: var(--teal); }
+.scope-ok { color: var(--teal-ink); }
+.scope-stale { color: var(--gold); }
 .scope-face { position: relative; aspect-ratio: 1; padding: 14px; }
 .scope-svg { width: 100%; height: 100%; display: block; }
-.scope-ring { fill: none; stroke: rgba(46, 196, 182, 0.22); stroke-width: 0.4; }
-.scope-cross { stroke: rgba(46, 196, 182, 0.16); stroke-width: 0.4; }
+.scope-ring { fill: none; stroke: color-mix(in srgb, var(--teal) 30%, transparent); stroke-width: 0.4; }
+.scope-cross { stroke: color-mix(in srgb, var(--teal) 20%, transparent); stroke-width: 0.4; }
 .scope-sweep { transform-origin: 50px 50px; animation: spin 4s linear infinite; }
+.scope-tag { font-family: var(--mono); font-size: 2.5px; letter-spacing: 0.02px; fill: color-mix(in srgb, var(--teal-ink) 65%, var(--ink)); opacity: 0.85; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .scope-blip { animation: blipPulse 2.6s ease-in-out infinite; }
 @keyframes blipPulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
 .scope-ac { transition: opacity 0.4s; }
 /* airport selector inside the scope head */
 .scope-sel-wrap { display: inline-flex; align-items: center; gap: 7px; }
-.scope-sel { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--console-ink); background: transparent; border: 1px solid rgba(255,255,255,0.16); border-radius: 6px;
+.scope-sel { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;
+  color: var(--ink); background: transparent; border: 1px solid var(--line-2); border-radius: 6px;
   padding: 3px 20px 3px 7px; cursor: pointer; appearance: none; -webkit-appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.5) 50%), linear-gradient(135deg, rgba(255,255,255,0.5) 50%, transparent 50%);
+  background-image: linear-gradient(45deg, transparent 50%, var(--faint) 50%), linear-gradient(135deg, var(--faint) 50%, transparent 50%);
   background-position: right 8px center, right 4px center; background-size: 4px 4px, 4px 4px; background-repeat: no-repeat; }
 .scope-sel:hover { border-color: var(--teal); }
 .scope-sel:focus { outline: none; border-color: var(--teal); }
-.scope-sel option { color: #16221e; background: #eef3ef; }
+.scope-sel option { color: var(--ink); background: var(--panel); }
 
 /* launcher header + division chips */
 .launch-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px;
