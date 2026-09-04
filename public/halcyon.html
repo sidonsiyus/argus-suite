@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HALCYON · Control of Fixed-Wing Multibody UAV</title>
+<style>
+  :root{
+    --bg:#080a0f; --bg2:#0b0e15; --panel:#0d1119; --panel2:#111725;
+    --line:#1b2230; --line2:#283040; --ink:#e9edf5; --muted:#8790a3; --faint:#4a5364;
+    --acc:#8b93ff; --acc-dim:#5a63c7;
+    --red:#ff5d67; --cyan:#34d6ee; --green:#4ade80; --amber:#f5b544; --grey:#5a6472;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  html,body{margin:0}
+  body{background:var(--bg); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased; overflow-x:hidden}
+  ::selection{background:rgba(139,147,255,.3)}
+  a{color:var(--acc); text-decoration:none}
+  h1,h2,h3{margin:0; font-weight:750; letter-spacing:-.01em}
+  .mono{font-family:var(--mono)}
+
+  /* ---------- station nav rail ---------- */
+  .rail{position:fixed; top:0; left:0; height:100vh; width:190px; z-index:40; padding:26px 0 26px 22px;
+    display:flex; flex-direction:column; gap:2px; border-right:1px solid var(--line); background:linear-gradient(90deg,var(--bg2),transparent)}
+  .rail .brand{display:flex; align-items:center; gap:9px; margin-bottom:20px}
+  .rail .brand .eye{width:26px;height:26px;color:var(--acc)}
+  .rail .brand .eye svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.5}
+  .rail .brand b{font-size:14px; letter-spacing:.16em}
+  .rail .brand small{display:block; font-family:var(--mono); font-size:7.5px; letter-spacing:.24em; color:var(--faint); margin-top:1px}
+  .rail a.st{display:flex; align-items:center; gap:10px; padding:6px 10px 6px 0; color:var(--faint); font-family:var(--mono); font-size:10.5px; letter-spacing:.04em; border-left:2px solid transparent; margin-left:-2px; transition:color .2s,border-color .2s}
+  .rail a.st .n{opacity:.6; font-size:9px; width:16px}
+  .rail a.st:hover{color:var(--muted)}
+  .rail a.st.on{color:var(--ink); border-color:var(--acc)}
+  .rail a.st.on .n{color:var(--acc); opacity:1}
+  .rail .back{margin-top:auto; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:var(--faint)}
+  .rail .back:hover{color:var(--acc)}
+
+  .wrap{margin-left:190px}
+  section{padding:74px 6vw; border-bottom:1px solid var(--line); position:relative; scroll-margin-top:0}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:var(--acc); display:flex; align-items:center; gap:12px; margin-bottom:18px}
+  .eyebrow .num{color:var(--faint)}
+  .eyebrow::after{content:""; flex:1; height:1px; background:linear-gradient(90deg,var(--line2),transparent)}
+  section h2{font-size:clamp(22px,3.4vw,34px); margin-bottom:14px; line-height:1.08}
+  .lead{color:var(--muted); font-size:15px; line-height:1.7; max-width:70ch}
+  p.body{color:var(--muted); font-size:14px; line-height:1.7; max-width:72ch}
+  .dim{color:var(--faint)}
+  .tag{display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--acc); border:1px solid var(--line2); border-radius:6px; padding:3px 8px}
+
+  /* ---------- hero ---------- */
+  #hero{padding:0; height:100vh; min-height:640px; border-bottom:1px solid var(--line); position:relative; overflow:hidden; display:flex; align-items:center}
+  #heroCanvas{position:absolute; inset:0; width:100%; height:100%; display:block}
+  .hero-in{position:relative; z-index:2; padding:0 6vw; max-width:900px}
+  .hero-kick{font-family:var(--mono); font-size:12px; letter-spacing:.34em; text-transform:uppercase; color:var(--acc); margin-bottom:20px; display:flex; align-items:center; gap:12px}
+  .hero-kick span{width:44px;height:1px;background:var(--acc);opacity:.6}
+  #hero h1{font-size:clamp(34px,6.6vw,74px); line-height:.98; letter-spacing:-.02em; margin-bottom:8px;
+    background:linear-gradient(180deg,#fff 20%,#aab2d6); -webkit-background-clip:text; background-clip:text; color:transparent}
+  #hero .sub{font-size:clamp(14px,2vw,19px); color:var(--muted); max-width:56ch; line-height:1.6; margin-top:14px}
+  .hero-meta{display:flex; flex-wrap:wrap; gap:26px; margin-top:34px; font-family:var(--mono); font-size:11.5px; color:var(--faint); letter-spacing:.04em}
+  .hero-meta b{color:var(--ink); font-weight:600; display:block; margin-top:3px; letter-spacing:0; font-family:var(--sans); font-size:13px}
+  .scrollcue{position:absolute; bottom:22px; left:50%; transform:translateX(-50%); z-index:2; font-family:var(--mono); font-size:9.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--faint); text-align:center}
+  .scrollcue .arw{display:block; margin:8px auto 0; width:16px; height:16px; border-right:1px solid var(--faint); border-bottom:1px solid var(--faint); transform:rotate(45deg); animation:bob 1.8s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:rotate(45deg) translate(0,0)}50%{transform:rotate(45deg) translate(3px,3px)}}
+
+  /* ---------- cards / grids ---------- */
+  .grid{display:grid; gap:16px; margin-top:26px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:14px; padding:20px}
+  .card h3{font-size:15px; margin-bottom:8px}
+  .card p{color:var(--muted); font-size:13px; line-height:1.6; margin:0}
+  .card .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:var(--acc);background:rgba(139,147,255,.09);border:1px solid var(--line2);margin-bottom:13px}
+  .card .ic svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6}
+  .eqcard .eq{font-family:"Cambria Math",Georgia,serif; font-size:20px; color:var(--ink); margin:6px 0 10px; letter-spacing:.02em; overflow-x:auto}
+  .eqcard .eq i{color:var(--acc); font-style:italic}
+  .eqcard .whr{font-family:var(--mono); font-size:11px; color:var(--faint); line-height:1.6}
+  sup{font-size:.7em} sub{font-size:.7em}
+
+  /* ---------- lab rigs ---------- */
+  .rig{display:grid; grid-template-columns:1.35fr 1fr; gap:22px; margin-top:26px; align-items:start}
+  @media(max-width:1080px){ .rig{grid-template-columns:1fr} }
+  .stage{position:relative; background:radial-gradient(120% 100% at 50% 0%,#0e1420,#090c12); border:1px solid var(--line2); border-radius:16px; overflow:hidden}
+  .stage canvas{display:block; width:100%}
+  .stage .badge{position:absolute; top:12px; left:14px; font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint)}
+  .stage .live{position:absolute; top:12px; right:14px; font-family:var(--mono); font-size:9.5px; color:var(--acc); display:flex; align-items:center; gap:6px}
+  .stage .live::before{content:""; width:6px;height:6px;border-radius:50%; background:var(--acc); box-shadow:0 0 8px var(--acc); animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .panelC{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:16px; padding:18px}
+  .panelC h3{font-size:14px; margin-bottom:4px}
+  .panelC .hint{color:var(--faint); font-size:12px; line-height:1.55; margin:0 0 14px}
+  .ctl{margin:13px 0}
+  .ctl label{display:flex; justify-content:space-between; font-family:var(--mono); font-size:10.5px; letter-spacing:.04em; color:var(--muted); margin-bottom:6px}
+  .ctl label b{color:var(--acc); font-weight:600}
+  input[type=range]{-webkit-appearance:none; width:100%; height:3px; border-radius:3px; background:var(--line2); outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:15px;height:15px;border-radius:50%; background:var(--acc); cursor:pointer; box-shadow:0 0 0 4px rgba(139,147,255,.15)}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--acc);cursor:pointer}
+  .btnrow{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px}
+  .btn{font-family:var(--mono); font-size:11px; letter-spacing:.03em; color:var(--ink); background:var(--panel2); border:1px solid var(--line2); border-radius:9px; padding:9px 13px; cursor:pointer; transition:border-color .2s,background .2s}
+  .btn:hover{border-color:var(--acc)}
+  .btn.on{background:rgba(139,147,255,.14); border-color:var(--acc); color:var(--acc)}
+  .btn.red.on{background:rgba(255,93,103,.14); border-color:var(--red); color:var(--red)}
+  .readout{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-top:14px; font-family:var(--mono); font-size:11px}
+  .readout div{display:flex; justify-content:space-between; border-bottom:1px solid var(--line); padding:5px 0}
+  .readout .k{color:var(--faint)} .readout .v{color:var(--ink)}
+  .kchips{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px}
+  .kchip{font-family:var(--mono); font-size:10.5px; color:var(--acc); background:rgba(139,147,255,.08); border:1px solid var(--line2); border-radius:6px; padding:4px 8px}
+  .note{margin-top:14px; font-family:var(--mono); font-size:10px; line-height:1.6; color:var(--faint); border-left:2px solid var(--line2); padding-left:12px}
+  .legend{display:flex; flex-wrap:wrap; gap:14px; margin-top:12px; font-family:var(--mono); font-size:10.5px; color:var(--muted)}
+  .legend span{display:flex; align-items:center; gap:7px}
+  .legend i{width:14px; height:2px; border-radius:2px; display:inline-block}
+
+  /* ---------- literature map ---------- */
+  #litCanvas{width:100%; display:block; border:1px solid var(--line2); border-radius:16px; background:radial-gradient(120% 100% at 50% 30%,#0d1220,#090b11); cursor:grab}
+  .litbox{margin-top:14px; min-height:64px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; font-size:13px; color:var(--muted); line-height:1.55}
+  .litbox b{color:var(--ink)} .litbox .rmeta{font-family:var(--mono); font-size:10.5px; color:var(--acc); margin-top:6px; display:block}
+  .litlegend{display:flex; flex-wrap:wrap; gap:16px; margin-top:14px; font-family:var(--mono); font-size:10.5px; color:var(--muted)}
+  .litlegend span{display:flex; align-items:center; gap:7px} .litlegend i{width:10px;height:10px;border-radius:50%}
+
+  /* ---------- code ---------- */
+  .codeblk{position:relative; background:#070a10; border:1px solid var(--line2); border-radius:12px; margin-top:14px; overflow:hidden}
+  .codeblk .top{display:flex; justify-content:space-between; align-items:center; padding:9px 13px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:10.5px; color:var(--faint); letter-spacing:.05em}
+  .codeblk pre{margin:0; padding:14px; overflow-x:auto; font-family:var(--mono); font-size:11.5px; line-height:1.55; color:#c8d0e0; max-height:340px}
+  .copy{font-family:var(--mono); font-size:10px; color:var(--acc); background:transparent; border:1px solid var(--line2); border-radius:6px; padding:4px 9px; cursor:pointer}
+  .copy:hover{border-color:var(--acc)}
+  .accordion{margin-top:12px}
+  .acc-item{border:1px solid var(--line); border-radius:11px; margin-bottom:8px; overflow:hidden; background:var(--panel)}
+  .acc-head{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; font-size:14px; font-weight:600}
+  .acc-head .plus{color:var(--acc); font-family:var(--mono); transition:transform .2s}
+  .acc-item.open .plus{transform:rotate(45deg)}
+  .acc-body{max-height:0; overflow:hidden; transition:max-height .3s ease; color:var(--muted); font-size:13.5px; line-height:1.7}
+  .acc-body div{padding:0 16px 16px}
+
+  footer{padding:40px 6vw 60px; text-align:center; color:var(--faint); font-family:var(--mono); font-size:11px; letter-spacing:.06em}
+  footer a{color:var(--acc)}
+
+  /* scroll progress */
+  .prog{position:fixed; top:0; left:0; height:2px; width:0; z-index:60;
+    background:linear-gradient(90deg,var(--acc),#34d6ee); box-shadow:0 0 12px rgba(139,147,255,.7); transition:width .1s linear}
+  /* cursor aura */
+  .aura{position:fixed; width:420px; height:420px; border-radius:50%; pointer-events:none; z-index:0; opacity:.5;
+    background:radial-gradient(circle, rgba(139,147,255,.09), transparent 62%); transform:translate(-50%,-50%); transition:opacity .4s}
+  /* section reveal */
+  .rv{opacity:0; transform:translateY(22px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1)}
+  .rv.in{opacity:1; transform:none}
+  .rv.d1{transition-delay:.08s} .rv.d2{transition-delay:.16s} .rv.d3{transition-delay:.24s}
+  /* hero glow + orbit ring */
+  #hero::after{content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:radial-gradient(60% 60% at 62% 50%, rgba(139,147,255,.10), transparent 62%)}
+  .hero-in{animation:heroIn 1.1s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes heroIn{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+  /* stat strip */
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:28px}
+  .stat{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:13px; padding:16px 18px}
+  .stat .v{font-size:clamp(20px,3vw,30px); font-weight:800; color:var(--acc); letter-spacing:-.02em; line-height:1}
+  .stat .l{font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin-top:7px}
+  /* card hover lift */
+  .card{transition:transform .3s cubic-bezier(.2,.7,.2,1), border-color .3s, box-shadow .3s}
+  .card:hover{transform:translateY(-3px); border-color:var(--line2); box-shadow:0 18px 40px -26px rgba(139,147,255,.5)}
+  .stage{transition:border-color .3s, box-shadow .35s}
+  .stage:hover{border-color:rgba(139,147,255,.42); box-shadow:0 0 0 1px rgba(139,147,255,.12), 0 26px 60px -40px rgba(139,147,255,.55)}
+  /* section number watermark */
+  section{position:relative}
+  .wm{position:absolute; top:34px; right:4vw; font-family:var(--mono); font-size:clamp(60px,9vw,120px); font-weight:800;
+    color:rgba(139,147,255,.035); pointer-events:none; user-select:none; line-height:1; letter-spacing:-.04em}
+  @media(max-width:900px){ .stats{grid-template-columns:repeat(2,1fr)} .wm{display:none} }
+  @media(max-width:820px){
+    .rail{transform:translateX(-100%); transition:transform .3s} .rail.show{transform:none}
+    .wrap{margin-left:0}
+    .g2,.g3,.g4{grid-template-columns:1fr}
+    .railtog{position:fixed; top:14px; left:14px; z-index:50; width:40px;height:40px;border-radius:10px; background:var(--panel2); border:1px solid var(--line2); color:var(--acc); display:grid; place-items:center; cursor:pointer}
+  }
+  @media(min-width:821px){ .railtog{display:none} }
+</style>
+</head>
+<body>
+
+<div class="prog" id="prog"></div>
+<div class="aura" id="aura"></div>
+<div class="railtog" id="railTog">☰</div>
+<nav class="rail" id="rail">
+  <div class="brand">
+    <span class="eye"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+    <div><b>HALCYON</b><small>ARGUS SUITE</small></div>
+  </div>
+  <a class="st" href="#hero"><span class="n">00</span>Title</a>
+  <a class="st" href="#concept"><span class="n">01</span>The Concept</a>
+  <a class="st" href="#theory"><span class="n">02</span>Control Theory</a>
+  <a class="st" href="#pendulum"><span class="n">03</span>Inverted Pendulum</a>
+  <a class="st" href="#single"><span class="n">04</span>Single Body</a>
+  <a class="st" href="#twin"><span class="n">05</span>Twin Body</a>
+  <a class="st" href="#config"><span class="n">06</span>A vs V Config</a>
+  <a class="st" href="#freq"><span class="n">07</span>Bode &amp; Nyquist</a>
+  <a class="st" href="#kalman"><span class="n">08</span>Kalman Filter</a>
+  <a class="st" href="#scope"><span class="n">09</span>Eigenvalue Scope</a>
+  <a class="st" href="#lit"><span class="n">10</span>Literature Map</a>
+  <a class="st" href="#findings"><span class="n">11</span>Findings</a>
+  <a class="back" href="index.html">← Suite</a>
+</nav>
+
+<div class="wrap">
+
+  <!-- 00 HERO -->
+  <section id="hero">
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-in">
+      <div class="hero-kick"><span></span>MSc Advanced Aerospace Engineering</div>
+      <h1>Control of a Fixed-Wing<br>Multibody UAV</h1>
+      <div class="sub">An interactive companion to the dissertation — the hinged multibody aircraft, its instability, and the LQR / LQG control that tames it. Every rig below runs live control math in your browser.</div>
+      <div class="hero-meta">
+        <div>Author<b>Siddarth Jawahar</b></div>
+        <div>Supervisor<b>Dr Yinan Wang</b></div>
+        <div>Institution<b>University of Liverpool</b></div>
+        <div>Project<b>No. 213 · Sept 2023</b></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="v" data-count="4">0</div><div class="l">Live control rigs</div></div>
+        <div class="stat"><div class="v" data-count="2">0</div><div class="l">Control laws · LQR / LQG</div></div>
+        <div class="stat"><div class="v" data-count="17" data-pre="±" data-suf="°">0</div><div class="l">Hinge sweep</div></div>
+        <div class="stat"><div class="v" data-count="100" data-suf="%">0</div><div class="l">Math solved in-browser</div></div>
+      </div>
+    </div>
+    <div class="scrollcue">Scroll to explore<span class="arw"></span></div>
+  </section>
+
+  <!-- 01 CONCEPT -->
+  <section id="concept">
+    <div class="wm">01</div>
+    <div class="eyebrow"><span class="num">01</span> The Concept</div>
+    <h2>One wing, many bodies</h2>
+    <p class="lead">A multibody UAV joins several small aircraft wingtip-to-wingtip through <b>hinges</b>, forming a single high-aspect-ratio wing. It keeps the <b>efficiency</b> of a long, slender span while retaining the <b>strength and redundancy</b> of independent aircraft — if one body fails, the others hold the formation. The catch: connect them and the whole assembly becomes <b>aerodynamically unstable</b>, and it cannot fly without a deliberately designed control system.</p>
+    <div class="grid g3">
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 12h18M12 3v18"/><circle cx="12" cy="12" r="3"/></svg></div><h3>High aspect ratio</h3><p>A long, jointed span gives a high lift-to-drag ratio and long endurance — inspired by the X-HALE flexible test aircraft.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></div><h3>Hinged coupling</h3><p>Wingtip hinges pass roll between bodies but block bending moments — cutting structural weight while adding coupled dynamics.</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l9 6-9 6-9-6 9-6zM3 15l9 6 9-6"/></svg></div><h3>Redundant & agile</h3><p>Each body can hold its own controller, take off and land independently, and reconfigure the wing shape in flight.</p></div>
+    </div>
+    <p class="body" style="margin-top:22px">The engineering question this work answers: <span class="dim">is it possible to keep such an aircraft stable when every added body makes the lateral modes worse — using nothing but classical control fundamentals applied a smarter way?</span> The journey below builds up from the simplest unstable system to the full variable-geometry twin.</p>
+  </section>
+
+  <!-- 02 THEORY -->
+  <section id="theory">
+    <div class="wm">02</div>
+    <div class="eyebrow"><span class="num">02</span> Control Theory</div>
+    <h2>The toolkit: state space, LQR &amp; LQG</h2>
+    <p class="lead">Every model here is written in <b>state-space</b> form and stabilised with an <b>optimal regulator</b>. These are the exact tools used throughout the dissertation — and the exact math running in the rigs below.</p>
+    <div class="grid g2">
+      <div class="card eqcard">
+        <span class="tag">State space</span>
+        <div class="eq">ẋ = A<i>x</i> + B<i>u</i> + E<i>w</i></div>
+        <div class="eq">y = C<i>x</i> + D<i>u</i> + F<i>w</i></div>
+        <div class="whr">x — state vector (roll, rates, …) · u — control (aileron, elevator, rudder, thrust) · w — gust disturbance · A,B,C,D — system matrices</div>
+      </div>
+      <div class="card eqcard">
+        <span class="tag">Linear Quadratic Regulator</span>
+        <div class="eq">J = ∫<sub>0</sub><sup>∞</sup> (<i>x</i><sup>T</sup>Q<i>x</i> + <i>u</i><sup>T</sup>R<i>u</i>) dt</div>
+        <div class="eq">u = −K<i>x</i>,&nbsp; K = R<sup>−1</sup>B<sup>T</sup>P</div>
+        <div class="whr">P solves the algebraic Riccati equation: A<sup>T</sup>P + PA − PBR<sup>−1</sup>B<sup>T</sup>P + Q = 0. Q rewards holding the state; R penalises control effort.</div>
+      </div>
+      <div class="card eqcard">
+        <span class="tag">Linear Quadratic Gaussian</span>
+        <div class="eq">x̂ = A<i>x̂</i> + B<i>u</i> + L(y − C<i>x̂</i>)</div>
+        <div class="whr">LQR assumes you can measure every state. LQG pairs the regulator with a <b>Kalman filter</b> that estimates the state from noisy sensors, then feeds the estimate to K. Optimal control meets optimal estimation.</div>
+      </div>
+      <div class="card eqcard">
+        <span class="tag">Stability</span>
+        <div class="eq">Re( λ(A) ) &lt; 0&nbsp; ⇒&nbsp; stable</div>
+        <div class="whr">The eigenvalues λ of A are the flight modes (phugoid, Dutch roll, spiral, roll…). A single eigenvalue in the right half-plane means the aircraft diverges. Control moves the poles left.</div>
+      </div>
+    </div>
+    <p class="note" style="max-width:72ch">Fidelity note — the inverted-pendulum rig uses the <b>exact A, B matrices from the dissertation appendix</b> and solves the Riccati equation live. The aircraft rigs use representative lateral-dynamics models tuned to reproduce the report's roll-response and eigenvalue behaviour, since the original state-space <span class="mono">.mat</span> matrices are not embedded here.</p>
+  </section>
+
+  <!-- 03 PENDULUM -->
+  <section id="pendulum">
+    <div class="wm">03</div>
+    <div class="eyebrow"><span class="num">03</span> Rig I · The Primer</div>
+    <h2>Inverted pendulum — why LQR</h2>
+    <p class="lead">The classic unstable system: a pole balanced above a cart. Like the aircraft, it senses its own tilt and moves to stay upright. Drag the cart or nudge the pole — the <b>live LQR controller</b> catches it. Tune Q and R and the Riccati equation is re-solved in real time.</p>
+    <div class="rig">
+      <div class="stage"><span class="badge">Cart-pole · thesis A,B</span><span class="live">LQR LIVE</span><canvas id="penCanvas" height="340"></canvas></div>
+      <div class="panelC">
+        <h3>Controls</h3>
+        <p class="hint">Drag the pendulum to disturb it. The gain K is recomputed from the algebraic Riccati equation whenever you move a slider.</p>
+        <div class="ctl"><label>State weight Q<sub>θ</sub> (keep upright) <b id="penQv">40</b></label><input type="range" id="penQ" min="1" max="200" value="40"></div>
+        <div class="ctl"><label>Control weight R (effort) <b id="penRv">1.0</b></label><input type="range" id="penR" min="1" max="100" value="10"></div>
+        <div class="btnrow">
+          <button class="btn on" id="penCtl">Controller: ON</button>
+          <button class="btn" id="penKick">Kick pole</button>
+        </div>
+        <div class="kchips" id="penK"></div>
+        <div class="readout">
+          <div><span class="k">angle θ</span><span class="v" id="penTh">0.0°</span></div>
+          <div><span class="k">cart x</span><span class="v" id="penX">0.00</span></div>
+          <div><span class="k">force u</span><span class="v" id="penU">0.0</span></div>
+          <div><span class="k">status</span><span class="v" id="penStat" style="color:var(--acc)">balanced</span></div>
+        </div>
+        <div class="note">Turn the controller off and the pole falls — the open-loop system has an eigenvalue at <span class="mono">+4.43</span> (right half-plane). LQR pulls all four poles into the left half-plane.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 SINGLE BODY -->
+  <section id="single">
+    <div class="wm">04</div>
+    <div class="eyebrow"><span class="num">04</span> Rig II · One Aircraft</div>
+    <h2>Single rigid body — the roll-yaw instability</h2>
+    <p class="lead">A single aircraft with seven inputs (aileron, elevator, rudder, thrust + three gusts) and nine outputs. Left alone, its lateral motion diverges — roll and yaw wander off exactly as in the dissertation's Figure 12. Switch the LQR controller on and the roll snaps back to level.</p>
+    <div class="rig">
+      <div class="stage"><span class="badge">Lateral roll-yaw · behind-view</span><span class="live" id="single-live">LIVE</span><canvas id="sglCanvas" height="300"></canvas>
+        <canvas id="sglPlot" height="150" style="border-top:1px solid var(--line)"></canvas></div>
+      <div class="panelC">
+        <h3>Controls</h3>
+        <p class="hint">The horizon shows the aircraft's roll from behind; the trace plots roll angle over time.</p>
+        <div class="btnrow">
+          <button class="btn red on" id="sglCtl">Controller: OFF</button>
+          <button class="btn" id="sglGust">Inject gust</button>
+          <button class="btn" id="sglReset">Reset</button>
+        </div>
+        <div class="ctl" style="margin-top:16px"><label>Roll weight Q<sub>φ</sub> <b id="sglQv">30</b></label><input type="range" id="sglQ" min="2" max="120" value="30"></div>
+        <div class="kchips" id="sglK"></div>
+        <div class="readout">
+          <div><span class="k">roll φ</span><span class="v" id="sglPhi">0.0°</span></div>
+          <div><span class="k">yaw ψ</span><span class="v" id="sglPsi">0.0°</span></div>
+          <div><span class="k">unstable λ</span><span class="v" id="sglLam" style="color:var(--red)">+0.00</span></div>
+          <div><span class="k">mode</span><span class="v" id="sglMode" style="color:var(--red)">DIVERGING</span></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--red)"></i>uncontrolled</span>
+          <span><i style="background:var(--acc)"></i>LQR controlled</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 TWIN BODY -->
+  <section id="twin">
+    <div class="wm">05</div>
+    <div class="eyebrow"><span class="num">05</span> Rig III · Coupled Flight</div>
+    <h2>Twin body — coupling, gusts &amp; structural LQR</h2>
+    <p class="lead">Two aircraft joined at a hinge. Now the bodies fight each other: a disturbance on one rolls the other. Standard LQR assumes clean decoupling; <b>structural LQR</b> respects the real cross-coupling between control inputs and outputs — and holds both bodies steady even through a gust.</p>
+    <div class="rig">
+      <div class="stage"><span class="badge">Two bodies · hinge coupling</span><span class="live">LIVE</span><canvas id="twinCanvas" height="320"></canvas>
+        <canvas id="twinPlot" height="150" style="border-top:1px solid var(--line)"></canvas></div>
+      <div class="panelC">
+        <h3>Controls</h3>
+        <p class="hint">Watch both bodies. A gust hits body 1 — see how it bleeds into body 2 through the hinge, and how control contains it.</p>
+        <div class="btnrow">
+          <button class="btn" id="twinCtl">Control: NONE</button>
+          <button class="btn" id="twinGust">Gust → body 1</button>
+        </div>
+        <div class="ctl" style="margin-top:16px"><label>Hinge coupling k <b id="twinKv">0.5</b></label><input type="range" id="twinKk" min="0" max="100" value="50"></div>
+        <div class="readout">
+          <div><span class="k">roll 1</span><span class="v" id="twinP1">0.0°</span></div>
+          <div><span class="k">roll 2</span><span class="v" id="twinP2">0.0°</span></div>
+          <div><span class="k">controller</span><span class="v" id="twinC" style="color:var(--red)">none</span></div>
+          <div><span class="k">peak roll</span><span class="v" id="twinPk">0.0°</span></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--cyan)"></i>body 1</span>
+          <span><i style="background:var(--amber)"></i>body 2</span>
+          <span><i style="background:var(--green)"></i>gust</span>
+        </div>
+        <div class="note">Cycle the control button: NONE → LQR → STRUCTURAL LQR. Structural LQR reacts more with the ailerons that actually drive roll, settling faster.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 A vs V CONFIG -->
+  <section id="config">
+    <div class="wm">06</div>
+    <div class="eyebrow"><span class="num">06</span> Rig IV · Variable Geometry</div>
+    <h2>A-configuration vs V-configuration</h2>
+    <p class="lead">The hinge angle reshapes the aircraft. A raised hinge (+17°) gives the <b>A-configuration</b>; a lowered hinge (−17°) gives the <b>V-configuration</b> — a genuinely non-linear change in dynamics. Sweep the hinge and compare how <b>no control</b>, <b>LQR</b>, and <b>LQG</b> handle each geometry.</p>
+    <div class="rig">
+      <div class="stage"><span class="badge">Hinge geometry · roll response</span><span class="live">LIVE</span><canvas id="cfgCanvas" height="240"></canvas>
+        <canvas id="cfgPlot" height="230" style="border-top:1px solid var(--line)"></canvas></div>
+      <div class="panelC">
+        <h3>Controls</h3>
+        <p class="hint">Drag the hinge slider between the two configurations. The plot shows roll response under three strategies; the geometry above morphs to match.</p>
+        <div class="ctl"><label>Hinge angle <b id="cfgAv">+17° · A-config</b></label><input type="range" id="cfgA" min="-17" max="17" value="17"></div>
+        <div class="btnrow">
+          <button class="btn on" id="cfgNo">No control</button>
+          <button class="btn on" id="cfgLqr">LQR</button>
+          <button class="btn on" id="cfgLqg">LQG</button>
+        </div>
+        <div class="readout">
+          <div><span class="k">config</span><span class="v" id="cfgName">A-configuration</span></div>
+          <div><span class="k">hinge</span><span class="v" id="cfgDeg">+17°</span></div>
+          <div><span class="k">open-loop λ</span><span class="v" id="cfgLam" style="color:var(--red)">+0.11</span></div>
+          <div><span class="k">stabilised</span><span class="v" id="cfgOk" style="color:var(--acc)">LQR+LQG</span></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--grey)"></i>no control</span>
+          <span><i style="background:var(--red)"></i>LQR</span>
+          <span><i style="background:var(--acc)"></i>LQG</span>
+        </div>
+        <div class="note">The V-configuration is the more erratic of the two — it needs more aileron authority, exactly as reported. LQG's Kalman estimate smooths the response versus raw LQR.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 BODE / NYQUIST -->
+  <section id="freq">
+    <div class="wm">07</div>
+    <div class="eyebrow"><span class="num">07</span> Frequency Domain</div>
+    <h2>Bode &amp; Nyquist — the system's fingerprint</h2>
+    <p class="lead">Time plots show <i>what</i> happens; frequency plots show <i>why</i>. The <b>Bode</b> curves reveal how strongly each input frequency is amplified and how far it is delayed; the <b>Nyquist</b> trace maps the same response onto the complex plane. Sweep the frequency marker and watch the point travel both plots at once.</p>
+    <div class="rig">
+      <div class="stage"><span class="badge">Bode · magnitude &amp; phase</span><span class="live">SWEEPING</span>
+        <canvas id="bodeCanvas" height="260"></canvas>
+        <canvas id="nyqCanvas" height="250" style="border-top:1px solid var(--line)"></canvas></div>
+      <div class="panelC">
+        <h3>Controls</h3>
+        <p class="hint">Drag the frequency marker; the same ω is highlighted on the Bode curves and the Nyquist locus. Toggle the controller to see how feedback reshapes the response.</p>
+        <div class="btnrow">
+          <button class="btn on" id="fqPen">Pendulum</button>
+          <button class="btn" id="fqSgl">Single body</button>
+          <button class="btn" id="fqTwin">Twin body</button>
+        </div>
+        <div class="ctl" style="margin-top:16px"><label>Frequency ω <b id="fqWv">1.00 rad/s</b></label><input type="range" id="fqW" min="0" max="1000" value="500"></div>
+        <div class="btnrow"><button class="btn on" id="fqCtl">Closed-loop (LQR)</button></div>
+        <div class="readout">
+          <div><span class="k">magnitude</span><span class="v" id="fqMag">0.0 dB</span></div>
+          <div><span class="k">phase</span><span class="v" id="fqPh">0.0°</span></div>
+          <div><span class="k">gain margin</span><span class="v" id="fqGm">—</span></div>
+          <div><span class="k">peak |G|</span><span class="v" id="fqPk">—</span></div>
+        </div>
+        <div class="note">A Nyquist locus that encircles the −1 point signals instability. Feedback pulls the curve away from it — the same story the eigenvalues tell, seen from another angle.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 KALMAN -->
+  <section id="kalman">
+    <div class="wm">08</div>
+    <div class="eyebrow"><span class="num">08</span> Optimal Estimation</div>
+    <h2>The Kalman filter — seeing through noise</h2>
+    <p class="lead">LQR assumes you can measure every state perfectly. Real sensors are noisy. The <b>Kalman filter</b> fuses a model prediction with noisy measurements to estimate the true state — and pairing it with LQR gives <b>LQG</b>. Crank the sensor noise and watch the estimate hold its nerve while the raw measurement scatters.</p>
+    <div class="rig">
+      <div class="stage"><span class="badge">Truth vs measurement vs estimate</span><span class="live">ESTIMATING</span>
+        <canvas id="kalCanvas" height="290"></canvas>
+        <canvas id="kalErr" height="130" style="border-top:1px solid var(--line)"></canvas></div>
+      <div class="panelC">
+        <h3>Controls</h3>
+        <p class="hint">Grey dots are what the sensor sees. The indigo line is the filter's estimate; the white line is the truth it cannot see directly.</p>
+        <div class="ctl"><label>Sensor noise <b id="kalNv">0.30</b></label><input type="range" id="kalN" min="0" max="100" value="30"></div>
+        <div class="ctl"><label>Filter trust in model <b id="kalTv">0.50</b></label><input type="range" id="kalT" min="1" max="99" value="50"></div>
+        <div class="btnrow">
+          <button class="btn on" id="kalOn">Filter: ON</button>
+          <button class="btn" id="kalKick">Disturb</button>
+        </div>
+        <div class="readout">
+          <div><span class="k">true roll</span><span class="v" id="kalTrue">0.0°</span></div>
+          <div><span class="k">estimate</span><span class="v" id="kalEst" style="color:var(--acc)">0.0°</span></div>
+          <div><span class="k">RMS error</span><span class="v" id="kalRms">0.00°</span></div>
+          <div><span class="k">raw noise σ</span><span class="v" id="kalSig">0.30</span></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:#e9edf5"></i>truth</span>
+          <span><i style="background:#5a6472"></i>measurement</span>
+          <span><i style="background:var(--acc)"></i>estimate</span>
+        </div>
+        <div class="note">Turn the filter off and the controller acts on raw noise — the response jitters. This is exactly why the dissertation's LQG design outperforms raw LQR under realistic sensing.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 EIGENVALUE SCOPE -->
+  <section id="scope">
+    <div class="wm">09</div>
+    <div class="eyebrow"><span class="num">09</span> The Stability Scope</div>
+    <h2>Watch the poles move</h2>
+    <p class="lead">Stability lives in the complex plane. Everything left of the vertical axis is stable; anything to the right diverges. Pick a system and drag the control weight — the <b>eigenvalues are recomputed live</b> and slide across the boundary as the controller does its work.</p>
+    <div class="rig">
+      <div class="stage"><span class="badge">Complex plane · s-domain</span><span class="live">λ LIVE</span><canvas id="scopeCanvas" height="380"></canvas></div>
+      <div class="panelC">
+        <h3>Controls</h3>
+        <p class="hint">Green poles are stable, red poles are unstable. Raise the control weight to pull the poles into the left half-plane.</p>
+        <div class="btnrow">
+          <button class="btn on" id="scPen">Pendulum</button>
+          <button class="btn" id="scSgl">Single body</button>
+          <button class="btn" id="scTwin">Twin body</button>
+        </div>
+        <div class="ctl" style="margin-top:16px"><label>Control authority <b id="scGv">50%</b></label><input type="range" id="scG" min="0" max="100" value="50"></div>
+        <div class="readout" id="scList" style="grid-template-columns:1fr"></div>
+        <div class="note" id="scStat">System stable — all eigenvalues in the left half-plane.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 LIT MAP -->
+  <section id="lit">
+    <div class="wm">10</div>
+    <div class="eyebrow"><span class="num">10</span> The Field</div>
+    <h2>Literature map</h2>
+    <p class="lead">The dissertation sits on a web of prior work — wingtip docking, formation flight, aerodynamic interaction, and modern control. Hover a node to trace its links; click to read the reference. Grouped by theme.</p>
+    <canvas id="litCanvas" height="440"></canvas>
+    <div class="litbox" id="litBox"><b>Hover a paper</b> to see its role, or click a node for the full citation. The central node is this dissertation.</div>
+    <div class="litlegend" id="litLegend"></div>
+  </section>
+
+  <!-- 09 FINDINGS -->
+  <section id="findings">
+    <div class="wm">11</div>
+    <div class="eyebrow"><span class="num">11</span> Outcomes</div>
+    <h2>Findings &amp; the code behind them</h2>
+    <p class="lead">A progression from an unstable pole to a stabilised variable-geometry twin — each stage stabilised, analysed, and simulated. The conclusions, chapter by chapter:</p>
+    <div class="accordion" id="acc"></div>
+
+    <h3 style="margin-top:34px; font-size:16px">The MATLAB behind the pendulum</h3>
+    <p class="body">The exact appendix routine — build A and B, solve the LQR, verify the closed-loop eigenvalues. This is the code the rig above reproduces in JavaScript.</p>
+    <div class="codeblk">
+      <div class="top"><span>inverted_pendulum_lqr.m</span><button class="copy" data-code="pen">Copy</button></div>
+      <pre id="code-pen"></pre>
+    </div>
+    <div class="codeblk">
+      <div class="top"><span>check_aircraft_stability.m</span><button class="copy" data-code="stab">Copy</button></div>
+      <pre id="code-stab"></pre>
+    </div>
+  </section>
+
+  <footer>
+    HALCYON · an interactive visualisation of <i>Control of Fixed-Wing UAV</i> · Siddarth Jawahar, University of Liverpool 2023<br>
+    Part of the <a href="index.html">ARGUS Suite</a> · control math runs live in-browser
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   LINEAR ALGEBRA + CONTROL KERNEL  (tested)
+   ============================================================ */
+const LA=(function(){
+  const zeros=(r,c)=>Array.from({length:r},()=>Array(c).fill(0));
+  const eye=(n,s=1)=>Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?s:0));
+  const mul=(A,B)=>{const r=A.length,c=B[0].length,k=B.length,C=zeros(r,c);
+    for(let i=0;i<r;i++)for(let j=0;j<c;j++){let s=0;for(let t=0;t<k;t++)s+=A[i][t]*B[t][j];C[i][j]=s;}return C;};
+  const add=(A,B)=>A.map((r,i)=>r.map((v,j)=>v+B[i][j]));
+  const sub=(A,B)=>A.map((r,i)=>r.map((v,j)=>v-B[i][j]));
+  const scale=(A,s)=>A.map(r=>r.map(v=>v*s));
+  const T=(A)=>A[0].map((_,j)=>A.map(r=>r[j]));
+  const inv=(M)=>{const n=M.length,A=M.map((r,i)=>[...r,...eye(n)[i]]);
+    for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[p][c]))p=r;
+      [A[c],A[p]]=[A[p],A[c]];const d=A[c][c];if(Math.abs(d)<1e-13)throw"singular";
+      for(let j=0;j<2*n;j++)A[c][j]/=d;
+      for(let r=0;r<n;r++){if(r===c)continue;const f=A[r][c];for(let j=0;j<2*n;j++)A[r][j]-=f*A[c][j];}}
+    return A.map(r=>r.slice(n));};
+  function hess(A){const n=A.length,H=A.map(r=>r.slice());
+    for(let m=1;m<n-1;m++){let x=0,i=m;for(let j=m;j<n;j++){if(Math.abs(H[j][m-1])>Math.abs(x)){x=H[j][m-1];i=j;}}
+      if(i!==m){for(let j=m-1;j<n;j++){const t=H[i][j];H[i][j]=H[m][j];H[m][j]=t;}
+        for(let j=0;j<n;j++){const t=H[j][i];H[j][i]=H[j][m];H[j][m]=t;}}
+      if(x!==0)for(i=m+1;i<n;i++){let y=H[i][m-1];if(y!==0){y/=x;H[i][m-1]=y;
+        for(let j=m;j<n;j++)H[i][j]-=y*H[m][j];for(let j=0;j<n;j++)H[j][m]+=y*H[j][i];}}}
+    return H;}
+  function eigenvalues(Ain){const n=Ain.length,H=hess(Ain);const wr=Array(n).fill(0),wi=Array(n).fill(0);
+    let nn=n-1,t=0,z,y,x,w,v,u,s,r,q,p,anorm=0;
+    for(let i=0;i<n;i++)for(let j=Math.max(i-1,0);j<n;j++)anorm+=Math.abs(H[i][j]);
+    while(nn>=0){let its=0,l;
+      do{for(l=nn;l>=1;l--){s=Math.abs(H[l-1][l-1])+Math.abs(H[l][l]);if(s===0)s=anorm;
+          if(Math.abs(H[l][l-1])<=1e-13*s){H[l][l-1]=0;break;}}
+        x=H[nn][nn];
+        if(l===nn){wr[nn]=x+t;wi[nn]=0;nn--;}
+        else{y=H[nn-1][nn-1];w=H[nn][nn-1]*H[nn-1][nn];
+          if(l===nn-1){p=0.5*(y-x);q=p*p+w;z=Math.sqrt(Math.abs(q));x+=t;
+            if(q>=0){z=p+(p>=0?Math.abs(z):-Math.abs(z));wr[nn-1]=wr[nn]=x+z;if(z!==0)wr[nn]=x-w/z;wi[nn-1]=wi[nn]=0;}
+            else{wr[nn-1]=wr[nn]=x+p;wi[nn-1]=-(wi[nn]=z);}nn-=2;}
+          else{if(its===60){if(its>90)return dump();t+=x;for(let i=0;i<=nn;i++)H[i][i]-=x;
+              s=Math.abs(H[nn][nn-1])+Math.abs(H[nn-1][nn-2]);y=x=0.75*s;w=-0.4375*s*s;}
+            its++;let m;
+            for(m=nn-2;m>=l;m--){z=H[m][m];r=x-z;s=y-z;p=(r*s-w)/H[m+1][m]+H[m][m+1];
+              q=H[m+1][m+1]-z-r-s;r=H[m+2][m+1];s=Math.abs(p)+Math.abs(q)+Math.abs(r);p/=s;q/=s;r/=s;
+              if(m===l)break;u=Math.abs(H[m][m-1])*(Math.abs(q)+Math.abs(r));
+              v=Math.abs(p)*(Math.abs(H[m-1][m-1])+Math.abs(z)+Math.abs(H[m+1][m+1]));
+              if(u<=1e-13*v)break;}
+            for(let i=m+2;i<=nn;i++){H[i][i-2]=0;if(i!==m+2)H[i][i-3]=0;}
+            for(let k=m;k<=nn-1;k++){
+              if(k!==m){p=H[k][k-1];q=H[k+1][k-1];r=0;if(k!==nn-1)r=H[k+2][k-1];
+                if((x=Math.abs(p)+Math.abs(q)+Math.abs(r))!==0){p/=x;q/=x;r/=x;}}
+              if((s=Math.sqrt(p*p+q*q+r*r)*(p>=0?1:-1))!==0){
+                if(k===m){if(l!==m)H[k][k-1]=-H[k][k-1];}else H[k][k-1]=-s*x;
+                p+=s;x=p/s;y=q/s;z=r/s;q/=p;r/=p;
+                for(let j=k;j<=nn;j++){p=H[k][j]+q*H[k+1][j];if(k!==nn-1){p+=r*H[k+2][j];H[k+2][j]-=p*z;}H[k+1][j]-=p*y;H[k][j]-=p*x;}
+                const mm=nn<k+3?nn:k+3;
+                for(let i=l;i<=mm;i++){p=x*H[i][k]+y*H[i][k+1];if(k!==nn-1){p+=z*H[i][k+2];H[i][k+2]-=p*r;}H[i][k+1]-=p*q;H[i][k]-=p;}}}
+          }}
+      }while(l<nn-1);}
+    function dump(){const e=[];for(let i=0;i<n;i++)e.push([wr[i],wi[i]]);return e;}
+    return dump();}
+  // continuous Lyapunov  M'P + PM = -C
+  function lyap(M,C){const n=M.length,N=n*n,Kr=zeros(N,N),b=[],Mt=T(M);
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){const row=i*n+j;
+      for(let k=0;k<n;k++){Kr[row][k*n+j]+=Mt[i][k];Kr[row][i*n+k]+=Mt[j][k];}b.push([-C[i][j]]);}
+    const x=mul(inv(Kr),b),P=zeros(n,n);
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++)P[i][j]=x[i*n+j][0];return P;}
+  // differential Riccati (robust initial solve)
+  function careDiff(A,B,Q,R){const n=A.length,Rinv=inv(R),At=T(A),Bt=T(B);let P=zeros(n,n);const dt=0.002;
+    const f=(P)=>{const AtP=mul(At,P),PA=mul(P,A),PB=mul(P,B),BtP=mul(Bt,P);
+      return add(sub(add(AtP,PA),mul(mul(PB,Rinv),BtP)),Q);};
+    for(let it=0;it<120000;it++){const k1=f(P),k2=f(add(P,scale(k1,dt/2))),k3=f(add(P,scale(k2,dt/2))),k4=f(add(P,scale(k3,dt)));
+      const inc=scale(add(add(k1,scale(k2,2)),add(scale(k3,2),k4)),dt/6);P=add(P,inc);
+      let nm=0;inc.forEach(r=>r.forEach(v=>nm+=Math.abs(v)));if(nm<1e-9)break;}
+    return mul(mul(Rinv,Bt),P);}
+  // fast Kleinman iteration, warm-started
+  function careK(A,B,Q,R,K0){const Rinv=inv(R),Bt=T(B);let K=K0;
+    for(let it=0;it<50;it++){const Ac=sub(A,mul(B,K));const C=add(Q,mul(mul(T(K),R),K));
+      let P;try{P=lyap(Ac,C);}catch(e){return K;}const Kn=mul(mul(Rinv,Bt),P);
+      let d=0;Kn.forEach((r,i)=>r.forEach((v,j)=>d+=Math.abs(v-K[i][j])));K=Kn;if(d<1e-9)break;}
+    return K;}
+  // ---- complex helpers for frequency response ----
+  const Cx={add:(a,b)=>[a[0]+b[0],a[1]+b[1]],sub:(a,b)=>[a[0]-b[0],a[1]-b[1]],
+    mul:(a,b)=>[a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]],
+    div:(a,b)=>{const d=b[0]*b[0]+b[1]*b[1]||1e-18;return [(a[0]*b[0]+a[1]*b[1])/d,(a[1]*b[0]-a[0]*b[1])/d];},
+    abs:(a)=>Math.hypot(a[0],a[1]),arg:(a)=>Math.atan2(a[1],a[0])};
+  function cInv(M){const n=M.length;
+    const A=M.map((r,i)=>r.map(v=>[v[0],v[1]]).concat(Array.from({length:n},(_,j)=>i===j?[1,0]:[0,0])));
+    for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Cx.abs(A[r][c])>Cx.abs(A[p][c]))p=r;
+      [A[c],A[p]]=[A[p],A[c]];const d=A[c][c];
+      for(let j=0;j<2*n;j++)A[c][j]=Cx.div(A[c][j],d);
+      for(let r=0;r<n;r++){if(r===c)continue;const f=A[r][c];
+        for(let j=0;j<2*n;j++)A[r][j]=Cx.sub(A[r][j],Cx.mul(f,A[c][j]));}}
+    return A.map(r=>r.slice(n));}
+  // SISO frequency response: G(jw) = C (jwI - A)^-1 B + D
+  function freqResp(A,B,C,D,w){const n=A.length;
+    const M=A.map((row,i)=>row.map((v,j)=>[-v,(i===j?w:0)]));
+    let Mi;try{Mi=cInv(M);}catch(e){return [0,0];}
+    let acc=[0,0];
+    for(let i=0;i<n;i++){let s=[0,0];
+      for(let k=0;k<n;k++)s=Cx.add(s,Cx.mul(Mi[i][k],[B[k][0],0]));
+      acc=Cx.add(acc,Cx.mul([C[0][i],0],s));}
+    return Cx.add(acc,[(D&&D[0]&&D[0][0])||0,0]);}
+  return {zeros,eye,mul,add,sub,scale,T,inv,eigenvalues,lyap,careDiff,careK,Cx,freqResp};
+})();
+
+/* run only visible canvases */
+function onVisible(el,cb){const io=new IntersectionObserver(es=>es.forEach(e=>cb(e.isIntersecting)),{threshold:.05});io.observe(el);}
+const D2R=Math.PI/180, R2D=180/Math.PI;
+
+/* ============================================================
+   00 · HERO — animated hinged multibody UAV
+   ============================================================ */
+(function(){
+  const cv=document.getElementById('heroCanvas'),ctx=cv.getContext('2d');let W,H,t=0,vis=true;
+  function size(){const r=cv.getBoundingClientRect();const dpr=Math.min(2,devicePixelRatio||1);
+    cv.width=r.width*dpr;cv.height=r.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=r.height;}
+  size();addEventListener('resize',size);
+  const N=6; // bodies
+  function plane(x,y,s,rot,alpha){ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.globalAlpha=alpha;
+    ctx.strokeStyle='rgba(139,147,255,.9)';ctx.fillStyle='rgba(139,147,255,.10)';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(0,-7*s);ctx.lineTo(0,7*s);ctx.moveTo(-9*s,-2*s);ctx.lineTo(9*s,-2*s);
+    ctx.moveTo(-4*s,6*s);ctx.lineTo(4*s,6*s);ctx.stroke();
+    ctx.beginPath();ctx.arc(0,-1*s,2.2*s,0,7);ctx.fillStyle='rgba(139,147,255,.5)';ctx.fill();ctx.restore();}
+  function frame(){if(!vis){return;}t+=0.016;ctx.clearRect(0,0,W,H);
+    // faint grid
+    ctx.strokeStyle='rgba(40,48,64,.35)';ctx.lineWidth=1;
+    for(let x=0;x<W;x+=46){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=46){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+    // vignette handled by CSS bg; draw the multibody span
+    const cx=W*0.62,cy=H*0.5,span=Math.min(W*0.5,620),step=span/(N-1);
+    const pts=[];
+    for(let i=0;i<N;i++){const fx=cx-span/2+step*i;
+      const hinge=Math.sin(t*0.9+i*0.7)*20*(1-Math.abs(i-(N-1)/2)/N); // gentle flex
+      const fy=cy+hinge+Math.sin(t*0.5)*8; pts.push([fx,fy,hinge]);}
+    // beam
+    ctx.strokeStyle='rgba(139,147,255,.55)';ctx.lineWidth=2.4;ctx.beginPath();
+    pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();
+    ctx.strokeStyle='rgba(139,147,255,.14)';ctx.lineWidth=8;ctx.stroke();
+    // bodies + hinge nodes
+    pts.forEach((p,i)=>{const rot=(p[2])*0.006 + Math.sin(t*0.8+i)*0.03;plane(p[0],p[1],1.7,rot,0.95);
+      ctx.fillStyle='rgba(139,147,255,.9)';ctx.beginPath();ctx.arc(p[0],p[1],2.2,0,7);ctx.fill();
+      if(i<N-1){ctx.fillStyle='rgba(139,147,255,.25)';ctx.beginPath();ctx.arc((p[0]+pts[i+1][0])/2,(p[1]+pts[i+1][1])/2,1.6,0,7);ctx.fill();}});
+    // drifting particles for depth
+    for(let i=0;i<24;i++){const px=((i*137+t*40)%(W+80))-40;const py=(i*53%H);
+      ctx.fillStyle='rgba(139,147,255,'+(0.04+0.05*Math.sin(t+i))+')';ctx.fillRect(px,py,2,2);}
+    requestAnimationFrame(frame);}
+  onVisible(cv,v=>{vis=v;if(v)frame();});frame();
+})();
+
+/* ============================================================
+   03 · INVERTED PENDULUM  (real thesis A,B + live LQR)
+   ============================================================ */
+(function(){
+  const M1=[[0,0,2,-1],[0,0,-1,1],[0,1,0,0],[-1,0,0,0]],M2=[[0,0,0,0],[0,9.8,0,0],[0,0,0,1],[0,0,1,0]];
+  const A=LA.mul(LA.inv(M1),M2), B=LA.mul(LA.inv(M1),[[1],[0],[0],[0]]);
+  let K=LA.careDiff(A,B,LA.eye(4),[[1]]); // stabilizing init
+  // state: [x, dx?, theta, omega]? thesis ordering: q=[x? ...]; we simulate x=[pos,vel,theta,omega]
+  // A maps: row0: dq0=-q2 ; row1: dq1=q3 ; row2: dq2=9.8 q1 ; row3: dq3=19.6 q1 . Use as-is (linearized) with control.
+  let x=[0,0,8*D2R,0], ctlOn=true;
+  const cv=document.getElementById('penCanvas'),ctx=cv.getContext('2d');let W,H,vis=false,drag=false;
+  function size(){const r=cv.getBoundingClientRect();const dpr=Math.min(2,devicePixelRatio||1);cv.width=r.width*dpr;cv.height=340*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=340;}
+  size();addEventListener('resize',size);
+  function solveK(){const q=+document.getElementById('penQ').value, r=+document.getElementById('penR').value/10;
+    document.getElementById('penQv').textContent=q; document.getElementById('penRv').textContent=r.toFixed(1);
+    const Q=LA.eye(4);Q[2][2]=q;Q[3][3]=q/4;
+    try{K=LA.careK(A,B,Q,[[Math.max(0.1,r)]],K);}catch(e){}
+    document.getElementById('penK').innerHTML='K = '+K[0].map(v=>'<span class="kchip">'+v.toFixed(2)+'</span>').join('');}
+  document.getElementById('penQ').oninput=solveK; document.getElementById('penR').oninput=solveK;
+  document.getElementById('penCtl').onclick=function(){ctlOn=!ctlOn;this.textContent='Controller: '+(ctlOn?'ON':'OFF');this.classList.toggle('on',ctlOn);};
+  document.getElementById('penKick').onclick=()=>{x[2]+=(Math.random()>.5?1:-1)*14*D2R;x[3]+=(Math.random()-.5)*2;};
+  // drag
+  function px(e){const r=cv.getBoundingClientRect();const cx=e.touches?e.touches[0].clientX:e.clientX;return cx-r.left;}
+  cv.addEventListener('mousedown',e=>{drag=true;});cv.addEventListener('touchstart',e=>{drag=true;});
+  addEventListener('mouseup',()=>drag=false);addEventListener('touchend',()=>drag=false);
+  cv.addEventListener('mousemove',e=>{if(drag){const mx=px(e);const cartX=W/2+x[0]*60;x[2]=Math.atan2((mx-cartX),140);x[3]=0;}});
+  function step(dt){
+    let u=0; if(ctlOn){const kx=LA.mul(K,[[x[0]],[x[1]],[x[2]],[x[3]]]);u=-kx[0][0];u=Math.max(-30,Math.min(30,u));}
+    // dynamics dx = A x + B u  (linearized thesis model)
+    const dx=[ -x[2] + B[0][0]*u, x[3] + B[1][0]*u, 9.8*x[1] + B[2][0]*u, 19.6*x[1] + B[3][0]*u ];
+    // Interpret physically for the picture: treat x[2] as pole angle, integrate a cart under it.
+    for(let i=0;i<4;i++)x[i]+=dx[i]*dt;
+    // keep cart on screen
+    x[0]=Math.max(-4,Math.min(4,x[0]));
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // rail
+    const railY=H*0.72; ctx.strokeStyle='rgba(40,48,64,.9)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(20,railY);ctx.lineTo(W-20,railY);ctx.stroke();
+    for(let gx=30;gx<W-20;gx+=40){ctx.strokeStyle='rgba(40,48,64,.5)';ctx.beginPath();ctx.moveTo(gx,railY);ctx.lineTo(gx-6,railY+8);ctx.stroke();}
+    const cartX=W/2+x[0]*60, cartW=64, cartH=26;
+    // pole
+    const L=120, th=x[2], pxr=cartX+Math.sin(th)*L, pyr=railY-cartH-Math.cos(th)*L;
+    const unstable=Math.abs(th)>50*D2R;
+    ctx.strokeStyle=unstable?'rgba(255,93,103,.95)':'rgba(139,147,255,.95)';ctx.lineWidth=5;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(cartX,railY-cartH);ctx.lineTo(pxr,pyr);ctx.stroke();
+    ctx.fillStyle=unstable?'#ff5d67':'#8b93ff';ctx.beginPath();ctx.arc(pxr,pyr,9,0,7);ctx.fill();
+    ctx.globalAlpha=.25;ctx.beginPath();ctx.arc(pxr,pyr,16,0,7);ctx.fill();ctx.globalAlpha=1;
+    // cart
+    ctx.fillStyle='#141b28';ctx.strokeStyle='rgba(139,147,255,.5)';ctx.lineWidth=1.5;
+    roundRect(cartX-cartW/2,railY-cartH,cartW,cartH,5);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(139,147,255,.7)';ctx.beginPath();ctx.arc(cartX-16,railY,5,0,7);ctx.arc(cartX+16,railY,5,0,7);ctx.fill();
+    // force arrow
+    let u=0;if(ctlOn){const kx=LA.mul(K,[[x[0]],[x[1]],[x[2]],[x[3]]]);u=-kx[0][0];}
+    if(Math.abs(u)>0.4){const dir=Math.sign(u),ax=cartX+dir*(cartW/2+6);ctx.strokeStyle='var(--acc)';ctx.strokeStyle='#8b93ff';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(ax,railY-cartH/2);ctx.lineTo(ax+dir*Math.min(34,Math.abs(u)*2),railY-cartH/2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(ax+dir*Math.min(34,Math.abs(u)*2),railY-cartH/2);ctx.lineTo(ax+dir*Math.min(34,Math.abs(u)*2)-dir*6,railY-cartH/2-4);ctx.lineTo(ax+dir*Math.min(34,Math.abs(u)*2)-dir*6,railY-cartH/2+4);ctx.fill();}
+    // readouts
+    document.getElementById('penTh').textContent=(th*R2D).toFixed(1)+'°';
+    document.getElementById('penX').textContent=x[0].toFixed(2);
+    document.getElementById('penU').textContent=u.toFixed(1);
+    const st=document.getElementById('penStat');
+    if(unstable){st.textContent='FALLEN';st.style.color='#ff5d67';}
+    else if(Math.abs(th)>8*D2R){st.textContent='recovering';st.style.color='#f5b544';}
+    else{st.textContent='balanced';st.style.color='#8b93ff';}
+  }
+  function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+  let last=0;
+  function loop(ts){if(!vis)return;const dt=Math.min(0.03,(ts-last)/1000||0.016);last=ts;
+    if(!drag){for(let i=0;i<3;i++)step(dt/3);} draw();requestAnimationFrame(loop);}
+  solveK();
+  onVisible(cv,v=>{vis=v;if(v){last=performance.now();requestAnimationFrame(loop);}});
+})();
+
+/* ============================================================
+   generic lateral roll model helpers
+   ============================================================ */
+function rollModel(a,b){ // 4-state [phi,p,psi,r]; a>0 unstable
+  return [[0,1,0,0],[a,-b,0.25,0.1],[0,0,0,1],[-0.3,0.15,-0.6,-0.4]];
+}
+
+/* ============================================================
+   04 · SINGLE RIGID BODY
+   ============================================================ */
+(function(){
+  const A=rollModel(0.55,0.5); // unstable roll
+  const B=[[0,0],[7,0.4],[0,0],[0.3,5]]; // aileron, rudder
+  let K=LA.careDiff(A,B,LA.eye(4),LA.eye(2));
+  let x=[6*D2R,0,0,0], ctlOn=false, hist=[], t=0, vis=false;
+  const cv=document.getElementById('sglCanvas'),ctx=cv.getContext('2d');
+  const pv=document.getElementById('sglPlot'),pctx=pv.getContext('2d');let W,H,PW,PH;
+  function size(){const dpr=Math.min(2,devicePixelRatio||1);let r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=300*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=300;
+    r=pv.getBoundingClientRect();pv.width=r.width*dpr;pv.height=150*dpr;pctx.setTransform(dpr,0,0,dpr,0,0);PW=r.width;PH=150;}
+  size();addEventListener('resize',size);
+  function solveK(){const q=+document.getElementById('sglQ').value;document.getElementById('sglQv').textContent=q;
+    const Q=LA.eye(4);Q[0][0]=q;Q[2][2]=q/3;try{K=LA.careK(A,B,Q,LA.eye(2),K);}catch(e){}
+    document.getElementById('sglK').innerHTML='K<sub>roll</sub> = '+K[0].map(v=>'<span class="kchip">'+v.toFixed(2)+'</span>').join('');
+    updLam();}
+  function updLam(){const Acl=ctlOn?LA.sub(A,LA.mul(B,K)):A;const ev=LA.eigenvalues(Acl);
+    let worst=-9;ev.forEach(e=>{if(e[0]>worst)worst=e[0];});
+    document.getElementById('sglLam').textContent=(worst>=0?'+':'')+worst.toFixed(2);
+    document.getElementById('sglLam').style.color=worst>0?'#ff5d67':'#8b93ff';
+    const md=document.getElementById('sglMode');
+    if(worst>0.01){md.textContent='DIVERGING';md.style.color='#ff5d67';}else{md.textContent='STABLE';md.style.color='#8b93ff';}}
+  document.getElementById('sglQ').oninput=solveK;
+  document.getElementById('sglCtl').onclick=function(){ctlOn=!ctlOn;this.textContent='Controller: '+(ctlOn?'ON':'OFF');
+    this.classList.toggle('on',ctlOn);this.classList.toggle('red',!ctlOn);updLam();};
+  document.getElementById('sglGust').onclick=()=>{x[1]+=(Math.random()-.5)*3;x[3]+=(Math.random()-.5)*1.5;};
+  document.getElementById('sglReset').onclick=()=>{x=[6*D2R,0,0,0];hist=[];t=0;};
+  function step(dt){let u=[[0],[0]];if(ctlOn){u=LA.scale(LA.mul(K,[[x[0]],[x[1]],[x[2]],[x[3]]]),-1);}
+    const Ax=LA.mul(A,[[x[0]],[x[1]],[x[2]],[x[3]]]);const Bu=LA.mul(B,u);
+    for(let i=0;i<4;i++)x[i]+=(Ax[i][0]+Bu[i][0])*dt;
+    for(let i=0;i<4;i++)x[i]=Math.max(-6,Math.min(6,x[i]));
+    t+=dt;hist.push([t,x[0]]);if(hist.length>420)hist.shift();}
+  function horizon(){ctx.clearRect(0,0,W,H);const cx=W/2,cy=H/2,roll=x[0];
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(-roll);
+    // sky/ground
+    ctx.fillStyle='rgba(139,147,255,.06)';ctx.fillRect(-W,-H,2*W,H);
+    ctx.fillStyle='rgba(74,222,128,.05)';ctx.fillRect(-W,0,2*W,H);
+    ctx.strokeStyle='rgba(139,147,255,.5)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-W,0);ctx.lineTo(W,0);ctx.stroke();
+    for(let p=-60;p<=60;p+=20){if(p===0)continue;const yy=p*1.6;ctx.strokeStyle='rgba(120,130,150,.3)';ctx.beginPath();ctx.moveTo(-30,yy);ctx.lineTo(30,yy);ctx.stroke();}
+    ctx.restore();
+    // aircraft (behind view)
+    const bad=Math.abs(roll)>45*D2R;ctx.strokeStyle=(ctlOn?'#8b93ff':(bad?'#ff5d67':'#ff5d67'));ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(cx-46,cy);ctx.lineTo(cx+46,cy);ctx.moveTo(cx,cy);ctx.lineTo(cx,cy-14);ctx.stroke();
+    ctx.fillStyle=ctlOn?'#8b93ff':'#ff5d67';ctx.beginPath();ctx.arc(cx,cy,4.5,0,7);ctx.fill();
+    // bank markers
+    ctx.strokeStyle='rgba(120,130,150,.4)';ctx.lineWidth=1;
+    for(let ba=-60;ba<=60;ba+=30){const aa=(ba-90)*D2R;ctx.beginPath();ctx.moveTo(cx+Math.cos(aa)*70,cy+Math.sin(aa)*70);ctx.lineTo(cx+Math.cos(aa)*78,cy+Math.sin(aa)*78);ctx.stroke();}
+    document.getElementById('sglPhi').textContent=(roll*R2D).toFixed(1)+'°';
+    document.getElementById('sglPsi').textContent=(x[2]*R2D).toFixed(1)+'°';}
+  function plot(){pctx.clearRect(0,0,PW,PH);const midY=PH/2;
+    pctx.strokeStyle='rgba(40,48,64,.7)';pctx.lineWidth=1;pctx.beginPath();pctx.moveTo(0,midY);pctx.lineTo(PW,midY);pctx.stroke();
+    pctx.fillStyle='rgba(120,130,150,.5)';pctx.font='9px ui-monospace';pctx.fillText('roll φ',6,12);
+    if(hist.length>1){pctx.strokeStyle=ctlOn?'#8b93ff':'#ff5d67';pctx.lineWidth=1.6;pctx.beginPath();
+      const t0=hist[0][0],t1=hist[hist.length-1][0]||1,span=Math.max(1,t1-t0);
+      hist.forEach((h,i)=>{const px=(h[0]-t0)/span*PW;const py=midY-Math.max(-3,Math.min(3,h[1]))/3*midY*0.9;i?pctx.lineTo(px,py):pctx.moveTo(px,py);});pctx.stroke();}}
+  let last=0;function loop(ts){if(!vis)return;const dt=Math.min(0.03,(ts-last)/1000||0.016);last=ts;
+    for(let i=0;i<2;i++)step(dt/2);horizon();plot();requestAnimationFrame(loop);}
+  solveK();document.getElementById('sglCtl').classList.add('red');
+  onVisible(cv,v=>{vis=v;if(v){last=performance.now();requestAnimationFrame(loop);}});
+})();
+
+/* ============================================================
+   05 · TWIN BODY
+   ============================================================ */
+(function(){
+  function twinA(k){return [[0,1,0,0],[0.5-k,-0.5,k,0],[0,0,0,1],[k,0,0.5-k,-0.5]];}
+  const B=[[0,0],[6,0],[0,0],[0,6]];
+  let k=0.5, A=twinA(k), K=LA.careDiff(A,B,LA.eye(4),LA.eye(2)), mode=0;// 0 none,1 lqr,2 slqr
+  let x=[3*D2R,0,-2*D2R,0], t=0, vis=false, peak=0, gustT=0;
+  const cv=document.getElementById('twinCanvas'),ctx=cv.getContext('2d');
+  const pv=document.getElementById('twinPlot'),pctx=pv.getContext('2d');let W,H,PW,PH,hist=[];
+  function size(){const dpr=Math.min(2,devicePixelRatio||1);let r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=320*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=320;
+    r=pv.getBoundingClientRect();pv.width=r.width*dpr;pv.height=150*dpr;pctx.setTransform(dpr,0,0,dpr,0,0);PW=r.width;PH=150;}
+  size();addEventListener('resize',size);
+  function reK(){A=twinA(k);const Q=LA.eye(4);Q[0][0]=20;Q[2][2]=20;
+    try{K=LA.careK(A,B,Q,mode===2?[[0.4,0],[0,0.4]]:LA.eye(2),K);}catch(e){}}
+  document.getElementById('twinKk').oninput=function(){k=+this.value/100;document.getElementById('twinKv').textContent=k.toFixed(2);reK();};
+  document.getElementById('twinCtl').onclick=function(){mode=(mode+1)%3;
+    this.textContent='Control: '+['NONE','LQR','STRUCT LQR'][mode];this.classList.toggle('on',mode>0);
+    document.getElementById('twinC').textContent=['none','LQR','structural'][mode];
+    document.getElementById('twinC').style.color=mode>0?'#8b93ff':'#ff5d67';reK();};
+  document.getElementById('twinGust').onclick=()=>{x[1]+=4;gustT=1;};
+  function step(dt){let u=[[0],[0]];if(mode>0){u=LA.scale(LA.mul(K,[[x[0]],[x[1]],[x[2]],[x[3]]]),-1);}
+    const Ax=LA.mul(A,[[x[0]],[x[1]],[x[2]],[x[3]]]),Bu=LA.mul(B,u);
+    for(let i=0;i<4;i++)x[i]+=(Ax[i][0]+Bu[i][0])*dt;
+    for(let i=0;i<4;i++)x[i]=Math.max(-4,Math.min(4,x[i]));
+    if(gustT>0)gustT-=dt; t+=dt;
+    peak=Math.max(peak*0.999,Math.abs(x[0]*R2D),Math.abs(x[2]*R2D));
+    hist.push([x[0],x[2]]);if(hist.length>300)hist.shift();}
+  function body(cx,cy,roll,col){ctx.save();ctx.translate(cx,cy);ctx.rotate(roll);
+    ctx.strokeStyle=col;ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-42,0);ctx.lineTo(42,0);
+    ctx.moveTo(0,0);ctx.lineTo(0,-12);ctx.stroke();ctx.fillStyle=col;ctx.beginPath();ctx.arc(0,0,4,0,7);ctx.fill();ctx.restore();}
+  function draw(){ctx.clearRect(0,0,W,H);const cy=H/2;
+    const c1x=W*0.32,c2x=W*0.68;
+    // hinge beam between wingtips
+    const t1x=c1x+42*Math.cos(x[0]),t1y=cy+42*Math.sin(x[0]);
+    const t2x=c2x-42*Math.cos(x[2]),t2y=cy-42*Math.sin(x[2]);
+    ctx.strokeStyle='rgba(139,147,255,.4)';ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(t1x,t1y);ctx.lineTo(t2x,t2y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(139,147,255,.8)';ctx.beginPath();ctx.arc((t1x+t2x)/2,(t1y+t2y)/2,3,0,7);ctx.fill();
+    body(c1x,cy,x[0],'#34d6ee');body(c2x,cy,x[2],'#f5b544');
+    if(gustT>0){ctx.strokeStyle='rgba(74,222,128,'+gustT+')';ctx.lineWidth=2;for(let i=0;i<4;i++){const yy=cy-40+i*22;ctx.beginPath();ctx.moveTo(c1x-70,yy);ctx.lineTo(c1x-46,yy);ctx.stroke();}}
+    ctx.fillStyle='rgba(120,130,150,.5)';ctx.font='9px ui-monospace';ctx.fillText('BODY 1',c1x-20,cy+62);ctx.fillText('BODY 2',c2x-20,cy+62);
+    document.getElementById('twinP1').textContent=(x[0]*R2D).toFixed(1)+'°';
+    document.getElementById('twinP2').textContent=(x[2]*R2D).toFixed(1)+'°';
+    document.getElementById('twinPk').textContent=peak.toFixed(1)+'°';}
+  function plot(){pctx.clearRect(0,0,PW,PH);const midY=PH/2;
+    pctx.strokeStyle='rgba(40,48,64,.7)';pctx.beginPath();pctx.moveTo(0,midY);pctx.lineTo(PW,midY);pctx.stroke();
+    const draw=(idx,col)=>{if(hist.length<2)return;pctx.strokeStyle=col;pctx.lineWidth=1.6;pctx.beginPath();
+      hist.forEach((h,i)=>{const px=i/300*PW;const py=midY-Math.max(-2,Math.min(2,h[idx]))/2*midY*0.9;i?pctx.lineTo(px,py):pctx.moveTo(px,py);});pctx.stroke();};
+    draw(0,'#34d6ee');draw(1,'#f5b544');}
+  let last=0;function loop(ts){if(!vis)return;const dt=Math.min(0.03,(ts-last)/1000||0.016);last=ts;
+    for(let i=0;i<2;i++)step(dt/2);draw();plot();requestAnimationFrame(loop);}
+  reK();onVisible(cv,v=>{vis=v;if(v){last=performance.now();requestAnimationFrame(loop);}});
+})();
+
+/* ============================================================
+   06 · A vs V CONFIG
+   ============================================================ */
+(function(){
+  function cfgA(h){const c=0.5+0.4*Math.cos(h*D2R);const inst=0.11+0.06*(1-Math.cos(h*D2R));
+    return [[0,1,0,0],[inst,-0.45,c*0.5,0],[0,0,0,1],[c*0.5,0,inst,-0.45]];}
+  const B=[[0,0],[6,0],[0,0],[0,6]];
+  let hinge=17, vis=false, show={no:true,lqr:true,lqg:true};
+  const cv=document.getElementById('cfgCanvas'),ctx=cv.getContext('2d');
+  const pv=document.getElementById('cfgPlot'),pctx=pv.getContext('2d');let W,H,PW,PH;
+  function size(){const dpr=Math.min(2,devicePixelRatio||1);let r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=240*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=240;
+    r=pv.getBoundingClientRect();pv.width=r.width*dpr;pv.height=230*dpr;pctx.setTransform(dpr,0,0,dpr,0,0);PW=r.width;PH=230;}
+  size();addEventListener('resize',size);
+  // precompute responses when hinge changes
+  let curves={no:[],lqr:[],lqg:[]}, lamOpen=0;
+  function simulate(){const A=cfgA(hinge),Q=LA.eye(4);Q[0][0]=20;Q[2][2]=20;
+    let K;try{K=LA.careK(A,B,Q,LA.eye(2),LA.careDiff(A,B,LA.eye(4),LA.eye(2)));}catch(e){K=LA.eye(2);}
+    // observer gain (LQG) via duality: fast estimator
+    let L;try{const Ao=LA.careK(LA.T(A),LA.T([[1,0,0,0],[0,0,1,0]]),LA.scale(LA.eye(4),3),LA.eye(2),LA.eye(2));L=LA.T(Ao);}catch(e){L=null;}
+    const ev=LA.eigenvalues(A);lamOpen=Math.max(...ev.map(e=>e[0]));
+    const dt=0.02,Tn=500;curves={no:[],lqr:[],lqg:[]};
+    let xn=[3*D2R,0,-2*D2R,0], xl=[3*D2R,0,-2*D2R,0], xg=[3*D2R,0,-2*D2R,0], xh=[0,0,0,0];
+    for(let n=0;n<Tn;n++){
+      // no control
+      let Ax=LA.mul(A,col(xn));for(let i=0;i<4;i++)xn[i]+=Ax[i][0]*dt;
+      // lqr
+      let ul=LA.scale(LA.mul(K,col(xl)),-1);Ax=LA.mul(A,col(xl));let Bu=LA.mul(B,ul);for(let i=0;i<4;i++)xl[i]+=(Ax[i][0]+Bu[i][0])*dt;
+      // lqg (estimator)
+      let ug=LA.scale(LA.mul(K,col(xh)),-1);Ax=LA.mul(A,col(xg));Bu=LA.mul(B,ug);for(let i=0;i<4;i++)xg[i]+=(Ax[i][0]+Bu[i][0])*dt;
+      // observer update
+      const y=[[xg[0]],[xg[2]]],yh=[[xh[0]],[xh[2]]];const Axh=LA.mul(A,col(xh)),Buh=LA.mul(B,ug);
+      let corr=L?LA.mul(L,LA.sub(y,yh)):[[0],[0],[0],[0]];
+      for(let i=0;i<4;i++)xh[i]+=(Axh[i][0]+Buh[i][0]+(corr[i]?corr[i][0]:0))*dt;
+      curves.no.push(Math.max(-1,Math.min(1,xn[0])));
+      curves.lqr.push(xl[0]);curves.lqg.push(xg[0]);}
+    document.getElementById('cfgLam').textContent=(lamOpen>=0?'+':'')+lamOpen.toFixed(2);
+  }
+  function col(x){return [[x[0]],[x[1]],[x[2]],[x[3]]];}
+  function setHinge(){hinge=+document.getElementById('cfgA').value;
+    const A=hinge>=0;const name=A?'A-configuration':'V-configuration';
+    document.getElementById('cfgAv').textContent=(hinge>=0?'+':'')+hinge+'° · '+(A?'A-config':'V-config');
+    document.getElementById('cfgName').textContent=name;document.getElementById('cfgDeg').textContent=(hinge>=0?'+':'')+hinge+'°';
+    simulate();}
+  document.getElementById('cfgA').oninput=setHinge;
+  [['cfgNo','no'],['cfgLqr','lqr'],['cfgLqg','lqg']].forEach(([id,key])=>{
+    document.getElementById(id).onclick=function(){show[key]=!show[key];this.classList.toggle('on',show[key]);};});
+  function drawGeo(){ctx.clearRect(0,0,W,H);const cx=W/2,cy=H*0.5;const hr=hinge*D2R;
+    // two bodies with hinge raised/lowered
+    const span=110;
+    const b1=[cx-span,cy],b2=[cx+span,cy];
+    const tip=[cx,cy - Math.sin(hr)*70]; // hinge apex moves up (A) or down (V)
+    ctx.strokeStyle='rgba(139,147,255,.7)';ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(b1[0],b1[1]);ctx.lineTo(tip[0],tip[1]);ctx.lineTo(b2[0],b2[1]);ctx.stroke();
+    ctx.strokeStyle='rgba(139,147,255,.15)';ctx.lineWidth=10;ctx.stroke();
+    // bodies
+    [b1,b2].forEach(b=>{ctx.fillStyle='#8b93ff';ctx.beginPath();ctx.arc(b[0],b[1],6,0,7);ctx.fill();
+      ctx.strokeStyle='#8b93ff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(b[0]-16,b[1]+10);ctx.lineTo(b[0]+16,b[1]+10);ctx.stroke();});
+    ctx.fillStyle='rgba(139,147,255,.9)';ctx.beginPath();ctx.arc(tip[0],tip[1],4,0,7);ctx.fill();
+    ctx.fillStyle='rgba(120,130,150,.6)';ctx.font='10px ui-monospace';ctx.textAlign='center';
+    ctx.fillText(hinge>=0?'A-CONFIGURATION (hinge up)':'V-CONFIGURATION (hinge down)',cx,H-14);ctx.textAlign='left';}
+  function drawPlot(){pctx.clearRect(0,0,PW,PH);const midY=PH*0.5;
+    pctx.strokeStyle='rgba(40,48,64,.7)';pctx.beginPath();pctx.moveTo(0,midY);pctx.lineTo(PW,midY);pctx.stroke();
+    pctx.fillStyle='rgba(120,130,150,.5)';pctx.font='9px ui-monospace';pctx.fillText('roll response',6,13);
+    const plot=(arr,col,sc)=>{pctx.strokeStyle=col;pctx.lineWidth=1.7;pctx.beginPath();
+      arr.forEach((v,i)=>{const px=i/arr.length*PW;const py=midY-Math.max(-1,Math.min(1,v/sc))*midY*0.85;i?pctx.lineTo(px,py):pctx.moveTo(px,py);});pctx.stroke();};
+    if(show.no&&curves.no.length)plot(curves.no,'#5a6472',0.5);
+    if(show.lqr&&curves.lqr.length)plot(curves.lqr,'#ff5d67',0.12);
+    if(show.lqg&&curves.lqg.length)plot(curves.lqg,'#8b93ff',0.12);}
+  function loop(){if(!vis)return;drawGeo();drawPlot();requestAnimationFrame(loop);}
+  setHinge();onVisible(cv,v=>{vis=v;if(v)requestAnimationFrame(loop);});
+})();
+
+/* ============================================================
+   07 · BODE / NYQUIST
+   ============================================================ */
+(function(){
+  const SYS={
+    pen:()=>{const M1=[[0,0,2,-1],[0,0,-1,1],[0,1,0,0],[-1,0,0,0]],M2=[[0,0,0,0],[0,9.8,0,0],[0,0,0,1],[0,0,1,0]];
+      const A=LA.mul(LA.inv(M1),M2),B=LA.mul(LA.inv(M1),[[1],[0],[0],[0]]);
+      return {A,B,C:[[0,0,1,0]],D:[[0]]};},
+    sgl:()=>({A:[[0,1,0,0],[0.55,-0.5,0.25,0.1],[0,0,0,1],[-0.3,0.15,-0.6,-0.4]],
+      B:[[0],[7],[0],[0.3]],C:[[1,0,0,0]],D:[[0]]}),
+    twin:()=>({A:[[0,1,0,0],[0,-0.5,0.5,0],[0,0,0,1],[0.5,0,0,-0.5]],
+      B:[[0],[6],[0],[0]],C:[[1,0,0,0]],D:[[0]]})
+  };
+  let cur='pen', closed=true, vis=false, wIdx=500;
+  const bc=document.getElementById('bodeCanvas'),bx=bc.getContext('2d');
+  const nc=document.getElementById('nyqCanvas'),nx=nc.getContext('2d');
+  let BW,BH,NW,NH;
+  function size(){const dpr=Math.min(2,devicePixelRatio||1);let r=bc.getBoundingClientRect();
+    bc.width=r.width*dpr;bc.height=260*dpr;bx.setTransform(dpr,0,0,dpr,0,0);BW=r.width;BH=260;
+    r=nc.getBoundingClientRect();nc.width=r.width*dpr;nc.height=250*dpr;nx.setTransform(dpr,0,0,dpr,0,0);NW=r.width;NH=250;}
+  size();addEventListener('resize',size);
+  const NW_=200; // samples
+  function model(){const s0=SYS[cur]();let A=s0.A;
+    if(closed){const Q=LA.eye(A.length);Q[0][0]=20;
+      try{const K=LA.careK(A,s0.B,Q,[[1]],LA.careDiff(A,s0.B,Q,[[1]]));A=LA.sub(A,LA.mul(s0.B,K));}catch(e){}}
+    return {A,B:s0.B,C:s0.C,D:s0.D};}
+  function curve(){const m=model();const pts=[];
+    for(let i=0;i<=NW_;i++){const w=Math.pow(10,-2+ (i/NW_)*5); // 1e-2 .. 1e3
+      const g=LA.freqResp(m.A,m.B,m.C,m.D,w);
+      pts.push({w,mag:LA.Cx.abs(g),ph:LA.Cx.arg(g)*R2D,re:g[0],im:g[1]});}
+    return pts;}
+  let PTS=curve();
+  function refresh(){PTS=curve();draw();}
+  function draw(){
+    const marker=PTS[Math.round(wIdx/1000*NW_)]||PTS[0];
+    // ---- BODE ----
+    bx.clearRect(0,0,BW,BH);const padL=44,padR=14,magH=BH*0.52,phH=BH*0.44,gap=6;
+    const x=(i)=>padL+(i/NW_)*(BW-padL-padR);
+    const dbs=PTS.map(p=>20*Math.log10(Math.max(1e-9,p.mag)));
+    let dbMax=Math.max(...dbs,5), dbMin=Math.min(...dbs,-40);
+    if(dbMax-dbMin<20)dbMax=dbMin+20;
+    const ym=(db)=>8+(1-(db-dbMin)/(dbMax-dbMin))*(magH-16);
+    const yp=(ph)=>magH+gap+8+(1-(ph+270)/360)*(phH-20);
+    // grids
+    bx.strokeStyle='rgba(40,48,64,.75)';bx.lineWidth=1;bx.font='9px ui-monospace';bx.fillStyle='rgba(120,130,150,.65)';
+    for(let d=-2;d<=3;d++){const i=(d+2)/5*NW_;const px=x(i);
+      bx.beginPath();bx.moveTo(px,4);bx.lineTo(px,magH);bx.moveTo(px,magH+gap+4);bx.lineTo(px,magH+gap+phH);bx.stroke();
+      bx.fillText('10'+(d<0?'⁻'+Math.abs(d):d),px-8,BH-3);}
+    for(let k=0;k<=4;k++){const db=dbMin+(dbMax-dbMin)*k/4;const py=ym(db);
+      bx.strokeStyle='rgba(40,48,64,.5)';bx.beginPath();bx.moveTo(padL,py);bx.lineTo(BW-padR,py);bx.stroke();
+      bx.fillStyle='rgba(120,130,150,.6)';bx.fillText(db.toFixed(0),6,py+3);}
+    [-180,-90,0,90].forEach(ph=>{const py=yp(ph);bx.strokeStyle='rgba(40,48,64,.5)';
+      bx.beginPath();bx.moveTo(padL,py);bx.lineTo(BW-padR,py);bx.stroke();
+      bx.fillStyle='rgba(120,130,150,.6)';bx.fillText(ph+'°',6,py+3);});
+    bx.fillStyle='rgba(139,147,255,.75)';bx.fillText('MAGNITUDE (dB)',padL+4,14);
+    bx.fillText('PHASE',padL+4,magH+gap+16);
+    // curves
+    bx.strokeStyle='#8b93ff';bx.lineWidth=1.9;bx.beginPath();
+    PTS.forEach((p,i)=>{const px=x(i),py=ym(20*Math.log10(Math.max(1e-9,p.mag)));i?bx.lineTo(px,py):bx.moveTo(px,py);});bx.stroke();
+    bx.strokeStyle='#34d6ee';bx.lineWidth=1.7;bx.beginPath();
+    PTS.forEach((p,i)=>{let ph=p.ph;const px=x(i),py=yp(Math.max(-270,Math.min(90,ph)));i?bx.lineTo(px,py):bx.moveTo(px,py);});bx.stroke();
+    // marker
+    const mi=Math.round(wIdx/1000*NW_);const mx=x(mi);
+    bx.strokeStyle='rgba(255,255,255,.35)';bx.setLineDash([3,3]);bx.lineWidth=1;
+    bx.beginPath();bx.moveTo(mx,4);bx.lineTo(mx,magH+gap+phH);bx.stroke();bx.setLineDash([]);
+    bx.fillStyle='#fff';bx.beginPath();bx.arc(mx,ym(20*Math.log10(Math.max(1e-9,marker.mag))),4,0,7);bx.fill();
+    bx.beginPath();bx.arc(mx,yp(Math.max(-270,Math.min(90,marker.ph))),4,0,7);bx.fill();
+    // ---- NYQUIST ----
+    nx.clearRect(0,0,NW,NH);
+    const cx=NW*0.62,cy=NH/2;
+    let ext=Math.max(1.4,...PTS.map(p=>Math.max(Math.abs(p.re),Math.abs(p.im))).filter(v=>isFinite(v)&&v<60));
+    ext=Math.min(ext,12);const sc=Math.min(NW*0.42,NH*0.42)/ext;
+    nx.strokeStyle='rgba(40,48,64,.7)';nx.lineWidth=1;
+    nx.beginPath();nx.moveTo(0,cy);nx.lineTo(NW,cy);nx.moveTo(cx,0);nx.lineTo(cx,NH);nx.stroke();
+    // unit circle + -1 point
+    nx.strokeStyle='rgba(90,100,116,.5)';nx.setLineDash([3,4]);
+    nx.beginPath();nx.arc(cx,cy,sc,0,7);nx.stroke();nx.setLineDash([]);
+    const m1x=cx-sc;
+    nx.fillStyle='#ff5d67';nx.beginPath();nx.arc(m1x,cy,4,0,7);nx.fill();
+    nx.globalAlpha=.2;nx.beginPath();nx.arc(m1x,cy,10,0,7);nx.fill();nx.globalAlpha=1;
+    nx.fillStyle='rgba(255,93,103,.8)';nx.font='9px ui-monospace';nx.fillText('−1',m1x-14,cy-9);
+    nx.fillStyle='rgba(139,147,255,.75)';nx.fillText('NYQUIST LOCUS',10,14);
+    // locus (and mirror)
+    const plotL=(sign)=>{nx.beginPath();PTS.forEach((p,i)=>{if(!isFinite(p.re)||!isFinite(p.im))return;
+      const px=cx+p.re*sc,py=cy-sign*p.im*sc;i?nx.lineTo(px,py):nx.moveTo(px,py);});nx.stroke();};
+    nx.strokeStyle='#8b93ff';nx.lineWidth=1.9;plotL(1);
+    nx.strokeStyle='rgba(139,147,255,.35)';nx.lineWidth=1.3;plotL(-1);
+    // marker on locus
+    nx.fillStyle='#fff';nx.beginPath();nx.arc(cx+marker.re*sc,cy-marker.im*sc,4.5,0,7);nx.fill();
+    // readouts
+    document.getElementById('fqWv').textContent=marker.w.toFixed(marker.w<1?3:2)+' rad/s';
+    document.getElementById('fqMag').textContent=(20*Math.log10(Math.max(1e-9,marker.mag))).toFixed(1)+' dB';
+    document.getElementById('fqPh').textContent=marker.ph.toFixed(1)+'°';
+    const pk=Math.max(...PTS.map(p=>p.mag).filter(isFinite));
+    document.getElementById('fqPk').textContent=pk.toFixed(2);
+    // crude gain margin: |G| where phase crosses -180
+    let gm='—';
+    for(let i=1;i<PTS.length;i++){ if((PTS[i-1].ph+180)*(PTS[i].ph+180)<0){ const g=PTS[i].mag;
+      gm=(g>1e-6)?(20*Math.log10(1/g)).toFixed(1)+' dB':'∞'; break; } }
+    document.getElementById('fqGm').textContent=gm;
+  }
+  document.getElementById('fqW').oninput=function(){wIdx=+this.value;if(vis)draw();};
+  document.getElementById('fqCtl').onclick=function(){closed=!closed;
+    this.textContent=closed?'Closed-loop (LQR)':'Open-loop (raw)';this.classList.toggle('on',closed);refresh();};
+  [['fqPen','pen'],['fqSgl','sgl'],['fqTwin','twin']].forEach(([id,k])=>{
+    document.getElementById(id).onclick=function(){cur=k;['fqPen','fqSgl','fqTwin'].forEach(i=>document.getElementById(i).classList.remove('on'));this.classList.add('on');refresh();};});
+  onVisible(bc,v=>{vis=v;if(v){refresh();}});
+})();
+
+/* ============================================================
+   08 · KALMAN FILTER
+   ============================================================ */
+(function(){
+  // simple roll model: [phi, p] with noisy phi measurement
+  const A=[[0,1],[-1.4,-0.35]], B=[[0],[1]], C=[[1,0]];
+  let noise=0.30, trust=0.5, on=true, vis=false;
+  let x=[0.35,0], xh=[0,0], t=0;
+  let hT=[],hM=[],hE=[],hErr=[];
+  const cv=document.getElementById('kalCanvas'),ctx=cv.getContext('2d');
+  const ev=document.getElementById('kalErr'),ex=ev.getContext('2d');
+  let W,H,EW,EH;
+  function size(){const dpr=Math.min(2,devicePixelRatio||1);let r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=290*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=290;
+    r=ev.getBoundingClientRect();ev.width=r.width*dpr;ev.height=130*dpr;ex.setTransform(dpr,0,0,dpr,0,0);EW=r.width;EH=130;}
+  size();addEventListener('resize',size);
+  document.getElementById('kalN').oninput=function(){noise=+this.value/100;
+    document.getElementById('kalNv').textContent=noise.toFixed(2);
+    document.getElementById('kalSig').textContent=noise.toFixed(2);};
+  document.getElementById('kalT').oninput=function(){trust=+this.value/100;
+    document.getElementById('kalTv').textContent=trust.toFixed(2);};
+  document.getElementById('kalOn').onclick=function(){on=!on;this.textContent='Filter: '+(on?'ON':'OFF');this.classList.toggle('on',on);};
+  document.getElementById('kalKick').onclick=()=>{x[1]+=1.6;};
+  function gauss(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+  function step(dt){
+    // truth
+    const ax=LA.mul(A,[[x[0]],[x[1]]]);
+    x[0]+=ax[0][0]*dt; x[1]+=ax[1][0]*dt;
+    if(Math.abs(x[0])<0.02&&Math.abs(x[1])<0.05){x[0]=0.3*(Math.random()-0.5)*2;x[1]=0.6*(Math.random()-0.5);}
+    // measurement
+    const z=x[0]+gauss()*noise;
+    // estimator: predict + correct
+    const axh=LA.mul(A,[[xh[0]],[xh[1]]]);
+    xh[0]+=axh[0][0]*dt; xh[1]+=axh[1][0]*dt;
+    if(on){ const L0=(1-trust)*3.2, L1=(1-trust)*2.2;      // higher trust-in-model → smaller gains
+      const innov=z-xh[0];
+      xh[0]+=L0*innov*dt*3; xh[1]+=L1*innov*dt*3; }
+    else { xh[0]=z; xh[1]=0; }                              // no filter: trust the raw sensor
+    t+=dt;
+    hT.push(x[0]);hM.push(z);hE.push(xh[0]);hErr.push(Math.abs(x[0]-xh[0]));
+    if(hT.length>300){hT.shift();hM.shift();hE.shift();hErr.shift();}
+    const rms=Math.sqrt(hErr.slice(-120).reduce((s,v)=>s+v*v,0)/Math.max(1,Math.min(120,hErr.length)));
+    document.getElementById('kalTrue').textContent=(x[0]*R2D).toFixed(1)+'°';
+    document.getElementById('kalEst').textContent=(xh[0]*R2D).toFixed(1)+'°';
+    document.getElementById('kalRms').textContent=(rms*R2D).toFixed(2)+'°';
+  }
+  function draw(){ctx.clearRect(0,0,W,H);const midY=H*0.5,sc=H*0.34;
+    ctx.strokeStyle='rgba(40,48,64,.7)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,midY);ctx.lineTo(W,midY);ctx.stroke();
+    ctx.fillStyle='rgba(120,130,150,.55)';ctx.font='9px ui-monospace';ctx.fillText('ROLL φ',8,14);
+    const px=(i)=>i/300*W, py=(v)=>midY-Math.max(-1,Math.min(1,v))*sc;
+    // measurements (dots)
+    ctx.fillStyle='rgba(90,100,116,.75)';
+    hM.forEach((v,i)=>{ctx.beginPath();ctx.arc(px(i),py(v),1.5,0,7);ctx.fill();});
+    // truth
+    ctx.strokeStyle='#e9edf5';ctx.lineWidth=1.8;ctx.beginPath();
+    hT.forEach((v,i)=>i?ctx.lineTo(px(i),py(v)):ctx.moveTo(px(i),py(v)));ctx.stroke();
+    // estimate
+    ctx.strokeStyle='#8b93ff';ctx.lineWidth=2;ctx.beginPath();
+    hE.forEach((v,i)=>i?ctx.lineTo(px(i),py(v)):ctx.moveTo(px(i),py(v)));ctx.stroke();
+    // head dots
+    if(hT.length){const i=hT.length-1;
+      ctx.fillStyle='#e9edf5';ctx.beginPath();ctx.arc(px(i),py(hT[i]),3.5,0,7);ctx.fill();
+      ctx.fillStyle='#8b93ff';ctx.beginPath();ctx.arc(px(i),py(hE[i]),3.5,0,7);ctx.fill();
+      ctx.globalAlpha=.25;ctx.beginPath();ctx.arc(px(i),py(hE[i]),9,0,7);ctx.fill();ctx.globalAlpha=1;}
+    // error band
+    ex.clearRect(0,0,EW,EH);
+    ex.fillStyle='rgba(120,130,150,.55)';ex.font='9px ui-monospace';ex.fillText('|ESTIMATION ERROR|',8,13);
+    ex.strokeStyle='rgba(40,48,64,.7)';ex.beginPath();ex.moveTo(0,EH-10);ex.lineTo(EW,EH-10);ex.stroke();
+    const emax=Math.max(0.25,...hErr);
+    ex.beginPath();ex.moveTo(0,EH-10);
+    hErr.forEach((v,i)=>{ex.lineTo(i/300*EW,EH-10-(v/emax)*(EH-28));});
+    ex.lineTo(hErr.length/300*EW,EH-10);ex.closePath();
+    const g=ex.createLinearGradient(0,0,0,EH);g.addColorStop(0,'rgba(139,147,255,.45)');g.addColorStop(1,'rgba(139,147,255,.02)');
+    ex.fillStyle=g;ex.fill();
+    ex.strokeStyle='#8b93ff';ex.lineWidth=1.5;ex.beginPath();
+    hErr.forEach((v,i)=>{const X=i/300*EW,Y=EH-10-(v/emax)*(EH-28);i?ex.lineTo(X,Y):ex.moveTo(X,Y);});ex.stroke();
+  }
+  let last=0;function loop(ts){if(!vis)return;const dt=Math.min(0.03,(ts-last)/1000||0.016);last=ts;
+    step(dt);draw();requestAnimationFrame(loop);}
+  onVisible(cv,v=>{vis=v;if(v){last=performance.now();requestAnimationFrame(loop);}});
+})();
+
+/* ============================================================
+   07 · EIGENVALUE SCOPE
+   ============================================================ */
+(function(){
+  const systems={
+    pen:()=>{const M1=[[0,0,2,-1],[0,0,-1,1],[0,1,0,0],[-1,0,0,0]],M2=[[0,0,0,0],[0,9.8,0,0],[0,0,0,1],[0,0,1,0]];
+      const A=LA.mul(LA.inv(M1),M2),B=LA.mul(LA.inv(M1),[[1],[0],[0],[0]]);return {A,B,name:'Inverted pendulum'};},
+    sgl:()=>({A:[[0,1,0,0],[0.55,-0.5,0.25,0.1],[0,0,0,1],[-0.3,0.15,-0.6,-0.4]],B:[[0,0],[7,0.4],[0,0],[0.3,5]],name:'Single body'}),
+    twin:()=>({A:[[0,1,0,0],[0,-0.5,0.5,0],[0,0,0,1],[0.5,0,0,-0.5]],B:[[0,0],[6,0],[0,0],[0,6]],name:'Twin body'})
+  };
+  let cur='pen', vis=false;
+  const cv=document.getElementById('scopeCanvas'),ctx=cv.getContext('2d');let W,H;
+  function size(){const dpr=Math.min(2,devicePixelRatio||1);const r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=380*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=380;}
+  size();addEventListener('resize',size);
+  function poles(){const {A,B}=systems[cur]();const g=+document.getElementById('scG').value/100;
+    let ev;
+    if(g<=0.01){ev=LA.eigenvalues(A);}
+    else{const n=A.length,m=B[0].length;const Q=LA.eye(n);const R=LA.scale(LA.eye(m),(1.05-g)*4+0.05);
+      let K;try{K=LA.careK(A,B,Q,R,LA.careDiff(A,B,Q,R));}catch(e){K=LA.zeros(m,n);}
+      ev=LA.eigenvalues(LA.sub(A,LA.mul(B,K)));}
+    return ev;}
+  function draw(){ctx.clearRect(0,0,W,H);const cx=W*0.62,cy=H/2,sc=Math.min(W,H)/16;
+    // grid
+    ctx.strokeStyle='rgba(40,48,64,.6)';ctx.lineWidth=1;
+    for(let gx=-8;gx<=8;gx++){const px=cx+gx*sc;ctx.globalAlpha=gx===0?0:1;ctx.beginPath();ctx.moveTo(px,0);ctx.lineTo(px,H);ctx.stroke();}
+    for(let gy=-6;gy<=6;gy++){const py=cy+gy*sc;ctx.beginPath();ctx.moveTo(0,py);ctx.lineTo(W,py);ctx.stroke();}
+    ctx.globalAlpha=1;
+    // stable region shading (left half)
+    ctx.fillStyle='rgba(139,147,255,.05)';ctx.fillRect(0,0,cx,H);
+    ctx.fillStyle='rgba(255,93,103,.05)';ctx.fillRect(cx,0,W-cx,H);
+    // axes
+    ctx.strokeStyle='rgba(139,147,255,.6)';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,H);ctx.stroke();
+    ctx.strokeStyle='rgba(90,100,116,.7)';ctx.beginPath();ctx.moveTo(0,cy);ctx.lineTo(W,cy);ctx.stroke();
+    ctx.fillStyle='rgba(120,130,150,.7)';ctx.font='10px ui-monospace';
+    ctx.fillText('Re',W-24,cy-6);ctx.fillText('Im',cx+6,14);
+    ctx.fillStyle='rgba(139,147,255,.5)';ctx.fillText('STABLE',14,20);
+    ctx.fillStyle='rgba(255,93,103,.5)';ctx.textAlign='right';ctx.fillText('UNSTABLE',W-14,20);ctx.textAlign='left';
+    const ev=poles();let unstable=false;const list=[];
+    ev.forEach(e=>{const px=cx+e[0]*sc,py=cy-e[1]*sc;const bad=e[0]>0.001;if(bad)unstable=true;
+      ctx.fillStyle=bad?'#ff5d67':'#8b93ff';ctx.strokeStyle=bad?'#ff5d67':'#8b93ff';
+      // X marker
+      ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(px-6,py-6);ctx.lineTo(px+6,py+6);ctx.moveTo(px+6,py-6);ctx.lineTo(px-6,py+6);ctx.stroke();
+      ctx.globalAlpha=.18;ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fill();ctx.globalAlpha=1;
+      list.push([e[0],e[1]]);});
+    // list
+    const ul=document.getElementById('scList');
+    ul.innerHTML=list.map(e=>'<div><span class="k">λ</span><span class="v" style="color:'+(e[0]>0.001?'#ff5d67':'#8b93ff')+'">'+(e[0]>=0?'+':'')+e[0].toFixed(3)+(Math.abs(e[1])>1e-4?(e[1]>0?' + ':' − ')+Math.abs(e[1]).toFixed(3)+'i':'')+'</span></div>').join('');
+    document.getElementById('scGv').textContent=(+document.getElementById('scG').value)+'%';
+    const st=document.getElementById('scStat');
+    if(unstable){st.textContent='UNSTABLE — an eigenvalue sits in the right half-plane. Raise the control authority.';st.style.color='#ff5d67';}
+    else{st.textContent='System stable — all eigenvalues in the left half-plane.';st.style.color='#8790a3';}}
+  document.getElementById('scG').oninput=()=>{if(vis)draw();};
+  [['scPen','pen'],['scSgl','sgl'],['scTwin','twin']].forEach(([id,key])=>{
+    document.getElementById(id).onclick=function(){cur=key;['scPen','scSgl','scTwin'].forEach(i=>document.getElementById(i).classList.remove('on'));this.classList.add('on');draw();};});
+  onVisible(cv,v=>{vis=v;if(v)draw();});
+})();
+
+/* ============================================================
+   08 · LITERATURE MAP
+   ============================================================ */
+(function(){
+  const groups={
+    docking:{c:'#8b93ff',label:'Wingtip docking'},
+    formation:{c:'#34d6ee',label:'Formation & meta-aircraft'},
+    aero:{c:'#4ade80',label:'Aerodynamic interaction'},
+    control:{c:'#f5b544',label:'Control methods'},
+    core:{c:'#ff5d67',label:'This dissertation'}
+  };
+  const nodes=[
+    {id:'core',g:'core',t:'Control of Fixed-Wing UAV',m:'Jawahar, 2023 — this work: LQR/LQG for hinged multibody UAVs'},
+    {id:'meng',g:'docking',t:'Two wingtip-docked aircraft',m:'MENG et al., 2022 — conceptual design & flight test, inner/outer loop control'},
+    {id:'anderson',g:'docking',t:'Tip-Tow / Tom-Tom',m:'Anderson, 2000 — 1950s USAF wingtip-coupling experiments'},
+    {id:'cobar',g:'docking',t:'Takeoff & landing, meta aircraft',m:'Cobar & Montalvo, 2021 — magnet-docked trainers, feedback control'},
+    {id:'carithers',g:'docking',t:'Two connected fixed-wing aircraft',m:'Carithers & Montalvo, 2018 — each aircraft its own controller'},
+    {id:'cooper',g:'formation',t:'In-flight wingtip docking',m:'Cooper & Rothhaar, 2018 — dynamics & control, leader-follower'},
+    {id:'montalvo',g:'formation',t:'Meta aircraft flight dynamics',m:'Montalvo & Costello, 2015 — modes vs number of connected aircraft'},
+    {id:'troub',g:'formation',t:'Meta aircraft controllability',m:'Troub & Montalvo, 2016 — controllable in wingtip/tip-tail/lattice'},
+    {id:'kothe',g:'formation',t:'Closed-loop multi-body flight tests',m:'Köthe et al., 2017 — experimental 3-body aircraft'},
+    {id:'cesnik',g:'aero',t:'X-HALE',m:'Cesnik et al., 2012 — very flexible UAV, aeroelastic inspiration'},
+    {id:'behrens',g:'aero',t:'Two wings in close proximity',m:'Behrens et al., 2020 — aerodynamic interaction, relative tip position'},
+    {id:'mcgill',g:'aero',t:'Wingtip-docking vs formation',m:'McGill, 2003 — 20–40% performance benefit of docking'},
+    {id:'murray',g:'control',t:'LQR control (lecture)',m:'Murray, 2006 — the Riccati/LQR foundation'},
+    {id:'maddi',g:'control',t:'LQG for lateral motion',m:'Maddi et al., 2009 — LQG applied to aircraft lateral dynamics'},
+    {id:'michailidis',g:'control',t:'Controllers for new UAVs',m:'Michailidis et al., 2020 — uncertain aerodynamic parameters'},
+    {id:'li',g:'control',t:'Flying-wing UAV control',m:'LI et al., 2017 — inner-loop decoupling + backstepping'},
+    {id:'hasan',g:'control',t:'Inverted pendulum control',m:'Hasan et al., 2015 — the benchmark unstable system'}
+  ];
+  const cv=document.getElementById('litCanvas'),ctx=cv.getContext('2d');let W,H,vis=false,t=0;
+  function size(){const dpr=Math.min(2,devicePixelRatio||1);const r=cv.getBoundingClientRect();
+    cv.width=r.width*dpr;cv.height=440*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=440;place();}
+  function place(){const cx=W/2,cy=H/2;const byG={};nodes.forEach(n=>{(byG[n.g]=byG[n.g]||[]).push(n);});
+    nodes.forEach(n=>{if(n.g==='core'){n.x=cx;n.y=cy;n.r=13;return;}});
+    const order=['docking','formation','aero','control'];let gi=0;
+    order.forEach((g,ord)=>{const arr=byG[g]||[];const a0=(ord/4)*Math.PI*2 - Math.PI/2;
+      arr.forEach((n,i)=>{const ang=a0 + (i-(arr.length-1)/2)*0.34;const rad=Math.min(W,H)*0.34 + (i%2)*30;
+        n.x=cx+Math.cos(ang)*rad;n.y=cy+Math.sin(ang)*rad*0.82;n.r=7;n.ang=ang;});});}
+  size();addEventListener('resize',size);
+  let hover=null;
+  cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;
+    hover=null;let best=16;nodes.forEach(n=>{const d=Math.hypot(mx-n.x,my-n.y);if(d<best){best=d;hover=n;}});
+    cv.style.cursor=hover?'pointer':'grab';
+    if(hover){document.getElementById('litBox').innerHTML='<b>'+hover.t+'</b><span class="rmeta">'+groups[hover.g].label+'</span>'+hover.m;}});
+  cv.addEventListener('click',()=>{if(hover){document.getElementById('litBox').innerHTML='<b>'+hover.t+'</b><span class="rmeta">'+groups[hover.g].label+'</span>'+hover.m;}});
+  function draw(){t+=0.01;ctx.clearRect(0,0,W,H);const core=nodes[0];
+    // links
+    nodes.forEach(n=>{if(n.g==='core')return;const on=hover&&(hover===n||hover===core);
+      ctx.strokeStyle=on?groups[n.g].c:'rgba(80,90,110,.25)';ctx.lineWidth=on?1.8:1;
+      ctx.beginPath();ctx.moveTo(core.x,core.y);
+      const mx=(core.x+n.x)/2+Math.sin(t+n.x)*4,my=(core.y+n.y)/2+Math.cos(t+n.y)*4;
+      ctx.quadraticCurveTo(mx,my,n.x,n.y);ctx.stroke();});
+    // nodes
+    nodes.forEach(n=>{const g=groups[n.g];const on=hover===n;const pulse=n.g==='core'?1+0.08*Math.sin(t*2):1;
+      ctx.fillStyle=g.c;ctx.globalAlpha=on||n.g==='core'?1:0.85;
+      ctx.beginPath();ctx.arc(n.x,n.y,n.r*pulse,0,7);ctx.fill();
+      ctx.globalAlpha=on?0.3:0.14;ctx.beginPath();ctx.arc(n.x,n.y,n.r*pulse+7,0,7);ctx.fill();ctx.globalAlpha=1;
+      if(n.g==='core'||on){ctx.fillStyle='#e9edf5';ctx.font='10px ui-monospace';ctx.textAlign='center';
+        const lbl=n.g==='core'?'HALCYON':n.t;ctx.fillText(lbl,n.x,n.y-n.r-8);ctx.textAlign='left';}});
+    if(vis)requestAnimationFrame(draw);}
+  // legend
+  document.getElementById('litLegend').innerHTML=Object.values(groups).map(g=>'<span><i style="background:'+g.c+'"></i>'+g.label+'</span>').join('');
+  onVisible(cv,v=>{vis=v;if(v)requestAnimationFrame(draw);});
+})();
+
+/* ============================================================
+   09 · FINDINGS accordion + code
+   ============================================================ */
+(function(){
+  const items=[
+    ['Inverted pendulum','Established the feedback-control foundation. The LQR regulator holds an inherently unstable system upright, pulling every closed-loop eigenvalue into the left half-plane and rejecting a sinusoidal disturbance.'],
+    ['Single rigid body','A nine-output aircraft model shown to be unstable in the roll-yaw mode. A single positive eigenvalue drives divergence; an LQR controller restores authority and the roll tracks level.'],
+    ['Twin body & structural LQR','Two coupled aircraft are unstable together even when each is individually manageable. Standard LQR stabilises the pair; structural LQR — which respects the real input/output coupling — settles the roll faster and holds it through gusts.'],
+    ['Variable geometry (A vs V)','By interpolating the state-space matrices across hinge angle, the A- and V-configurations are stabilised with combined LQR + LQG (Kalman-filtered) control. The V-configuration is more erratic and demands more aileron authority.'],
+    ['Conclusion & future work','Classical optimal control, applied thoughtfully, keeps a hinged multibody UAV stable across configurations and disturbances. Next steps: robust/adaptive control, multi-axis loops, and physical flight testing to bridge simulation and reality.']
+  ];
+  document.getElementById('acc').innerHTML=items.map(([h,b],i)=>
+    '<div class="acc-item'+(i===0?' open':'')+'"><div class="acc-head">'+h+'<span class="plus">+</span></div><div class="acc-body"'+(i===0?' style="max-height:200px"':'')+'><div>'+b+'</div></div></div>').join('');
+  document.querySelectorAll('.acc-head').forEach(h=>h.onclick=function(){const it=this.parentElement;const bd=it.querySelector('.acc-body');
+    const open=it.classList.toggle('open');bd.style.maxHeight=open?bd.scrollHeight+'px':'0';});
+
+  const codes={pen:`% Inverted pendulum — LQR stabilisation (thesis appendix)
+A = inv([0,0,2,-1; 0,0,-1,1; 0,1,0,0; -1,0,0,0]) * ...
+    [0,0,0,0; 0,9.8,0,0; 0,0,0,1; 0,0,1,0];
+B = inv([0,0,2,-1; 0,0,-1,1; 0,1,0,0; -1,0,0,0]) * [1;0;0;0];
+
+Q = eye(4);   % state weighting
+R = 1;        % control weighting
+K = lqr(A, B, Q, R);          % optimal gain
+
+% closed-loop check
+A_new = A - B*K;
+eig(A_new)   % all real parts <= 0  ->  stabilised`,
+  stab:`% Stability check via eigenvalues of the system matrix
+eigenvalues = eig(A);
+unstable = find(real(eigenvalues) > 0);
+
+if isempty(unstable)
+    disp('The aircraft is stable.');
+else
+    disp('The aircraft is unstable.');
+    mode_names = {'Short-Period','Phugoid','Dutch Roll','Spiral', ...
+                  'Roll Subsidence','Yaw Subsidence','Dutch Roll Yaw','Roll-Yaw'};
+    for i = 1:length(unstable)
+        m = unstable(i);
+        fprintf('Mode %d: %s  -  eig = %s\\n', m, mode_names{m}, num2str(eigenvalues(m)));
+    end
+end`};
+  document.getElementById('code-pen').textContent=codes.pen;
+  document.getElementById('code-stab').textContent=codes.stab;
+  document.querySelectorAll('.copy').forEach(b=>b.onclick=function(){const c=codes[this.dataset.code];
+    navigator.clipboard&&navigator.clipboard.writeText(c);this.textContent='Copied ✓';setTimeout(()=>this.textContent='Copy',1400);});
+})();
+
+/* ---------- visual polish: progress, aura, reveal, counters ---------- */
+(function(){
+  const prog=document.getElementById('prog');
+  addEventListener('scroll',()=>{const h=document.documentElement;
+    const p=h.scrollTop/Math.max(1,(h.scrollHeight-h.clientHeight));prog.style.width=(p*100)+'%';},{passive:true});
+  // cursor aura (desktop only)
+  const aura=document.getElementById('aura');
+  if(matchMedia('(pointer:fine)').matches){
+    let tx=0,ty=0,cx=0,cy=0;
+    addEventListener('mousemove',e=>{tx=e.clientX;ty=e.clientY;});
+    (function anim(){cx+=(tx-cx)*0.08;cy+=(ty-cy)*0.08;aura.style.left=cx+'px';aura.style.top=cy+'px';requestAnimationFrame(anim);})();
+  } else { aura.style.display='none'; }
+  // reveal on scroll
+  const targets=[];
+  document.querySelectorAll('section').forEach(sec=>{
+    if(sec.id==='hero')return;
+    const kids=[...sec.children].filter(c=>!c.classList.contains('wm'));
+    kids.forEach((c,i)=>{c.classList.add('rv');if(i===1)c.classList.add('d1');if(i===2)c.classList.add('d2');if(i>=3)c.classList.add('d3');targets.push(c);});
+  });
+  const rio=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');rio.unobserve(e.target);}}),{threshold:.12});
+  targets.forEach(t=>rio.observe(t));
+  // count-up stats
+  const stats=[...document.querySelectorAll('.stat .v')];
+  let counted=false;
+  const sio=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting&&!counted){counted=true;
+    stats.forEach(el=>{const target=+el.dataset.count,pre=el.dataset.pre||'',suf=el.dataset.suf||'';
+      let n=0;const dur=1100,t0=performance.now();
+      (function tick(t){const k=Math.min(1,(t-t0)/dur);const e2=1-Math.pow(1-k,3);
+        n=Math.round(target*e2);el.textContent=pre+n+suf;if(k<1)requestAnimationFrame(tick);})(t0);});}}),{threshold:.4});
+  if(stats.length)sio.observe(stats[0]);
+})();
+
+/* ---------- nav scroll-spy + mobile rail ---------- */
+(function(){
+  const links=[...document.querySelectorAll('.rail a.st')];
+  const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+  const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){
+    const i=secs.indexOf(e.target);links.forEach(l=>l.classList.remove('on'));if(links[i])links[i].classList.add('on');}});},{rootMargin:'-45% 0px -50% 0px'});
+  secs.forEach(s=>s&&io.observe(s));
+  const tog=document.getElementById('railTog'),rail=document.getElementById('rail');
+  tog.onclick=()=>rail.classList.toggle('show');
+  links.forEach(l=>l.onclick=()=>rail.classList.remove('show'));
+})();
+</script>
+</body>
+</html>
