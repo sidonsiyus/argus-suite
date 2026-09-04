@@ -283,7 +283,7 @@ function altColor(alt) {
 }
 function RadarScope() {
   const now = useNow();
-  const [icao, setIcao] = useState("VABB");
+  const [icao, setIcao] = useState("OMDB"); // busiest / most consistent ADS-B coverage
   const [state, setState] = useState({ status: "loading", planes: [], count: 0 });
   const ap = AIRPORT_BY_ICAO[icao];
 
