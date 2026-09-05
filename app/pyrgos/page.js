@@ -175,6 +175,18 @@ function selSnap(a, F) {
     alt: Math.round(a.alt / 100) * 100, spd: Math.round(a.spd), hdg: Math.round(a.hdg), rwy: a.rwy.name,
     land: !!a.cleared.land, deliv: !!a.cleared.delivery, sid: a.sid, sq: a.squawk, nm: +distNm(a, F).toFixed(1) };
 }
+// project a real ADS-B lat/lon onto the field pixel space (layouts are drawn true-north up, to scale)
+function projectLive(F, a) {
+  const R = 3440.065, toRad = (x) => x * Math.PI / 180, g = F.meta.geo;
+  const dLat = toRad(a.lat - g.lat), dLon = toRad(a.lon - g.lon);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(g.lat)) * Math.cos(toRad(a.lat)) * Math.sin(dLon / 2) ** 2;
+  const d = R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  const yy = Math.sin(toRad(a.lon - g.lon)) * Math.cos(toRad(a.lat));
+  const xx = Math.cos(toRad(g.lat)) * Math.sin(toRad(a.lat)) - Math.sin(toRad(g.lat)) * Math.cos(toRad(a.lat)) * Math.cos(toRad(a.lon - g.lon));
+  const brg = (Math.atan2(yy, xx) * 180 / Math.PI + 360) % 360, br = toRad(brg), px = d * F.pxPerNm;
+  return { id: a.hex || a.flight || `${a.lat},${a.lon}`, cs: (a.flight || a.hex || "").trim().toUpperCase() || "UNKNOWN",
+    x: F.cx + px * Math.sin(br), y: F.cy - px * Math.cos(br), alt: a.alt ?? null, spd: a.gs ?? null, hdg: a.track ?? brg, nm: +d.toFixed(1), sel: false };
+}
 
 /* ═══════════════════════ component ═══════════════════════ */
 export default function Pyrgos() {
@@ -200,6 +212,9 @@ export default function Pyrgos() {
   const [position, setPosition] = useState("TOWER");
   const [chart, setChart] = useState(false);
   const [queues, setQueues] = useState({ DELIVERY: [], GROUND: [], TOWER: [] });
+  const [mode, setMode] = useState("SIM"); // SIM | LIVE
+  const [live, setLive] = useState({ status: "idle", count: 0, sel: null });
+  const modeRef = useRef("SIM");
 
   useEffect(() => {
     const F = buildField(layoutKey);
@@ -237,8 +252,8 @@ export default function Pyrgos() {
     function frame(t) {
       const S = sim.current;
       const dt = Math.min(0.05, (t - lastT.current) / 1000) || 0; lastT.current = t;
-      if (S && !paused) tick(S, dt * SIM_SPEED);
-      if (S) render(ctx, canvas, S, view.current, DPR, (sweep += dt * 0.55));
+      if (S && !paused && modeRef.current === "SIM") tick(S, dt * SIM_SPEED);
+      if (S) render(ctx, canvas, S, view.current, DPR, (sweep += dt * 0.55), modeRef.current);
       raf.current = requestAnimationFrame(frame);
     }
     function tick(S, dt) {
@@ -297,18 +312,59 @@ export default function Pyrgos() {
     return () => clearInterval(id);
   }, [sel]);
 
+  // live ADS-B feed (real traffic around the field)
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => {
+    if (mode !== "LIVE" || !sim.current) return;
+    const F = sim.current.F; let alive = true;
+    async function load() {
+      try {
+        const r = await fetch(`/api/flights?lat=${F.meta.geo.lat}&lon=${F.meta.geo.lon}&dist=60`, { cache: "no-store" });
+        const d = await r.json();
+        const ac = (d.ac || []).filter((a) => a.lat != null && a.lon != null).map((a) => projectLive(F, a));
+        if (!alive) return;
+        if (ac.length) { sim.current.live = ac; setLive((L) => ({ status: "ok", count: ac.length, sel: L.sel })); }
+        else setLive((L) => ({ status: sim.current.live?.length ? "ok" : "empty", count: sim.current.live?.length || 0, sel: L.sel }));
+      } catch { if (alive) setLive((L) => ({ ...L, status: sim.current.live?.length ? "ok" : "error" })); }
+    }
+    setLive((L) => ({ ...L, status: "loading" })); load();
+    const id = setInterval(load, 20000);
+    return () => { alive = false; clearInterval(id); };
+  }, [mode, layoutKey]);
+
+  const toggleMode = () => {
+    const next = mode === "SIM" ? "LIVE" : "SIM"; setMode(next);
+    const v = view.current, F = sim.current.F;
+    v.chart = false; setChart(false); v.cx = F.cx; v.cy = F.cy;
+    v.radiusNm = next === "LIVE" ? 34 : 12; setRangeNm(v.radiusNm);
+    setSel(null); setLive((L) => ({ ...L, sel: null }));
+    if (next === "SIM" && sim.current) sim.current.live = [];
+  };
+
   /* ── input: select, drag-pan, wheel-zoom ── */
   const screenScale = () => { const S = sim.current, r = canvasRef.current.getBoundingClientRect(); return Math.min(r.width, r.height) / 2 / (view.current.radiusNm * S.F.pxPerNm); };
   const pickAircraft = (mx, my) => {
     const S = sim.current, r = canvasRef.current.getBoundingClientRect(), v = view.current, sc = screenScale();
+    const list = modeRef.current === "LIVE" ? (S.live || []) : S.aircraft;
     let best = null, bd = 24;
-    S.aircraft.forEach((a) => { const sx = r.width / 2 + (a.x - v.cx) * sc, sy = r.height / 2 + (a.y - v.cy) * sc; const d = Math.hypot(sx - mx, sy - my); if (d < bd) { bd = d; best = a; } });
+    list.forEach((a) => { const sx = r.width / 2 + (a.x - v.cx) * sc, sy = r.height / 2 + (a.y - v.cy) * sc; const d = Math.hypot(sx - mx, sy - my); if (d < bd) { bd = d; best = a; } });
     return best;
   };
   const selectById = (id) => { const S = sim.current; S.aircraft.forEach((a) => (a.sel = a.id === id)); const a = S.aircraft.find((x) => x.id === id); if (a) setSel(selSnap(a, S.F)); };
   const onDown = (e) => { const r = canvasRef.current.getBoundingClientRect(); drag.current = { x: e.clientX, y: e.clientY, moved: 0, cx: view.current.cx, cy: view.current.cy, mx: e.clientX - r.left, my: e.clientY - r.top }; };
   const onMove = (e) => { const d = drag.current; if (!d) return; const dx = e.clientX - d.x, dy = e.clientY - d.y; d.moved += Math.abs(dx) + Math.abs(dy); const sc = screenScale(); view.current.cx = d.cx - dx / sc; view.current.cy = d.cy - dy / sc; };
-  const onUp = (e) => { const d = drag.current; drag.current = null; if (!d) return; if (d.moved < 6) { const a = pickAircraft(d.mx, d.my); const S = sim.current; S.aircraft.forEach((x) => (x.sel = false)); if (a) { a.sel = true; selectById(a.id); } else setSel(null); } };
+  const onUp = (e) => {
+    const d = drag.current; drag.current = null; if (!d) return; if (d.moved >= 6) return;
+    const a = pickAircraft(d.mx, d.my), S = sim.current;
+    if (modeRef.current === "LIVE") {
+      (S.live || []).forEach((x) => (x.sel = false));
+      if (a) { a.sel = true; setLive((L) => ({ ...L, sel: { cs: a.cs, alt: a.alt, spd: Math.round(a.spd || 0), hdg: Math.round(a.hdg), nm: a.nm } })); }
+      else setLive((L) => ({ ...L, sel: null }));
+    } else {
+      S.aircraft.forEach((x) => (x.sel = false));
+      if (a) { a.sel = true; selectById(a.id); } else setSel(null);
+    }
+  };
   const zoomBy = (factor) => { const v = view.current; v.radiusNm = Math.max(3, Math.min(40, v.radiusNm * factor)); setRangeNm(Math.round(v.radiusNm)); };
   const onWheel = (e) => { e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.12 : 0.89); };
   const toggleChart = () => {
@@ -375,7 +431,8 @@ export default function Pyrgos() {
         <div className="pyr-spacer" />
         <div className="pyr-stat"><b>{counts.arr}</b> ARR · <b>{counts.dep}</b> DEP</div>
         <div className="pyr-clock">{clock}Z</div>
-        <button className="pyr-btn" onClick={() => setPaused((p) => !p)}>{paused ? "▶" : "⏸"}</button>
+        <button className={"pyr-btn" + (mode === "LIVE" ? " live" : " ghost")} onClick={toggleMode} title="Live ADS-B traffic around this field">◉ {mode === "LIVE" ? "LIVE" : "Live"}</button>
+        {mode === "SIM" && <button className="pyr-btn" onClick={() => setPaused((p) => !p)}>{paused ? "▶" : "⏸"}</button>}
         <a className="pyr-btn ghost" href="/pyrgos.html" title="Original simulator">Classic ↗</a>
       </header>
 
@@ -457,7 +514,30 @@ export default function Pyrgos() {
 
         {/* control + comms */}
         <aside className="pyr-side">
-          {sel ? (
+          {mode === "LIVE" ? (
+            <div className="pyr-ctl">
+              <div className="pyr-live-h">◉ LIVE ADS-B<span className={"pyr-live-dot " + live.status}></span></div>
+              <div className="pyr-live-stat">
+                {live.status === "loading" && "acquiring feed…"}
+                {live.status === "error" && "feed unavailable"}
+                {live.status === "empty" && "no traffic in range"}
+                {live.status === "ok" && `${live.count} aircraft within 60nm of ${F?.meta.icao}`}
+                {live.status === "idle" && "starting…"}
+              </div>
+              {live.sel ? (
+                <>
+                  <div className="pyr-selhead"><div className="pyr-selcs">{live.sel.cs}</div><div className="pyr-seltag" style={{ background: "#3fd3ff" }}>LIVE</div></div>
+                  <div className="pyr-selgrid">
+                    <div><span>ALT</span><b>{live.sel.alt == null ? "—" : live.sel.alt < 1000 ? live.sel.alt + "ft" : "FL" + Math.round(live.sel.alt / 100)}</b></div>
+                    <div><span>GS</span><b>{live.sel.spd}kt</b></div>
+                    <div><span>TRK</span><b>{String(live.sel.hdg).padStart(3, "0")}°</b></div>
+                    <div><span>RANGE</span><b>{live.sel.nm}nm</b></div>
+                  </div>
+                </>
+              ) : <div className="pyr-empty" style={{ padding: 0, border: 0 }}><p>Real aircraft transponding around {F?.meta.label.split("·")[0].trim()}, projected onto the chart. Click a target for its readout. <b>Information only — not controllable.</b></p></div>}
+              <div className="pyr-clr-note" style={{ color: "#7fb8ac", marginTop: 10 }}>Source: adsb.lol · refreshes every 20s · switch to SIM to control traffic.</div>
+            </div>
+          ) : sel ? (
             <div className="pyr-ctl">
               <div className="pyr-selhead">
                 <div className="pyr-selcs">{sel.cs}</div>
@@ -523,7 +603,7 @@ export default function Pyrgos() {
 }
 
 /* ═══════════════════════ render ═══════════════════════ */
-function render(ctx, canvas, S, v, DPR, sweep) {
+function render(ctx, canvas, S, v, DPR, sweep, mode) {
   const F = S.F;
   const w = canvas.width / DPR, h = canvas.height / DPR;
   const scale = Math.min(w, h) / 2 / (v.radiusNm * F.pxPerNm);
@@ -610,38 +690,52 @@ function render(ctx, canvas, S, v, DPR, sweep) {
   const g = ctx.createLinearGradient(0, 0, outer, 0); g.addColorStop(0, "rgba(55,224,200,0.16)"); g.addColorStop(1, "rgba(55,224,200,0)");
   ctx.fillStyle = g; ctx.fill(); ctx.restore();
 
-  // selected taxi route
-  const selA = S.aircraft.find((a) => a.sel && a.route && a.route.length);
-  if (selA) { ctx.strokeStyle = "rgba(255,180,90,0.6)"; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(toX(selA.x), toY(selA.y)); selA.route.forEach((p) => ctx.lineTo(toX(p.x), toY(p.y))); ctx.stroke(); ctx.setLineDash([]); }
-  // conflicts
-  (S.conflicts || []).forEach(([a, b]) => { ctx.strokeStyle = "#ff5a63"; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(toX(a.x), toY(a.y)); ctx.lineTo(toX(b.x), toY(b.y)); ctx.stroke(); ctx.setLineDash([]); });
-
-  // aircraft
-  S.aircraft.forEach((a) => {
-    const x = toX(a.x), y = toY(a.y);
-    const col = a.sel ? "#ff6b6b" : a.kind === "ARR" ? "#37e0c8" : "#ffb454";
-    ctx.strokeStyle = "rgba(120,200,190,0.28)"; ctx.lineWidth = 1;
-    for (let i = 1; i < a.trail.length; i++) { ctx.globalAlpha = i / a.trail.length * 0.5; ctx.beginPath(); ctx.moveTo(toX(a.trail[i - 1][0]), toY(a.trail[i - 1][1])); ctx.lineTo(toX(a.trail[i][0]), toY(a.trail[i][1])); ctx.stroke(); }
-    ctx.globalAlpha = 1;
-    const hr = a.hdg * Math.PI / 180, lead = Math.min(36, a.spd * 0.13);
-    ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.sin(hr) * lead, y - Math.cos(hr) * lead); ctx.stroke();
-    ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = a.sel ? 8 : 4; ctx.translate(x, y); ctx.rotate(hr);
-    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.lineTo(4.5, 4.5); ctx.lineTo(0, 1.8); ctx.lineTo(-4.5, 4.5); ctx.closePath(); ctx.fill(); ctx.restore();
-    if (a.sel) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.stroke(); }
-    if (a.conf) { ctx.strokeStyle = "#ff5a63"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI * 2); ctx.stroke(); }
-    // data block
-    const dbx = x + 13, dby = y - 11; const trend = a.altCmd > a.alt + 60 ? "↑" : a.altCmd < a.alt - 60 ? "↓" : "";
-    ctx.textAlign = "left"; ctx.font = "9px ui-monospace, monospace";
-    ctx.fillStyle = col; ctx.fillText(a.cs, dbx, dby);
-    ctx.fillStyle = "rgba(200,235,228,0.9)";
-    ctx.fillText((a.alt < 1000 ? "GND" : (a.alt / 100 | 0).toString().padStart(3, "0")) + trend + " " + (a.spd | 0), dbx, dby + 10);
-    if (a.cleared?.land) { ctx.fillStyle = "#8fffe0"; ctx.fillText("★LAND", dbx, dby + 20); }
-    else if (a.state === "READY") { ctx.fillStyle = "#ffd08a"; ctx.fillText("HOLD", dbx, dby + 20); }
-    else if (a.ga) { ctx.fillStyle = "#ff9b9b"; ctx.fillText("G/A", dbx, dby + 20); }
-  });
-
-  ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.font = "10px ui-monospace, monospace"; ctx.textAlign = "left";
-  ctx.fillText(F.meta.icao + " · " + F.meta.label.split("·")[0].trim(), 14, h - 14);
+  if (mode === "LIVE") {
+    // real ADS-B traffic (read-only)
+    (S.live || []).forEach((a) => {
+      const x = toX(a.x), y = toY(a.y); if (x < -40 || x > w + 40 || y < -40 || y > h + 40) return;
+      const col = a.sel ? "#ff6b6b" : "#3fd3ff";
+      const hr = a.hdg * Math.PI / 180, lead = Math.min(36, (a.spd || 0) * 0.11);
+      ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.sin(hr) * lead, y - Math.cos(hr) * lead); ctx.stroke();
+      ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = a.sel ? 8 : 4; ctx.translate(x, y); ctx.rotate(hr);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(4, 4); ctx.lineTo(0, 1.6); ctx.lineTo(-4, 4); ctx.closePath(); ctx.fill(); ctx.restore();
+      if (a.sel) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.textAlign = "left"; ctx.font = "9px ui-monospace, monospace";
+      ctx.fillStyle = col; ctx.fillText(a.cs, x + 12, y - 10);
+      ctx.fillStyle = "rgba(190,235,245,0.9)";
+      ctx.fillText((a.alt == null ? "—" : a.alt < 1000 ? "GND" : (a.alt / 100 | 0).toString().padStart(3, "0")) + " " + (a.spd | 0), x + 12, y);
+    });
+    ctx.fillStyle = "rgba(63,211,255,0.55)"; ctx.font = "10px ui-monospace, monospace"; ctx.textAlign = "left";
+    ctx.fillText("◉ LIVE ADS-B · " + F.meta.icao + " · information only — not for control", 14, h - 14);
+  } else {
+    // selected taxi route
+    const selA = S.aircraft.find((a) => a.sel && a.route && a.route.length);
+    if (selA) { ctx.strokeStyle = "rgba(255,180,90,0.6)"; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(toX(selA.x), toY(selA.y)); selA.route.forEach((p) => ctx.lineTo(toX(p.x), toY(p.y))); ctx.stroke(); ctx.setLineDash([]); }
+    (S.conflicts || []).forEach(([a, b]) => { ctx.strokeStyle = "#ff5a63"; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(toX(a.x), toY(a.y)); ctx.lineTo(toX(b.x), toY(b.y)); ctx.stroke(); ctx.setLineDash([]); });
+    S.aircraft.forEach((a) => {
+      const x = toX(a.x), y = toY(a.y);
+      const col = a.sel ? "#ff6b6b" : a.kind === "ARR" ? "#37e0c8" : "#ffb454";
+      ctx.strokeStyle = "rgba(120,200,190,0.28)"; ctx.lineWidth = 1;
+      for (let i = 1; i < a.trail.length; i++) { ctx.globalAlpha = i / a.trail.length * 0.5; ctx.beginPath(); ctx.moveTo(toX(a.trail[i - 1][0]), toY(a.trail[i - 1][1])); ctx.lineTo(toX(a.trail[i][0]), toY(a.trail[i][1])); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      const hr = a.hdg * Math.PI / 180, lead = Math.min(36, a.spd * 0.13);
+      ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.sin(hr) * lead, y - Math.cos(hr) * lead); ctx.stroke();
+      ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = a.sel ? 8 : 4; ctx.translate(x, y); ctx.rotate(hr);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.lineTo(4.5, 4.5); ctx.lineTo(0, 1.8); ctx.lineTo(-4.5, 4.5); ctx.closePath(); ctx.fill(); ctx.restore();
+      if (a.sel) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.stroke(); }
+      if (a.conf) { ctx.strokeStyle = "#ff5a63"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI * 2); ctx.stroke(); }
+      const dbx = x + 13, dby = y - 11; const trend = a.altCmd > a.alt + 60 ? "↑" : a.altCmd < a.alt - 60 ? "↓" : "";
+      ctx.textAlign = "left"; ctx.font = "9px ui-monospace, monospace";
+      ctx.fillStyle = col; ctx.fillText(a.cs, dbx, dby);
+      ctx.fillStyle = "rgba(200,235,228,0.9)";
+      ctx.fillText((a.alt < 1000 ? "GND" : (a.alt / 100 | 0).toString().padStart(3, "0")) + trend + " " + (a.spd | 0), dbx, dby + 10);
+      if (a.cleared?.land) { ctx.fillStyle = "#8fffe0"; ctx.fillText("★LAND", dbx, dby + 20); }
+      else if (a.state === "READY") { ctx.fillStyle = "#ffd08a"; ctx.fillText("HOLD", dbx, dby + 20); }
+      else if (a.ga) { ctx.fillStyle = "#ff9b9b"; ctx.fillText("G/A", dbx, dby + 20); }
+    });
+    ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.font = "10px ui-monospace, monospace"; ctx.textAlign = "left";
+    ctx.fillText(F.meta.icao + " · " + F.meta.label.split("·")[0].trim(), 14, h - 14);
+  }
 }
 
 /* ═══════════════════════ styles ═══════════════════════ */
@@ -693,6 +787,13 @@ const CSS = `
 .pyr-viewtoggle button{font-size:9.5px;letter-spacing:.1em;color:#9fd4c9;background:transparent;border:0;padding:7px 14px;cursor:pointer}
 .pyr-viewtoggle button.on{color:#04100e;background:#37e0c8}
 .pyr-clr-note{font-family:ui-monospace,monospace;font-size:9px;color:#8fbdff;letter-spacing:.04em;margin-top:4px}
+.pyr-btn.live{background:#3fd3ff;color:#04100e}
+.pyr-live-h{font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em;color:#3fd3ff;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pyr-live-dot{width:8px;height:8px;border-radius:50%;background:#3fd3ff;margin-left:auto}
+.pyr-live-dot.ok{box-shadow:0 0 8px #3fd3ff;animation:pyrpulse 1.4s infinite}
+.pyr-live-dot.loading{background:#ffd08a}
+.pyr-live-dot.error,.pyr-live-dot.empty{background:#ff6b6b}
+.pyr-live-stat{font-family:ui-monospace,monospace;font-size:11px;color:#9fd4c9;margin-bottom:12px;letter-spacing:.03em}
 .pyr-scopewrap{position:relative;flex:1;min-width:0}
 .pyr-scopewrap canvas{display:block;cursor:crosshair}
 .pyr-zoom{position:absolute;right:14px;top:12px;display:flex;flex-direction:column;align-items:center;gap:4px;background:#0a1f1bcc;border:1px solid rgba(55,224,200,.25);border-radius:9px;padding:6px;font-family:ui-monospace,monospace}
