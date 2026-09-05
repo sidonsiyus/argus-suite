@@ -192,6 +192,11 @@ function stepAircraft(a, dt, F) {
     windDrift(a, dt, F, KTS);
     return;
   }
+  // missed approach: once climbed out on the go-around, rejoin the STAR and re-enter the sequence
+  if (a.state === "GOAROUND" && a.alt >= 2600) {
+    a.state = "ARR"; a.appr = false; a.ga = false; a.spdCmd = 220;
+    if (a.rwy._star && a.rwy._star.length) { a.nav = a.rwy._star.map((f) => ({ x: f.x, y: f.y, name: f.name })); a.star = a.rwy._star[0].name + "1"; }
+  }
   // STAR waypoint navigation — arrivals fly the arrival inbound until cleared the approach
   if (a.kind === "ARR" && !a.appr && a.state === "ARR" && a.nav && a.nav.length) {
     const p = a.nav[0], dx = p.x - a.x, dy = p.y - a.y, dd = Math.hypot(dx, dy);
@@ -239,6 +244,18 @@ function stepAircraft(a, dt, F) {
   if ((a.kind === "DEP" && dc > 16 && a.alt > 4000) || dc > 30) { a.done = true; a._departed = a.kind === "DEP"; }
 }
 
+// the runway an aircraft is physically occupying (on the paved surface), else null
+function onRunway(a) {
+  if (a.kind === "DEP" && (a.state === "LINEUP" || a.state === "TKOF")) return a.rwy;
+  if (a.kind === "ARR" && a.state === "LAND") return a.rwy;
+  return null;
+}
+// arrival committed to the runway on short final (imminent occupant)
+function isShortFinal(a, F) {
+  if (a.kind !== "ARR" || !a.appr || a.state !== "ARR") return false;
+  const r = a.rwy, along = -((a.x - r.thr.x) * r.ux + (a.y - r.thr.y) * r.uy);
+  return along > 0 && along < 2 * F.pxPerNm && a.alt < 800;
+}
 function bayOf(a, F) {
   const ground = ["PARKED", "TAXI_OUT", "TAXI_IN", "READY", "LINEUP"];
   if (a.state === "TAXI_IN" || (a.kind === "ARR" && a.state === "PARKED")) return "GROUND";
@@ -294,6 +311,7 @@ export default function Pyrgos() {
   const [rangeNm, setRangeNm] = useState(12);
   const [conf, setConf] = useState(0);
   const [pred, setPred] = useState(0);
+  const [inc, setInc] = useState([]);
   const [position, setPosition] = useState("TOWER");
   const [chart, setChart] = useState(false);
   const [queues, setQueues] = useState({ DELIVERY: [], GROUND: [], APPROACH: [], TOWER: [] });
@@ -303,7 +321,7 @@ export default function Pyrgos() {
   const [events, setEvents] = useState([]);
   const [wx, setWx] = useState({ status: "idle", raw: "", favRwy: "" });
   const [seq, setSeq] = useState([]);
-  const [stats, setStats] = useState({ landed: 0, departed: 0, ga: 0, busts: 0, emerg: 0 });
+  const [stats, setStats] = useState({ landed: 0, departed: 0, ga: 0, busts: 0, emerg: 0, incursions: 0 });
   const [showSummary, setShowSummary] = useState(false);
   const [muted, setMuted] = useState(true);
   const modeRef = useRef("SIM");
@@ -327,7 +345,7 @@ export default function Pyrgos() {
   useEffect(() => {
     const F = buildField(layoutKey);
     sim.current = { F, aircraft: [], spawnT: 2.5, comms: [], commId: 1, score: 0, events: [], busted: new Set(),
-      stats: { landed: 0, departed: 0, ga: 0, busts: 0, emerg: 0 }, emergT: rnd(55, 100), startT: Date.now(), inject: null };
+      stats: { landed: 0, departed: 0, ga: 0, busts: 0, emerg: 0, incursions: 0 }, emergT: rnd(55, 100), startT: Date.now(), inject: null };
     view.current = { radiusNm: 12, cx: F.cx, cy: F.cy, chart: false };
     setRangeNm(12); setSel(null); setComms([]); setChart(false); setPosition("TOWER");
     [7, 11, 15].forEach((d) => sim.current.aircraft.push(spawnArrival(F, d)));
@@ -377,7 +395,7 @@ export default function Pyrgos() {
         S.aircraft.push(a); checkIn(S, a, F);
       }
       S.aircraft.forEach((a) => {
-        a.conf = false; a.wakeWarn = false;
+        a.conf = false; a.wakeWarn = false; a.incursion = false;
         const prev = a.state; stepAircraft(a, dt, F);
         // arrival handoff Approach → Tower once established and inside ~9nm
         if (a.kind === "ARR" && a.owner === "APPROACH" && a.appr && distNm(a, F) < 9) {
@@ -433,6 +451,19 @@ export default function Pyrgos() {
           }
         }
       }
+      // ── runway incursion — two aircraft claiming the same runway surface ──
+      S.incursions = [];
+      const users = {}; // rwy name -> aircraft on it or committed to it
+      S.aircraft.forEach((a) => {
+        const ro = onRunway(a); const rn = ro ? ro.name : (isShortFinal(a, F) ? a.rwy.name : null);
+        if (rn) (users[rn] = users[rn] || []).push(a);
+      });
+      for (const rn in users) {
+        const u = users[rn]; if (u.length < 2) continue;
+        u.forEach((a) => { a.incursion = true; }); S.incursions.push(rn);
+        const key = "inc-" + u.map((a) => a.id).sort((x, y) => x - y).join("-");
+        if (!S.busted.has(key)) { S.busted.add(key); S.score -= 40; S.stats.incursions++; S.events.unshift({ t: zulu(), txt: `runway ${rn} incursion · ${u.map((a) => a.cs).join("/")}`, d: -40 }); beep(200, 0.28, "square", 0.07); }
+      }
     }
     frame(performance.now());
     return () => { cancelAnimationFrame(raf.current); ro.disconnect(); };
@@ -467,7 +498,7 @@ export default function Pyrgos() {
       });
       setSeq(ladder);
       setCounts({ arr: S.aircraft.filter((a) => a.kind === "ARR").length, dep: S.aircraft.filter((a) => a.kind === "DEP").length });
-      setConf(S.conflicts ? S.conflicts.length : 0); setPred(S.predicts ? S.predicts.length : 0);
+      setConf(S.conflicts ? S.conflicts.length : 0); setPred(S.predicts ? S.predicts.length : 0); setInc(S.incursions ? [...S.incursions] : []);
       setScore(S.score); setEvents(S.events.slice(0, 6)); setStats({ ...S.stats });
       setComms(S.comms.slice(-14).reverse());
       const s = S.aircraft.find((a) => a.sel);
@@ -636,8 +667,8 @@ export default function Pyrgos() {
   const applyHdg = () => { const d = parseInt(hdgInput, 10); if (!isNaN(d)) { cmdHdg(d); setHdgInput(""); } };
   const doSpawn = (kind) => { const S = sim.current, F = S.F; const a = kind === "ARR" ? spawnArrival(F, null, leastLoaded(F.arrRwys, S.aircraft, "ARR")) : spawnDeparture(F, leastLoaded(F.depRwys, S.aircraft, "DEP")); S.aircraft.push(a); checkIn(S, a, F); };
   const injectEmergency = () => { if (sim.current) sim.current.inject = "EMERG"; };
-  const resetSession = () => { setShowSummary(false); setLayoutKey((k) => k); const F = buildField(layoutKey); sim.current = { F, aircraft: [], spawnT: 2.5, comms: [], commId: 1, score: 0, events: [], busted: new Set(), stats: { landed: 0, departed: 0, ga: 0, busts: 0, emerg: 0 }, emergT: rnd(55, 100), startT: Date.now(), inject: null }; [7, 11, 15].forEach((d) => sim.current.aircraft.push(spawnArrival(F, d))); sim.current.aircraft.push(spawnDeparture(F)); sim.current.aircraft.forEach((a) => checkIn(sim.current, a, F)); setSel(null); };
-  const grade = (sc, st) => { const total = st.landed + st.departed; if (total < 3) return "—"; const per = sc / Math.max(1, total); if (per >= 90 && st.busts === 0) return "A+"; if (per >= 80) return "A"; if (per >= 65) return "B"; if (per >= 45) return "C"; return "D"; };
+  const resetSession = () => { setShowSummary(false); setLayoutKey((k) => k); const F = buildField(layoutKey); sim.current = { F, aircraft: [], spawnT: 2.5, comms: [], commId: 1, score: 0, events: [], busted: new Set(), stats: { landed: 0, departed: 0, ga: 0, busts: 0, emerg: 0, incursions: 0 }, emergT: rnd(55, 100), startT: Date.now(), inject: null }; [7, 11, 15].forEach((d) => sim.current.aircraft.push(spawnArrival(F, d))); sim.current.aircraft.push(spawnDeparture(F)); sim.current.aircraft.forEach((a) => checkIn(sim.current, a, F)); setSel(null); };
+  const grade = (sc, st) => { const total = st.landed + st.departed; if (total < 3) return "—"; const per = sc / Math.max(1, total); const clean = st.busts === 0 && st.incursions === 0; if (per >= 90 && clean) return "A+"; if (per >= 80) return "A"; if (per >= 65) return "B"; if (per >= 45) return "C"; return "D"; };
 
   // touch controls (reuse the mouse pan/select logic)
   const tPt = (e) => { const t = e.touches[0] || e.changedTouches[0]; return { clientX: t.clientX, clientY: t.clientY }; };
@@ -747,8 +778,9 @@ export default function Pyrgos() {
         {/* scope */}
         <div className="pyr-scopewrap" ref={wrapRef}>
           <canvas ref={canvasRef} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} />
-          {conf > 0 && <div className="pyr-conflict">⚠ SEPARATION · {conf} conflict{conf > 1 ? "s" : ""} — vector to restore spacing</div>}
-          {conf === 0 && pred > 0 && <div className="pyr-predict">◇ STCA · {pred} predicted conflict{pred > 1 ? "s" : ""} — resolve early</div>}
+          {inc.length > 0 && <div className="pyr-conflict pyr-incursion">⛔ RUNWAY INCURSION · {inc.join(", ")} — clear the runway</div>}
+          {inc.length === 0 && conf > 0 && <div className="pyr-conflict">⚠ SEPARATION · {conf} conflict{conf > 1 ? "s" : ""} — vector to restore spacing</div>}
+          {inc.length === 0 && conf === 0 && pred > 0 && <div className="pyr-predict">◇ STCA · {pred} predicted conflict{pred > 1 ? "s" : ""} — resolve early</div>}
           <div className="pyr-viewtoggle">
             <button className={!chart ? "on" : ""} onClick={() => chart && toggleChart()}>RADAR</button>
             <button className={chart ? "on" : ""} onClick={() => !chart && toggleChart()}>GROUND</button>
@@ -885,8 +917,8 @@ export default function Pyrgos() {
               <div><span>Departed</span><b>{stats.departed}</b></div>
               <div><span>Go-arounds</span><b>{stats.ga}</b></div>
               <div><span>Sep. busts</span><b className={stats.busts ? "bad" : ""}>{stats.busts}</b></div>
+              <div><span>Incursions</span><b className={stats.incursions ? "bad" : ""}>{stats.incursions}</b></div>
               <div><span>Emergencies</span><b>{stats.emerg}</b></div>
-              <div><span>On freq</span><b>{counts.arr + counts.dep}</b></div>
             </div>
             <div className="pyr-card-btns">
               <button className="go" onClick={resetSession}>↻ New session</button>
@@ -977,10 +1009,15 @@ function render(ctx, canvas, S, v, DPR, sweep, mode) {
   }
 
   // runways (asphalt fill + edges + centreline + threshold bars + numbers)
+  const incSet = S.incursions && S.incursions.length ? new Set(S.incursions) : null;
   F.runways.forEach((r) => {
     const off = r.role === "OFF";
     const ax = toX(r.ax), ay = toY(r.ay), bx = toX(r.bx), by = toY(r.by);
     const wpx = Math.max(3, r.w * scale);
+    if (incSet && incSet.has(r.name) && (sweep * 2 % 2) < 1.2) { // flashing incursion highlight
+      ctx.save(); ctx.strokeStyle = "#ff5a63"; ctx.lineWidth = wpx + 6; ctx.lineCap = "round"; ctx.shadowColor = "#ff5a63"; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore();
+    }
     ctx.save(); ctx.shadowColor = "rgba(55,224,200,0.4)"; ctx.shadowBlur = off ? 0 : 6;
     ctx.strokeStyle = off ? "rgba(150,180,175,0.4)" : "#0f2b26"; ctx.lineWidth = wpx; ctx.lineCap = "butt";
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore();
@@ -1068,6 +1105,7 @@ function render(ctx, canvas, S, v, DPR, sweep, mode) {
       ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = a.sel ? 8 : 4; ctx.translate(x, y); ctx.rotate(hr);
       ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.lineTo(4.5, 4.5); ctx.lineTo(0, 1.8); ctx.lineTo(-4.5, 4.5); ctx.closePath(); ctx.fill(); ctx.restore();
       if (a.sel) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.stroke(); }
+      if (a.incursion) { ctx.strokeStyle = "#ff5a63"; ctx.lineWidth = 2; ctx.beginPath(); ctx.rect(x - 9, y - 9, 18, 18); ctx.stroke(); }
       if (a.conf) { ctx.strokeStyle = "#ff5a63"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI * 2); ctx.stroke(); }
       if (a.wakeWarn && !a.conf) { ctx.strokeStyle = "#ffb454"; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
       if (a.pred && !a.conf && !a.wakeWarn) { ctx.strokeStyle = "rgba(255,180,90,0.6)"; ctx.setLineDash([2, 3]); ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
@@ -1237,6 +1275,7 @@ const CSS = `
 .pyr-conflict{position:absolute;left:50%;top:48px;transform:translateX(-50%);font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.07em;color:#04100e;background:#ff5a63;padding:7px 14px;border-radius:8px;font-weight:600;animation:pyrflash 1s infinite;z-index:5;white-space:nowrap}
 @keyframes pyrflash{0%,100%{opacity:1}50%{opacity:.55}}
 .pyr-predict{position:absolute;left:50%;top:48px;transform:translateX(-50%);font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.06em;color:#04100e;background:#ffb454;padding:6px 13px;border-radius:8px;font-weight:600;z-index:5;white-space:nowrap;opacity:.92}
+.pyr-incursion{background:#ff2b3a;color:#fff;box-shadow:0 0 18px rgba(255,43,58,.6)}
 .pyr-airborne{font-family:ui-monospace,monospace;font-size:10px;color:#9fd4c9;padding:8px 4px;letter-spacing:.06em}
 .pyr-side{width:300px;flex:none;border-left:1px solid rgba(55,224,200,.16);background:#061815;display:flex;flex-direction:column;min-height:0}
 .pyr-ctl{padding:14px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid rgba(55,224,200,.12)}
