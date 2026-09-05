@@ -162,6 +162,19 @@ function bayOf(a, F) {
   if (a.state === "LAND" || (a.state === "ARR" && distNm(a, F) < 5)) return "RUNWAY";
   return "APPROACH";
 }
+// which ATC position currently owns the aircraft
+function posOf(a) {
+  if (a.kind === "DEP" && a.state === "PARKED" && !a.cleared.delivery) return "DELIVERY";
+  if (a.kind === "DEP" && (a.state === "PARKED" || a.state === "TAXI_OUT")) return "GROUND";
+  if (a.state === "TAXI_IN" || a.state === "PARKED") return "GROUND";
+  return "TOWER";
+}
+const CTRL_POS = ["TWR", "GND", "DEL", "APP"]; // controller callsigns in comms
+function selSnap(a, F) {
+  return { id: a.id, cs: a.cs, tele: a.tele, type: a.type, kind: a.kind, state: a.state,
+    alt: Math.round(a.alt / 100) * 100, spd: Math.round(a.spd), hdg: Math.round(a.hdg), rwy: a.rwy.name,
+    land: !!a.cleared.land, deliv: !!a.cleared.delivery, sid: a.sid, sq: a.squawk, nm: +distNm(a, F).toFixed(1) };
+}
 
 /* ═══════════════════════ component ═══════════════════════ */
 export default function Pyrgos() {
@@ -184,12 +197,15 @@ export default function Pyrgos() {
   const [atis, setAtis] = useState({ ltr: "A", wind: "—", qnh: 1013, rwy: "—" });
   const [rangeNm, setRangeNm] = useState(12);
   const [conf, setConf] = useState(0);
+  const [position, setPosition] = useState("TOWER");
+  const [chart, setChart] = useState(false);
+  const [queues, setQueues] = useState({ DELIVERY: [], GROUND: [], TOWER: [] });
 
   useEffect(() => {
     const F = buildField(layoutKey);
     sim.current = { F, aircraft: [], spawnT: 2.5, comms: [], commId: 1 };
-    view.current = { radiusNm: 12, cx: F.cx, cy: F.cy };
-    setRangeNm(12); setSel(null); setComms([]);
+    view.current = { radiusNm: 12, cx: F.cx, cy: F.cy, chart: false };
+    setRangeNm(12); setSel(null); setComms([]); setChart(false); setPosition("TOWER");
     [7, 11, 15].forEach((d) => sim.current.aircraft.push(spawnArrival(F, d)));
     const dep = spawnDeparture(F); sim.current.aircraft.push(dep);
     const r0 = F.runways[0];
@@ -202,7 +218,7 @@ export default function Pyrgos() {
 
   function checkIn(S, a, F) {
     if (a.kind === "ARR") say(S, a.cs, `Tower, ${spoken(a)}, ${Math.round(distNm(a, F))} mile final runway ${a.rwy.name}`);
-    else if (a.state === "PARKED") say(S, a.cs, `Ground, ${spoken(a)}, at the gate, request taxi runway ${a.rwy.name}`);
+    else if (a.state === "PARKED") say(S, a.cs, `Delivery, ${spoken(a)}, at the gate, request IFR clearance`);
     else say(S, a.cs, `${spoken(a)}, ready for departure runway ${a.rwy.name}`);
   }
 
@@ -262,17 +278,20 @@ export default function Pyrgos() {
     const id = setInterval(() => {
       setClock(zulu()); const S = sim.current; if (!S) return; const F = S.F;
       const bays = { APPROACH: [], RUNWAY: [], GROUND: [] };
+      const qs = { DELIVERY: [], GROUND: [], TOWER: [] };
       S.aircraft.forEach((a) => {
-        bays[bayOf(a, F)].push({ id: a.id, cs: a.cs, type: a.type, rwy: a.rwy.name, kind: a.kind, state: a.state,
-          alt: Math.round(a.alt / 100) * 100, spd: Math.round(a.spd), nm: +distNm(a, F).toFixed(1), land: !!a.cleared.land, sel: a.sel });
+        const row = { id: a.id, cs: a.cs, type: a.type, rwy: a.rwy.name, kind: a.kind, state: a.state,
+          alt: Math.round(a.alt / 100) * 100, spd: Math.round(a.spd), nm: +distNm(a, F).toFixed(1), land: !!a.cleared.land, deliv: !!a.cleared.delivery, sid: a.sid, sel: a.sel };
+        bays[bayOf(a, F)].push(row); qs[posOf(a)].push(row);
       });
       bays.APPROACH.sort((x, y) => x.nm - y.nm); bays.RUNWAY.sort((x, y) => x.nm - y.nm);
-      setRoster(bays);
+      qs.TOWER.sort((x, y) => x.nm - y.nm);
+      setRoster(bays); setQueues(qs);
       setCounts({ arr: S.aircraft.filter((a) => a.kind === "ARR").length, dep: S.aircraft.filter((a) => a.kind === "DEP").length });
       setConf(S.conflicts ? S.conflicts.length : 0);
       setComms(S.comms.slice(-14).reverse());
       const s = S.aircraft.find((a) => a.sel);
-      if (s) setSel({ id: s.id, cs: s.cs, tele: s.tele, type: s.type, kind: s.kind, state: s.state, alt: Math.round(s.alt / 100) * 100, spd: Math.round(s.spd), hdg: Math.round(s.hdg), rwy: s.rwy.name, land: !!s.cleared.land, nm: +distNm(s, F).toFixed(1) });
+      if (s) setSel(selSnap(s, F));
       else if (sel) setSel(null);
     }, 350);
     return () => clearInterval(id);
@@ -286,12 +305,23 @@ export default function Pyrgos() {
     S.aircraft.forEach((a) => { const sx = r.width / 2 + (a.x - v.cx) * sc, sy = r.height / 2 + (a.y - v.cy) * sc; const d = Math.hypot(sx - mx, sy - my); if (d < bd) { bd = d; best = a; } });
     return best;
   };
-  const selectById = (id) => { const S = sim.current; S.aircraft.forEach((a) => (a.sel = a.id === id)); const a = S.aircraft.find((x) => x.id === id); if (a) setSel({ id: a.id, cs: a.cs, tele: a.tele, type: a.type, kind: a.kind, state: a.state, alt: Math.round(a.alt / 100) * 100, spd: Math.round(a.spd), hdg: Math.round(a.hdg), rwy: a.rwy.name, land: !!a.cleared.land, nm: +distNm(a, S.F).toFixed(1) }); };
+  const selectById = (id) => { const S = sim.current; S.aircraft.forEach((a) => (a.sel = a.id === id)); const a = S.aircraft.find((x) => x.id === id); if (a) setSel(selSnap(a, S.F)); };
   const onDown = (e) => { const r = canvasRef.current.getBoundingClientRect(); drag.current = { x: e.clientX, y: e.clientY, moved: 0, cx: view.current.cx, cy: view.current.cy, mx: e.clientX - r.left, my: e.clientY - r.top }; };
   const onMove = (e) => { const d = drag.current; if (!d) return; const dx = e.clientX - d.x, dy = e.clientY - d.y; d.moved += Math.abs(dx) + Math.abs(dy); const sc = screenScale(); view.current.cx = d.cx - dx / sc; view.current.cy = d.cy - dy / sc; };
   const onUp = (e) => { const d = drag.current; drag.current = null; if (!d) return; if (d.moved < 6) { const a = pickAircraft(d.mx, d.my); const S = sim.current; S.aircraft.forEach((x) => (x.sel = false)); if (a) { a.sel = true; selectById(a.id); } else setSel(null); } };
-  const zoomBy = (factor) => { const v = view.current; v.radiusNm = Math.max(4, Math.min(40, v.radiusNm * factor)); setRangeNm(Math.round(v.radiusNm)); };
+  const zoomBy = (factor) => { const v = view.current; v.radiusNm = Math.max(3, Math.min(40, v.radiusNm * factor)); setRangeNm(Math.round(v.radiusNm)); };
   const onWheel = (e) => { e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.12 : 0.89); };
+  const toggleChart = () => {
+    const next = !chart; setChart(next);
+    const v = view.current, F = sim.current.F;
+    if (next) {
+      const xs = [], ys = []; F.runways.forEach((r) => { xs.push(r.ax, r.bx); ys.push(r.ay, r.by); }); Object.values(F.nodes).forEach((n) => { xs.push(n.x); ys.push(n.y); });
+      v.cx = (Math.min(...xs) + Math.max(...xs)) / 2; v.cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      v.radiusNm = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2 / F.pxPerNm * 1.3;
+      v.chart = true;
+    } else { v.cx = F.cx; v.cy = F.cy; v.radiusNm = 12; v.chart = false; }
+    setRangeNm(Math.round(v.radiusNm));
+  };
 
   /* ── commands (with comms readbacks) ── */
   const withSel = (fn) => { const S = sim.current; const a = S?.aircraft.find((x) => x.sel); if (a) fn(a, S); };
@@ -301,7 +331,17 @@ export default function Pyrgos() {
   const cmdSpd = (kt) => withSel((a, S) => { a.spdCmd = kt; say(S, "TWR", `${spoken(a)}, ${kt} knots`); say(S, a.cs, `${kt} knots, ${spoken(a)}`); });
   const cmdApproach = () => withSel((a, S) => { if (a.kind === "ARR") { a.appr = true; a.state = "ARR"; say(S, "TWR", `${spoken(a)}, cleared ILS runway ${a.rwy.name}`); say(S, a.cs, `Cleared ILS ${a.rwy.name}, ${spoken(a)}`); } });
   const cmdLand = () => withSel((a, S) => { if (a.kind === "ARR") { a.cleared.land = true; a.appr = true; a.state = "ARR"; say(S, "TWR", `${spoken(a)}, runway ${a.rwy.name}, cleared to land`); say(S, a.cs, `Cleared to land ${a.rwy.name}, ${spoken(a)}`); } });
+  const cmdDeliver = () => withSel((a, S) => {
+    if (a.kind !== "DEP" || a.cleared.delivery) return;
+    const F = S.F, sids = (F.meta.sids || []).filter((s) => s.rwys.includes(a.rwy.name));
+    const sid = sids.length ? pick(sids) : null;
+    a.sid = sid ? sid.name : "RADAR VECTORS"; a.squawk = String(1000 + (Math.random() * 6000 | 0));
+    a.cleared.delivery = true; a.altCmd = sid ? (sid.alt || 5000) : 5000;
+    say(S, "DEL", `${spoken(a)}, cleared to destination via the ${a.sid} departure, climb ${a.altCmd >= 1000 ? (a.altCmd / 1000) + " thousand" : a.altCmd}, squawk ${a.squawk}`);
+    say(S, a.cs, `Via ${a.sid}, climb ${a.altCmd / 1000 | 0} thousand, squawk ${a.squawk}, ${spoken(a)}`);
+  });
   const cmdTaxi = () => withSel((a, S) => {
+    if (a.kind === "DEP" && a.state === "PARKED" && !a.cleared.delivery) { say(S, "GND", `${spoken(a)}, remain at the gate, contact delivery for your clearance`); return; }
     if (a.kind === "DEP" && (a.state === "PARKED" || a.state === "TAXI_OUT")) {
       const F = S.F, holdName = F.meta.holds && F.meta.holds[a.rwy.name];
       const rt = holdName ? routeNodes(F, a.homeGate || nearestNode(F, a.x, a.y), holdName) : null;
@@ -339,30 +379,65 @@ export default function Pyrgos() {
         <a className="pyr-btn ghost" href="/pyrgos.html" title="Original simulator">Classic ↗</a>
       </header>
 
+      <div className="pyr-postabs">
+        {["BRIEFING", "ATIS", "DELIVERY", "GROUND", "TOWER"].map((p) => (
+          <button key={p} className={"pyr-postab" + (position === p ? " on" : "")} onClick={() => setPosition(p)}>
+            {p}{["DELIVERY", "GROUND", "TOWER"].includes(p) && queues[p].length > 0 && <span className="pyr-postab-n">{queues[p].length}</span>}
+          </button>
+        ))}
+      </div>
+
       <div className="pyr-stage">
-        {/* strips */}
+        {/* position panel */}
         <aside className="pyr-strips">
-          {[["APPROACH", "◂ Approach / Inbound"], ["RUNWAY", "▣ Runway / Active"], ["GROUND", "▸ Ground / Departures"]].map(([bay, title]) => (
-            <div className="pyr-bay" key={bay}>
-              <div className="pyr-bay-h">{title}<span>{roster[bay].length}</span></div>
+          {position === "BRIEFING" && F && (
+            <div className="pyr-info">
+              <div className="pyr-info-h">◉ Shift Briefing</div>
+              <div className="pyr-info-row"><span>Field</span><b>{F.meta.icao} · {F.meta.label.split("·")[0].trim()}</b></div>
+              <div className="pyr-info-row"><span>Runways in use</span><b>{F.arrRwys.map((r) => r.name).join(", ")}</b></div>
+              <div className="pyr-info-row"><span>Wind</span><b>{atis.wind}</b></div>
+              <div className="pyr-info-row"><span>QNH</span><b>{atis.qnh}</b></div>
+              <div className="pyr-info-row"><span>ATIS</span><b>Information {atis.ltr}</b></div>
+              <div className="pyr-info-row"><span>Traffic</span><b>{counts.arr} inbound · {counts.dep} outbound</b></div>
+              <div className="pyr-info-p">Work the positions top to bottom: <b>Delivery</b> issues IFR clearances to parked departures, <b>Ground</b> taxis them to the runway, and <b>Tower</b> handles takeoffs, approaches and landings. Keep arrivals separated by 3&nbsp;nm / 1000&nbsp;ft — watch the separation banner.</div>
+            </div>
+          )}
+          {position === "ATIS" && (
+            <div className="pyr-info">
+              <div className="pyr-info-h">◉ ATIS Broadcast</div>
+              <div className="pyr-atis-big">{atis.ltr}</div>
+              <div className="pyr-info-row"><span>Wind</span><b>{atis.wind}</b></div>
+              <div className="pyr-info-row"><span>QNH</span><b>{atis.qnh}</b></div>
+              <div className="pyr-info-row"><span>Runways</span><b>{atis.rwy}</b></div>
+              <button className="pyr-info-btn" onClick={() => setAtis((a) => ({ ...a, ltr: String.fromCharCode(a.ltr === "Z" ? 65 : a.ltr.charCodeAt(0) + 1), wind: `${String(Math.round((F?.runways[0].hdg || 0) + rnd(-15, 15))).padStart(3, "0").slice(0, 3)}/${8 + (Math.random() * 8 | 0)}` }))}>↻ Issue new ATIS</button>
+              <div className="pyr-info-p">Aircraft acknowledge the current information letter on first contact.</div>
+            </div>
+          )}
+          {["DELIVERY", "GROUND", "TOWER"].includes(position) && (
+            <div className="pyr-bay">
+              <div className="pyr-bay-h">{position === "DELIVERY" ? "▸ Clearance Delivery" : position === "GROUND" ? "▸ Ground Movement" : "▣ Tower / Runway"}<span>{queues[position].length}</span></div>
               <div className="pyr-bay-l">
-                {roster[bay].map((s) => (
+                {queues[position].map((s) => (
                   <button key={s.id} className={"pyr-strip " + (s.kind === "ARR" ? "arr" : "dep") + (s.sel ? " sel" : "")} onClick={() => selectById(s.id)}>
-                    <div className="pyr-strip-cs">{s.cs}{s.land && <span className="pyr-strip-clr">★</span>}</div>
-                    <div className="pyr-strip-meta">{s.type} · {s.rwy} · {s.state}</div>
-                    <div className="pyr-strip-nums">{s.alt < 1000 ? "GND" : "FL" + (s.alt / 100 | 0)} · {s.spd}kt{s.nm ? " · " + s.nm + "nm" : ""}</div>
+                    <div className="pyr-strip-cs">{s.cs}{s.land && <span className="pyr-strip-clr">★</span>}{s.deliv && position === "GROUND" && <span className="pyr-strip-clr" style={{ color: "#8fbdff" }}>CLR</span>}</div>
+                    <div className="pyr-strip-meta">{s.type} · {s.rwy} · {s.state}{s.sid ? " · " + s.sid : ""}</div>
+                    <div className="pyr-strip-nums">{s.alt < 1000 ? "GND" : "FL" + (s.alt / 100 | 0)} · {s.spd}kt{s.kind === "ARR" && s.nm ? " · " + s.nm + "nm" : ""}</div>
                   </button>
                 ))}
-                {roster[bay].length === 0 && <div className="pyr-bay-empty">—</div>}
+                {queues[position].length === 0 && <div className="pyr-bay-empty">no traffic for {position.toLowerCase()}</div>}
               </div>
             </div>
-          ))}
+          )}
         </aside>
 
         {/* scope */}
         <div className="pyr-scopewrap" ref={wrapRef}>
           <canvas ref={canvasRef} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel} />
           {conf > 0 && <div className="pyr-conflict">⚠ SEPARATION · {conf} conflict{conf > 1 ? "s" : ""} — vector to restore spacing</div>}
+          <div className="pyr-viewtoggle">
+            <button className={!chart ? "on" : ""} onClick={() => chart && toggleChart()}>RADAR</button>
+            <button className={chart ? "on" : ""} onClick={() => !chart && toggleChart()}>GROUND</button>
+          </div>
           <div className="pyr-zoom">
             <button onClick={() => zoomBy(0.8)}>+</button>
             <span>{rangeNm}nm</span>
@@ -415,10 +490,13 @@ export default function Pyrgos() {
                     <button className="go" onClick={cmdLand}>Cleared to land</button>
                     <button className="warn" onClick={cmdGoAround}>Go around</button>
                   </> : <>
-                    {(sel.state === "PARKED" || sel.state === "TAXI_OUT") && <button className="go" onClick={cmdTaxi}>Taxi to runway</button>}
+                    {sel.state === "PARKED" && !sel.deliv && <button className="go" onClick={cmdDeliver}>Deliver IFR clearance</button>}
+                    {sel.state === "PARKED" && sel.deliv && <button className="go" onClick={cmdTaxi}>Pushback / taxi</button>}
+                    {sel.state === "TAXI_OUT" && <button className="go" onClick={cmdTaxi}>Re-route taxi</button>}
                     {(sel.state === "READY" || sel.state === "LINEUP") && <button className="go" onClick={cmdTakeoff}>Cleared for takeoff</button>}
                     {(sel.state === "TKOF" || sel.state === "DEP") && <span className="pyr-airborne">✈ airborne / climbing out</span>}
                   </>}
+                  {sel.kind === "DEP" && sel.deliv && sel.sid && <div className="pyr-clr-note">Cleared via {sel.sid} · squawk {sel.sq}</div>}
                 </div>
               </div>
             </div>
@@ -430,8 +508,8 @@ export default function Pyrgos() {
             <div className="pyr-comms-h">◉ TWR 118.1 · frequency</div>
             <div className="pyr-comms-l">
               {comms.map((c) => (
-                <div key={c.id} className={"pyr-msg " + (c.from === "TWR" ? "twr" : "pilot")}>
-                  <span className="pyr-msg-f">{c.from === "TWR" ? "TWR" : c.from}</span>
+                <div key={c.id} className={"pyr-msg " + (CTRL_POS.includes(c.from) ? "twr" : "pilot")}>
+                  <span className="pyr-msg-f">{c.from}</span>
                   <span className="pyr-msg-t">{c.text}</span>
                 </div>
               ))}
@@ -494,6 +572,15 @@ function render(ctx, canvas, S, v, DPR, sweep) {
   ctx.strokeStyle = zoomedIn ? "rgba(120,180,168,0.5)" : "rgba(90,150,140,0.22)"; ctx.lineWidth = zoomedIn ? 2 : 1;
   F.edges.forEach(([a, b]) => { const na = F.nodes[a], nb = F.nodes[b]; if (na && nb) { ctx.beginPath(); ctx.moveTo(toX(na.x), toY(na.y)); ctx.lineTo(toX(nb.x), toY(nb.y)); ctx.stroke(); } });
   if (zoomedIn) { ctx.fillStyle = "rgba(150,220,205,0.6)"; (F.gates || []).forEach((g) => { const n = F.nodes[g]; if (n) { ctx.beginPath(); ctx.arc(toX(n.x), toY(n.y), 2.4, 0, Math.PI * 2); ctx.fill(); } }); }
+  // ground-chart labels
+  if (v.chart) {
+    ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(120,180,168,0.55)";
+    for (const k in F.nodes) { if (!k.startsWith("G") && !k.startsWith("H")) { const n = F.nodes[k]; ctx.fillText(k, toX(n.x), toY(n.y) - 3); } }
+    ctx.fillStyle = "rgba(150,220,205,0.85)"; (F.gates || []).forEach((g) => { const n = F.nodes[g]; if (n) ctx.fillText(g, toX(n.x), toY(n.y) + 9); });
+    ctx.fillStyle = "rgba(255,205,135,0.85)"; const holds = F.meta.holds || {}; for (const rw in holds) { const n = F.nodes[holds[rw]]; if (n) ctx.fillText("⊣" + rw, toX(n.x), toY(n.y) - 4); }
+    ctx.fillStyle = "rgba(55,224,200,0.35)"; ctx.font = "11px ui-monospace, monospace"; ctx.textAlign = "right"; ctx.fillText("GROUND CHART · SMR", w - 14, 22);
+  }
 
   // runways (asphalt fill + edges + centreline + threshold bars + numbers)
   F.runways.forEach((r) => {
@@ -590,6 +677,22 @@ const CSS = `
 .pyr-strip-clr{color:#8fffe0;font-size:10px}
 .pyr-strip-meta{font-family:ui-monospace,monospace;font-size:8.5px;letter-spacing:.04em;color:#7fb8ac;margin-top:2px;text-transform:uppercase}
 .pyr-strip-nums{font-family:ui-monospace,monospace;font-size:10px;color:#9fd4c9;margin-top:3px}
+.pyr-postabs{display:flex;gap:2px;padding:0 8px;background:#061815;border-bottom:1px solid rgba(55,224,200,.14);flex:none;overflow-x:auto}
+.pyr-postab{position:relative;font-family:ui-monospace,monospace;font-size:9.5px;letter-spacing:.09em;color:#7fb8ac;background:transparent;border:0;border-bottom:2px solid transparent;padding:11px 13px;cursor:pointer;white-space:nowrap}
+.pyr-postab:hover{color:#dff3ee}
+.pyr-postab.on{color:#37e0c8;border-bottom-color:#37e0c8}
+.pyr-postab-n{margin-left:6px;font-size:8px;color:#04100e;background:#37e0c8;border-radius:8px;padding:1px 5px}
+.pyr-info{padding:14px;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.pyr-info-h{font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.1em;color:#37e0c8;margin-bottom:4px}
+.pyr-info-row{display:flex;justify-content:space-between;gap:10px;font-family:ui-monospace,monospace;font-size:11px;color:#9fd4c9;padding:6px 0;border-bottom:1px solid rgba(55,224,200,.08)}
+.pyr-info-row b{color:#dff3ee}
+.pyr-info-p{font-size:11.5px;line-height:1.65;color:#7fb8ac;margin-top:6px}.pyr-info-p b{color:#9fd4c9}
+.pyr-atis-big{font-family:ui-monospace,monospace;font-size:60px;font-weight:700;color:#37e0c8;text-align:center;line-height:1;padding:8px 0}
+.pyr-info-btn{font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.08em;color:#04100e;background:#37e0c8;border:0;border-radius:8px;padding:9px;cursor:pointer;margin-top:6px}
+.pyr-viewtoggle{position:absolute;left:50%;top:12px;transform:translateX(-50%);display:flex;background:#0a1f1bcc;border:1px solid rgba(55,224,200,.25);border-radius:9px;overflow:hidden;font-family:ui-monospace,monospace;z-index:4}
+.pyr-viewtoggle button{font-size:9.5px;letter-spacing:.1em;color:#9fd4c9;background:transparent;border:0;padding:7px 14px;cursor:pointer}
+.pyr-viewtoggle button.on{color:#04100e;background:#37e0c8}
+.pyr-clr-note{font-family:ui-monospace,monospace;font-size:9px;color:#8fbdff;letter-spacing:.04em;margin-top:4px}
 .pyr-scopewrap{position:relative;flex:1;min-width:0}
 .pyr-scopewrap canvas{display:block;cursor:crosshair}
 .pyr-zoom{position:absolute;right:14px;top:12px;display:flex;flex-direction:column;align-items:center;gap:4px;background:#0a1f1bcc;border:1px solid rgba(55,224,200,.25);border-radius:9px;padding:6px;font-family:ui-monospace,monospace}
@@ -602,7 +705,7 @@ const CSS = `
 .pyr-spawn{position:absolute;right:14px;bottom:14px;display:flex;gap:6px}
 .pyr-spawn button{font-family:ui-monospace,monospace;font-size:9.5px;color:#9fd4c9;background:#0a1f1bcc;border:1px solid rgba(55,224,200,.25);border-radius:7px;padding:7px 10px;cursor:pointer}
 .pyr-spawn button:hover{border-color:#37e0c8;color:#dff3ee}
-.pyr-conflict{position:absolute;left:50%;top:12px;transform:translateX(-50%);font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.07em;color:#04100e;background:#ff5a63;padding:7px 14px;border-radius:8px;font-weight:600;animation:pyrflash 1s infinite;z-index:5;white-space:nowrap}
+.pyr-conflict{position:absolute;left:50%;top:48px;transform:translateX(-50%);font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.07em;color:#04100e;background:#ff5a63;padding:7px 14px;border-radius:8px;font-weight:600;animation:pyrflash 1s infinite;z-index:5;white-space:nowrap}
 @keyframes pyrflash{0%,100%{opacity:1}50%{opacity:.55}}
 .pyr-airborne{font-family:ui-monospace,monospace;font-size:10px;color:#9fd4c9;padding:8px 4px;letter-spacing:.06em}
 .pyr-side{width:300px;flex:none;border-left:1px solid rgba(55,224,200,.16);background:#061815;display:flex;flex-direction:column;min-height:0}
