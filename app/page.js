@@ -141,8 +141,11 @@ function ThemeToggle() {
     const next = !dark;
     setDark(next);
     const val = next ? "dark" : "light";
-    document.documentElement.setAttribute("data-theme", val);
+    const root = document.documentElement;
+    root.setAttribute("data-theme-anim", "");           // brief crossfade
+    root.setAttribute("data-theme", val);
     try { localStorage.setItem("argus-theme", val); } catch {}
+    window.setTimeout(() => root.removeAttribute("data-theme-anim"), 400);
   }
   return (
     <button className="theme-toggle" onClick={toggle} aria-label="Toggle night ops" title={dark ? "Day ops" : "Night ops"}>
@@ -240,7 +243,20 @@ function NewsDesk({ news }) {
         <div className="group-title">Off the wire<span className="blurb">aviation headlines, refreshed every few minutes</span></div>
       </div>
 
-      {news.status === "loading" && <div className="news-state mono">Pulling the latest headlines…</div>}
+      {news.status === "loading" && (
+        <div className="news-grid" aria-hidden="true">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div className="news-card skel-card" key={i}>
+              <div className="news-thumb sk-thumb skel" />
+              <div className="news-body">
+                <div className="sk-line skel" style={{ width: "40%" }} />
+                <div className="sk-line skel" style={{ width: "92%", height: 13 }} />
+                <div className="sk-line skel" style={{ width: "70%", height: 13 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {(news.status === "error" || news.status === "empty") && (
         <div className="news-state mono">Newsdesk offline — headlines unavailable right now.</div>
       )}
@@ -286,7 +302,7 @@ function fmtAlt(a) {
   if (a == null) return "—";
   return a >= 18000 ? "FL" + Math.round(a / 100) : Math.round(a).toLocaleString() + " ft";
 }
-function RadarScope() {
+function RadarScope({ onCount }) {
   const now = useNow();
   const [icao, setIcao] = useState("OMDB"); // busiest / most consistent ADS-B coverage
   const [state, setState] = useState({ status: "loading", planes: [], count: 0, stale: false });
@@ -328,6 +344,7 @@ function RadarScope() {
         if (!alive) return;
         if (planes.length) {
           setState({ status: "ok", planes: planes.slice(0, 60), count: planes.length, stale: false });
+          onCount?.(planes.length, icao);
         } else {
           setState((s) => (s.planes.length ? { ...s, stale: true } : { status: "empty", planes: [], count: 0, stale: false }));
         }
@@ -584,8 +601,24 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // reveal sections as they scroll into view — only opt into hide-then-reveal when
+  // IntersectionObserver can actually run, so content is never left invisible.
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || !("IntersectionObserver" in window) || window.innerHeight === 0) return;
+    document.documentElement.classList.add("reveal-ready");
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
+    document.querySelectorAll(".reveal").forEach((e) => io.observe(e));
+    return () => { io.disconnect(); document.documentElement.classList.remove("reveal-ready"); };
+  }, []);
+
   const liveCount = MODULES.filter((m) => m.live).length;
   const news = useNews();
+  const [airborne, setAirborne] = useState(null); // live count from the radar feed
+  const [airborneAp, setAirborneAp] = useState("");
 
   return (
     <>
@@ -646,25 +679,25 @@ export default function Home() {
             </div>
             <div className="hero-stats">
               <div className="stat"><div className="n serif">{MODULES.length}</div><div className="l">Modules</div></div>
+              <div className="stat"><div className={"n serif" + (airborne != null ? " live" : "")}>{airborne == null ? "—" : airborne}</div><div className="l">Airborne · {airborneAp || "…"}</div></div>
               <div className="stat"><div className="n serif">{liveCount}</div><div className="l">Live feeds</div></div>
               <div className="stat"><div className="n serif">{GROUPS.length}</div><div className="l">Divisions</div></div>
-              <div className="stat"><div className="n serif">∞</div><div className="l">Runway</div></div>
             </div>
           </div>
-          <RadarScope />
+          <RadarScope onCount={(n, icao) => { setAirborne(n); setAirborneAp(icao); }} />
         </section>
 
-        <Launcher />
+        <div className="reveal"><Launcher /></div>
 
-        <Featured />
+        <div className="reveal"><Featured /></div>
 
-        <NewsDesk news={news} />
+        <div className="reveal"><NewsDesk news={news} /></div>
 
-        <LiveBoard />
+        <div className="reveal"><LiveBoard /></div>
 
-        <FlightLog />
+        <div className="reveal"><FlightLog /></div>
 
-        <section className="cta">
+        <section className="cta reveal">
           <div className="cta-eyebrow mono">◉ The scope is live</div>
           <h2 className="serif">Everything that flies, on one scope.</h2>
           <p>Pick a system and go — from live global radar to a black-hole raytracer.</p>

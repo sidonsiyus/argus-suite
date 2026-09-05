@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FLIGHT_PROXY, DEFAULT_ICAO, WINDY } from "@/lib/config";
 import { useLocation } from "@/lib/useLocation";
 
@@ -174,6 +174,18 @@ function windyUrl(ov) {
 
 function WeatherMap() {
   const [ov, setOv] = useState("wind");
+  const [visible, setVisible] = useState(false); // don't load the heavy iframe until near view
+  const ref = useRef(null);
+  useEffect(() => {
+    if (visible) return;
+    const el = ref.current;
+    if (!el || !("IntersectionObserver" in window)) { setVisible(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setVisible(true); io.disconnect(); }
+    }, { rootMargin: "350px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible]);
   return (
     <div className="lw wide" style={{ "--c": "#4a9eff" }}>
       <div className="lw-head">
@@ -186,8 +198,10 @@ function WeatherMap() {
           <a className="lw-tab open" href={`https://www.windy.com/?${WINDY.lat},${WINDY.lon},${WINDY.zoom}`} target="_blank" rel="noopener noreferrer">Full map ↗</a>
         </div>
       </div>
-      <div className="lw-map">
-        <iframe key={ov} title="Wind and weather map of India" src={windyUrl(ov)} loading="lazy" referrerPolicy="no-referrer" />
+      <div className={"lw-map" + (visible ? "" : " pending")} ref={ref}>
+        {visible
+          ? <iframe key={ov} title="Wind and weather map of India" src={windyUrl(ov)} loading="lazy" referrerPolicy="no-referrer" />
+          : <span className="lw-map-wait">weather map · loads on scroll</span>}
       </div>
       <div className="lw-note">Live winds (in knots), rain, temperature and cloud cover across India. Data via Windy (ECMWF &amp; GFS models).</div>
     </div>
