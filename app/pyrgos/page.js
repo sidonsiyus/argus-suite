@@ -30,8 +30,9 @@ function buildField(key) {
     const len = Math.hypot(r.bx - r.ax, r.by - r.ay);
     pts.push([r.ax, r.ay], [r.bx, r.by]);
     const dirIsB = r.dir === r.nameB;
-    const thr = dirIsB ? { x: r.ax, y: r.ay } : { x: r.bx, y: r.by };
-    const far = dirIsB ? { x: r.bx, y: r.by } : { x: r.ax, y: r.ay };
+    // threshold = the end where the active designator is painted; aircraft travel toward the far end
+    const thr = dirIsB ? { x: r.bx, y: r.by } : { x: r.ax, y: r.ay };
+    const far = dirIsB ? { x: r.ax, y: r.ay } : { x: r.bx, y: r.by };
     const ux = (far.x - thr.x) / len, uy = (far.y - thr.y) / len;
     return { ...r, len, thr, far, ux, uy, hdg: hdgOf(thr.x, thr.y, far.x, far.y), name: r.dir };
   });
@@ -47,9 +48,9 @@ function buildField(key) {
 }
 
 let UID = 1;
-function spawnArrival(F) {
+function spawnArrival(F, dOverride) {
   const r = pick(F.arrRwys);
-  const dNm = rnd(8, 14), px = dNm * F.pxPerNm, off = rnd(-0.6, 0.6) * F.pxPerNm;
+  const dNm = dOverride ?? rnd(8, 15), px = dNm * F.pxPerNm, off = rnd(-0.6, 0.6) * F.pxPerNm;
   const [ic, tel] = pick(AIRLINES);
   const alt = Math.round(rnd(2800, 4200) / 100) * 100;
   return { id: UID++, cs: ic + (100 + (Math.random() * 899 | 0)), tele: tel, type: pick(TYPES),
@@ -61,12 +62,35 @@ function spawnArrival(F) {
 function spawnDeparture(F) {
   const r = pick(F.depRwys);
   const [ic, tel] = pick(AIRLINES);
+  const gate = pick(F.gates || []);
+  const g = gate && F.nodes[gate] ? F.nodes[gate] : r.thr;
   return { id: UID++, cs: ic + (100 + (Math.random() * 899 | 0)), tele: tel, type: pick(TYPES),
-    kind: "DEP", state: "READY", rwy: r, x: r.thr.x, y: r.thr.y,
+    kind: "DEP", state: gate ? "PARKED" : "READY", rwy: r, homeGate: gate, x: g.x, y: g.y,
     hdg: r.hdg, alt: 0, spd: 0, hdgCmd: r.hdg, altCmd: 5000, spdCmd: 250,
     cleared: {}, trail: [], sel: false, waited: 0 };
 }
 function distNm(a, F) { return Math.hypot(a.x - F.cx, a.y - F.cy) / F.pxPerNm; }
+
+/* ── taxi network (Dijkstra over nodes/edges) ── */
+function nearestNode(F, x, y) { let best = null, bd = 1e12; for (const k in F.nodes) { const n = F.nodes[k]; const d = (n.x - x) ** 2 + (n.y - y) ** 2; if (d < bd) { bd = d; best = k; } } return best; }
+function routeNodes(F, from, to) {
+  if (!from || !to || !F.nodes[from] || !F.nodes[to]) return null;
+  const adj = {}; for (const k in F.nodes) adj[k] = [];
+  F.edges.forEach(([a, b]) => { if (F.nodes[a] && F.nodes[b]) { const w = Math.hypot(F.nodes[a].x - F.nodes[b].x, F.nodes[a].y - F.nodes[b].y); adj[a].push([b, w]); adj[b].push([a, w]); } });
+  const dist = {}, prev = {}, Q = new Set(Object.keys(F.nodes));
+  for (const k of Q) dist[k] = 1e12; dist[from] = 0;
+  while (Q.size) { let u = null, ud = 1e13; for (const k of Q) if (dist[k] < ud) { ud = dist[k]; u = k; } if (u === null || u === to) break; Q.delete(u); for (const [v, w] of adj[u] || []) if (Q.has(v) && dist[u] + w < dist[v]) { dist[v] = dist[u] + w; prev[v] = u; } }
+  const path = []; let c = to; while (c !== undefined) { path.unshift(c); if (c === from) break; c = prev[c]; }
+  return path[0] === from ? path.map((n) => ({ x: F.nodes[n].x, y: F.nodes[n].y, node: n })) : null;
+}
+function followRoute(a, dt, spdPx) {
+  if (!a.route || !a.route.length) return;
+  const p = a.route[0], dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy);
+  a.hdg = norm360(Math.atan2(dx, -dy) * 180 / Math.PI);
+  const step = spdPx * dt;
+  if (d <= step) { a.x = p.x; a.y = p.y; a.route.shift(); }
+  else { a.x += dx / d * step; a.y += dy / d * step; }
+}
 
 function stepAircraft(a, dt, F) {
   const KTS = F.pxPerNm / 3600;
@@ -75,7 +99,21 @@ function stepAircraft(a, dt, F) {
   if (a._t > 1.1) { a._t = 0; a.trail.push([a.x, a.y]); if (a.trail.length > 8) a.trail.shift(); }
   const r = a.rwy;
   a.spd += Math.sign(a.spdCmd - a.spd) * Math.min(Math.abs(a.spdCmd - a.spd), 6 * dt);
-  a.alt += Math.sign(a.altCmd - a.alt) * Math.min(Math.abs(a.altCmd - a.alt), 32 * dt);
+  // altitude only changes while airborne; on the ground it stays at zero
+  if (a.state === "ARR" || a.state === "DEP" || a.state === "GOAROUND") a.alt += Math.sign(a.altCmd - a.alt) * Math.min(Math.abs(a.altCmd - a.alt), 32 * dt);
+  else a.alt = 0;
+
+  // ── ground states ──
+  if (a.state === "PARKED") { a.spd = 0; if (a.kind === "ARR") { a.parkT -= dt; if (a.parkT <= 0) a.done = true; } return; }
+  if (a.state === "TAXI_IN" || a.state === "TAXI_OUT") {
+    a.spd = 24; followRoute(a, dt, 24 * KTS);
+    if (!a.route || !a.route.length) {
+      if (a.state === "TAXI_IN") { a.state = "PARKED"; a.parkT = 6; a.spd = 0; }
+      else { a.state = "READY"; a.hdg = r.hdg; a.spd = 0; }
+    }
+    return;
+  }
+  if (a.state === "LINEUP") { a.spd = 30; followRoute(a, dt, 60 * KTS); if (!a.route || !a.route.length) { a.hdg = r.hdg; a.state = "TKOF"; a.spd = 20; } return; }
 
   if (a.state === "READY") { a.hdg = r.hdg; return; }
   if (a.state === "TKOF") {
@@ -103,7 +141,12 @@ function stepAircraft(a, dt, F) {
     a.spd = Math.max(24, a.spd - 40 * dt);
     a.x += r.ux * a.spd * KTS * dt; a.y += r.uy * a.spd * KTS * dt; a.hdg = r.hdg;
     const rolled = (a.x - r.thr.x) * r.ux + (a.y - r.thr.y) * r.uy;
-    if (rolled > r.len - 40 || a.spd <= 26) { a.done = true; a._landed = true; }
+    if (rolled > r.len - 40 || a.spd <= 26) {
+      a._landed = true;
+      const rt = routeNodes(F, nearestNode(F, a.x, a.y), pick(F.gates || []));
+      if (rt && rt.length > 1) { a.route = rt; a.state = "TAXI_IN"; a.waited = 0; }
+      else { a.done = true; }
+    }
     return;
   }
   a.x += Math.sin(a.hdg * Math.PI / 180) * a.spd * KTS * dt;
@@ -113,7 +156,9 @@ function stepAircraft(a, dt, F) {
 }
 
 function bayOf(a, F) {
-  if (a.kind === "DEP") return (a.state === "READY") ? "GROUND" : "RUNWAY";
+  const ground = ["PARKED", "TAXI_OUT", "TAXI_IN", "READY", "LINEUP"];
+  if (a.state === "TAXI_IN" || (a.kind === "ARR" && a.state === "PARKED")) return "GROUND";
+  if (a.kind === "DEP") return ground.includes(a.state) ? "GROUND" : "RUNWAY";
   if (a.state === "LAND" || (a.state === "ARR" && distNm(a, F) < 5)) return "RUNWAY";
   return "APPROACH";
 }
@@ -138,13 +183,14 @@ export default function Pyrgos() {
   const [comms, setComms] = useState([]);
   const [atis, setAtis] = useState({ ltr: "A", wind: "—", qnh: 1013, rwy: "—" });
   const [rangeNm, setRangeNm] = useState(12);
+  const [conf, setConf] = useState(0);
 
   useEffect(() => {
     const F = buildField(layoutKey);
     sim.current = { F, aircraft: [], spawnT: 2.5, comms: [], commId: 1 };
     view.current = { radiusNm: 12, cx: F.cx, cy: F.cy };
     setRangeNm(12); setSel(null); setComms([]);
-    for (let i = 0; i < 3; i++) { const a = spawnArrival(F); sim.current.aircraft.push(a); }
+    [7, 11, 15].forEach((d) => sim.current.aircraft.push(spawnArrival(F, d)));
     const dep = spawnDeparture(F); sim.current.aircraft.push(dep);
     const r0 = F.runways[0];
     setAtis({ ltr: String.fromCharCode(65 + (Date.now() / 3.6e6 | 0) % 26), wind: `${String(Math.round(r0.hdg)).padStart(3, "0")}/${8 + (Math.random() * 8 | 0)}`, qnh: 1011 + (Math.random() * 6 | 0), rwy: F.arrRwys.map((r) => r.name).join(", ") });
@@ -156,6 +202,7 @@ export default function Pyrgos() {
 
   function checkIn(S, a, F) {
     if (a.kind === "ARR") say(S, a.cs, `Tower, ${spoken(a)}, ${Math.round(distNm(a, F))} mile final runway ${a.rwy.name}`);
+    else if (a.state === "PARKED") say(S, a.cs, `Ground, ${spoken(a)}, at the gate, request taxi runway ${a.rwy.name}`);
     else say(S, a.cs, `${spoken(a)}, ready for departure runway ${a.rwy.name}`);
   }
 
@@ -188,14 +235,23 @@ export default function Pyrgos() {
         S.aircraft.push(a); checkIn(S, a, F);
       }
       S.aircraft.forEach((a) => {
+        a.conf = false;
         const prev = a.state; stepAircraft(a, dt, F);
         if (prev !== a.state) {
           if (a.state === "GOAROUND") say(S, a.cs, `Going around, ${spoken(a)}!`);
           if (a.state === "TKOF") say(S, a.cs, `Rolling, ${spoken(a)}`);
+          if (a.state === "TAXI_IN") say(S, a.cs, `Clear of the runway, ${spoken(a)}, taxi to the gate`);
         }
-        if (a.done && a._landed && !a._said) { a._said = 1; say(S, a.cs, `Clear of the runway, ${spoken(a)}, switching ground`); }
       });
       S.aircraft = S.aircraft.filter((a) => !a.done);
+      // separation monitor (airborne pairs)
+      S.conflicts = [];
+      const air = S.aircraft.filter((a) => a.alt > 50 && a.state !== "LAND" && a.state !== "TKOF");
+      for (let i = 0; i < air.length; i++) for (let j = i + 1; j < air.length; j++) {
+        const a = air[i], b = air[j];
+        const dNm = Math.hypot(a.x - b.x, a.y - b.y) / F.pxPerNm, dAlt = Math.abs(a.alt - b.alt);
+        if (dNm < 2.6 && dAlt < 900) { a.conf = b.conf = true; S.conflicts.push([a, b]); }
+      }
     }
     frame(performance.now());
     return () => { cancelAnimationFrame(raf.current); ro.disconnect(); };
@@ -213,6 +269,7 @@ export default function Pyrgos() {
       bays.APPROACH.sort((x, y) => x.nm - y.nm); bays.RUNWAY.sort((x, y) => x.nm - y.nm);
       setRoster(bays);
       setCounts({ arr: S.aircraft.filter((a) => a.kind === "ARR").length, dep: S.aircraft.filter((a) => a.kind === "DEP").length });
+      setConf(S.conflicts ? S.conflicts.length : 0);
       setComms(S.comms.slice(-14).reverse());
       const s = S.aircraft.find((a) => a.sel);
       if (s) setSel({ id: s.id, cs: s.cs, tele: s.tele, type: s.type, kind: s.kind, state: s.state, alt: Math.round(s.alt / 100) * 100, spd: Math.round(s.spd), hdg: Math.round(s.hdg), rwy: s.rwy.name, land: !!s.cleared.land, nm: +distNm(s, F).toFixed(1) });
@@ -244,7 +301,20 @@ export default function Pyrgos() {
   const cmdSpd = (kt) => withSel((a, S) => { a.spdCmd = kt; say(S, "TWR", `${spoken(a)}, ${kt} knots`); say(S, a.cs, `${kt} knots, ${spoken(a)}`); });
   const cmdApproach = () => withSel((a, S) => { if (a.kind === "ARR") { a.appr = true; a.state = "ARR"; say(S, "TWR", `${spoken(a)}, cleared ILS runway ${a.rwy.name}`); say(S, a.cs, `Cleared ILS ${a.rwy.name}, ${spoken(a)}`); } });
   const cmdLand = () => withSel((a, S) => { if (a.kind === "ARR") { a.cleared.land = true; a.appr = true; a.state = "ARR"; say(S, "TWR", `${spoken(a)}, runway ${a.rwy.name}, cleared to land`); say(S, a.cs, `Cleared to land ${a.rwy.name}, ${spoken(a)}`); } });
-  const cmdTakeoff = () => withSel((a, S) => { if (a.kind === "DEP" && a.state === "READY") { a.state = "TKOF"; a.spd = 20; say(S, "TWR", `${spoken(a)}, runway ${a.rwy.name}, cleared for takeoff`); say(S, a.cs, `Cleared for takeoff ${a.rwy.name}, ${spoken(a)}`); } });
+  const cmdTaxi = () => withSel((a, S) => {
+    if (a.kind === "DEP" && (a.state === "PARKED" || a.state === "TAXI_OUT")) {
+      const F = S.F, holdName = F.meta.holds && F.meta.holds[a.rwy.name];
+      const rt = holdName ? routeNodes(F, a.homeGate || nearestNode(F, a.x, a.y), holdName) : null;
+      if (rt && rt.length > 1) { a.route = rt; a.state = "TAXI_OUT"; say(S, "TWR", `${spoken(a)}, taxi to holding point runway ${a.rwy.name}`); say(S, a.cs, `Taxi to holding point runway ${a.rwy.name}, ${spoken(a)}`); }
+      else { a.state = "READY"; a.x = a.rwy.thr.x; a.y = a.rwy.thr.y; }
+    }
+  });
+  const cmdTakeoff = () => withSel((a, S) => {
+    if (a.kind === "DEP" && a.state === "READY") {
+      a.route = [{ x: a.rwy.thr.x, y: a.rwy.thr.y }]; a.state = "LINEUP";
+      say(S, "TWR", `${spoken(a)}, runway ${a.rwy.name}, cleared for takeoff`); say(S, a.cs, `Cleared for takeoff ${a.rwy.name}, ${spoken(a)}`);
+    }
+  });
   const cmdGoAround = () => withSel((a, S) => { a.appr = false; a.cleared.land = false; a.altCmd = 3000; a.spdCmd = 210; a.hdgCmd = norm360(a.rwy.hdg + 25); say(S, "TWR", `${spoken(a)}, go around, fly runway heading, climb 3000`); });
   const applyHdg = () => { const d = parseInt(hdgInput, 10); if (!isNaN(d)) { cmdHdg(d); setHdgInput(""); } };
   const doSpawn = (kind) => { const S = sim.current, F = S.F; const a = kind === "ARR" ? spawnArrival(F) : spawnDeparture(F); S.aircraft.push(a); checkIn(S, a, F); };
@@ -292,6 +362,7 @@ export default function Pyrgos() {
         {/* scope */}
         <div className="pyr-scopewrap" ref={wrapRef}>
           <canvas ref={canvasRef} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel} />
+          {conf > 0 && <div className="pyr-conflict">⚠ SEPARATION · {conf} conflict{conf > 1 ? "s" : ""} — vector to restore spacing</div>}
           <div className="pyr-zoom">
             <button onClick={() => zoomBy(0.8)}>+</button>
             <span>{rangeNm}nm</span>
@@ -343,7 +414,11 @@ export default function Pyrgos() {
                     <button className="go" onClick={cmdApproach}>Cleared ILS</button>
                     <button className="go" onClick={cmdLand}>Cleared to land</button>
                     <button className="warn" onClick={cmdGoAround}>Go around</button>
-                  </> : <button className="go" onClick={cmdTakeoff}>Cleared for takeoff</button>}
+                  </> : <>
+                    {(sel.state === "PARKED" || sel.state === "TAXI_OUT") && <button className="go" onClick={cmdTaxi}>Taxi to runway</button>}
+                    {(sel.state === "READY" || sel.state === "LINEUP") && <button className="go" onClick={cmdTakeoff}>Cleared for takeoff</button>}
+                    {(sel.state === "TKOF" || sel.state === "DEP") && <span className="pyr-airborne">✈ airborne / climbing out</span>}
+                  </>}
                 </div>
               </div>
             </div>
@@ -448,6 +523,12 @@ function render(ctx, canvas, S, v, DPR, sweep) {
   const g = ctx.createLinearGradient(0, 0, outer, 0); g.addColorStop(0, "rgba(55,224,200,0.16)"); g.addColorStop(1, "rgba(55,224,200,0)");
   ctx.fillStyle = g; ctx.fill(); ctx.restore();
 
+  // selected taxi route
+  const selA = S.aircraft.find((a) => a.sel && a.route && a.route.length);
+  if (selA) { ctx.strokeStyle = "rgba(255,180,90,0.6)"; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(toX(selA.x), toY(selA.y)); selA.route.forEach((p) => ctx.lineTo(toX(p.x), toY(p.y))); ctx.stroke(); ctx.setLineDash([]); }
+  // conflicts
+  (S.conflicts || []).forEach(([a, b]) => { ctx.strokeStyle = "#ff5a63"; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(toX(a.x), toY(a.y)); ctx.lineTo(toX(b.x), toY(b.y)); ctx.stroke(); ctx.setLineDash([]); });
+
   // aircraft
   S.aircraft.forEach((a) => {
     const x = toX(a.x), y = toY(a.y);
@@ -460,6 +541,7 @@ function render(ctx, canvas, S, v, DPR, sweep) {
     ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = a.sel ? 8 : 4; ctx.translate(x, y); ctx.rotate(hr);
     ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, -5.5); ctx.lineTo(4.5, 4.5); ctx.lineTo(0, 1.8); ctx.lineTo(-4.5, 4.5); ctx.closePath(); ctx.fill(); ctx.restore();
     if (a.sel) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.stroke(); }
+    if (a.conf) { ctx.strokeStyle = "#ff5a63"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI * 2); ctx.stroke(); }
     // data block
     const dbx = x + 13, dby = y - 11; const trend = a.altCmd > a.alt + 60 ? "↑" : a.altCmd < a.alt - 60 ? "↓" : "";
     ctx.textAlign = "left"; ctx.font = "9px ui-monospace, monospace";
@@ -520,6 +602,9 @@ const CSS = `
 .pyr-spawn{position:absolute;right:14px;bottom:14px;display:flex;gap:6px}
 .pyr-spawn button{font-family:ui-monospace,monospace;font-size:9.5px;color:#9fd4c9;background:#0a1f1bcc;border:1px solid rgba(55,224,200,.25);border-radius:7px;padding:7px 10px;cursor:pointer}
 .pyr-spawn button:hover{border-color:#37e0c8;color:#dff3ee}
+.pyr-conflict{position:absolute;left:50%;top:12px;transform:translateX(-50%);font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.07em;color:#04100e;background:#ff5a63;padding:7px 14px;border-radius:8px;font-weight:600;animation:pyrflash 1s infinite;z-index:5;white-space:nowrap}
+@keyframes pyrflash{0%,100%{opacity:1}50%{opacity:.55}}
+.pyr-airborne{font-family:ui-monospace,monospace;font-size:10px;color:#9fd4c9;padding:8px 4px;letter-spacing:.06em}
 .pyr-side{width:300px;flex:none;border-left:1px solid rgba(55,224,200,.16);background:#061815;display:flex;flex-direction:column;min-height:0}
 .pyr-ctl{padding:14px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid rgba(55,224,200,.12)}
 .pyr-selhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
