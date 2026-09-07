@@ -289,6 +289,71 @@ function projectLive(F, a) {
     x: F.cx + px * Math.sin(br), y: F.cy - px * Math.cos(br), alt: a.alt ?? null, spd: a.gs ?? null, hdg: a.track ?? brg, nm: +d.toFixed(1), sel: false };
 }
 
+/* ═══════════════════════ auto controller ═══════════════════════ */
+// a runway is clear for a movement if nobody else is on its surface or committed on short final
+function autoRunwayFree(S, F, rwy, forA) {
+  return !S.aircraft.some((x) => x !== forA && x.rwy === rwy && (onRunway(x) || isShortFinal(x, F)));
+}
+// virtual controller — a flow manager that meters arrivals (speed + holds) and slots departures
+function autoStep(S, F) {
+  const A = S.aircraft, dN = (a) => distNm(a, F);
+  // ── Delivery: clear parked departures to destination ──
+  A.forEach((a) => {
+    if (a.kind === "DEP" && a.state === "PARKED" && !a.cleared.delivery) {
+      const sids = (F.meta.sids || []).filter((s) => s.rwys.includes(a.rwy.name));
+      const sid = sids.length ? pick(sids) : null;
+      a.sid = sid ? sid.name : "RADAR VECTORS"; a.squawk = String(1000 + (Math.random() * 6000 | 0));
+      a.cleared.delivery = true; a.owner = "GROUND"; a.altCmd = sid ? (sid.alt || 5000) : 5000;
+      say(S, "DEL", `${spoken(a)}, cleared via the ${a.sid} departure, climb ${a.altCmd / 1000 | 0} thousand, squawk ${a.squawk}`);
+    }
+  });
+  // ── Ground: taxi delivered departures to the holding point ──
+  A.forEach((a) => {
+    if (a.kind === "DEP" && a.state === "PARKED" && a.cleared.delivery) {
+      const holdName = F.meta.holds && F.meta.holds[a.rwy.name];
+      const rt = holdName ? routeNodes(F, a.homeGate || nearestNode(F, a.x, a.y), holdName) : null;
+      if (rt && rt.length > 1) { a.route = rt; a.state = "TAXI_OUT"; say(S, "GND", `${spoken(a)}, taxi to holding point runway ${a.rwy.name}`); }
+      else { a.state = "READY"; a.x = a.rwy.thr.x; a.y = a.rwy.thr.y; }
+    }
+  });
+  // ── Arrival flow: pure in-trail speed metering per runway (followers never overtake the lead) ──
+  F.arrRwys.forEach((rwy) => {
+    const seq = A.filter((a) => a.kind === "ARR" && a.rwy === rwy && a.state === "ARR").sort((x, y) => dN(x) - dN(y));
+    seq.forEach((a, idx) => {
+      const lead = idx > 0 ? seq[idx - 1] : null;
+      const d = dN(a), req = lead ? wakeSep(lead.wake, a.wake) + 1.0 : 0, gap = lead ? d - dN(lead) : 999;
+      if (a.emerg) { a.appr = true; a.cleared.land = true; return; } // never delay an emergency
+      // in-trail metering: keep the follower slower than its leader so the gap only ever opens
+      if (lead) {
+        if (gap < req + 2) a.spdCmd = Math.max(150, Math.min(a.spdCmd, (lead.spd || 160) - 12));
+        else if (d > 11) a.spdCmd = Math.min(a.spdCmd + 8, 230);
+      } else if (d > 11 && !a.appr) a.spdCmd = Math.min(a.spdCmd + 6, 230);
+      // establish on the ILS + hand to Tower once close in and adequately spaced
+      if (a.owner !== "TOWER" && d < 13 && gap >= req - 0.5) {
+        a.owner = "TOWER"; a.appr = true; a.nav = []; a.spdCmd = Math.min(a.spdCmd, 180);
+        say(S, "APP", `${spoken(a)}, cleared ILS runway ${rwy.name}, contact Tower ${F.meta.twr}`);
+      }
+      // clear to land when established, spaced, and the runway surface is free
+      if (a.appr && a.owner === "TOWER" && !a.cleared.land && d < 8 && autoRunwayFree(S, F, rwy, a) && (!lead || lead.state === "LAND" || gap > req - 1.2)) {
+        a.cleared.land = true; say(S, "TWR", `${spoken(a)}, runway ${rwy.name}, cleared to land`);
+      }
+    });
+  });
+  // ── Departures: line up & roll into a gap, spaced behind the previous departure ──
+  A.forEach((a) => {
+    if (a.kind === "DEP" && a.state === "READY") {
+      const inb = A.filter((x) => x.kind === "ARR" && x.rwy === a.rwy && x.appr && x.state === "ARR").map(dN);
+      const nearArr = inb.length ? Math.min(...inb) : 999;
+      // hold until the previous departure is airborne with ~4nm of separation, and no arrival close in
+      const priorDep = A.some((x) => x.kind === "DEP" && x !== a && (x.state === "LINEUP" || x.state === "TKOF" || (x.state === "DEP" && dN(x) < 4 && x.alt < 3000)));
+      if (nearArr > 8 && !priorDep && autoRunwayFree(S, F, a.rwy, a)) {
+        a.route = [{ x: a.rwy.thr.x, y: a.rwy.thr.y }]; a.state = "LINEUP"; a.owner = "TOWER";
+        say(S, "TWR", `${spoken(a)}, runway ${a.rwy.name}, cleared for takeoff`);
+      }
+    }
+  });
+}
+
 /* ═══════════════════════ component ═══════════════════════ */
 export default function Pyrgos() {
   const canvasRef = useRef(null);
@@ -354,7 +419,7 @@ export default function Pyrgos() {
     setAtis({ ltr: String.fromCharCode(65 + (Date.now() / 3.6e6 | 0) % 26), wind: `${String(Math.round(r0.hdg)).padStart(3, "0")}/${8 + (Math.random() * 8 | 0)}`, qnh: 1011 + (Math.random() * 6 | 0), rwy: F.arrRwys.map((r) => r.name).join(", ") });
     sim.current.aircraft.forEach((a) => checkIn(sim.current, a, F));
     if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
-      window.__PYR = { sim, view, step: (dt) => { const S = sim.current; S.aircraft.forEach((a) => stepAircraft(a, dt, S.F)); S.aircraft = S.aircraft.filter((a) => !a.done); } };
+      window.__PYR = { sim, view, autoStep, spawnArrival, spawnDeparture, leastLoaded, step: (dt) => { const S = sim.current; S.aircraft.forEach((a) => stepAircraft(a, dt, S.F)); S.aircraft = S.aircraft.filter((a) => !a.done); } };
     }
   }, [layoutKey]);
 
@@ -379,20 +444,36 @@ export default function Pyrgos() {
     function frame(t) {
       const S = sim.current;
       const dt = Math.min(0.05, (t - lastT.current) / 1000) || 0; lastT.current = t;
-      if (S && !paused && modeRef.current === "SIM") tick(S, dt * SIM_SPEED);
+      if (S && !paused && modeRef.current !== "LIVE") tick(S, dt * SIM_SPEED);
       if (S) render(ctx, canvas, S, view.current, DPR, (sweep += dt * 0.55), modeRef.current);
       raf.current = requestAnimationFrame(frame);
     }
     function tick(S, dt) {
       const F = S.F;
+      // virtual controller — paced so its readbacks stay legible
+      if (modeRef.current === "AUTO") { S.autoT = (S.autoT || 0) - dt; if (S.autoT <= 0) { S.autoT = 0.9; autoStep(S, F); } }
       S.spawnT -= dt;
       if (S.spawnT <= 0) {
-        S.spawnT = rnd(9, 16);
+        // AUTO runs a calmer, well-spaced flow the controller can keep perfectly clean
+        const auto = modeRef.current === "AUTO";
+        S.spawnT = auto ? rnd(17, 28) : rnd(9, 16);
         const arrN = S.aircraft.filter((a) => a.kind === "ARR" && !a.done).length;
-        const a = Math.random() < (arrN < 4 ? 0.68 : 0.3)
-          ? spawnArrival(F, null, leastLoaded(F.arrRwys, S.aircraft, "ARR"))
-          : spawnDeparture(F, leastLoaded(F.depRwys, S.aircraft, "DEP"));
-        S.aircraft.push(a); checkIn(S, a, F);
+        const depN = S.aircraft.filter((a) => a.kind === "DEP" && !a.done).length;
+        // AUTO runs a single active runway for arrivals and departures — the mixed-mode
+        // flow the controller keeps perfectly clean (parallels here are too close for
+        // independent ops, so it uses one runway rather than risk a parallel conflict)
+        const arrCap = auto ? 3 : F.arrRwys.length * 4, depCap = auto ? 4 : 99;
+        const arrRwy = auto ? F.arrRwys[0] : leastLoaded(F.arrRwys, S.aircraft, "ARR");
+        const depRwy = auto ? arrRwy : leastLoaded(F.depRwys, S.aircraft, "DEP");
+        // don't drop a new arrival onto an entry fix another inbound is still sitting on
+        const iaf = arrRwy._star && arrRwy._star[0];
+        const entryBusy = iaf && S.aircraft.some((x) => x.kind === "ARR" && !x.done && Math.hypot(x.x - iaf.x, x.y - iaf.y) < 9 * F.pxPerNm);
+        let a = null;
+        if (arrN < arrCap && !entryBusy && (depN >= depCap || Math.random() < (arrN < 3 ? 0.62 : 0.35)))
+          a = spawnArrival(F, null, arrRwy);
+        else if (depN < depCap)
+          a = spawnDeparture(F, depRwy);
+        if (a) { S.aircraft.push(a); checkIn(S, a, F); }
       }
       S.aircraft.forEach((a) => {
         a.conf = false; a.wakeWarn = false; a.incursion = false;
@@ -562,13 +643,14 @@ export default function Pyrgos() {
     return () => { alive = false; clearInterval(id); };
   }, [layoutKey]);
 
-  const toggleMode = () => {
-    const next = mode === "SIM" ? "LIVE" : "SIM"; setMode(next);
+  const setModeTo = (next) => {
+    if (next === mode || !sim.current) return; setMode(next);
     const v = view.current, F = sim.current.F;
     v.chart = false; setChart(false); v.cx = F.cx; v.cy = F.cy;
     v.radiusNm = next === "LIVE" ? 34 : 12; setRangeNm(v.radiusNm);
     setSel(null); setLive((L) => ({ ...L, sel: null }));
-    if (next === "SIM" && sim.current) sim.current.live = [];
+    if (next !== "LIVE") sim.current.live = [];
+    if (next === "AUTO") sim.current.autoT = 0.4;
   };
 
   /* ── input: select, drag-pan, wheel-zoom ── */
@@ -693,11 +775,13 @@ export default function Pyrgos() {
         {mode === "SIM" && <div className={"pyr-score" + (score < 0 ? " neg" : "")} title="Operations score — land +100, depart +50, go-around −30, separation bust −25">SCORE <b>{score}</b></div>}
         <div className="pyr-stat"><b>{counts.arr}</b> ARR · <b>{counts.dep}</b> DEP</div>
         <div className="pyr-clock">{clock}Z</div>
-        {mode === "SIM" && <button className="pyr-btn ghost" onClick={injectEmergency} title="Inject an emergency — a random inbound declares and squawks 7700">⚠</button>}
-        {mode === "SIM" && <button className="pyr-btn ghost" onClick={() => setShowSummary(true)} title="Session summary">▤</button>}
+        {mode !== "LIVE" && <button className="pyr-btn ghost" onClick={injectEmergency} title="Inject an emergency — a random inbound declares and squawks 7700">⚠</button>}
+        {mode !== "LIVE" && <button className="pyr-btn ghost" onClick={() => setShowSummary(true)} title="Session summary">▤</button>}
         <button className={"pyr-btn ghost" + (muted ? "" : " on")} onClick={() => setMuted((m) => !m)} title={muted ? "Sound off" : "Sound on"}>{muted ? "🔇" : "🔊"}</button>
-        <button className={"pyr-btn" + (mode === "LIVE" ? " live" : " ghost")} onClick={toggleMode} title="Live ADS-B traffic around this field">◉ {mode === "LIVE" ? "LIVE" : "Live"}</button>
-        {mode === "SIM" && <button className="pyr-btn" onClick={() => setPaused((p) => !p)}>{paused ? "▶" : "⏸"}</button>}
+        <div className="pyr-modeseg" role="group" title="SIM: you control · AUTO: virtual controller runs the tower · LIVE: real ADS-B traffic">
+          {["SIM", "AUTO", "LIVE"].map((m) => <button key={m} className={mode === m ? "on " + m.toLowerCase() : ""} onClick={() => setModeTo(m)}>{m}</button>)}
+        </div>
+        {mode !== "LIVE" && <button className="pyr-btn" onClick={() => setPaused((p) => !p)}>{paused ? "▶" : "⏸"}</button>}
         <a className="pyr-btn ghost" href="/pyrgos.html" title="Original simulator">Classic ↗</a>
       </header>
 
@@ -837,7 +921,10 @@ export default function Pyrgos() {
               ) : <div className="pyr-empty" style={{ padding: 0, border: 0 }}><p>Real aircraft transponding around {F?.meta.label.split("·")[0].trim()}, projected onto the chart. Click a target for its readout. <b>Information only — not controllable.</b></p></div>}
               <div className="pyr-clr-note" style={{ color: "#7fb8ac", marginTop: 10 }}>Source: adsb.lol · refreshes every 20s · switch to SIM to control traffic.</div>
             </div>
-          ) : sel ? (
+          ) : (
+            <>
+              {mode === "AUTO" && <div className="pyr-autobar">◉ AUTO CONTROL — the virtual tower is working this traffic. Switch to SIM to take over.</div>}
+              {sel ? (
             <div className="pyr-ctl">
               <div className="pyr-selhead">
                 <div className="pyr-selcs">{sel.cs}{sel.emerg && <span className="pyr-emerg">⚠ {sel.emerg} · 7700</span>}</div>
@@ -852,7 +939,7 @@ export default function Pyrgos() {
                 <div><span>DIST</span><b>{sel.nm}nm</b></div>
                 <div><span>CLR</span><b>{sel.land ? "LAND" : "—"}</b></div>
               </div>
-              <div className="pyr-cmd">
+              {mode !== "AUTO" && <div className="pyr-cmd">
                 <div className="pyr-cmd-lbl">Vector</div>
                 <div className="pyr-row">
                   <button onClick={() => cmdTurn(-20)}>↺ L20</button>
@@ -885,10 +972,12 @@ export default function Pyrgos() {
                   </>}
                   {sel.kind === "DEP" && sel.deliv && sel.sid && <div className="pyr-clr-note">Cleared via {sel.sid} · squawk {sel.sq}</div>}
                 </div>
-              </div>
+              </div>}
             </div>
-          ) : (
-            <div className="pyr-empty"><div className="pyr-empty-t">No target selected</div><p>Click a target on the scope or a flight strip to vector it and issue clearances.</p></div>
+              ) : (
+            <div className="pyr-empty"><div className="pyr-empty-t">{mode === "AUTO" ? "Watching AUTO" : "No target selected"}</div><p>{mode === "AUTO" ? "The virtual controller is sequencing the traffic. Click any target to inspect what it's doing." : "Click a target on the scope or a flight strip to vector it and issue clearances."}</p></div>
+              )}
+            </>
           )}
 
           <div className="pyr-comms">
@@ -1254,6 +1343,13 @@ const CSS = `
 .pyr-viewtoggle button.on{color:#04100e;background:#37e0c8}
 .pyr-clr-note{font-family:ui-monospace,monospace;font-size:9px;color:#8fbdff;letter-spacing:.04em;margin-top:4px}
 .pyr-btn.live{background:#3fd3ff;color:#04100e}
+.pyr-modeseg{display:flex;border:1px solid rgba(55,224,200,.3);border-radius:8px;overflow:hidden}
+.pyr-modeseg button{font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.08em;color:#9fd4c9;background:transparent;border:0;padding:8px 10px;cursor:pointer}
+.pyr-modeseg button:hover{color:#dff3ee}
+.pyr-modeseg button.on{color:#04100e;background:#37e0c8;font-weight:600}
+.pyr-modeseg button.on.auto{background:#b98cff}
+.pyr-modeseg button.on.live{background:#3fd3ff}
+.pyr-autobar{font-family:ui-monospace,monospace;font-size:10px;line-height:1.5;letter-spacing:.03em;color:#04100e;background:#b98cff;border-radius:10px;padding:10px 12px;margin:14px 14px 0}
 .pyr-live-h{font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.1em;color:#3fd3ff;display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .pyr-live-dot{width:8px;height:8px;border-radius:50%;background:#3fd3ff;margin-left:auto}
 .pyr-live-dot.ok{box-shadow:0 0 8px #3fd3ff;animation:pyrpulse 1.4s infinite}
