@@ -24,11 +24,11 @@
    ── SECRETS (Cloudflare → Settings → Variables and Secrets) ──
      SA_KEY        = entire service-account JSON   (must be EDITOR on the file)
      GROQ_KEY      = your Groq API key (optional, read-side AI)
-     FILE_ID       = 1Z_rWwGIKSTFlbqb3yFR89ztYWg1IJwYf   (optional; default set)
+     FILE_ID       = 1Z_rWwGIKSTFIbqb3yFR89ztYWg1IJwYf   (optional; default set)
      WRITE_SECRET  = a private passphrase (same value goes in the dashboard)
    ═══════════════════════════════════════════════════════════════════ */
 
-const DEFAULT_FILE_ID = "1Z_rWwGIKSTFlbqb3yFR89ztYWg1IJwYf";
+const DEFAULT_FILE_ID = "1Z_rWwGIKSTFIbqb3yFR89ztYWg1IJwYf";
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "openai/gpt-oss-20b";
 const CORS = {
