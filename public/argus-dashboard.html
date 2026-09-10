@@ -719,10 +719,10 @@ select{appearance:none;cursor:pointer;
         <input id="sUrl" placeholder="Worker URL (https://…workers.dev)">
         <input id="sKey" type="password" placeholder="Sync key">
         <div style="border-top:1px solid var(--line);margin:10px 0 8px;padding-top:9px;font-family:var(--mono);font-size:9px;letter-spacing:1.4px;color:var(--gold)">GOOGLE SHEET WRITER</div>
-        <input id="wUrl" placeholder="Apps Script Web App URL (…/exec)">
-        <input id="wSecret" type="password" placeholder="Sheet writer secret">
+        <input id="wUrl" placeholder="Worker URL (optional — defaults to the live one)">
+        <input id="wSecret" type="password" placeholder="WRITE_SECRET (must match the worker)">
         <button id="sSave" class="sbtn save">Save &amp; connect</button>
-        <p>Sync (top) shares dashboard data between devices. The Sheet writer (Apps Script URL + secret) lets "Push to Google Sheet" write the day's attendance into your department sheet. Both are stored only on this device.</p>
+        <p>Sync (top) shares dashboard data between devices. The Sheet writer secret must equal the worker's WRITE_SECRET — it lets "Push to Google Sheet" write the day's attendance into your department sheet. Leave the URL blank to use the live attendance worker. Stored only on this device.</p>
       </div>
     </div>
   <header>
@@ -1411,7 +1411,8 @@ function initSync() {
 
 /* ═══════════════ Google Sheet write-back (Apps Script Web App) ═══════════════ */
 const WRITER = { url: localStorage.getItem('argus_writer_url') || '', secret: localStorage.getItem('argus_writer_secret') || '' };
-const writerOn = () => !!(WRITER.url && WRITER.secret);
+const writerUrl = () => (WRITER.url || (typeof LIVE_WORKER !== 'undefined' ? LIVE_WORKER : '')).replace(/\/$/, '');
+const writerOn = () => !!(WRITER.secret && writerUrl());
 const MON3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 const MONTitle = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function sheetNameForDate(iso) { const [y, m] = iso.split('-').map(Number); return 'Daily Attendance for ' + MON3[m - 1] + '-' + String(y).slice(2); }
@@ -1444,7 +1445,7 @@ async function pushToSheet(dryRun) {
   }
   toast(dryRun ? 'Checking the sheet…' : 'Writing to Google Sheet…');
   try {
-    const r = await fetch(WRITER.url, {
+    const r = await fetch(writerUrl(), {
       method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ secret: WRITER.secret, sheetName: m.sheetName, date: m.iso, dryRun: !!dryRun, marks: m.marks })
     });
@@ -1456,7 +1457,7 @@ async function pushToSheet(dryRun) {
       ((j.unmatched && j.unmatched.length) ? ('\n\nReg not found in the sheet (skipped): ' + j.unmatched.join(', ')) : '');
     alert(receipt); toast(dryRun ? 'Dry run complete' : 'Google Sheet updated ✓');
   } catch (e) {
-    alert('Couldn’t reach the Apps Script.\n\n' + String(e.message || e) + '\n\n• Check the URL in ⚙ (must end in /exec)\n• Deploy the Web App with access "Anyone"\n• Make sure the secret matches the script');
+    alert('Couldn’t reach the attendance worker.\n\n' + String(e.message || e) + '\n\n• Check the WRITE_SECRET in ⚙ matches the worker\n• Make sure the worker is deployed with the write handler + WRITE_SECRET set');
     toast('Sheet write error');
   }
 }
