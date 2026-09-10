@@ -378,7 +378,10 @@ export default function Pyrgos() {
   const [pred, setPred] = useState(0);
   const [inc, setInc] = useState([]);
   const [position, setPosition] = useState("TOWER");
-  const [chart, setChart] = useState(false);
+  const [chartView, setChartView] = useState("RADAR"); // RADAR | GROUND | APPROACH
+  const [plateRwy, setPlateRwy] = useState(0); // index into F.arrRwys for the approach plate
+  const plateRwyRef = useRef(0);
+  useEffect(() => { plateRwyRef.current = plateRwy; }, [plateRwy]);
   const [queues, setQueues] = useState({ DELIVERY: [], GROUND: [], APPROACH: [], TOWER: [] });
   const [mode, setMode] = useState("SIM"); // SIM | LIVE
   const [live, setLive] = useState({ status: "idle", count: 0, sel: null });
@@ -411,8 +414,8 @@ export default function Pyrgos() {
     const F = buildField(layoutKey);
     sim.current = { F, aircraft: [], spawnT: 2.5, comms: [], commId: 1, score: 0, events: [], busted: new Set(),
       stats: { landed: 0, departed: 0, ga: 0, busts: 0, emerg: 0, incursions: 0 }, emergT: rnd(55, 100), startT: Date.now(), inject: null };
-    view.current = { radiusNm: 12, cx: F.cx, cy: F.cy, chart: false };
-    setRangeNm(12); setSel(null); setComms([]); setChart(false); setPosition("TOWER");
+    view.current = { radiusNm: 12, cx: F.cx, cy: F.cy, chart: false, view: "RADAR" };
+    setRangeNm(12); setSel(null); setComms([]); setChartView("RADAR"); setPlateRwy(0); setPosition("TOWER");
     [7, 11, 15].forEach((d) => sim.current.aircraft.push(spawnArrival(F, d)));
     const dep = spawnDeparture(F); sim.current.aircraft.push(dep);
     const r0 = F.runways[0];
@@ -445,7 +448,10 @@ export default function Pyrgos() {
       const S = sim.current;
       const dt = Math.min(0.05, (t - lastT.current) / 1000) || 0; lastT.current = t;
       if (S && !paused && modeRef.current !== "LIVE") tick(S, dt * SIM_SPEED);
-      if (S) render(ctx, canvas, S, view.current, DPR, (sweep += dt * 0.55), modeRef.current);
+      if (S) {
+        if (view.current.view === "APPROACH") renderPlate(ctx, canvas, S, DPR, S.F.arrRwys[plateRwyRef.current] || S.F.arrRwys[0], modeRef.current);
+        else render(ctx, canvas, S, view.current, DPR, (sweep += dt * 0.55), modeRef.current);
+      }
       raf.current = requestAnimationFrame(frame);
     }
     function tick(S, dt) {
@@ -646,7 +652,7 @@ export default function Pyrgos() {
   const setModeTo = (next) => {
     if (next === mode || !sim.current) return; setMode(next);
     const v = view.current, F = sim.current.F;
-    v.chart = false; setChart(false); v.cx = F.cx; v.cy = F.cy;
+    v.chart = false; v.view = "RADAR"; setChartView("RADAR"); v.cx = F.cx; v.cy = F.cy;
     v.radiusNm = next === "LIVE" ? 34 : 12; setRangeNm(v.radiusNm);
     setSel(null); setLive((L) => ({ ...L, sel: null }));
     if (next !== "LIVE") sim.current.live = [];
@@ -663,7 +669,7 @@ export default function Pyrgos() {
     return best;
   };
   const selectById = (id) => { const S = sim.current; S.aircraft.forEach((a) => (a.sel = a.id === id)); const a = S.aircraft.find((x) => x.id === id); if (a) setSel(selSnap(a, S.F)); };
-  const onDown = (e) => { const r = canvasRef.current.getBoundingClientRect(); drag.current = { x: e.clientX, y: e.clientY, moved: 0, cx: view.current.cx, cy: view.current.cy, mx: e.clientX - r.left, my: e.clientY - r.top }; };
+  const onDown = (e) => { if (view.current.view === "APPROACH") return; const r = canvasRef.current.getBoundingClientRect(); drag.current = { x: e.clientX, y: e.clientY, moved: 0, cx: view.current.cx, cy: view.current.cy, mx: e.clientX - r.left, my: e.clientY - r.top }; };
   const onMove = (e) => { const d = drag.current; if (!d) return; const dx = e.clientX - d.x, dy = e.clientY - d.y; d.moved += Math.abs(dx) + Math.abs(dy); const sc = screenScale(); view.current.cx = d.cx - dx / sc; view.current.cy = d.cy - dy / sc; };
   const onUp = (e) => {
     const d = drag.current; drag.current = null; if (!d) return; if (d.moved >= 6) return;
@@ -678,11 +684,11 @@ export default function Pyrgos() {
     }
   };
   const zoomBy = (factor) => { const v = view.current; v.radiusNm = Math.max(3, Math.min(40, v.radiusNm * factor)); setRangeNm(Math.round(v.radiusNm)); };
-  const onWheel = (e) => { e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.12 : 0.89); };
-  const toggleChart = () => {
-    const next = !chart; setChart(next);
-    const v = view.current, F = sim.current.F;
-    if (next) {
+  const onWheel = (e) => { if (view.current.view === "APPROACH") return; e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.12 : 0.89); };
+  const setView = (next) => {
+    setChartView(next);
+    const v = view.current, F = sim.current.F; v.view = next;
+    if (next === "GROUND") {
       const xs = [], ys = []; F.runways.forEach((r) => { xs.push(r.ax, r.bx); ys.push(r.ay, r.by); }); Object.values(F.nodes).forEach((n) => { xs.push(n.x); ys.push(n.y); });
       v.cx = (Math.min(...xs) + Math.max(...xs)) / 2; v.cy = (Math.min(...ys) + Math.max(...ys)) / 2;
       v.radiusNm = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2 / F.pxPerNm * 1.3;
@@ -866,20 +872,26 @@ export default function Pyrgos() {
           {inc.length === 0 && conf > 0 && <div className="pyr-conflict">⚠ SEPARATION · {conf} conflict{conf > 1 ? "s" : ""} — vector to restore spacing</div>}
           {inc.length === 0 && conf === 0 && pred > 0 && <div className="pyr-predict">◇ STCA · {pred} predicted conflict{pred > 1 ? "s" : ""} — resolve early</div>}
           <div className="pyr-viewtoggle">
-            <button className={!chart ? "on" : ""} onClick={() => chart && toggleChart()}>RADAR</button>
-            <button className={chart ? "on" : ""} onClick={() => !chart && toggleChart()}>GROUND</button>
+            {["RADAR", "GROUND", "APPROACH"].map((vw) => (
+              <button key={vw} className={chartView === vw ? "on" : ""} onClick={() => chartView !== vw && setView(vw)}>{vw === "APPROACH" ? "PLATE" : vw}</button>
+            ))}
           </div>
-          <div className="pyr-zoom">
+          {chartView === "APPROACH" && F && F.arrRwys.length > 1 && (
+            <div className="pyr-plateseg">
+              {F.arrRwys.map((r, i) => <button key={r.name} className={plateRwy === i ? "on" : ""} onClick={() => setPlateRwy(i)}>{r.name}</button>)}
+            </div>
+          )}
+          {chartView !== "APPROACH" && <div className="pyr-zoom">
             <button onClick={() => zoomBy(0.8)}>+</button>
             <span>{rangeNm}nm</span>
             <button onClick={() => zoomBy(1.25)}>−</button>
-          </div>
-          <div className="pyr-legend">
+          </div>}
+          {chartView !== "APPROACH" && <div className="pyr-legend">
             <span><i style={{ background: "#37e0c8" }} />Arrival</span>
             <span><i style={{ background: "#ffb454" }} />Departure</span>
             <span><i style={{ background: "#ff6b6b" }} />Selected</span>
             <span className="pyr-legend-hint">click a target · drag to pan · scroll to zoom</span>
-          </div>
+          </div>}
           <div className="pyr-spawn">
             <button onClick={() => doSpawn("ARR")}>+ Arrival</button>
             <button onClick={() => doSpawn("DEP")}>+ Departure</button>
@@ -1245,6 +1257,165 @@ function render(ctx, canvas, S, v, DPR, sweep, mode) {
   }
 }
 
+/* ═══════════════════════ approach plate (IAP) ═══════════════════════ */
+// original chart data derived from the runway (fabricated freqs/minima — not real published charts)
+function plateData(F, rwy) {
+  const h = [...(rwy.name + F.meta.icao)].reduce((a, c) => a + c.charCodeAt(0), 0);
+  const dec = [".10", ".30", ".50", ".70", ".90", ".95"][h % 6];
+  const ils = (108 + (h % 4)) + dec;
+  const tdze = 30 + (h % 60);
+  const da = tdze + 200;
+  const fac = String(Math.round(rwy.hdg)).padStart(3, "0");
+  const iaf = rwy._star && rwy._star[0], iff = rwy._star && rwy._star[1];
+  return { ils, tdze, da, gs: "3.00°", fac, ident: "I-" + rwy.name.replace(/[^0-9A-Z]/g, "").slice(0, 3),
+    iafName: iaf ? iaf.name : "IAF", ifName: iff ? iff.name : "FAF", msa: Math.ceil((tdze + 3000) / 100) * 100 };
+}
+// a clean, professional approach plate that also plots this runway's live arrivals against the glidepath
+function renderPlate(ctx, canvas, S, DPR, rwy, mode) {
+  const F = S.F, w = canvas.width / DPR, h = canvas.height / DPR;
+  const P = plateData(F, rwy);
+  const ink = "rgba(200,235,228,0.92)", faint = "rgba(120,200,190,0.32)", mid = "rgba(150,220,205,0.6)", accent = "#37e0c8", amber = "#ffb454";
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#071a17"; ctx.fillRect(0, 0, w, h);
+  ctx.textBaseline = "alphabetic";
+
+  // ── briefing strip ──
+  const bh = 66, pad = 16;
+  ctx.strokeStyle = faint; ctx.lineWidth = 1; ctx.strokeRect(pad, pad, w - pad * 2, bh);
+  ctx.fillStyle = accent; ctx.font = "bold 15px ui-monospace, monospace"; ctx.textAlign = "left";
+  ctx.fillText(`ILS  RWY ${rwy.name}`, pad + 12, pad + 24);
+  ctx.fillStyle = mid; ctx.font = "10px ui-monospace, monospace";
+  ctx.fillText(`${F.meta.icao} · ${F.meta.label.split("·")[0].trim()}`, pad + 12, pad + 42);
+  ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.font = "8px ui-monospace, monospace";
+  ctx.fillText("ARGUS chart · not for real-world navigation", pad + 12, pad + 56);
+  // data cells
+  const cells = [["LOC", `${P.ident} ${P.ils}`], ["FAC", `${P.fac}°`], ["GS", P.gs], ["DA(H)", `${P.da}′ (200′)`], ["TDZE", `${P.tdze}′`], ["MSA", `${P.msa}′`]];
+  const cw = (w - pad * 2 - 220) / cells.length, cx0 = pad + 210;
+  cells.forEach(([k, val], i) => {
+    const x = cx0 + i * cw;
+    if (i) { ctx.strokeStyle = faint; ctx.beginPath(); ctx.moveTo(x, pad + 8); ctx.lineTo(x, pad + bh - 8); ctx.stroke(); }
+    ctx.fillStyle = "rgba(120,200,190,0.6)"; ctx.font = "7.5px ui-monospace, monospace"; ctx.textAlign = "left";
+    ctx.fillText(k, x + 8, pad + 24);
+    ctx.fillStyle = ink; ctx.font = "bold 11px ui-monospace, monospace";
+    ctx.fillText(val, x + 8, pad + 42);
+  });
+
+  // ── geometry shared by plan + profile ──
+  const maxNm = 11;
+  const planTop = pad + bh + 14, profH = 132, profTop = h - profH - pad;
+  const planBot = profTop - 22, planH = planBot - planTop;
+  const cxPlan = w / 2, planScale = planH / maxNm; // nm → px (vertical, threshold at bottom)
+  const arrs = S.aircraft.filter((a) => a.kind === "ARR" && a.rwy === rwy && (a.state === "ARR" || a.state === "HOLD" || a.state === "LAND"));
+  const alongCross = (a) => {
+    const relx = a.x - rwy.thr.x, rely = a.y - rwy.thr.y;
+    return { along: -(relx * rwy.ux + rely * rwy.uy) / F.pxPerNm, cross: (relx * (-rwy.uy) + rely * rwy.ux) / F.pxPerNm };
+  };
+
+  // ── PLAN VIEW (schematic: final track vertical, threshold at bottom) ──
+  ctx.save(); ctx.beginPath(); ctx.rect(pad, planTop - 6, w - pad * 2, planH + 12); ctx.clip();
+  // extended centreline
+  ctx.strokeStyle = faint; ctx.setLineDash([6, 5]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cxPlan, planBot); ctx.lineTo(cxPlan, planTop); ctx.stroke(); ctx.setLineDash([]);
+  // localizer feather (splayed course guide)
+  ctx.strokeStyle = "rgba(120,200,190,0.22)";
+  ctx.beginPath(); ctx.moveTo(cxPlan, planBot); ctx.lineTo(cxPlan - planH * 0.09, planTop); ctx.moveTo(cxPlan, planBot); ctx.lineTo(cxPlan + planH * 0.09, planTop); ctx.stroke();
+  // distance ticks + rings labels
+  ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "left";
+  for (let nm = 2; nm <= 10; nm += 2) {
+    const y = planBot - nm * planScale;
+    ctx.strokeStyle = "rgba(120,200,190,0.25)"; ctx.beginPath(); ctx.moveTo(cxPlan - 5, y); ctx.lineTo(cxPlan + 5, y); ctx.stroke();
+    ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.fillText(nm + " DME", cxPlan + 9, y + 3);
+  }
+  // fixes: FAF (~5nm) and IAF (~top) with a holding racetrack
+  const fafY = planBot - 5 * planScale;
+  ctx.strokeStyle = amber; ctx.fillStyle = amber; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.arc(cxPlan, fafY, 4, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cxPlan - 7, fafY); ctx.lineTo(cxPlan + 7, fafY); ctx.moveTo(cxPlan, fafY - 7); ctx.lineTo(cxPlan, fafY + 7); ctx.stroke();
+  ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "left"; ctx.fillText(`${P.ifName} · FAF`, cxPlan + 12, fafY - 4);
+  // IAF + holding pattern at the top of the plan
+  const iafY = planTop + 20;
+  ctx.strokeStyle = mid; ctx.lineWidth = 1.2;
+  const holdR = 13;
+  ctx.beginPath();
+  ctx.moveTo(cxPlan, iafY); ctx.lineTo(cxPlan + holdR * 2, iafY);
+  ctx.arc(cxPlan + holdR * 2, iafY + holdR, holdR, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(cxPlan, iafY + holdR * 2);
+  ctx.arc(cxPlan, iafY + holdR, holdR, Math.PI / 2, -Math.PI / 2, true);
+  ctx.stroke();
+  ctx.fillStyle = mid; ctx.beginPath(); ctx.arc(cxPlan, iafY, 3.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = ink; ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "right"; ctx.fillText(`${P.iafName} · IAF`, cxPlan - 8, iafY + 3);
+  // runway symbol at the bottom
+  ctx.save(); ctx.translate(cxPlan, planBot); ctx.fillStyle = ink;
+  ctx.fillRect(-3, -2, 6, 16); ctx.restore();
+  ctx.fillStyle = accent; ctx.font = "bold 9px ui-monospace, monospace"; ctx.textAlign = "center"; ctx.fillText(rwy.name, cxPlan, planBot + 16);
+  // north arrow (plan schematic true north points along -uy of the runway; show a small rose)
+  const naX = w - pad - 26, naY = planTop + 22, nrot = Math.atan2(rwy.ux, -rwy.uy); // page-up is the approach track
+  ctx.save(); ctx.translate(naX, naY); ctx.rotate(-nrot);
+  ctx.strokeStyle = mid; ctx.fillStyle = mid; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(-4, 5); ctx.lineTo(0, 1); ctx.lineTo(4, 5); ctx.closePath(); ctx.fill();
+  ctx.font = "bold 8px ui-monospace, monospace"; ctx.textAlign = "center"; ctx.fillText("N", 0, -14); ctx.restore();
+  // plot arrivals on the plan
+  arrs.forEach((a) => {
+    const { along, cross } = alongCross(a); if (along < -0.5 || along > maxNm + 1) return;
+    const px = cxPlan + Math.max(-w / 2 + pad + 8, Math.min(w / 2 - pad - 8, cross * planScale));
+    const py = planBot - Math.max(0, along) * planScale;
+    const col = a.sel ? "#ff6b6b" : a.state === "HOLD" ? amber : accent;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(200,235,228,0.85)"; ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "left";
+    ctx.fillText(a.cs, px + 6, py + 3);
+  });
+  ctx.restore();
+  ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "left"; ctx.fillText("PLAN", pad + 4, planTop + 6);
+
+  // ── PROFILE VIEW (glidepath, altitude gates, live traffic vs slope) ──
+  const pL = pad + 44, pR = w - pad - 10, pB = profTop + profH - 26, pT = profTop + 10;
+  const xForNm = (nm) => pR - (nm / maxNm) * (pR - pL);
+  const maxAlt = Math.ceil(maxNm * G3 / 500) * 500; // top of the altitude scale
+  const yForAlt = (ft) => pB - (ft / maxAlt) * (pB - pT);
+  ctx.strokeStyle = faint; ctx.strokeRect(pad, profTop, w - pad * 2, profH);
+  ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "left"; ctx.fillText("PROFILE", pad + 4, profTop + 10);
+  // ground + threshold
+  ctx.strokeStyle = mid; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(pL, pB); ctx.lineTo(pR, pB); ctx.stroke();
+  ctx.fillStyle = ink; ctx.fillRect(pR - 2, pB - 8, 4, 8);
+  // glidepath (3°): altitude = nm * G3
+  ctx.strokeStyle = accent; ctx.lineWidth = 1.6; ctx.beginPath();
+  ctx.moveTo(xForNm(0), yForAlt(0)); ctx.lineTo(xForNm(maxNm), yForAlt(maxNm * G3)); ctx.stroke();
+  // altitude/distance gates
+  ctx.font = "8px ui-monospace, monospace";
+  for (let nm = 2; nm <= 10; nm += 2) {
+    const x = xForNm(nm), y = yForAlt(nm * G3);
+    ctx.strokeStyle = "rgba(120,200,190,0.3)"; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(x, pB); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = mid; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(160,215,205,0.85)"; ctx.textAlign = "center"; ctx.fillText(Math.round(nm * G3 / 10) * 10 + "′", x, y - 6);
+    ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.fillText(nm, x, pB + 12);
+  }
+  // FAF marker on profile (~5nm)
+  const ffx = xForNm(5), ffy = yForAlt(5 * G3);
+  ctx.strokeStyle = amber; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(ffx, ffy, 4, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ffx - 6, ffy); ctx.lineTo(ffx + 6, ffy); ctx.moveTo(ffx, ffy - 6); ctx.lineTo(ffx, ffy + 6); ctx.stroke();
+  ctx.fillStyle = amber; ctx.textAlign = "center"; ctx.fillText("FAF", ffx, ffy + 16);
+  // DA line
+  const day = yForAlt(P.da);
+  ctx.strokeStyle = "rgba(255,120,120,0.6)"; ctx.setLineDash([5, 3]); ctx.beginPath(); ctx.moveTo(pL, day); ctx.lineTo(pR, day); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(255,150,150,0.85)"; ctx.textAlign = "left"; ctx.fillText(`DA ${P.da}′`, pL + 2, day - 4);
+  // plot arrivals on the profile at (distance, altitude)
+  arrs.forEach((a) => {
+    const { along } = alongCross(a); const nm = Math.max(0, Math.min(maxNm, along));
+    if (along > maxNm + 1) return;
+    const x = xForNm(nm), y = yForAlt(Math.min(a.alt, maxAlt));
+    const onSlope = Math.abs(a.alt - nm * G3) < 250;
+    const col = a.sel ? "#ff6b6b" : a.state === "HOLD" ? amber : onSlope ? accent : "rgba(255,180,90,0.9)";
+    ctx.save(); ctx.translate(x, y); ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(3.5, 3.5); ctx.lineTo(0, 1.4); ctx.lineTo(-3.5, 3.5); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.fillStyle = col; ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "left";
+    ctx.fillText(`${a.cs} ${(a.alt / 100 | 0).toString().padStart(3, "0")}`, x + 6, y - 4);
+  });
+  // axis labels
+  ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.textAlign = "right"; ctx.fillText("ALT ft", pR, pT - 1);
+  ctx.textAlign = "center"; ctx.fillText("DME to threshold (nm)", (pL + pR) / 2, pB + 22);
+  if (mode !== "SIM") { ctx.fillStyle = "rgba(120,200,190,0.4)"; ctx.textAlign = "right"; ctx.fillText(mode + " mode", w - pad - 4, h - 6); }
+}
+
 /* ═══════════════════════ styles ═══════════════════════ */
 const CSS = `
 .pyr{position:fixed;inset:0;display:flex;flex-direction:column;background:#04100e;color:#dff3ee;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
@@ -1341,6 +1512,9 @@ const CSS = `
 .pyr-viewtoggle{position:absolute;left:50%;top:12px;transform:translateX(-50%);display:flex;background:#0a1f1bcc;border:1px solid rgba(55,224,200,.25);border-radius:9px;overflow:hidden;font-family:ui-monospace,monospace;z-index:4}
 .pyr-viewtoggle button{font-size:9.5px;letter-spacing:.1em;color:#9fd4c9;background:transparent;border:0;padding:7px 14px;cursor:pointer}
 .pyr-viewtoggle button.on{color:#04100e;background:#37e0c8}
+.pyr-plateseg{position:absolute;left:50%;top:44px;transform:translateX(-50%);display:flex;gap:3px;background:#0a1f1bcc;border:1px solid rgba(55,224,200,.25);border-radius:8px;padding:3px;font-family:ui-monospace,monospace;z-index:4}
+.pyr-plateseg button{font-size:9px;letter-spacing:.06em;color:#9fd4c9;background:transparent;border:0;border-radius:5px;padding:5px 9px;cursor:pointer}
+.pyr-plateseg button.on{color:#04100e;background:#37e0c8;font-weight:600}
 .pyr-clr-note{font-family:ui-monospace,monospace;font-size:9px;color:#8fbdff;letter-spacing:.04em;margin-top:4px}
 .pyr-btn.live{background:#3fd3ff;color:#04100e}
 .pyr-modeseg{display:flex;border:1px solid rgba(55,224,200,.3);border-radius:8px;overflow:hidden}
