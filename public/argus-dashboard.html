@@ -718,8 +718,11 @@ select{appearance:none;cursor:pointer;
       <div id="sSetup" hidden>
         <input id="sUrl" placeholder="Worker URL (https://…workers.dev)">
         <input id="sKey" type="password" placeholder="Sync key">
+        <div style="border-top:1px solid var(--line);margin:10px 0 8px;padding-top:9px;font-family:var(--mono);font-size:9px;letter-spacing:1.4px;color:var(--gold)">GOOGLE SHEET WRITER</div>
+        <input id="wUrl" placeholder="Apps Script Web App URL (…/exec)">
+        <input id="wSecret" type="password" placeholder="Sheet writer secret">
         <button id="sSave" class="sbtn save">Save &amp; connect</button>
-        <p>Enter these once per device. Every device that shares the same key sees the same data (most recent edit wins). The key is stored only on this device.</p>
+        <p>Sync (top) shares dashboard data between devices. The Sheet writer (Apps Script URL + secret) lets "Push to Google Sheet" write the day's attendance into your department sheet. Both are stored only on this device.</p>
       </div>
     </div>
   <header>
@@ -928,6 +931,10 @@ select{appearance:none;cursor:pointer;
           </div>
           <div class="acts" style="margin-top:14px">
             <button class="btn" onclick="exportMHDocx()">Download MH COCKPIT .docx</button>
+          </div>
+          <div class="acts" style="margin-top:10px">
+            <button class="btn" onclick="pushToSheet(false)" title="Write this day's P / A / OD into your Google Sheet attendance tab">⤴ Push today → Google Sheet</button>
+            <button class="btn line" onclick="pushToSheet(true)" title="Check what would be written, without changing the sheet">Dry run</button>
           </div>
         </div>
       </div>
@@ -1386,15 +1393,72 @@ function cloudPush() {
 function initSync() {
   if (!$('sUrl')) return;
   $('sUrl').value = SYNC.url; $('sKey').value = SYNC.key;
+  if ($('wUrl')) $('wUrl').value = WRITER.url;
+  if ($('wSecret')) $('wSecret').value = WRITER.secret;
   $('sGear').onclick = () => { $('sSetup').hidden = !$('sSetup').hidden; };
   $('sSave').onclick = () => {
     SYNC.url = $('sUrl').value.trim().replace(/\/$/, ''); SYNC.key = $('sKey').value.trim();
     localStorage.setItem('argus_sync_url', SYNC.url); localStorage.setItem('argus_sync_key', SYNC.key);
+    if ($('wUrl')) { WRITER.url = $('wUrl').value.trim(); WRITER.secret = ($('wSecret').value || '').trim();
+      localStorage.setItem('argus_writer_url', WRITER.url); localStorage.setItem('argus_writer_secret', WRITER.secret); }
     $('sSetup').hidden = true;
     if (syncOn()) { toast('Cloud sync connected'); cloudPull(); } else { setSync('Local only — tap the gear to connect', ''); }
+    if (writerOn()) toast('Google Sheet writer connected');
   };
   $('sNow').onclick = () => { if (!syncOn()) { $('sSetup').hidden = false; toast('Enter the Worker URL and key first'); return; } cloudPull(); };
   if (syncOn()) cloudPull(); else setSync('Local only — tap the gear to connect', '');
+}
+
+/* ═══════════════ Google Sheet write-back (Apps Script Web App) ═══════════════ */
+const WRITER = { url: localStorage.getItem('argus_writer_url') || '', secret: localStorage.getItem('argus_writer_secret') || '' };
+const writerOn = () => !!(WRITER.url && WRITER.secret);
+const MON3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const MONTitle = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function sheetNameForDate(iso) { const [y, m] = iso.split('-').map(Number); return 'Daily Attendance for ' + MON3[m - 1] + '-' + String(y).slice(2); }
+function ddMon(iso) { const [y, m, d] = iso.split('-').map(Number); return d + '-' + MONTitle[m - 1]; }
+// build the whole class's marks for the report date: absentees → A (or OD), everyone else → P
+function buildSheetMarks() {
+  const iso = ($('pDate') && $('pDate').value) || today();
+  const absByReg = {}, absByName = {};
+  S.absentees.forEach(a => { const mk = a.status === 'od' ? 'OD' : 'A'; if (a.reg) absByReg[String(a.reg)] = mk; if (a.name) absByName[a.name.trim().toLowerCase()] = mk; });
+  const marks = []; let present = 0, absent = 0, od = 0;
+  ROSTER.forEach(r => {
+    const mk = absByReg[String(r.reg)] || absByName[(r.name || '').trim().toLowerCase()] || 'P';
+    if (mk === 'P') present++; else if (mk === 'OD') od++; else absent++;
+    marks.push({ reg: String(r.reg), mark: mk });
+  });
+  const rosterRegs = new Set(ROSTER.map(r => String(r.reg)));
+  const rosterNames = new Set(ROSTER.map(r => (r.name || '').trim().toLowerCase()));
+  const extra = S.absentees.filter(a => (!a.reg || !rosterRegs.has(String(a.reg))) && !rosterNames.has((a.name || '').trim().toLowerCase())).map(a => a.name);
+  return { iso, sheetName: sheetNameForDate(iso), marks, present, absent, od, extra };
+}
+async function pushToSheet(dryRun) {
+  if (!writerOn()) { toast('Connect the Google Sheet writer first (⚙)'); if ($('sSetup')) $('sSetup').hidden = false; return; }
+  const m = buildSheetMarks();
+  if (!dryRun) {
+    const msg = 'Push attendance to your Google Sheet?\n\nTab:  ' + m.sheetName + '\nDate: ' + ddMon(m.iso) +
+      '\n\n' + m.present + ' present · ' + m.absent + ' absent · ' + m.od + ' OD   (' + m.marks.length + ' students)' +
+      (m.extra.length ? ('\n\n⚠ ' + m.extra.length + ' logged absentee(s) not on the roster will be skipped:\n' + m.extra.join(', ')) : '') +
+      '\n\nThis overwrites ONLY this day’s 5 period columns. Continue?';
+    if (!confirm(msg)) return;
+  }
+  toast(dryRun ? 'Checking the sheet…' : 'Writing to Google Sheet…');
+  try {
+    const r = await fetch(WRITER.url, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ secret: WRITER.secret, sheetName: m.sheetName, date: m.iso, dryRun: !!dryRun, marks: m.marks })
+    });
+    const j = await r.json();
+    if (!j.ok) { alert('Sheet ' + (dryRun ? 'check' : 'write') + ' failed:\n\n' + (j.error || 'unknown error')); toast('Sheet ' + (dryRun ? 'check' : 'write') + ' failed'); return; }
+    const receipt = (dryRun ? 'DRY RUN — nothing was written.\n\n' : 'Done — Google Sheet updated. ✓\n\n') +
+      'Tab:  ' + j.sheet + '\nColumn: ' + (j.dateColumn || '?') + '  (' + (j.date || ddMon(m.iso)) + ')\n' +
+      'Marked: ' + j.wrote + ' students  —  ' + j.present + ' P · ' + j.absent + ' A · ' + j.od + ' OD' +
+      ((j.unmatched && j.unmatched.length) ? ('\n\nReg not found in the sheet (skipped): ' + j.unmatched.join(', ')) : '');
+    alert(receipt); toast(dryRun ? 'Dry run complete' : 'Google Sheet updated ✓');
+  } catch (e) {
+    alert('Couldn’t reach the Apps Script.\n\n' + String(e.message || e) + '\n\n• Check the URL in ⚙ (must end in /exec)\n• Deploy the Web App with access "Anyone"\n• Make sure the secret matches the script');
+    toast('Sheet write error');
+  }
 }
 
 function boot() {
