@@ -374,10 +374,10 @@ function Readout({ k, v, tone }) {
 
 /* ═══════════════════════ styles — ops console ═══════════════════════ */
 const CSS = `
-.dash{--paper:#eeece4;--paper2:#e5e2d8;--surf:#f8f7f1;--surf2:#f1efe7;--line:rgba(20,32,28,.12);--line2:rgba(20,32,28,.2);--ink:#141f1b;--soft:#33413b;--dim:#5e6a62;--faint:#93998f;--accent:#0b8f80;--accent2:#0a7568;--accent-w:rgba(11,143,128,.1);--gold:#b0741a;--red:#bb433c;--ok:#1c8a52;--console:#101a16;--console-ink:#eaf1ec;
+.dash{--paper:#eceadf;--paper2:#e2dfd2;--surf:#f9f8f2;--surf2:#f0eee4;--line:rgba(18,42,36,.11);--line2:rgba(18,42,36,.19);--ink:#0f1f1a;--soft:#2b3d36;--dim:#556860;--faint:#8a968c;--accent:#0c8f7d;--accent2:#0a6f60;--accent-w:rgba(12,143,125,.11);--gold:#a3670f;--red:#bf4038;--ok:#188a4e;--console:#0d1714;--console-ink:#eaf1ec;
   --sans:var(--font-sans),Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--mono:var(--font-mono),"SF Mono",ui-monospace,Menlo,Consolas,monospace;
   position:fixed;inset:0;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
-.dash[data-dtheme="dark"]{--paper:#080c0b;--paper2:#0b100e;--surf:#0f1613;--surf2:#0c1210;--line:rgba(150,180,170,.12);--line2:rgba(150,180,170,.22);--ink:#e9f1ec;--soft:#c3d0c9;--dim:#8a978f;--faint:#5f6d65;--accent:#35d0ba;--accent2:#26b5a2;--accent-w:rgba(53,208,186,.1);--gold:#dca648;--red:#e26a61;--ok:#4dc084;--console:#060a09;--console-ink:#dfeae5}
+.dash[data-dtheme="dark"]{--paper:#060b0a;--paper2:#0a100e;--surf:#0d1512;--surf2:#0a110f;--line:rgba(90,210,185,.13);--line2:rgba(90,210,185,.24);--ink:#e9f4ef;--soft:#bdccc5;--dim:#84958c;--faint:#57675f;--accent:#37e0c8;--accent2:#22c4ad;--accent-w:rgba(55,224,200,.1);--gold:#ffbe5c;--red:#ff6f66;--ok:#4fd18a;--console:#040807;--console-ink:#e9f4ef}
 .dash *{box-sizing:border-box}
 .dash button,.dash input,.dash select,.dash textarea{font-family:inherit}
 
@@ -431,7 +431,7 @@ const CSS = `
 .cb-clock{margin-left:auto;text-align:right;font-family:var(--mono);line-height:1.15}
 .cb-clock b{font-size:14px;font-weight:500;letter-spacing:.04em;color:var(--ink)}
 .cb-clock span{display:block;font-size:8.5px;letter-spacing:.14em;color:var(--faint)}
-.body{padding:26px 30px 60px;max-width:1180px}
+.body{padding:26px 34px 60px}
 
 /* ── instrument band ── */
 .instr{display:grid;grid-template-columns:auto 1fr;gap:34px;align-items:center;background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
@@ -454,7 +454,7 @@ const CSS = `
 .ro.ok b{color:var(--ok)}.ro.bad b{color:var(--red)}.ro.teal b{color:var(--accent)}
 
 /* ── panels ── */
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.grid2{display:grid;grid-template-columns:minmax(400px,480px) 1fr;gap:18px;margin-top:18px}
 .panel{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:20px}
 .p-h{display:flex;align-items:baseline;gap:11px;margin-bottom:16px}
 .p-k{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:3px 6px}
