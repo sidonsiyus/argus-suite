@@ -116,7 +116,7 @@ export default function Dashboard() {
   const [clock, setClock] = useState({ d: "—", t: "—:—:—" });
 
   // live attendance (read) + sheet writer
-  const [live, setLive] = useState({ status: "idle", data: null, sheet: "", sort: "pct", search: "", updated: "" });
+  const [live, setLive] = useState({ status: "idle", data: null, sheet: "", sort: "pct", search: "", updated: "", mode: "month", overall: null, ostatus: "idle" });
   const [writer, setWriter] = useState({ url: "", secret: "" });
   const [wOpen, setWOpen] = useState(false);
 
@@ -219,6 +219,20 @@ export default function Dashboard() {
     } catch (e) { setLive((L) => ({ ...L, status: "error", err: String(e.message || e) })); }
   }, []);
   useEffect(() => { if (nav === "live" && live.status === "idle") loadLive(); }, [nav, live.status, loadLive]);
+  const loadOverall = useCallback(async () => {
+    setLive((L) => ({ ...L, ostatus: "loading" }));
+    try {
+      const r = await fetch(LIVE_WORKER + "?all=1", { cache: "no-store" });
+      const j = await r.json();
+      if (j.error) throw new Error(j.error + (j.detail ? " — " + j.detail : ""));
+      setLive((L) => ({ ...L, ostatus: "ok", overall: j }));
+    } catch (e) { setLive((L) => ({ ...L, ostatus: "error", overall: null })); toast("Overall load failed"); }
+  }, [toast]);
+  const toggleOverall = () => {
+    if (live.mode === "overall") { setLive((L) => ({ ...L, mode: "month" })); return; }
+    setLive((L) => ({ ...L, mode: "overall" }));
+    if (!live.overall && live.ostatus !== "loading") loadOverall();
+  };
 
   /* ── sheet write-back ── */
   const writerUrl = () => (writer.url || LIVE_WORKER).replace(/\/$/, "");
@@ -258,7 +272,7 @@ export default function Dashboard() {
   };
 
   const liveRows = useMemo(() => {
-    const d = live.data; if (!d || !Array.isArray(d.students)) return [];
+    const d = live.mode === "overall" ? live.overall : live.data; if (!d || !Array.isArray(d.students)) return [];
     let arr = d.students.slice();
     const q = live.search.trim().toLowerCase();
     if (q) arr = arr.filter((s) => s.name.toLowerCase().includes(q) || String(s.reg).includes(q));
@@ -267,7 +281,7 @@ export default function Dashboard() {
     else if (live.sort === "sno") arr.sort((a, b) => a.sno - b.sno);
     else if (live.sort === "low") arr = arr.filter((s) => s.pct < THR.det).sort((a, b) => a.pct - b.pct);
     return arr;
-  }, [live.data, live.sort, live.search]);
+  }, [live.data, live.overall, live.mode, live.sort, live.search]);
 
   if (!loaded) return <div className="dash" data-dtheme={dark ? "dark" : "light"}><style>{CSS}</style></div>;
 
@@ -302,6 +316,9 @@ export default function Dashboard() {
   }
 
   const cur = NAV.find((n) => n.id === nav) || NAV[0];
+  const liveActive = live.mode === "overall" ? live.overall : live.data;
+  const liveStatus = live.mode === "overall" ? live.ostatus : live.status;
+  const liveSum = liveActive && liveActive.summary;
 
   return (
     <div className="dash" data-dtheme={dark ? "dark" : "light"}>
@@ -446,13 +463,18 @@ export default function Dashboard() {
           {nav === "live" && (
             <div className="body">
               <section className="live-bar">
-                <div className={"live-src " + live.status}><span className="ls-dot" />
-                  {live.status === "loading" && "acquiring feed…"}
-                  {live.status === "error" && ("feed error" + (live.err ? " — " + live.err : ""))}
-                  {live.status === "ok" && ("Live · Google Sheet" + (live.updated ? " · synced " + live.updated : ""))}
-                  {live.status === "idle" && "starting…"}
+                <div className={"live-src " + liveStatus}><span className="ls-dot" />
+                  {liveStatus === "loading" && (live.mode === "overall" ? "combining every month…" : "acquiring feed…")}
+                  {liveStatus === "error" && ("feed error" + (live.err ? " — " + live.err : ""))}
+                  {liveStatus === "ok" && (live.mode === "overall"
+                    ? ("Overall · " + (liveActive.months || 0) + " months" + (liveActive.firstDate ? " · " + liveActive.firstDate + " → " + liveActive.lastDate : ""))
+                    : ("Live · Google Sheet" + (live.updated ? " · synced " + live.updated : "")))}
+                  {liveStatus === "idle" && "starting…"}
                 </div>
-                {live.data && Array.isArray(live.data.availableSheets) && (
+                <button className={"live-overall" + (live.mode === "overall" ? " on" : "")} onClick={toggleOverall} title="Consolidate every month from day 1 into each student's overall %">
+                  {live.mode === "overall" ? "◉ Overall" : "◌ Overall (all months)"}
+                </button>
+                {live.mode === "month" && live.data && Array.isArray(live.data.availableSheets) && (
                   <select className="live-sheet" value={live.sheet} onChange={(e) => loadLive(e.target.value)}>
                     {live.data.availableSheets.filter((n) => /attendance/i.test(n)).map((n) => <option key={n} value={n}>{n.replace(/daily attendance for /i, "").trim()}</option>)}
                   </select>
@@ -463,25 +485,25 @@ export default function Dashboard() {
                     <button key={k} className={live.sort === k ? "on" : ""} onClick={() => setLive((L) => ({ ...L, sort: k }))}>{l}</button>
                   ))}
                 </div>
-                <button className="live-refresh" onClick={() => loadLive(live.sheet)} title="Refresh">↻</button>
+                <button className="live-refresh" onClick={() => (live.mode === "overall" ? loadOverall() : loadLive(live.sheet))} title="Refresh">↻</button>
               </section>
 
-              {live.data && (
+              {liveActive && liveSum && (
                 <section className="instr live-summary">
-                  <Readout k="students" v={(live.data.summary && live.data.summary.count) || 0} />
-                  <Readout k="avg %" v={(live.data.summary && live.data.summary.avgPct) || 0} tone="teal" />
-                  <Readout k="below 75%" v={(live.data.summary && live.data.summary.below75) || 0} tone={(live.data.summary && live.data.summary.below75) ? "bad" : ""} />
-                  <Readout k="days" v={live.data.nDays || 0} />
-                  <Readout k="periods" v={live.data.periods || 5} />
-                  <Readout k="base" v={live.data.base || 0} />
+                  <Readout k="students" v={liveSum.count || 0} />
+                  <Readout k={live.mode === "overall" ? "overall %" : "avg %"} v={(live.mode === "overall" ? liveSum.overallPct : liveSum.avgPct) || 0} tone="teal" />
+                  <Readout k="below 75%" v={liveSum.below75 || 0} tone={liveSum.below75 ? "bad" : ""} />
+                  <Readout k="days" v={(live.mode === "overall" ? liveActive.totalDays : liveActive.nDays) || 0} />
+                  {live.mode === "overall" ? <Readout k="months" v={liveActive.months || 0} /> : <Readout k="periods" v={liveActive.periods || 5} />}
+                  {live.mode === "overall" ? <Readout k="avg %" v={liveSum.avgPct || 0} /> : <Readout k="base" v={liveActive.base || 0} />}
                 </section>
               )}
 
               <section className="live-list">
-                {live.status === "loading" && <div className="live-empty">Loading live attendance…</div>}
-                {live.status === "error" && <div className="live-empty err">Couldn’t load — {live.err}</div>}
-                {live.status === "ok" && liveRows.length === 0 && <div className="live-empty">No students match.</div>}
-                {live.status === "ok" && liveRows.map((s) => {
+                {liveStatus === "loading" && <div className="live-empty">{live.mode === "overall" ? "Consolidating every month from day 1…" : "Loading live attendance…"}</div>}
+                {liveStatus === "error" && <div className="live-empty err">Couldn’t load — {live.err || "worker error"}</div>}
+                {liveStatus === "ok" && liveRows.length === 0 && <div className="live-empty">No students match.</div>}
+                {liveStatus === "ok" && liveRows.map((s) => {
                   const low = s.pct < THR.det, cls = s.pct < THR.det ? "low" : s.pct < THR.det + 10 ? "mid" : "hi", w = Math.min(100, s.pct);
                   return (
                     <div key={s.reg} className={"lr" + (low ? " low" : "")}>
@@ -683,6 +705,10 @@ const CSS = `
 .dash .live-sort button{font-family:var(--mono);font-size:10px;color:var(--dim);background:0;border:0;border-radius:6px;padding:6px 10px;cursor:pointer}
 .dash .live-sort button.on{color:#fff;background:var(--accent)}
 .dash[data-dtheme="dark"] .live-sort button.on{color:#04100e}
+.dash .live-overall{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;color:var(--dim);background:var(--surf2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;cursor:pointer;white-space:nowrap}
+.dash .live-overall:hover{color:var(--ink);border-color:var(--line2)}
+.dash .live-overall.on{color:#04100e;background:var(--accent);border-color:var(--accent)}
+.dash[data-dtheme="light"] .live-overall.on{color:#fff}
 .dash .live-refresh{width:38px;height:38px;flex:none;border:1px solid var(--line);background:var(--surf2);border-radius:9px;color:var(--dim);cursor:pointer;font-size:15px}
 .dash .live-refresh:hover{color:var(--accent);border-color:var(--accent)}
 .dash .instr.live-summary{display:flex;grid-template-columns:none;gap:0;padding:18px 24px;margin-bottom:16px}
