@@ -277,20 +277,24 @@ export default function Dashboard() {
       <div className="dash" data-dtheme={dark ? "dark" : "light"}>
         <style>{CSS}</style>
         <div className="lock">
-          <div className="lockgrid">
-            <div className={"scope" + (pinBad ? " shake" : "")}><canvas ref={scopeRef} /><span className="scope-ring" /></div>
-            <div className="lockmeta">
-              <div className="lbrand">ARGUS</div>
-              <div className="ltag">Attendance Command · secure terminal</div>
-              <div className="pinwrap">
-                {pin.map((v, i) => (
-                  <input key={i} ref={pinRefs[i]} className={"pin" + (v ? " filled" : "") + (pinBad ? " bad" : "")} maxLength={1} inputMode="numeric" type="password"
-                    value={v} onChange={(e) => onPin(i, e.target.value)} onKeyDown={(e) => onPinKey(i, e)} autoComplete="off" />
-                ))}
-              </div>
-              <div className={"lockmsg" + (pinBad ? " bad" : "")}>{pinBad ? "◇ access denied" : "◇ enter 4-digit access code"}</div>
-              <div className="sig">MADE FOR SID, BY SID</div>
+          <div className="lock-grid" />
+          <div className="lock-glow" />
+          <div className={"lock-inner" + (pinBad ? " shake" : "")}>
+            <div className="lock-scope"><canvas ref={scopeRef} /></div>
+            <div className="lock-brand"><span className="lb-mark">✦</span>ARGUS</div>
+            <div className="lock-tag">Attendance Command Terminal</div>
+            <div className="pinwrap">
+              {pin.map((v, i) => (
+                <input key={i} ref={pinRefs[i]} className={"pin" + (v ? " filled" : "") + (pinBad ? " bad" : "")} maxLength={1} inputMode="numeric" type="password"
+                  value={v} onChange={(e) => onPin(i, e.target.value)} onKeyDown={(e) => onPinKey(i, e)} autoComplete="off" />
+              ))}
             </div>
+            <div className={"lockmsg" + (pinBad ? " bad" : "")}><i className="lm-dot" />{pinBad ? "ACCESS DENIED — re-enter code" : "ENTER 4-DIGIT ACCESS CODE"}</div>
+          </div>
+          <div className="lock-foot">
+            <span className="lf-l"><i className="lf-dot" />SECURE · {ROSTER.length} ON ROLL</span>
+            <span className="lf-c">{clock.d} · {clock.t}</span>
+            <span className="lf-r">MADE FOR SID, BY SID</span>
           </div>
         </div>
       </div>
@@ -524,24 +528,32 @@ const CSS = `
 .dash[data-dtheme="dark"]{--paper:#060b0a;--paper2:#0a100e;--surf:#0d1512;--surf2:#0a110f;--line:rgba(90,210,185,.13);--line2:rgba(90,210,185,.24);--ink:#e9f4ef;--soft:#bdccc5;--dim:#84958c;--faint:#57675f;--accent:#37e0c8;--accent2:#22c4ad;--accent-w:rgba(55,224,200,.1);--gold:#ffbe5c;--red:#ff6f66;--ok:#4fd18a;--console:#040807;--console-ink:#e9f4ef}
 .dash *{box-sizing:border-box}
 .dash button,.dash input,.dash select,.dash textarea{font-family:inherit}
-.dash .lock{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 120% at 50% 0%,var(--surf),var(--paper));z-index:50}
-.dash .lockgrid{display:flex;align-items:center;gap:34px;padding:30px}
-.dash .scope{position:relative;width:164px;height:164px;border-radius:50%;overflow:hidden;background:var(--console);border:1px solid var(--line2);flex:none}
-.dash .scope canvas{width:100%;height:100%;display:block}
-.dash .scope.shake{animation:sh .4s}
+.dash .lock{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--paper);z-index:50;overflow:hidden}
+.dash .lock-grid{position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:44px 44px;opacity:.5;mask-image:radial-gradient(120% 90% at 50% 45%,#000,transparent 78%);-webkit-mask-image:radial-gradient(120% 90% at 50% 45%,#000,transparent 78%)}
+.dash .lock-glow{position:absolute;left:50%;top:38%;width:640px;height:640px;transform:translate(-50%,-50%);background:radial-gradient(circle,var(--accent-w),transparent 62%);pointer-events:none}
+.dash .lock-inner{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px}
+.dash .lock-inner.shake{animation:sh .4s}
 @keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
-.dash .lockmeta{display:flex;flex-direction:column;gap:12px}
-.dash .lbrand{font-size:30px;font-weight:800;letter-spacing:.34em;margin-left:.34em}
-.dash .ltag{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
-.dash .pinwrap{display:flex;gap:9px;margin-top:6px}
-.dash .pin{width:46px;height:54px;text-align:center;font-size:20px;font-family:var(--mono);color:var(--ink);background:var(--surf);border:1px solid var(--line2);border-radius:9px;outline:none;transition:.15s}
-.dash .pin.filled{border-color:var(--accent);background:var(--accent-w)}
+.dash .lock-scope{position:relative;width:190px;height:190px;border-radius:50%;overflow:hidden;background:var(--console);border:1px solid var(--line2);box-shadow:0 0 0 8px color-mix(in srgb,var(--accent) 6%,transparent),0 30px 80px -30px var(--accent)}
+.dash .lock-scope canvas{width:100%;height:100%;display:block}
+.dash .lock-brand{display:flex;align-items:center;gap:12px;font-size:38px;font-weight:800;letter-spacing:.36em;margin:6px 0 0 .36em;color:var(--ink)}
+.dash .lb-mark{color:var(--accent);font-size:22px;letter-spacing:0;filter:drop-shadow(0 0 10px var(--accent))}
+.dash .lock-tag{font-family:var(--mono);font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint)}
+.dash .pinwrap{display:flex;gap:11px;margin-top:12px}
+.dash .pin{width:52px;height:62px;text-align:center;font-size:22px;font-family:var(--mono);color:var(--ink);background:var(--surf);border:1px solid var(--line2);border-radius:11px;outline:none;transition:.15s}
+.dash .pin.filled{border-color:var(--accent);background:var(--accent-w);box-shadow:0 0 18px -4px var(--accent)}
 .dash .pin.bad{border-color:var(--red)}
-.dash .lockmsg{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+.dash .pin:focus{border-color:var(--accent)}
+.dash .lockmsg{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--dim);text-transform:uppercase;margin-top:6px}
+.dash .lm-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 .dash .lockmsg.bad{color:var(--red)}
-.dash .sig{font-family:var(--mono);font-size:8px;letter-spacing:.32em;color:var(--faint);margin-top:8px}
-@media(max-width:640px){
-.dash .lockgrid{flex-direction:column;gap:22px}}
+.dash .lockmsg.bad .lm-dot{background:var(--red)}
+.dash .lock-foot{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 26px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase;background:color-mix(in srgb,var(--surf) 60%,transparent)}
+.dash .lf-l{display:flex;align-items:center;gap:8px}
+.dash .lf-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.dash .lf-c{color:var(--dim)}
+@media(max-width:640px){.dash .lock-brand{font-size:30px}.dash .lf-r{display:none}}
 .dash .shell{display:grid;grid-template-columns:224px 1fr;height:100%;width:100%;padding:0;margin:0}
 .dash .rail{display:flex;flex-direction:column;background:var(--surf);border-right:1px solid var(--line);padding:20px 14px}
 .dash .rail-brand{display:flex;align-items:center;gap:9px;color:var(--gold);text-decoration:none;font-weight:800;font-size:15px;letter-spacing:.16em}
