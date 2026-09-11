@@ -81,6 +81,12 @@ const NAV = [
   { id: "report", label: "Report", glyph: "▦" },
   { id: "term", label: "Term Tracker", glyph: "◷" },
 ];
+const LIVE_WORKER = "https://argus-attend.jhrishi7.workers.dev/";
+const MON3 = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const MONT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const THR = { det: 75, cond: 65 };
+const sheetNameForDate = (iso) => { const [y, m] = iso.split("-").map(Number); return "Daily Attendance for " + MON3[m - 1] + "-" + String(y).slice(2); };
+const ddMon = (iso) => { const [y, m, d] = iso.split("-").map(Number); return d + "-" + MONT[m - 1]; };
 
 /* ═══════════════════════ component ═══════════════════════ */
 export default function Dashboard() {
@@ -109,11 +115,17 @@ export default function Dashboard() {
 
   const [clock, setClock] = useState({ d: "—", t: "—:—:—" });
 
+  // live attendance (read) + sheet writer
+  const [live, setLive] = useState({ status: "idle", data: null, sheet: "", sort: "pct", search: "", updated: "" });
+  const [writer, setWriter] = useState({ url: "", secret: "" });
+  const [wOpen, setWOpen] = useState(false);
+
   const toast = useCallback((m) => { setToastMsg(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToastMsg(""), 2400); }, []);
 
   useEffect(() => {
     try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s.absentees) setAbsentees(s.absentees); if (s.params) setParams({ ...DEFAULT_PARAMS, ...s.params }); if (s.logDay) setLogDay(s.logDay); if (s.params && s.params.pDate) setReportDate(s.params.pDate); } } catch (e) {}
     try { setDark(localStorage.getItem("argus_theme") !== "light"); } catch (e) {}
+    try { setWriter({ url: localStorage.getItem("argus_writer_url") || "", secret: localStorage.getItem("argus_writer_secret") || "" }); } catch (e) {}
     setLoaded(true);
   }, []);
   useEffect(() => {
@@ -194,6 +206,68 @@ export default function Dashboard() {
   const delAbsentee = (i) => setAbsentees((prev) => prev.filter((_, k) => k !== i));
   const clearDay = () => { if (!absentees.length) return; if (!confirm("Clear today's log? Report parameters stay as they are.")) return; setAbsentees([]); toast("Log cleared"); };
   const onStatus = (v) => { setFStatus(v); if (!parentTouched.current) setFParent(v === "unauthorized" || v === "susp" ? "Y" : "N"); };
+
+  /* ── live attendance (worker read) ── */
+  const loadLive = useCallback(async (sheetName) => {
+    setLive((L) => ({ ...L, status: "loading" }));
+    try {
+      const q = sheetName ? "?sheet=" + encodeURIComponent(sheetName) : "";
+      const r = await fetch(LIVE_WORKER + q, { cache: "no-store" });
+      const j = await r.json();
+      if (j.error) throw new Error(j.error + (j.detail ? " — " + j.detail : ""));
+      setLive((L) => ({ ...L, status: "ok", data: j, sheet: j.sheet || sheetName || "", updated: j.updated ? new Date(j.updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "" }));
+    } catch (e) { setLive((L) => ({ ...L, status: "error", err: String(e.message || e) })); }
+  }, []);
+  useEffect(() => { if (nav === "live" && live.status === "idle") loadLive(); }, [nav, live.status, loadLive]);
+
+  /* ── sheet write-back ── */
+  const writerUrl = () => (writer.url || LIVE_WORKER).replace(/\/$/, "");
+  const writerOn = () => !!(writer.secret && writerUrl());
+  const saveWriter = () => { try { localStorage.setItem("argus_writer_url", writer.url); localStorage.setItem("argus_writer_secret", writer.secret); } catch (e) {} setWOpen(false); toast(writerOn() ? "Sheet writer connected" : "Enter the WRITE_SECRET"); };
+  const buildSheetMarks = () => {
+    const iso = reportDate || today();
+    const absByReg = {}, absByName = {};
+    absentees.forEach((a) => { const mk = a.status === "od" ? "OD" : "A"; if (a.reg) absByReg[String(a.reg)] = mk; if (a.name) absByName[a.name.trim().toLowerCase()] = mk; });
+    const marks = []; let present = 0, absent = 0, od = 0;
+    ROSTER.forEach((r) => { const mk = absByReg[String(r.reg)] || absByName[(r.name || "").trim().toLowerCase()] || "P"; if (mk === "P") present++; else if (mk === "OD") od++; else absent++; marks.push({ reg: String(r.reg), mark: mk }); });
+    const rosterRegs = new Set(ROSTER.map((r) => String(r.reg))), rosterNames = new Set(ROSTER.map((r) => (r.name || "").trim().toLowerCase()));
+    const extra = absentees.filter((a) => (!a.reg || !rosterRegs.has(String(a.reg))) && !rosterNames.has((a.name || "").trim().toLowerCase())).map((a) => a.name);
+    return { iso, sheetName: sheetNameForDate(iso), marks, present, absent, od, extra };
+  };
+  const pushToSheet = async (dryRun) => {
+    if (!writerOn()) { toast("Connect the Google Sheet writer first"); setWOpen(true); return; }
+    const m = buildSheetMarks();
+    if (!dryRun) {
+      const msg = "Push attendance to your Google Sheet?\n\nTab:  " + m.sheetName + "\nDate: " + ddMon(m.iso) +
+        "\n\n" + m.present + " present · " + m.absent + " absent · " + m.od + " OD   (" + m.marks.length + " students)" +
+        (m.extra.length ? ("\n\n⚠ " + m.extra.length + " logged absentee(s) not on the roster will be skipped:\n" + m.extra.join(", ")) : "") +
+        "\n\nThis overwrites ONLY this day’s 5 period columns. Continue?";
+      if (!confirm(msg)) return;
+    }
+    toast(dryRun ? "Checking the sheet…" : "Writing to Google Sheet…");
+    try {
+      const r = await fetch(writerUrl(), { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ secret: writer.secret, sheetName: m.sheetName, date: m.iso, dryRun: !!dryRun, marks: m.marks }) });
+      const j = await r.json();
+      if (!j.ok) { alert("Sheet " + (dryRun ? "check" : "write") + " failed:\n\n" + (j.error || "unknown error")); toast("Sheet " + (dryRun ? "check" : "write") + " failed"); return; }
+      alert((dryRun ? "DRY RUN — nothing was written.\n\n" : "Done — Google Sheet updated. ✓\n\n") +
+        "Tab:  " + j.sheet + "\nColumn: " + (j.dateColumn || "?") + "  (" + (j.date || ddMon(m.iso)) + ")\n" +
+        "Marked: " + j.wrote + " students  —  " + j.present + " P · " + j.absent + " A · " + j.od + " OD" +
+        ((j.unmatched && j.unmatched.length) ? ("\n\nReg not found in the sheet (skipped): " + j.unmatched.join(", ")) : ""));
+      toast(dryRun ? "Dry run complete" : "Google Sheet updated ✓");
+    } catch (e) { alert("Couldn’t reach the attendance worker.\n\n" + String(e.message || e)); toast("Sheet write error"); }
+  };
+
+  const liveRows = useMemo(() => {
+    const d = live.data; if (!d || !Array.isArray(d.students)) return [];
+    let arr = d.students.slice();
+    const q = live.search.trim().toLowerCase();
+    if (q) arr = arr.filter((s) => s.name.toLowerCase().includes(q) || String(s.reg).includes(q));
+    if (live.sort === "pct") arr.sort((a, b) => b.pct - a.pct);
+    else if (live.sort === "name") arr.sort((a, b) => a.name.localeCompare(b.name));
+    else if (live.sort === "sno") arr.sort((a, b) => a.sno - b.sno);
+    else if (live.sort === "low") arr = arr.filter((s) => s.pct < THR.det).sort((a, b) => a.pct - b.pct);
+    return arr;
+  }, [live.data, live.sort, live.search]);
 
   if (!loaded) return <div className="dash" data-dtheme={dark ? "dark" : "light"}><style>{CSS}</style></div>;
 
@@ -346,13 +420,82 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
-                  <div className="p-foot"><a className="lnk" href="/argus-dashboard.html">Report · exports · scan → current dashboard ↗</a></div>
+                  <div className="p-foot sheetfoot">
+                    <div className="sf-row">
+                      <button className="btn sm" onClick={() => pushToSheet(false)}>⤴ Push to Google Sheet</button>
+                      <button className="btn sm line" onClick={() => pushToSheet(true)}>Dry run</button>
+                      <button className={"sf-gear" + (writerOn() ? " on" : "")} onClick={() => setWOpen((o) => !o)} title="Sheet writer secret">⚙</button>
+                    </div>
+                    {wOpen && (
+                      <div className="sf-set">
+                        <input type="password" placeholder="WRITE_SECRET (matches the worker)" value={writer.secret} onChange={(e) => setWriter((w) => ({ ...w, secret: e.target.value }))} />
+                        <button className="btn sm" onClick={saveWriter}>Save</button>
+                      </div>
+                    )}
+                    <div className="sf-note">Writes {reportDate}’s P/A/OD into your department sheet · Dry run checks first · <a className="lnk" href="/argus-dashboard.html">exports · scan ↗</a></div>
+                  </div>
                 </section>
               </div>
             </div>
           )}
 
-          {nav !== "log" && (
+          {nav === "live" && (
+            <div className="body">
+              <section className="live-bar">
+                <div className={"live-src " + live.status}><span className="ls-dot" />
+                  {live.status === "loading" && "acquiring feed…"}
+                  {live.status === "error" && ("feed error" + (live.err ? " — " + live.err : ""))}
+                  {live.status === "ok" && ("Live · Google Sheet" + (live.updated ? " · synced " + live.updated : ""))}
+                  {live.status === "idle" && "starting…"}
+                </div>
+                {live.data && Array.isArray(live.data.availableSheets) && (
+                  <select className="live-sheet" value={live.sheet} onChange={(e) => loadLive(e.target.value)}>
+                    {live.data.availableSheets.filter((n) => /attendance/i.test(n)).map((n) => <option key={n} value={n}>{n.replace(/daily attendance for /i, "").trim()}</option>)}
+                  </select>
+                )}
+                <input className="live-search" placeholder="search name / reg…" value={live.search} onChange={(e) => setLive((L) => ({ ...L, search: e.target.value }))} />
+                <div className="live-sort">
+                  {[["pct", "%"], ["name", "A–Z"], ["sno", "roll"], ["low", "at-risk"]].map(([k, l]) => (
+                    <button key={k} className={live.sort === k ? "on" : ""} onClick={() => setLive((L) => ({ ...L, sort: k }))}>{l}</button>
+                  ))}
+                </div>
+                <button className="live-refresh" onClick={() => loadLive(live.sheet)} title="Refresh">↻</button>
+              </section>
+
+              {live.data && (
+                <section className="instr live-summary">
+                  <Readout k="students" v={(live.data.summary && live.data.summary.count) || 0} />
+                  <Readout k="avg %" v={(live.data.summary && live.data.summary.avgPct) || 0} tone="teal" />
+                  <Readout k="below 75%" v={(live.data.summary && live.data.summary.below75) || 0} tone={(live.data.summary && live.data.summary.below75) ? "bad" : ""} />
+                  <Readout k="days" v={live.data.nDays || 0} />
+                  <Readout k="periods" v={live.data.periods || 5} />
+                  <Readout k="base" v={live.data.base || 0} />
+                </section>
+              )}
+
+              <section className="live-list">
+                {live.status === "loading" && <div className="live-empty">Loading live attendance…</div>}
+                {live.status === "error" && <div className="live-empty err">Couldn’t load — {live.err}</div>}
+                {live.status === "ok" && liveRows.length === 0 && <div className="live-empty">No students match.</div>}
+                {live.status === "ok" && liveRows.map((s) => {
+                  const low = s.pct < THR.det, cls = s.pct < THR.det ? "low" : s.pct < THR.det + 10 ? "mid" : "hi", w = Math.min(100, s.pct);
+                  return (
+                    <div key={s.reg} className={"lr" + (low ? " low" : "")}>
+                      <span className="lr-n">{String(s.sno).padStart(2, "0")}</span>
+                      <div className="lr-mid">
+                        <div className="lr-name"><b>{s.name}</b><span className="lr-reg">{s.reg}</span>{low && <span className="lr-flag">below {THR.det}%</span>}</div>
+                        <div className="lr-track"><i className={cls} style={{ width: w + "%" }} /></div>
+                      </div>
+                      <div className="lr-split"><span className="p">{s.present}P</span><span className="o">{s.od}OD</span><span className="a">{s.absent}A</span><span className="tot">{s.total}/{s.base}</span></div>
+                      <div className={"lr-pct " + cls}>{s.pct}<i>%</i></div>
+                    </div>
+                  );
+                })}
+              </section>
+            </div>
+          )}
+
+          {(nav === "report" || nav === "term") && (
             <div className="body">
               <section className="panel placeholder">
                 <div className="p-h"><span className="p-k">SOON</span><h2>{cur.label}</h2></div>
@@ -513,6 +656,56 @@ const CSS = `
 
 .placeholder{max-width:560px}
 .placeholder p{font-size:13px;line-height:1.65;color:var(--dim);margin:0 0 4px}
+
+/* sheet writer footer */
+.sheetfoot{display:flex;flex-direction:column;gap:9px}
+.sf-row{display:flex;gap:8px;align-items:center}
+.btn.sm{width:auto;margin:0;padding:9px 12px;font-size:11.5px;border-radius:9px}
+.sf-gear{width:36px;height:36px;flex:none;border:1px solid var(--line);background:var(--surf2);border-radius:9px;color:var(--dim);cursor:pointer}
+.sf-gear.on{color:var(--accent);border-color:var(--accent)}
+.sf-set{display:flex;gap:8px}
+.sf-set input{flex:1}
+.sf-note{font-family:var(--mono);font-size:9.5px;letter-spacing:.02em;color:var(--faint);line-height:1.5}
+.sf-note a{color:var(--dim);text-decoration:none}.sf-note a:hover{color:var(--accent)}
+
+/* live attendance */
+.live-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px}
+.live-src{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.ls-dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.live-src.ok .ls-dot{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.live-src.loading .ls-dot{background:var(--gold)}
+.live-src.error .ls-dot{background:var(--red)}
+.live-sheet{width:auto;min-width:120px}
+.live-search{flex:1;min-width:150px}
+.live-sort{display:flex;gap:4px;background:var(--surf2);border:1px solid var(--line);border-radius:9px;padding:3px}
+.live-sort button{font-family:var(--mono);font-size:10px;color:var(--dim);background:0;border:0;border-radius:6px;padding:6px 10px;cursor:pointer}
+.live-sort button.on{color:#fff;background:var(--accent)}
+.dash[data-dtheme="dark"] .live-sort button.on{color:#04100e}
+.live-refresh{width:38px;height:38px;flex:none;border:1px solid var(--line);background:var(--surf2);border-radius:9px;color:var(--dim);cursor:pointer;font-size:15px}
+.live-refresh:hover{color:var(--accent);border-color:var(--accent)}
+.instr.live-summary{display:flex;grid-template-columns:none;gap:0;padding:18px 24px;margin-bottom:16px}
+.instr.live-summary .ro{flex:1}
+.live-list{display:flex;flex-direction:column;background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:8px 18px}
+.live-empty{font-family:var(--mono);font-size:11.5px;color:var(--faint);padding:20px 4px}
+.live-empty.err{color:var(--red)}
+.lr{display:grid;grid-template-columns:30px 1fr auto auto;align-items:center;gap:16px;padding:12px 4px;border-top:1px solid var(--line)}
+.lr:first-child{border-top:0}
+.lr-n{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.lr-mid{min-width:0}
+.lr-name{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.lr-name b{font-size:13.5px;color:var(--ink)}
+.lr-reg{font-family:var(--mono);font-size:9.5px;color:var(--faint)}
+.lr-flag{font-family:var(--mono);font-size:8px;letter-spacing:.05em;color:var(--red);border:1px solid color-mix(in srgb,var(--red) 45%,transparent);border-radius:4px;padding:1px 5px}
+.lr-track{height:5px;border-radius:3px;background:var(--surf2);margin-top:7px;overflow:hidden;max-width:340px}
+.lr-track i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+.lr-track i.mid{background:var(--gold)}.lr-track i.low{background:var(--red)}
+.lr-split{display:flex;gap:9px;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.lr-split .p{color:var(--ok)}.lr-split .o{color:var(--accent)}.lr-split .a{color:var(--red)}.lr-split .tot{color:var(--faint)}
+.lr-pct{font-size:22px;font-weight:300;color:var(--ink);min-width:58px;text-align:right}
+.lr-pct i{font-style:normal;font-size:11px;color:var(--faint)}
+.lr-pct.low{color:var(--red)}.lr-pct.mid{color:var(--gold)}
+.lr.low{background:color-mix(in srgb,var(--red) 5%,transparent)}
+@media(max-width:820px){.lr{grid-template-columns:24px 1fr auto;gap:10px}.lr-split{display:none}}
 
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--console);color:var(--console-ink);font-family:var(--mono);font-size:12px;padding:11px 18px;border-radius:10px;z-index:60;box-shadow:0 14px 40px -14px rgba(0,0,0,.5)}
 
