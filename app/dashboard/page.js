@@ -294,7 +294,16 @@ export default function Dashboard() {
           <div className="lock-grid" />
           <div className="lock-glow" />
           <div className={"lock-inner" + (pinBad ? " shake" : "")}>
-            <div className="lock-scope"><canvas ref={scopeRef} /></div>
+            <div className="lock-scope">
+              <span className="rad-rings" />
+              <span className="rad-cross" />
+              <span className="rad-sweep" />
+              <span className="rad-blip" style={{ top: "34%", left: "62%" }} />
+              <span className="rad-blip" style={{ top: "58%", left: "40%" }} />
+              <span className="rad-blip" style={{ top: "46%", left: "72%" }} />
+              <span className="rad-blip" style={{ top: "68%", left: "56%" }} />
+              <span className="rad-core" />
+            </div>
             <div className="lock-brand"><span className="lb-mark">✦</span>ARGUS</div>
             <div className="lock-tag">Attendance Command Terminal</div>
             <div className="pinwrap">
@@ -556,8 +565,16 @@ const CSS = `
 .dash .lock-inner{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px}
 .dash .lock-inner.shake{animation:sh .4s}
 @keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
-.dash .lock-scope{position:relative;width:190px;height:190px;border-radius:50%;overflow:hidden;background:var(--console);border:1px solid var(--line2);box-shadow:0 0 0 8px color-mix(in srgb,var(--accent) 6%,transparent),0 30px 80px -30px var(--accent)}
-.dash .lock-scope canvas{width:100%;height:100%;display:block}
+.dash .lock-scope{position:relative;width:190px;height:190px;border-radius:50%;overflow:hidden;background:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--accent) 10%,var(--console)),var(--console));border:1px solid var(--line2);box-shadow:0 0 0 8px color-mix(in srgb,var(--accent) 6%,transparent),0 30px 80px -30px var(--accent)}
+.dash .lock-scope>span{position:absolute;pointer-events:none}
+.dash .rad-rings{inset:0;border-radius:50%;background:repeating-radial-gradient(circle at 50% 50%,transparent 0 26px,color-mix(in srgb,var(--accent) 24%,transparent) 26px 27px)}
+.dash .rad-cross{inset:0;background:linear-gradient(color-mix(in srgb,var(--accent) 16%,transparent),color-mix(in srgb,var(--accent) 16%,transparent)) center/100% 1px no-repeat,linear-gradient(color-mix(in srgb,var(--accent) 16%,transparent),color-mix(in srgb,var(--accent) 16%,transparent)) center/1px 100% no-repeat}
+.dash .rad-sweep{inset:0;border-radius:50%;background:conic-gradient(from 0deg,color-mix(in srgb,var(--accent) 60%,transparent),transparent 55deg 360deg);transform-origin:50% 50%;animation:radspin 2.6s linear infinite}
+@keyframes radspin{to{transform:rotate(360deg)}}
+.dash .rad-core{top:50%;left:50%;width:8px;height:8px;margin:-4px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--accent);animation:radpulse 1.8s ease-in-out infinite}
+@keyframes radpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(1.6)}}
+.dash .rad-blip{width:5px;height:5px;margin:-2.5px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px var(--accent);animation:radpulse 2.4s ease-in-out infinite}
+.dash .rad-blip:nth-of-type(3){animation-delay:.6s}.dash .rad-blip:nth-of-type(4){animation-delay:1.1s}.dash .rad-blip:nth-of-type(5){animation-delay:1.6s}
 .dash .lock-brand{display:flex;align-items:center;gap:12px;font-size:38px;font-weight:800;letter-spacing:.36em;margin:6px 0 0 .36em;color:var(--ink)}
 .dash .lb-mark{color:var(--accent);font-size:22px;letter-spacing:0;filter:drop-shadow(0 0 10px var(--accent))}
 .dash .lock-tag{font-family:var(--mono);font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint)}
