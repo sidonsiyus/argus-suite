@@ -88,6 +88,121 @@ const THR = { det: 75, cond: 65 };
 const sheetNameForDate = (iso) => { const [y, m] = iso.split("-").map(Number); return "Daily Attendance for " + MON3[m - 1] + "-" + String(y).slice(2); };
 const ddMon = (iso) => { const [y, m, d] = iso.split("-").map(Number); return d + "-" + MONT[m - 1]; };
 
+/* ── MH Cockpit report (data · preview · docx) ── */
+const MH_DEFAULTS = { inst: "MH Cockpit Aviation Academy", prog: "B.Sc Aeronautical Science", batch: "II Year - A", incharge: "Class Coordinator", coord: "Class Coordinator", time: "12:30 PM" };
+const mhCode = (s) => MH_CODE[s] || "UNAUTH";
+const escHtml = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const longDate = (iso) => { const [y, m, d] = (iso || today()).split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); };
+const classCode = (v) => (v || "BscAero-IIA").trim().replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+function mhData(absentees, params, mh, iso) {
+  const strength = +params.pStrength || 0;
+  const absentRows = absentees.filter((a) => a.status !== "od");
+  const present = Math.max(0, strength - absentRows.length);
+  const rows = absentees.map((a, i) => ({ sno: i + 1, name: a.name || "", code: mhCode(a.status), reason: a.reason || (a.status === "groom" ? "Grooming" : a.status === "susp" ? "Suspended" : ""), parent: (a.parent !== undefined && a.parent !== "") ? a.parent : ((a.status === "unauthorized" || a.status === "susp") ? "Y" : "N"), remark: a.remark || "" }));
+  const tally = { AUTH: 0, UNAUTH: 0, GROOM: 0, OD: 0, SUSP: 0 }; absentees.forEach((a) => { tally[mhCode(a.status)]++; });
+  const notes = absentees.filter((a) => a.status === "susp" || a.status === "groom").map((a) => a.name + " — " + mhCode(a.status));
+  return { inst: mh.inst, prog: mh.prog, batch: mh.batch, incharge: mh.incharge, coord: mh.coord, time: mh.time, date: iso, datePretty: longDate(iso), onRoll: strength, present, absent: absentRows.length, rows, tally, notes };
+}
+function mhPreviewHTML(d) {
+  const th = (t) => '<th style="background:#1F3864;color:#fff;padding:6px 8px;font-size:12px;font-family:\'Times New Roman\',serif;text-align:center;border:1px solid #BFBFBF">' + escHtml(t) + "</th>";
+  const td = (t, o) => { o = o || {}; return '<td style="padding:6px 8px;font-size:12px;font-family:\'Times New Roman\',serif;border:1px solid #BFBFBF' + (o.bg ? ";background:" + o.bg : "") + (o.b ? ";font-weight:700" : "") + (o.c ? ";color:" + o.c : "") + (o.center ? ";text-align:center" : "") + '">' + escHtml(t == null ? "" : String(t)) + "</td>"; };
+  const secH = (t, fill) => '<div style="font-weight:700;font-size:12px;font-family:\'Times New Roman\',serif;color:' + (fill || "#2E75B6") + ';margin:12px 0 5px">' + escHtml(t) + "</div>";
+  let h = '<div style="background:#fff;color:#000;font-family:\'Times New Roman\',serif;padding:20px 22px">';
+  h += '<div style="text-align:center;font-weight:700;font-size:15px">MH COCKPIT — DAILY ATTENDANCE SUBMISSION FORM</div>';
+  h += '<div style="text-align:center;font-size:11px;color:#444;margin-bottom:12px">For Class In Charges &amp; CPL Instructors · Submit by 12:30 PM daily</div>';
+  h += secH("SECTION A — SUBMISSION DETAILS");
+  h += '<table style="border-collapse:collapse;width:100%"><tbody>' +
+    "<tr>" + td("Institution / College Name:", { bg: "#D6E4F0", b: true }) + td(d.inst) + td("Date (DD/MM/YYYY):", { bg: "#D6E4F0", b: true }) + td(d.datePretty) + "</tr>" +
+    "<tr>" + td("Programme:", { bg: "#D6E4F0", b: true }) + td(d.prog) + td("Year & Batch:", { bg: "#D6E4F0", b: true }) + td(d.batch) + "</tr>" +
+    "<tr>" + td("Class In Charge Name:", { bg: "#D6E4F0", b: true }) + td(d.incharge) + td("Submission Time:", { bg: "#D6E4F0", b: true }) + td(d.time) + "</tr>" +
+    "<tr>" + td("Total Students on Roll:", { bg: "#D6E4F0", b: true }) + td(d.onRoll) + td("Total Present / Absent:", { bg: "#D6E4F0", b: true }) + td(d.present + " / " + d.absent) + "</tr>" +
+    "</tbody></table>";
+  h += secH("SECTION B — ABSENT STUDENTS");
+  h += '<div style="font-size:12px;font-family:\'Times New Roman\',serif;color:#C00000;margin-bottom:5px">Absence Type Codes:  AUTH = Authorized | UNAUTH = Unauthorized | GROOM = Grooming | OD = On Duty | SUSP = Suspended</div>';
+  h += '<table style="border-collapse:collapse;width:100%"><thead><tr>' + th("S.No") + th("Student Full Name") + th("Absence Type") + th("Reason for Absence") + th("Parent Contacted? (Y/N)") + th("Remarks / Additional Notes") + "</tr></thead><tbody>";
+  if (d.rows.length) { d.rows.forEach((r, i) => { const bg = i % 2 ? "#F2F2F2" : "#FFFFFF"; h += "<tr>" + td(r.sno, { bg, center: true }) + td(r.name, { bg }) + td(r.code, { bg, center: true }) + td(r.reason, { bg }) + td(r.parent, { bg, center: true }) + td(r.remark, { bg }) + "</tr>"; }); }
+  else h += "<tr>" + td("—", { center: true }) + td("No absentees logged") + td("") + td("") + td("") + td("") + "</tr>";
+  h += "</tbody></table>";
+  h += secH("SECTION C — TOTALS VERIFICATION");
+  h += '<div style="font-size:12px;font-family:\'Times New Roman\',serif;color:#1F1F1F;margin-bottom:5px">Before submitting, check: Total Present + Total Absent = Total Students on Roll</div>';
+  const ok = (d.present + d.absent === d.onRoll);
+  h += '<table style="border-collapse:collapse;width:100%"><thead><tr>' + th("Total on Roll") + th("Total Present") + th("Total Absent") + th("AUTH") + th("UNAUTH") + th("GROOM") + th("OD") + th("SUSP") + "</tr></thead><tbody><tr>" +
+    td(d.onRoll, { center: true }) + td(d.present, { center: true }) + td(d.absent, { center: true }) + td(d.tally.AUTH, { center: true }) + td(d.tally.UNAUTH, { center: true }) + td(d.tally.GROOM, { center: true }) + td(d.tally.OD, { center: true }) + td(d.tally.SUSP, { center: true }) + "</tr></tbody></table>";
+  h += '<div style="font-size:11px;margin-top:5px;font-family:\'Times New Roman\',serif;color:' + (ok ? "#137333" : "#C00000") + '">' + (ok ? "✓ Present + Absent = Total on Roll" : "⚠ Present + Absent ≠ Total on Roll — check the numbers") + "</div>";
+  h += secH("SECTION D — SPECIAL NOTES (If Any)");
+  h += '<div style="font-size:11px;font-family:\'Times New Roman\',serif;color:#444;margin-bottom:5px">For anything needing Quality Department attention — welfare concerns, suspension confirmations, multi-day absences, students mentioning leaving the programme, etc.</div>';
+  h += '<table style="border-collapse:collapse;width:100%"><thead><tr>' +
+    '<th style="background:#2E75B6;color:#fff;padding:6px 8px;font-size:12px;font-family:\'Times New Roman\',serif;text-align:left;border:1px solid #BFBFBF">S.No</th>' +
+    '<th style="background:#2E75B6;color:#fff;padding:6px 8px;font-size:12px;font-family:\'Times New Roman\',serif;text-align:left;border:1px solid #BFBFBF">Note / Observation</th></tr></thead><tbody>';
+  if (d.notes.length) { d.notes.forEach((n, i) => { const bg = i % 2 ? "#F2F2F2" : "#FFFFFF"; h += "<tr>" + td(i + 1, { bg }) + td(n, { bg }) + "</tr>"; }); }
+  else { h += "<tr>" + td(1) + td("") + "</tr>" + "<tr>" + td(2, { bg: "#F2F2F2" }) + td("", { bg: "#F2F2F2" }) + "</tr>" + "<tr>" + td(3) + td("") + "</tr>"; }
+  h += "</tbody></table>";
+  h += secH("SECTION E — COORDINATOR SIGN-OFF");
+  h += '<table style="border-collapse:collapse;width:100%"><thead><tr>' + th("Coordinator Name") + th("Signature") + th("Date & Time of Submission") + "</tr></thead><tbody><tr>" +
+    td(d.coord, { center: true }) + td("") + td(d.datePretty + "  " + d.time, { center: true }) + "</tr></tbody></table>";
+  h += "</div>";
+  return h;
+}
+let _docxPromise = null;
+function ensureDocx() {
+  if (typeof window !== "undefined" && window.docx) return Promise.resolve(window.docx);
+  if (_docxPromise) return _docxPromise;
+  _docxPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.js";
+    s.onload = () => resolve(window.docx); s.onerror = () => { _docxPromise = null; reject(new Error("failed to load document engine")); };
+    document.head.appendChild(s);
+  });
+  return _docxPromise;
+}
+function buildMHDoc(docx, d) {
+  const P = docx.Paragraph, T = docx.TextRun, Tb = docx.Table, R = docx.TableRow, C = docx.TableCell, W = docx.WidthType, AL = docx.AlignmentType, SH = docx.ShadingType, BS = docx.BorderStyle;
+  const FONT = "Times New Roman", SZ = 24, bd = { style: BS.SINGLE, size: 4, color: "BFBFBF" };
+  const borders = { top: bd, bottom: bd, left: bd, right: bd, insideHorizontal: bd, insideVertical: bd };
+  const tr = (txt, o) => { o = o || {}; return new T({ text: String(txt == null ? "" : txt), bold: !!o.b, italics: !!o.i, color: o.color || "000000", size: o.size || SZ, font: FONT }); };
+  const cell = (runs, o) => { o = o || {}; return new C({ width: { size: o.w || 2000, type: W.DXA }, shading: o.fill ? { type: SH.CLEAR, fill: o.fill, color: "auto" } : undefined, children: [new P({ alignment: o.center ? AL.CENTER : AL.LEFT, children: Array.isArray(runs) ? runs : [runs] })] }); };
+  const hcell = (t, w, fill) => cell(tr(t, { b: true, color: "FFFFFF" }), { fill: fill || "1F3864", w, center: true });
+  const kv = (k, v) => [cell(tr(k, { b: true }), { fill: "D6E4F0", w: 2340 }), cell(tr(v), { w: 2340 })];
+  const H = (t) => new P({ spacing: { before: 220, after: 80 }, children: [tr(t, { b: true, color: "2E75B6" })] });
+  const note = (t, color) => new P({ spacing: { after: 80 }, children: [tr(t, { color: color || "444444" })] });
+  const kids = [];
+  kids.push(new P({ alignment: AL.CENTER, children: [tr("MH COCKPIT — DAILY ATTENDANCE SUBMISSION FORM", { b: true })] }));
+  kids.push(new P({ alignment: AL.CENTER, spacing: { after: 160 }, children: [tr("For Class In Charges & CPL Instructors · Submit by 12:30 PM daily")] }));
+  kids.push(H("SECTION A — SUBMISSION DETAILS"));
+  kids.push(new Tb({ width: { size: 9360, type: W.DXA }, borders, rows: [
+    new R({ children: [...kv("Institution / College Name:", d.inst), ...kv("Date (DD/MM/YYYY):", d.datePretty)] }),
+    new R({ children: [...kv("Programme:", d.prog), ...kv("Year & Batch:", d.batch)] }),
+    new R({ children: [...kv("Class In Charge Name:", d.incharge), ...kv("Submission Time:", d.time)] }),
+    new R({ children: [...kv("Total Students on Roll:", String(d.onRoll)), ...kv("Total Present / Absent:", d.present + " / " + d.absent)] }),
+  ] }));
+  kids.push(H("SECTION B — ABSENT STUDENTS"));
+  kids.push(note("Absence Type Codes:  AUTH = Authorized | UNAUTH = Unauthorized | GROOM = Grooming | OD = On Duty | SUSP = Suspended", "C00000"));
+  const bHead = new R({ tableHeader: true, children: [hcell("S.No", 700), hcell("Student Full Name", 2274), hcell("Absence Type", 1837), hcell("Reason for Absence", 1417), hcell("Parent Contacted? (Y/N)", 1426), hcell("Remarks / Additional Notes", 1560)] });
+  const bRows = d.rows.length ? d.rows.map((r, i) => { const f = i % 2 ? "F2F2F2" : "FFFFFF"; return new R({ children: [cell(tr(r.sno), { w: 700, center: true, fill: f }), cell(tr(r.name), { w: 2274, fill: f }), cell(tr(r.code), { w: 1837, center: true, fill: f }), cell(tr(r.reason), { w: 1417, fill: f }), cell(tr(r.parent), { w: 1426, center: true, fill: f }), cell(tr(r.remark), { w: 1560, fill: f })] }); })
+    : [new R({ children: [cell(tr("—"), { w: 700, center: true }), cell(tr("No absentees logged"), { w: 2274 }), cell(tr(""), { w: 1837 }), cell(tr(""), { w: 1417 }), cell(tr(""), { w: 1426 }), cell(tr(""), { w: 1560 })] })];
+  kids.push(new Tb({ width: { size: 9360, type: W.DXA }, borders, rows: [bHead, ...bRows] }));
+  kids.push(H("SECTION C — TOTALS VERIFICATION"));
+  kids.push(note("Before submitting, check: Total Present + Total Absent = Total Students on Roll", "1F1F1F"));
+  kids.push(new Tb({ width: { size: 9360, type: W.DXA }, borders, rows: [
+    new R({ tableHeader: true, children: ["Total on Roll", "Total Present", "Total Absent", "AUTH", "UNAUTH", "GROOM", "OD", "SUSP"].map((t) => hcell(t, 1170)) }),
+    new R({ children: [d.onRoll, d.present, d.absent, d.tally.AUTH, d.tally.UNAUTH, d.tally.GROOM, d.tally.OD, d.tally.SUSP].map((v) => cell(tr(String(v)), { w: 1170, center: true })) }),
+  ] }));
+  const ok = (d.present + d.absent === d.onRoll);
+  kids.push(new P({ spacing: { before: 60 }, children: [tr(ok ? "✓ Present + Absent = Total on Roll" : "⚠ Present + Absent does NOT equal Total on Roll — verify before submitting", { color: ok ? "137333" : "C00000" })] }));
+  kids.push(H("SECTION D — SPECIAL NOTES (If Any)"));
+  kids.push(note("For anything needing Quality Department attention — welfare concerns, suspension confirmations, multi-day absences, students mentioning leaving the programme, etc.", "444444"));
+  const dNotes = d.notes.length ? d.notes : ["", "", ""];
+  kids.push(new Tb({ width: { size: 9360, type: W.DXA }, borders, rows: [
+    new R({ tableHeader: true, children: [hcell("S.No", 988, "2E75B6"), new C({ width: { size: 8372, type: W.DXA }, shading: { type: SH.CLEAR, fill: "2E75B6", color: "auto" }, children: [new P({ children: [tr("Note / Observation", { b: true, color: "FFFFFF" })] })] })] }),
+    ...dNotes.map((n, i) => { const f = i % 2 ? "F2F2F2" : "FFFFFF"; return new R({ children: [cell(tr(i + 1), { w: 988, center: true, fill: f }), cell(tr(n), { w: 8372, fill: f })] }); }),
+  ] }));
+  kids.push(H("SECTION E — COORDINATOR SIGN-OFF"));
+  kids.push(new Tb({ width: { size: 9360, type: W.DXA }, borders, rows: [
+    new R({ tableHeader: true, children: [hcell("Coordinator Name", 3120), hcell("Signature", 3120), hcell("Date & Time of Submission", 3120)] }),
+    new R({ children: [cell(tr(d.coord), { w: 3120, center: true }), cell(tr(d.coord, { i: true }), { w: 3120, center: true }), cell(tr(d.datePretty + "  " + d.time), { w: 3120, center: true })] }),
+  ] }));
+  return new docx.Document({ styles: { default: { document: { run: { font: FONT, size: SZ } } } }, sections: [{ properties: { page: { margin: { top: 1152, bottom: 1152, left: 1440, right: 1440 } } }, children: kids }] });
+}
+
 /* ═══════════════════════ component ═══════════════════════ */
 export default function Dashboard() {
   const [locked, setLocked] = useState(true);
@@ -119,19 +234,21 @@ export default function Dashboard() {
   const [live, setLive] = useState({ status: "idle", data: null, sheet: "", sort: "pct", search: "", updated: "", mode: "month", overall: null, ostatus: "idle" });
   const [writer, setWriter] = useState({ url: "", secret: "" });
   const [wOpen, setWOpen] = useState(false);
+  const [mh, setMh] = useState(MH_DEFAULTS);
+  const [docBusy, setDocBusy] = useState(false);
 
   const toast = useCallback((m) => { setToastMsg(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToastMsg(""), 2400); }, []);
 
   useEffect(() => {
-    try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s.absentees) setAbsentees(s.absentees); if (s.params) setParams({ ...DEFAULT_PARAMS, ...s.params }); if (s.logDay) setLogDay(s.logDay); if (s.params && s.params.pDate) setReportDate(s.params.pDate); } } catch (e) {}
+    try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s.absentees) setAbsentees(s.absentees); if (s.params) setParams({ ...DEFAULT_PARAMS, ...s.params }); if (s.logDay) setLogDay(s.logDay); if (s.params && s.params.pDate) setReportDate(s.params.pDate); if (s.mh) setMh({ ...MH_DEFAULTS, ...s.mh }); } } catch (e) {}
     try { setDark(localStorage.getItem("argus_theme") !== "light"); } catch (e) {}
     try { setWriter({ url: localStorage.getItem("argus_writer_url") || "", secret: localStorage.getItem("argus_writer_secret") || "" }); } catch (e) {}
     setLoaded(true);
   }, []);
   useEffect(() => {
     if (!loaded) return;
-    try { const prev = JSON.parse(localStorage.getItem(KEY) || "{}"); localStorage.setItem(KEY, JSON.stringify({ ...prev, absentees, params: { ...params, pDate: reportDate }, logDay, _ts: Date.now() })); } catch (e) {}
-  }, [absentees, params, logDay, reportDate, loaded]);
+    try { const prev = JSON.parse(localStorage.getItem(KEY) || "{}"); localStorage.setItem(KEY, JSON.stringify({ ...prev, absentees, params: { ...params, pDate: reportDate }, logDay, mh, _ts: Date.now() })); } catch (e) {}
+  }, [absentees, params, logDay, reportDate, mh, loaded]);
   useEffect(() => { try { localStorage.setItem("argus_theme", dark ? "dark" : "light"); } catch (e) {} }, [dark]);
 
   useEffect(() => {
@@ -183,6 +300,32 @@ export default function Dashboard() {
     const pct = strength ? Math.round((present / strength) * 100) : 0;
     return { strength, present, absent: absN, od, informed, unauth, pct };
   }, [absentees, params.pStrength]);
+
+  const mhReport = useMemo(() => mhData(absentees, params, mh, reportDate || today()), [absentees, params, mh, reportDate]);
+  const mhHtml = useMemo(() => mhPreviewHTML(mhReport), [mhReport]);
+
+  const exportMHDocx = async () => {
+    setDocBusy(true);
+    try {
+      const docx = await ensureDocx();
+      if (!docx || !docx.Packer) throw new Error("engine unavailable");
+      const doc = buildMHDoc(docx, mhReport);
+      const blob = await docx.Packer.toBlob(doc);
+      const [y, m, d] = (reportDate || today()).split("-");
+      const fname = classCode(params.pClass) + " " + d + "-" + m + "-" + String(y).slice(2) + ".docx";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast("Saved " + fname);
+    } catch (e) { toast("Export failed — " + (e.message || "engine")); }
+    setDocBusy(false);
+  };
+  const printMH = () => {
+    const w = window.open("", "_blank", "width=920,height=1200");
+    if (!w) { toast("Allow pop-ups to print / save PDF"); return; }
+    w.document.write('<!doctype html><html><head><title>MH Cockpit — ' + escHtml(reportDate) + '</title><meta charset="utf-8"><style>@page{margin:14mm}body{margin:0}</style></head><body>' + mhHtml + '<script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>');
+    w.document.close();
+  };
 
   const nameOptions = useMemo(() => {
     const q = fFilter.trim().toLowerCase();
@@ -530,7 +673,44 @@ export default function Dashboard() {
             </div>
           )}
 
-          {(nav === "report" || nav === "term") && (
+          {nav === "report" && (
+            <div className="body rpt">
+              <section className="panel rpt-form">
+                <div className="p-h"><span className="p-k">FORM</span><h2>Submission fields</h2></div>
+                <div className="rpt-scroll">
+                  <div className="rgrid">
+                    <label className="f"><span>Report date</span><input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} /></label>
+                    <label className="f"><span>Institution</span><input value={mh.inst} onChange={(e) => setMh((m) => ({ ...m, inst: e.target.value }))} /></label>
+                    <label className="f"><span>Programme</span><input value={mh.prog} onChange={(e) => setMh((m) => ({ ...m, prog: e.target.value }))} /></label>
+                    <label className="f"><span>Year &amp; batch</span><input value={mh.batch} onChange={(e) => setMh((m) => ({ ...m, batch: e.target.value }))} /></label>
+                    <label className="f"><span>Class in-charge</span><input value={mh.incharge} onChange={(e) => setMh((m) => ({ ...m, incharge: e.target.value }))} /></label>
+                    <label className="f"><span>Coordinator</span><input value={mh.coord} onChange={(e) => setMh((m) => ({ ...m, coord: e.target.value }))} /></label>
+                    <label className="f"><span>Submission time</span><input value={mh.time} onChange={(e) => setMh((m) => ({ ...m, time: e.target.value }))} /></label>
+                    <label className="f"><span>Class code (filename)</span><input value={params.pClass} onChange={(e) => setParams((p) => ({ ...p, pClass: e.target.value }))} /></label>
+                    <label className="f"><span>Students on roll</span><input value={params.pStrength} onChange={(e) => setParams((p) => ({ ...p, pStrength: e.target.value.replace(/[^0-9]/g, "") }))} inputMode="numeric" /></label>
+                  </div>
+                  <div className="rpt-tally">
+                    <Readout k="ON ROLL" v={mhReport.onRoll} />
+                    <Readout k="PRESENT" v={mhReport.present} tone="ok" />
+                    <Readout k="ABSENT" v={mhReport.absent} tone={mhReport.absent ? "warn" : ""} />
+                    <Readout k="OD" v={mhReport.tally.OD} />
+                    <Readout k="UNAUTH" v={mhReport.tally.UNAUTH} tone={mhReport.tally.UNAUTH ? "bad" : ""} />
+                  </div>
+                  {(mhReport.present + mhReport.absent !== mhReport.onRoll) && <div className="rpt-warn">⚠ Present + Absent ({mhReport.present + mhReport.absent}) ≠ On roll ({mhReport.onRoll}) — adjust roll or log.</div>}
+                </div>
+                <div className="rpt-actions">
+                  <button className="btn solid" onClick={exportMHDocx} disabled={docBusy}>{docBusy ? "Building…" : "Download .docx"}</button>
+                  <button className="btn line" onClick={printMH}>Save as PDF</button>
+                </div>
+              </section>
+              <section className="panel rpt-prev">
+                <div className="p-h"><span className="p-k">PREVIEW</span><h2>MH Cockpit form</h2><span className="p-day">{mhReport.datePretty}</span></div>
+                <div className="paper-wrap"><div className="paper" dangerouslySetInnerHTML={{ __html: mhHtml }} /></div>
+              </section>
+            </div>
+          )}
+
+          {nav === "term" && (
             <div className="body">
               <section className="panel placeholder">
                 <div className="p-h"><span className="p-k">SOON</span><h2>{cur.label}</h2></div>
@@ -643,6 +823,7 @@ const CSS = `
 .dash .ro.ok b{color:var(--ok)}
 .dash .ro.bad b{color:var(--red)}
 .dash .ro.teal b{color:var(--accent)}
+.dash .ro.warn b{color:var(--gold)}
 .dash .grid2{display:grid;grid-template-columns:minmax(400px,480px) 1fr;gap:18px;margin-top:18px}
 .dash .panel{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:20px}
 .dash .p-h{display:flex;align-items:baseline;gap:11px;margin-bottom:16px}
@@ -700,6 +881,25 @@ const CSS = `
 .dash .lnk:hover{color:var(--accent)}
 .dash .placeholder{max-width:560px}
 .dash .placeholder p{font-size:13px;line-height:1.65;color:var(--dim);margin:0 0 4px}
+/* report */
+.dash .rpt{display:grid;grid-template-columns:minmax(340px,400px) 1fr;gap:18px;align-items:start;height:100%}
+.dash .rpt-form{display:flex;flex-direction:column;max-height:100%}
+.dash .rpt-scroll{overflow:auto;margin:14px -4px 0;padding:0 4px;flex:1}
+.dash .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dash .rgrid .f{display:flex;flex-direction:column;gap:5px}
+.dash .rgrid .f span{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.dash .rgrid .f input{background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;color:var(--ink);font-family:var(--sans)}
+.dash .rgrid .f input:focus{outline:none;border-color:var(--accent);background:var(--surf)}
+.dash .rpt-tally{display:flex;background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:12px 4px;margin-top:16px}
+.dash .rpt-warn{margin-top:12px;background:rgba(163,103,15,.1);border:1px solid rgba(163,103,15,.32);color:var(--gold);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.45}
+.dash .rpt-actions{display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.dash .rpt-actions .btn{margin-top:0;flex:1;justify-content:center}
+.dash .rpt-actions .btn:disabled{opacity:.55;cursor:default}
+.dash .rpt-prev{display:flex;flex-direction:column;max-height:100%;overflow:hidden}
+.dash .p-day{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--faint)}
+.dash .paper-wrap{overflow:auto;margin-top:14px;border-radius:10px;background:var(--surf2);border:1px solid var(--line);padding:20px;flex:1}
+.dash .paper{max-width:820px;margin:0 auto;background:#fff;box-shadow:0 2px 16px rgba(0,0,0,.14);border-radius:2px}
+.dash .paper table{max-width:100%}
 .dash .sheetfoot{display:flex;flex-direction:column;gap:9px}
 .dash .sf-row{display:flex;gap:8px;align-items:center}
 .dash .btn.sm{width:auto;margin:0;padding:9px 12px;font-size:11.5px;border-radius:9px}
