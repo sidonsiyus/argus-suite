@@ -382,6 +382,9 @@ export default function Pyrgos() {
   const [plateRwy, setPlateRwy] = useState(0); // index into F.arrRwys for the approach plate
   const plateRwyRef = useRef(0);
   useEffect(() => { plateRwyRef.current = plateRwy; }, [plateRwy]);
+  const [procMode, setProcMode] = useState("BOTH"); // BOTH | STAR | SID (SID/STAR chart)
+  const procModeRef = useRef("BOTH");
+  useEffect(() => { procModeRef.current = procMode; }, [procMode]);
   const [queues, setQueues] = useState({ DELIVERY: [], GROUND: [], APPROACH: [], TOWER: [] });
   const [mode, setMode] = useState("SIM"); // SIM | LIVE
   const [live, setLive] = useState({ status: "idle", count: 0, sel: null });
@@ -450,6 +453,7 @@ export default function Pyrgos() {
       if (S && !paused && modeRef.current !== "LIVE") tick(S, dt * SIM_SPEED);
       if (S) {
         if (view.current.view === "APPROACH") renderPlate(ctx, canvas, S, DPR, S.F.arrRwys[plateRwyRef.current] || S.F.arrRwys[0], modeRef.current);
+        else if (view.current.view === "PROC") renderProc(ctx, canvas, S, DPR, procModeRef.current, modeRef.current);
         else render(ctx, canvas, S, view.current, DPR, (sweep += dt * 0.55), modeRef.current);
       }
       raf.current = requestAnimationFrame(frame);
@@ -669,7 +673,7 @@ export default function Pyrgos() {
     return best;
   };
   const selectById = (id) => { const S = sim.current; S.aircraft.forEach((a) => (a.sel = a.id === id)); const a = S.aircraft.find((x) => x.id === id); if (a) setSel(selSnap(a, S.F)); };
-  const onDown = (e) => { if (view.current.view === "APPROACH") return; const r = canvasRef.current.getBoundingClientRect(); drag.current = { x: e.clientX, y: e.clientY, moved: 0, cx: view.current.cx, cy: view.current.cy, mx: e.clientX - r.left, my: e.clientY - r.top }; };
+  const onDown = (e) => { if (view.current.view === "APPROACH" || view.current.view === "PROC") return; const r = canvasRef.current.getBoundingClientRect(); drag.current = { x: e.clientX, y: e.clientY, moved: 0, cx: view.current.cx, cy: view.current.cy, mx: e.clientX - r.left, my: e.clientY - r.top }; };
   const onMove = (e) => { const d = drag.current; if (!d) return; const dx = e.clientX - d.x, dy = e.clientY - d.y; d.moved += Math.abs(dx) + Math.abs(dy); const sc = screenScale(); view.current.cx = d.cx - dx / sc; view.current.cy = d.cy - dy / sc; };
   const onUp = (e) => {
     const d = drag.current; drag.current = null; if (!d) return; if (d.moved >= 6) return;
@@ -684,7 +688,7 @@ export default function Pyrgos() {
     }
   };
   const zoomBy = (factor) => { const v = view.current; v.radiusNm = Math.max(3, Math.min(40, v.radiusNm * factor)); setRangeNm(Math.round(v.radiusNm)); };
-  const onWheel = (e) => { if (view.current.view === "APPROACH") return; e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.12 : 0.89); };
+  const onWheel = (e) => { if (view.current.view === "APPROACH" || view.current.view === "PROC") return; e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.12 : 0.89); };
   const setView = (next) => {
     setChartView(next);
     const v = view.current, F = sim.current.F; v.view = next;
@@ -872,8 +876,8 @@ export default function Pyrgos() {
           {inc.length === 0 && conf > 0 && <div className="pyr-conflict">⚠ SEPARATION · {conf} conflict{conf > 1 ? "s" : ""} — vector to restore spacing</div>}
           {inc.length === 0 && conf === 0 && pred > 0 && <div className="pyr-predict">◇ STCA · {pred} predicted conflict{pred > 1 ? "s" : ""} — resolve early</div>}
           <div className="pyr-viewtoggle">
-            {["RADAR", "GROUND", "APPROACH"].map((vw) => (
-              <button key={vw} className={chartView === vw ? "on" : ""} onClick={() => chartView !== vw && setView(vw)}>{vw === "APPROACH" ? "PLATE" : vw}</button>
+            {["RADAR", "GROUND", "APPROACH", "PROC"].map((vw) => (
+              <button key={vw} className={chartView === vw ? "on" : ""} onClick={() => chartView !== vw && setView(vw)}>{vw === "APPROACH" ? "PLATE" : vw === "PROC" ? "SID/STAR" : vw}</button>
             ))}
           </div>
           {chartView === "APPROACH" && F && F.arrRwys.length > 1 && (
@@ -881,12 +885,17 @@ export default function Pyrgos() {
               {F.arrRwys.map((r, i) => <button key={r.name} className={plateRwy === i ? "on" : ""} onClick={() => setPlateRwy(i)}>{r.name}</button>)}
             </div>
           )}
-          {chartView !== "APPROACH" && <div className="pyr-zoom">
+          {chartView === "PROC" && (
+            <div className="pyr-plateseg">
+              {["BOTH", "STAR", "SID"].map((m) => <button key={m} className={procMode === m ? "on" : ""} onClick={() => setProcMode(m)}>{m}</button>)}
+            </div>
+          )}
+          {chartView !== "APPROACH" && chartView !== "PROC" && <div className="pyr-zoom">
             <button onClick={() => zoomBy(0.8)}>+</button>
             <span>{rangeNm}nm</span>
             <button onClick={() => zoomBy(1.25)}>−</button>
           </div>}
-          {chartView !== "APPROACH" && <div className="pyr-legend">
+          {chartView !== "APPROACH" && chartView !== "PROC" && <div className="pyr-legend">
             <span><i style={{ background: "#37e0c8" }} />Arrival</span>
             <span><i style={{ background: "#ffb454" }} />Departure</span>
             <span><i style={{ background: "#ff6b6b" }} />Selected</span>
@@ -1414,6 +1423,117 @@ function renderPlate(ctx, canvas, S, DPR, rwy, mode) {
   ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.textAlign = "right"; ctx.fillText("ALT ft", pR, pT - 1);
   ctx.textAlign = "center"; ctx.fillText("DME to threshold (nm)", (pL + pR) / 2, pB + 22);
   if (mode !== "SIM") { ctx.fillStyle = "rgba(120,200,190,0.4)"; ctx.textAlign = "right"; ctx.fillText(mode + " mode", w - pad - 4, h - 6); }
+}
+
+/* ═══════════════════════ SID / STAR procedure chart ═══════════════════════ */
+// a schematic terminal-procedures page built from the synthesised feeder fixes:
+// STAR arrivals (IAF → IF → threshold) and SID departures (runway → exit fix).
+function renderProc(ctx, canvas, S, DPR, procMode, mode) {
+  const F = S.F, w = canvas.width / DPR, h = canvas.height / DPR;
+  const ink = "rgba(200,235,228,0.92)", faint = "rgba(120,200,190,0.3)", mid = "rgba(150,220,205,0.6)", cyan = "#37e0c8", amber = "#ffb454";
+  const showStar = procMode !== "SID", showSid = procMode !== "STAR";
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = "#071a17"; ctx.fillRect(0, 0, w, h); ctx.textBaseline = "alphabetic";
+
+  // ── title strip ──
+  const pad = 16, bh = 52;
+  ctx.strokeStyle = faint; ctx.lineWidth = 1; ctx.strokeRect(pad, pad, w - pad * 2, bh);
+  ctx.fillStyle = cyan; ctx.font = "bold 14px ui-monospace, monospace"; ctx.textAlign = "left";
+  ctx.fillText("TERMINAL PROCEDURES", pad + 12, pad + 22);
+  ctx.fillStyle = mid; ctx.font = "10px ui-monospace, monospace";
+  ctx.fillText(`${F.meta.icao} · ${F.meta.label.split("·")[0].trim()}`, pad + 12, pad + 40);
+  ctx.fillStyle = "rgba(120,200,190,0.5)"; ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "right";
+  ctx.fillText("ARGUS chart · not for real-world navigation", w - pad - 10, pad + 40);
+  ctx.textAlign = "left"; ctx.font = "9px ui-monospace, monospace";
+  const cap = [showStar ? "◄ STAR arrivals" : null, showSid ? "SID departures ►" : null].filter(Boolean).join("     ");
+  ctx.fillStyle = ink; ctx.fillText(cap, pad + 190, pad + 22);
+
+  // ── fit transform over runways + fixes (field is true-north, page-up = N) ──
+  const xs = [], ys = [];
+  F.runways.forEach((r) => { if (r.role !== "OFF") { xs.push(r.ax, r.bx); ys.push(r.ay, r.by); } });
+  (F.fixes || []).forEach((f) => { xs.push(f.x); ys.push(f.y); });
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const aT = pad + bh + 20, aB = h - 30, aL = pad + 10, aR = w - pad - 10;
+  const sc = Math.min((aR - aL) / (maxX - minX || 1), (aB - aT) / (maxY - minY || 1)) * 0.8;
+  const ox = (aL + aR) / 2 - (minX + maxX) / 2 * sc, oy = (aT + aB) / 2 - (minY + maxY) / 2 * sc;
+  const toX = (x) => ox + x * sc, toY = (y) => oy + y * sc;
+  const arrow = (x1, y1, x2, y2, col) => { const a = Math.atan2(y2 - y1, x2 - x1); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - Math.cos(a - 0.42) * 8, y2 - Math.sin(a - 0.42) * 8); ctx.lineTo(x2 - Math.cos(a + 0.42) * 8, y2 - Math.sin(a + 0.42) * 8); ctx.closePath(); ctx.fill(); };
+  const fix = (x, y, name, sub, col) => {
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(x, y - 5.5); ctx.lineTo(x + 5, y + 4); ctx.lineTo(x - 5, y + 4); ctx.closePath(); ctx.stroke();
+    ctx.font = "bold 8.5px ui-monospace, monospace"; ctx.textAlign = "left"; ctx.fillStyle = col; ctx.fillText(name, x + 9, y - 1);
+    if (sub) { ctx.font = "7.5px ui-monospace, monospace"; ctx.fillStyle = "rgba(160,215,205,0.75)"; ctx.fillText(sub, x + 9, y + 8); }
+  };
+
+  // ── runways ──
+  F.runways.forEach((r) => {
+    if (r.role === "OFF") return;
+    ctx.strokeStyle = "rgba(180,235,222,0.85)"; ctx.lineWidth = Math.max(3, r.w * sc * 0.7); ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.moveTo(toX(r.ax), toY(r.ay)); ctx.lineTo(toX(r.bx), toY(r.by)); ctx.stroke();
+    ctx.fillStyle = "#a7e8db"; ctx.font = "bold 9px ui-monospace, monospace"; ctx.textAlign = "center";
+    ctx.fillText(r.nameA, toX(r.ax), toY(r.ay) - 6); ctx.fillText(r.nameB, toX(r.bx), toY(r.by) - 6);
+  });
+  // airport reference point
+  const arpx = toX(F.cx), arpy = toY(F.cy);
+  ctx.strokeStyle = mid; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(arpx, arpy, 3, 0, Math.PI * 2); ctx.stroke();
+
+  // ── STAR arrivals: IAF → IF → threshold ──
+  if (showStar) {
+    F.arrRwys.forEach((r) => {
+      const st = r._star; if (!st || st.length < 2) return;
+      const iaf = st[0], iff = st[1], thr = r.thr;
+      const P = [[toX(iaf.x), toY(iaf.y)], [toX(iff.x), toY(iff.y)], [toX(thr.x), toY(thr.y)]];
+      ctx.strokeStyle = "rgba(55,224,200,0.8)"; ctx.setLineDash([7, 5]); ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); ctx.lineTo(P[1][0], P[1][1]); ctx.lineTo(P[2][0], P[2][1]); ctx.stroke(); ctx.setLineDash([]);
+      arrow(P[0][0], P[0][1], P[1][0], P[1][1], "rgba(55,224,200,0.9)");
+      arrow(P[1][0], P[1][1], P[2][0], P[2][1], "rgba(55,224,200,0.9)");
+      const ifAlt = Math.round(13 * G3 / 100) * 100, iafAlt = Math.round((ifAlt + 3000) / 500) * 500;
+      fix(P[0][0], P[0][1], iaf.name, "IAF " + iafAlt + "′", cyan);
+      fix(P[1][0], P[1][1], iff.name, "IF " + ifAlt + "′", cyan);
+      // STAR name tag near the IAF
+      ctx.fillStyle = "rgba(55,224,200,0.55)"; ctx.font = "7.5px ui-monospace, monospace"; ctx.textAlign = "left";
+      ctx.fillText(iaf.name.slice(0, 3) + "1" + r.name.replace(/[^0-9]/g, "") + " · RWY " + r.name, P[0][0] + 9, P[0][1] + 17);
+    });
+  }
+  // ── SID departures: departure end → exit fix ──
+  if (showSid) {
+    F.depRwys.forEach((r) => {
+      const df = r._sidFix; if (!df) return;
+      const p0 = [toX(r.far.x), toY(r.far.y)], p1 = [toX(df.x), toY(df.y)];
+      ctx.strokeStyle = "rgba(255,180,90,0.8)"; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke(); ctx.setLineDash([]);
+      arrow(p0[0], p0[1], p1[0], p1[1], "rgba(255,180,90,0.9)");
+      fix(p1[0], p1[1], df.name, "climb 5000′", amber);
+      ctx.fillStyle = "rgba(255,180,90,0.55)"; ctx.font = "7.5px ui-monospace, monospace"; ctx.textAlign = "left";
+      ctx.fillText(df.name.slice(0, 3) + "1 · RWY " + r.name, p1[0] + 9, p1[1] + 17);
+    });
+  }
+
+  // ── selected aircraft overlay (SIM/AUTO) ──
+  if (mode !== "LIVE") {
+    const selA = S.aircraft.find((a) => a.sel);
+    if (selA) {
+      const x = toX(selA.x), y = toY(selA.y);
+      if (selA.nav && selA.nav.length) { ctx.strokeStyle = "rgba(255,107,107,0.55)"; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x, y); selA.nav.forEach((p) => ctx.lineTo(toX(p.x), toY(p.y))); ctx.stroke(); ctx.setLineDash([]); }
+      ctx.fillStyle = "#ff6b6b"; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#ff6b6b"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "#ffb9b9"; ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "left"; ctx.fillText(selA.cs, x + 11, y + 3);
+    }
+  }
+
+  // ── north arrow + scale bar + legend ──
+  const nx = w - pad - 24, ny = aT + 16;
+  ctx.strokeStyle = mid; ctx.fillStyle = mid; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(nx, ny - 13); ctx.lineTo(nx - 4, ny + 5); ctx.lineTo(nx, ny + 1); ctx.lineTo(nx + 4, ny + 5); ctx.closePath(); ctx.fill();
+  ctx.font = "bold 8px ui-monospace, monospace"; ctx.textAlign = "center"; ctx.fillStyle = "rgba(150,220,205,0.9)"; ctx.fillText("N", nx, ny - 15);
+  let barNm = 1; [0.5, 1, 2, 3, 5, 10].forEach((n) => { if (n * F.pxPerNm * sc <= 110) barNm = n; });
+  const bp = barNm * F.pxPerNm * sc, sbx = w - pad - 10 - bp, sby = h - 14;
+  ctx.strokeStyle = "rgba(150,220,205,0.85)"; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(sbx, sby); ctx.lineTo(sbx + bp, sby); ctx.moveTo(sbx, sby - 4); ctx.lineTo(sbx, sby + 4); ctx.moveTo(sbx + bp, sby - 4); ctx.lineTo(sbx + bp, sby + 4); ctx.stroke();
+  ctx.fillStyle = "rgba(150,220,205,0.9)"; ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "center"; ctx.fillText(barNm + " nm", sbx + bp / 2, sby - 6);
+  ctx.textAlign = "left"; ctx.font = "8px ui-monospace, monospace"; let lx = pad + 4;
+  if (showStar) { ctx.fillStyle = cyan; ctx.fillText("╌▲ STAR arrival", lx, h - 14); lx += 108; }
+  if (showSid) { ctx.fillStyle = amber; ctx.fillText("╌▲ SID departure", lx, h - 14); }
+  if (mode !== "SIM") { ctx.fillStyle = "rgba(120,200,190,0.4)"; ctx.textAlign = "right"; ctx.fillText(mode + " mode", w - pad - 10, pad + bh + 12); }
 }
 
 /* ═══════════════════════ styles ═══════════════════════ */
