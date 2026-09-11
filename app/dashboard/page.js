@@ -236,6 +236,7 @@ export default function Dashboard() {
   const [wOpen, setWOpen] = useState(false);
   const [mh, setMh] = useState(MH_DEFAULTS);
   const [docBusy, setDocBusy] = useState(false);
+  const [term, setTerm] = useState({ det: THR.det, cond: THR.cond, sort: "low", search: "" });
 
   const toast = useCallback((m) => { setToastMsg(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToastMsg(""), 2400); }, []);
 
@@ -327,6 +328,71 @@ export default function Dashboard() {
     w.document.close();
   };
 
+  const termRows = useMemo(() => {
+    const o = live.overall; if (!o || !Array.isArray(o.students)) return [];
+    const det = +term.det || THR.det, cond = +term.cond || THR.cond;
+    const q = term.search.trim().toLowerCase();
+    let arr = o.students.map((s) => ({ ...s, flag: s.pct < cond ? "cond" : s.pct < det ? "det" : "ok" }));
+    if (q) arr = arr.filter((s) => s.name.toLowerCase().includes(q) || String(s.reg).includes(q));
+    if (term.sort === "low") arr.sort((a, b) => a.pct - b.pct);
+    else if (term.sort === "high") arr.sort((a, b) => b.pct - a.pct);
+    else arr.sort((a, b) => a.name.localeCompare(b.name));
+    return arr;
+  }, [live.overall, term.det, term.cond, term.sort, term.search]);
+
+  const termSummary = useMemo(() => {
+    const o = live.overall; const det = +term.det || THR.det, cond = +term.cond || THR.cond;
+    if (!o || !Array.isArray(o.students) || !o.students.length) return { n: 0, avg: 0, det: 0, cond: 0, held: 0, months: o ? o.months || 0 : 0 };
+    const n = o.students.length;
+    const avg = Math.round(o.students.reduce((s, x) => s + x.pct, 0) / n);
+    const held = o.students.reduce((m, s) => Math.max(m, s.base || 0), 0);
+    return { n, avg, det: o.students.filter((s) => s.pct < det && s.pct >= cond).length, cond: o.students.filter((s) => s.pct < cond).length, held, months: o.months || 0 };
+  }, [live.overall, term.det, term.cond]);
+
+  const termLetterFor = (r) => {
+    const prog = (params.pProg || params.pClass || "the class").trim();
+    const by = (params.pBy || "Class Coordinator").trim();
+    const det = +term.det || THR.det, cond = +term.cond || THR.cond;
+    const first = (r.name.trim().split(/\s+/)[0] || r.name);
+    const isCond = r.pct < cond;
+    const kind = isCond ? "CONDONATION OF ATTENDANCE" : "SHORTAGE OF ATTENDANCE";
+    const attended = r.total, held = r.base;
+    const body = isCond
+      ? "This is below the " + cond + "% condonation limit. You are required to meet the class coordinator immediately regarding condonation and to submit supporting documents for your absences."
+      : "This is below the " + det + "% attendance requirement. You are hereby warned to improve your attendance immediately, failing which you may be detained from appearing for the examinations as per institutional norms.";
+    return ["To,", r.name + " (" + r.reg + ")", prog, "",
+      "Subject: Warning — " + kind + " (attendance " + r.pct + "%)", "",
+      "Dear " + first + ",", "",
+      "As per the consolidated attendance records maintained for " + prog + ", your attendance currently stands at " + r.pct + "% (" + attended + " of " + held + " classes attended; " + r.absent + " absence" + (r.absent === 1 ? "" : "s") + " recorded" + (r.od ? "; " + r.od + " on-duty day" + (r.od === 1 ? "" : "s") + " counted as present" : "") + ").",
+      body, "", "You are advised to take this warning seriously.", "", by, prog].join("\n");
+  };
+  const copyTermLetters = (tier) => {
+    const cond = +term.cond || THR.cond, det = +term.det || THR.det;
+    const rows = termRows.filter((r) => tier === "cond" ? r.pct < cond : (r.pct < det && r.pct >= cond));
+    if (!rows.length) { toast(tier === "cond" ? "No students below " + cond + "%" : "No students in the " + cond + "–" + det + "% band"); return; }
+    const all = rows.map(termLetterFor).join("\n\n──────────────────────────────\n\n");
+    navigator.clipboard.writeText(all).then(() => toast(rows.length + " letter" + (rows.length === 1 ? "" : "s") + " copied"), () => toast("Copy blocked by browser"));
+  };
+  const exportTermCSV = () => {
+    if (!termRows.length) { toast("Nothing to export yet"); return; }
+    const cell = (v) => { const t = String(v == null ? "" : v); return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+    const head = ["Reg No", "Name", "Classes Held", "Present", "On Duty", "Absences", "Attendance %", "Status"];
+    const st = (r) => r.flag === "cond" ? "Condonation (<" + (+term.cond || THR.cond) + "%)" : r.flag === "det" ? "Detention (<" + (+term.det || THR.det) + "%)" : "OK";
+    const lines = [head, ...termRows.map((r) => [r.reg, r.name, r.base, r.present, r.od, r.absent, r.pct, st(r)])];
+    const csv = lines.map((row) => row.map(cell).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = (params.pClass || "ARGUS").trim() + "_term_attendance.csv"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast("CSV exported");
+  };
+  const printTermSummary = () => {
+    if (!termRows.length) { toast("No term data to print"); return; }
+    const w = window.open("", "_blank", "width=920,height=1200");
+    if (!w) { toast("Allow pop-ups to print / save PDF"); return; }
+    const rowsH = termRows.map((r, i) => '<tr style="background:' + (i % 2 ? "#f2f2f2" : "#fff") + '"><td style="padding:5px 8px;border:1px solid #ccc">' + escHtml(r.reg) + '</td><td style="padding:5px 8px;border:1px solid #ccc">' + escHtml(r.name) + '</td><td style="padding:5px 8px;border:1px solid #ccc;text-align:center">' + r.total + "/" + r.base + '</td><td style="padding:5px 8px;border:1px solid #ccc;text-align:center">' + r.absent + '</td><td style="padding:5px 8px;border:1px solid #ccc;text-align:center;font-weight:700;color:' + (r.flag === "cond" ? "#c00000" : r.flag === "det" ? "#a3670f" : "#137333") + '">' + r.pct + "%</td></tr>").join("");
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Term Attendance — ' + escHtml(params.pClass) + '</title><style>@page{margin:14mm}body{font-family:"Times New Roman",serif;margin:0;color:#000}h1{font-size:18px;text-align:center;margin:0 0 2px}.sub{text-align:center;font-size:12px;color:#444;margin-bottom:14px}table{border-collapse:collapse;width:100%;font-size:12px}th{background:#1F3864;color:#fff;padding:6px 8px;border:1px solid #ccc;text-align:left}.band{display:flex;gap:14px;justify-content:center;margin:0 0 14px;font-size:12px}</style></head><body><h1>TERM ATTENDANCE SUMMARY</h1><div class="sub">' + escHtml(params.pProg || params.pClass) + ' · ' + termSummary.months + ' month(s) · ' + termSummary.held + ' classes held</div><div class="band"><span>Students: <b>' + termSummary.n + '</b></span><span>Average: <b>' + termSummary.avg + '%</b></span><span>Detention &lt;' + (+term.det || THR.det) + '%: <b>' + termSummary.det + '</b></span><span>Condonation &lt;' + (+term.cond || THR.cond) + '%: <b>' + termSummary.cond + '</b></span></div><table><thead><tr><th>Reg No</th><th>Name</th><th style="text-align:center">Attended</th><th style="text-align:center">Absent</th><th style="text-align:center">%</th></tr></thead><tbody>' + rowsH + '</tbody></table><script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>');
+    w.document.close();
+  };
+
   const nameOptions = useMemo(() => {
     const q = fFilter.trim().toLowerCase();
     const logged = new Set(absentees.map((a) => a.name.trim().toLowerCase()));
@@ -371,6 +437,7 @@ export default function Dashboard() {
       setLive((L) => ({ ...L, ostatus: "ok", overall: j }));
     } catch (e) { setLive((L) => ({ ...L, ostatus: "error", overall: null })); toast("Overall load failed"); }
   }, [toast]);
+  useEffect(() => { if (nav === "term" && !live.overall && live.ostatus !== "loading") loadOverall(); }, [nav, live.overall, live.ostatus, loadOverall]);
   const toggleOverall = () => {
     if (live.mode === "overall") { setLive((L) => ({ ...L, mode: "month" })); return; }
     setLive((L) => ({ ...L, mode: "overall" }));
@@ -711,11 +778,61 @@ export default function Dashboard() {
           )}
 
           {nav === "term" && (
-            <div className="body">
-              <section className="panel placeholder">
-                <div className="p-h"><span className="p-k">SOON</span><h2>{cur.label}</h2></div>
-                <p>This module is being ported into the new console next — it stays fully working on the current dashboard meanwhile.</p>
-                <a className="btn line" href="/argus-dashboard.html">Open current dashboard ↗</a>
+            <div className="body trm">
+              <section className="panel trm-side">
+                <div className="p-h"><span className="p-k">TERM</span><h2>Standing</h2></div>
+                <div className="trm-src">
+                  <span className={"dotp " + (live.ostatus === "ok" ? "ok" : live.ostatus === "loading" ? "load" : live.ostatus === "error" ? "err" : "idle")} />
+                  {live.ostatus === "loading" && "consolidating every month…"}
+                  {live.ostatus === "ok" && (termSummary.months + " month(s) · " + termSummary.held + " classes held · from the sheet")}
+                  {live.ostatus === "error" && "consolidation failed"}
+                  {live.ostatus === "idle" && "not loaded"}
+                  <button className="trm-reload" onClick={loadOverall} disabled={live.ostatus === "loading"}>↻</button>
+                </div>
+                <div className="trm-tally">
+                  <Readout k="STUDENTS" v={termSummary.n} />
+                  <Readout k="AVG %" v={termSummary.avg} tone="teal" />
+                  <Readout k="DETENTION" v={termSummary.det} tone={termSummary.det ? "warn" : ""} />
+                  <Readout k="CONDONE" v={termSummary.cond} tone={termSummary.cond ? "bad" : ""} />
+                </div>
+                <div className="trm-thr">
+                  <label className="f"><span>Detention below %</span><input value={term.det} onChange={(e) => setTerm((t) => ({ ...t, det: e.target.value.replace(/[^0-9]/g, "") }))} inputMode="numeric" /></label>
+                  <label className="f"><span>Condonation below %</span><input value={term.cond} onChange={(e) => setTerm((t) => ({ ...t, cond: e.target.value.replace(/[^0-9]/g, "") }))} inputMode="numeric" /></label>
+                </div>
+                <div className="trm-acts">
+                  <button className="btn line" onClick={() => copyTermLetters("det")}>Shortage letters &lt;{+term.det || THR.det}%</button>
+                  <button className="btn line" onClick={() => copyTermLetters("cond")}>Condonation letters &lt;{+term.cond || THR.cond}%</button>
+                  <button className="btn line" onClick={exportTermCSV}>Export CSV</button>
+                  <button className="btn line" onClick={printTermSummary}>Print / PDF</button>
+                </div>
+                <p className="trm-note">Gold = detention band · Red = condonation band. Percentages are the real consolidated figures from your department sheet (every month from day 1). On-duty counts as present.</p>
+              </section>
+              <section className="panel trm-main">
+                <div className="p-h"><span className="p-k">ROSTER</span><h2>Per-student</h2>
+                  <input className="trm-search" placeholder="search name / reg…" value={term.search} onChange={(e) => setTerm((t) => ({ ...t, search: e.target.value }))} />
+                  <select className="trm-sort" value={term.sort} onChange={(e) => setTerm((t) => ({ ...t, sort: e.target.value }))}>
+                    <option value="low">Lowest first</option><option value="high">Highest first</option><option value="name">Name A–Z</option>
+                  </select>
+                </div>
+                <div className="trm-list">
+                  {live.ostatus === "loading" && <div className="live-empty">Consolidating every month from day 1…</div>}
+                  {live.ostatus === "error" && <div className="live-empty">Couldn’t reach the sheet. <button className="lnk" onClick={loadOverall}>Retry</button></div>}
+                  {live.ostatus === "ok" && termRows.length === 0 && <div className="live-empty">No students match.</div>}
+                  {live.ostatus === "ok" && termRows.map((s, i) => {
+                    const cls = s.flag === "cond" ? "cond" : s.flag === "det" ? "det" : "ok", w = Math.min(100, s.pct);
+                    return (
+                      <div key={s.reg} className={"tr-row " + cls}>
+                        <span className="tr-n">{String(i + 1).padStart(2, "0")}</span>
+                        <div className="tr-mid">
+                          <div className="tr-name"><b>{s.name}</b><span className="tr-reg">{s.reg}</span>{s.flag !== "ok" && <span className={"tr-flag " + cls}>{s.flag === "cond" ? "condonation" : "detention"}</span>}</div>
+                          <div className="tr-track"><i className={cls} style={{ width: w + "%" }} /></div>
+                        </div>
+                        <div className="tr-split"><span className="p">{s.present}P</span><span className="o">{s.od}OD</span><span className="a">{s.absent}A</span><span className="tot">{s.total}/{s.base}</span></div>
+                        <div className={"tr-pct " + cls}>{s.pct}<i>%</i></div>
+                      </div>
+                    );
+                  })}
+                </div>
               </section>
             </div>
           )}
@@ -900,6 +1017,51 @@ const CSS = `
 .dash .paper-wrap{overflow:auto;margin-top:14px;border-radius:10px;background:var(--surf2);border:1px solid var(--line);padding:20px;flex:1}
 .dash .paper{max-width:820px;margin:0 auto;background:#fff;box-shadow:0 2px 16px rgba(0,0,0,.14);border-radius:2px}
 .dash .paper table{max-width:100%}
+/* term */
+.dash .trm{display:grid;grid-template-columns:minmax(320px,380px) 1fr;gap:18px;align-items:start;height:100%}
+.dash .trm-side{display:flex;flex-direction:column;max-height:100%;overflow:auto}
+.dash .trm-src{display:flex;align-items:center;gap:8px;margin-top:14px;font-family:var(--mono);font-size:10px;letter-spacing:.03em;color:var(--dim)}
+.dash .dotp{width:7px;height:7px;border-radius:50%;flex:none;background:var(--faint)}
+.dash .dotp.ok{background:var(--accent);box-shadow:0 0 0 3px var(--accent-w)}
+.dash .dotp.load{background:var(--gold);animation:tpulse 1s infinite}
+.dash .dotp.err{background:var(--red)}
+@keyframes tpulse{50%{opacity:.35}}
+.dash .trm-reload{margin-left:auto;background:var(--surf2);border:1px solid var(--line);color:var(--dim);border-radius:7px;width:26px;height:24px;cursor:pointer;font-size:12px}
+.dash .trm-reload:hover{color:var(--ink);border-color:var(--line2)}
+.dash .trm-tally{display:flex;background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:12px 4px;margin-top:14px}
+.dash .trm-thr{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.dash .trm-thr .f{display:flex;flex-direction:column;gap:5px}
+.dash .trm-thr .f span{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.dash .trm-thr .f input{background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:14px;color:var(--ink);font-family:var(--mono)}
+.dash .trm-thr .f input:focus{outline:none;border-color:var(--accent);background:var(--surf)}
+.dash .trm-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.dash .trm-acts .btn{margin-top:0;justify-content:center;font-size:12px;padding:10px 8px}
+.dash .trm-note{font-size:11px;line-height:1.6;color:var(--dim);margin:16px 0 0}
+.dash .trm-main{display:flex;flex-direction:column;max-height:100%;overflow:hidden}
+.dash .trm-search{margin-left:auto;background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;color:var(--ink);font-family:var(--sans);width:150px}
+.dash .trm-search:focus{outline:none;border-color:var(--accent)}
+.dash .trm-sort{background:var(--surf2);border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-size:12px;color:var(--ink);margin-left:8px}
+.dash .trm-list{overflow:auto;margin-top:12px;display:flex;flex-direction:column;gap:6px;flex:1;padding-right:2px}
+.dash .tr-row{display:grid;grid-template-columns:26px 1fr auto auto;align-items:center;gap:12px;background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:9px 13px}
+.dash .tr-row.det{border-color:rgba(163,103,15,.4)}
+.dash .tr-row.cond{border-color:rgba(191,64,56,.42)}
+.dash .tr-n{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.dash .tr-name{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.dash .tr-name b{font-size:13px;font-weight:600}
+.dash .tr-reg{font-family:var(--mono);font-size:9.5px;color:var(--faint)}
+.dash .tr-flag{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:5px}
+.dash .tr-flag.det{color:var(--gold);background:rgba(163,103,15,.13)}
+.dash .tr-flag.cond{color:var(--red);background:rgba(191,64,56,.13)}
+.dash .tr-track{height:4px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}
+.dash .tr-track i{display:block;height:100%;border-radius:3px}
+.dash .tr-track i.ok{background:var(--accent)}
+.dash .tr-track i.det{background:var(--gold)}
+.dash .tr-track i.cond{background:var(--red)}
+.dash .tr-split{display:flex;gap:8px;font-family:var(--mono);font-size:10px;color:var(--dim)}
+.dash .tr-split .p{color:var(--ok)}.dash .tr-split .a{color:var(--red)}.dash .tr-split .o{color:var(--gold)}.dash .tr-split .tot{color:var(--faint)}
+.dash .tr-pct{font-size:19px;font-weight:300;min-width:56px;text-align:right}
+.dash .tr-pct i{font-size:11px;font-style:normal;color:var(--faint);margin-left:1px}
+.dash .tr-pct.ok{color:var(--accent)}.dash .tr-pct.det{color:var(--gold)}.dash .tr-pct.cond{color:var(--red)}
 .dash .sheetfoot{display:flex;flex-direction:column;gap:9px}
 .dash .sf-row{display:flex;gap:8px;align-items:center}
 .dash .btn.sm{width:auto;margin:0;padding:9px 12px;font-size:11.5px;border-radius:9px}
