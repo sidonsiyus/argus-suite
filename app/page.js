@@ -645,7 +645,7 @@ export default function Home() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5" /></svg>
           <span className="label">Notes</span>
         </a>
-        <a className="topbar-dash" href="/argus-dashboard.html" title="ARGUS attendance dashboard">
+        <a className="topbar-dash" href="/attendance" title="ARGUS attendance dashboard">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M7 14l3-4 3 3 4-6" /><circle cx="20" cy="7" r="1.6" fill="currentColor" stroke="none" /></svg>
           <span className="label">Dashboard</span>
         </a>

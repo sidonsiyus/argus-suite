@@ -41,6 +41,15 @@ while ((sm = srcRe.exec(html))) externalSrcs.push(sm[1]);
 function scopeSelector(sel) {
   sel = sel.trim();
   if (!sel) return sel;
+  // Theme selectors key off [data-theme=...] on <html>, an ANCESTOR of the
+  // scope container — keep that attribute out front and insert the scope after
+  // it, otherwise the light/dark toggle never matches (it would look for
+  // [data-theme] *inside* the container). Handles an optional leading :root.
+  const themeM = sel.match(/^(:root)?(\[data-theme[^\]]*\])\s*(.*)$/);
+  if (themeM) {
+    const rest = themeM[3].trim();
+    return themeM[2] + " " + SCOPE + (rest ? " " + rest : "");
+  }
   if (sel === ":root" || sel === "html" || sel === "body" || sel === "html body") return SCOPE;
   if (/^:root\b/.test(sel)) return sel.replace(/^:root\b/, SCOPE);
   if (/^html\s+body\b/.test(sel)) return sel.replace(/^html\s+body\b/, SCOPE);
