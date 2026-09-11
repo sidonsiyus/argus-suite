@@ -73,6 +73,7 @@ const STATUS = [
 const MH_CODE = { informed: "AUTH", unauthorized: "UNAUTH", groom: "GROOM", od: "OD", susp: "SUSP" };
 const DEF_REMARK = (s) => s === "informed" ? "Prior notification given" : s === "od" ? "On official duty (counted present)" : s === "groom" ? "Grooming" : s === "susp" ? "Suspended" : "No prior notification";
 const byName = (n) => ROSTER.find((r) => r.name === n) || null;
+const byReg = (reg) => ROSTER.find((r) => String(r.reg) === String(reg)) || null;
 const today = () => { const n = new Date(); return new Date(n.getTime() - n.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 const DEFAULT_PARAMS = { pClass: "BscAero-IIA", pProg: "Bsc Aero - IIA", pStrength: "43", pLate: "0", pHalf: "0", pBy: "Class Coordinator", pTo: "Chief Executive Officer", pSub: "Prepared for the Office of the Chief Executive Officer" };
 const NAV = [
@@ -237,6 +238,7 @@ export default function Dashboard() {
   const [mh, setMh] = useState(MH_DEFAULTS);
   const [docBusy, setDocBusy] = useState(false);
   const [term, setTerm] = useState({ det: THR.det, cond: THR.cond, sort: "low", search: "" });
+  const [detail, setDetail] = useState(null);
 
   const toast = useCallback((m) => { setToastMsg(m); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToastMsg(""), 2400); }, []);
 
@@ -366,6 +368,7 @@ export default function Dashboard() {
       "As per the consolidated attendance records maintained for " + prog + ", your attendance currently stands at " + r.pct + "% (" + attended + " of " + held + " classes attended; " + r.absent + " absence" + (r.absent === 1 ? "" : "s") + " recorded" + (r.od ? "; " + r.od + " on-duty day" + (r.od === 1 ? "" : "s") + " counted as present" : "") + ").",
       body, "", "You are advised to take this warning seriously.", "", by, prog].join("\n");
   };
+  const copyOneLetter = (r) => { navigator.clipboard.writeText(termLetterFor(r)).then(() => toast("Warning letter copied"), () => toast("Copy blocked by browser")); };
   const copyTermLetters = (tier) => {
     const cond = +term.cond || THR.cond, det = +term.det || THR.det;
     const rows = termRows.filter((r) => tier === "cond" ? r.pct < cond : (r.pct < det && r.pct >= cond));
@@ -725,7 +728,7 @@ export default function Dashboard() {
                 {liveStatus === "ok" && liveRows.map((s) => {
                   const low = s.pct < THR.det, cls = s.pct < THR.det ? "low" : s.pct < THR.det + 10 ? "mid" : "hi", w = Math.min(100, s.pct);
                   return (
-                    <div key={s.reg} className={"lr" + (low ? " low" : "")}>
+                    <div key={s.reg} className={"lr" + (low ? " low" : "")} onClick={() => setDetail({ s, days: (liveActive && liveActive.days) || null, ctx: live.mode === "overall" ? "term" : "live" })} role="button" tabIndex={0}>
                       <span className="lr-n">{String(s.sno).padStart(2, "0")}</span>
                       <div className="lr-mid">
                         <div className="lr-name"><b>{s.name}</b><span className="lr-reg">{s.reg}</span>{low && <span className="lr-flag">below {THR.det}%</span>}</div>
@@ -821,7 +824,7 @@ export default function Dashboard() {
                   {live.ostatus === "ok" && termRows.map((s, i) => {
                     const cls = s.flag === "cond" ? "cond" : s.flag === "det" ? "det" : "ok", w = Math.min(100, s.pct);
                     return (
-                      <div key={s.reg} className={"tr-row " + cls}>
+                      <div key={s.reg} className={"tr-row " + cls} onClick={() => setDetail({ s, days: null, ctx: "term" })} role="button" tabIndex={0}>
                         <span className="tr-n">{String(i + 1).padStart(2, "0")}</span>
                         <div className="tr-mid">
                           <div className="tr-name"><b>{s.name}</b><span className="tr-reg">{s.reg}</span>{s.flag !== "ok" && <span className={"tr-flag " + cls}>{s.flag === "cond" ? "condonation" : "detention"}</span>}</div>
@@ -838,6 +841,53 @@ export default function Dashboard() {
           )}
         </main>
       </div>
+      {detail && (() => {
+        const s = detail.s, ct = byReg(s.reg), det = +term.det || THR.det, cond = +term.cond || THR.cond;
+        const tier = s.pct < cond ? "cond" : s.pct < det ? "det" : "ok";
+        const days = detail.days, daily = Array.isArray(s.daily) ? s.daily : null;
+        return (
+          <div className="ovl" onClick={() => setDetail(null)}>
+            <div className="mdl" onClick={(e) => e.stopPropagation()}>
+              <button className="mdl-x" onClick={() => setDetail(null)} aria-label="Close">✕</button>
+              <div className="mdl-h">
+                <div><h3>{s.name}</h3><span className="mdl-sub">Roll {s.sno} · {s.reg}</span></div>
+                <span className={"mdl-tier " + tier}>{tier === "cond" ? "CONDONATION" : tier === "det" ? "DETENTION" : "CLEAR"}</span>
+              </div>
+              <div className="mdl-tiles">
+                <div className="mtile ok"><b>{s.present}</b><span>Present</span></div>
+                <div className="mtile gold"><b>{s.od}</b><span>On Duty</span></div>
+                <div className="mtile red"><b>{s.absent}</b><span>Absent</span></div>
+                <div className={"mtile pct " + tier}><b>{s.pct}<i>%</i></b><span>{s.total}/{s.base}</span></div>
+              </div>
+              {ct && (
+                <div className="mdl-contact">
+                  <div className="cc"><span>STUDENT</span><a href={"tel:" + ct.ph}>{ct.ph}</a></div>
+                  <div className="cc"><span>PARENT</span><a href={"tel:" + ct.pa}>{ct.pa}</a></div>
+                </div>
+              )}
+              {days && daily ? (
+                <div className="mdl-daily">
+                  <div className="mdl-k">DAILY RECORD</div>
+                  <div className="dgrid">
+                    {daily.map((dd, i) => {
+                      const day = days[i] || { label: "D" + (i + 1) };
+                      const st = dd.status, cl = st === "present" ? "pr" : st === "absent" ? "ab" : st === "od" ? "od" : st === "partial" ? "pt" : "bl";
+                      const lab = st === "blank" ? "not marked" : dd.present + "P " + dd.absent + "A " + dd.od + "OD";
+                      return <div key={i} className="dcell" title={day.label + ": " + lab}><i className={cl} /><span>{day.label}</span></div>;
+                    })}
+                  </div>
+                  <div className="mdl-legend">green present · red absent · gold OD · amber partial · grey not marked</div>
+                </div>
+              ) : (
+                <div className="mdl-note">Consolidated totals across {termSummary.months || "all"} month(s). Open a specific month in Live Attendance for the day-by-day grid.</div>
+              )}
+              {detail.ctx === "term" && s.pct < det && (
+                <button className="btn line mdl-letter" onClick={() => copyOneLetter(s)}>Copy {s.pct < cond ? "condonation" : "shortage"} letter</button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
       {toastMsg && <div className="toast">{toastMsg}</div>}
     </div>
   );
@@ -1062,6 +1112,45 @@ const CSS = `
 .dash .tr-pct{font-size:19px;font-weight:300;min-width:56px;text-align:right}
 .dash .tr-pct i{font-size:11px;font-style:normal;color:var(--faint);margin-left:1px}
 .dash .tr-pct.ok{color:var(--accent)}.dash .tr-pct.det{color:var(--gold)}.dash .tr-pct.cond{color:var(--red)}
+.dash .tr-row{cursor:pointer;transition:border-color .12s,background .12s}
+.dash .tr-row:hover{border-color:var(--line2);background:var(--surf)}
+.dash .lr{cursor:pointer}
+/* detail modal */
+.dash .ovl{position:fixed;inset:0;z-index:60;background:rgba(6,14,12,.62);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;animation:ovlin .14s ease}
+@keyframes ovlin{from{opacity:0}to{opacity:1}}
+.dash .mdl{position:relative;width:100%;max-width:520px;max-height:88vh;overflow:auto;background:var(--surf);border:1px solid var(--line2);border-radius:16px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.45);animation:mdlin .16s ease}
+@keyframes mdlin{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.dash .mdl-x{position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:8px;background:var(--surf2);border:1px solid var(--line);color:var(--dim);cursor:pointer;font-size:13px}
+.dash .mdl-x:hover{color:var(--ink);border-color:var(--line2)}
+.dash .mdl-h{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding-right:34px}
+.dash .mdl-h h3{margin:0;font-size:19px;font-weight:600}
+.dash .mdl-sub{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.dash .mdl-tier{font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding:5px 9px;border-radius:7px;white-space:nowrap}
+.dash .mdl-tier.ok{color:var(--accent);background:var(--accent-w)}
+.dash .mdl-tier.det{color:var(--gold);background:rgba(163,103,15,.13)}
+.dash .mdl-tier.cond{color:var(--red);background:rgba(191,64,56,.13)}
+.dash .mdl-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px}
+.dash .mtile{background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:12px 8px;text-align:center}
+.dash .mtile b{display:block;font-size:24px;font-weight:300;letter-spacing:-.01em}
+.dash .mtile b i{font-size:12px;font-style:normal;color:var(--faint)}
+.dash .mtile span{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.dash .mtile.ok b{color:var(--ok)}.dash .mtile.gold b{color:var(--gold)}.dash .mtile.red b{color:var(--red)}
+.dash .mtile.pct.det b{color:var(--gold)}.dash .mtile.pct.cond b{color:var(--red)}.dash .mtile.pct.ok b{color:var(--accent)}
+.dash .mdl-contact{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.dash .cc{background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+.dash .cc span{font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:var(--faint)}
+.dash .cc a{font-size:14px;color:var(--accent);text-decoration:none;font-variant-numeric:tabular-nums}
+.dash .cc a:hover{text-decoration:underline}
+.dash .mdl-daily{margin-top:18px}
+.dash .mdl-k{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--faint);margin-bottom:10px}
+.dash .dgrid{display:flex;flex-wrap:wrap;gap:7px}
+.dash .dcell{text-align:center;width:30px}
+.dash .dcell i{display:block;width:26px;height:26px;border-radius:6px;margin:0 auto 4px;background:var(--line2)}
+.dash .dcell i.pr{background:var(--ok)}.dash .dcell i.ab{background:var(--red)}.dash .dcell i.od{background:var(--gold)}.dash .dcell i.pt{background:#c99a3a}.dash .dcell i.bl{background:var(--line2);opacity:.4}
+.dash .dcell span{font-family:var(--mono);font-size:7px;color:var(--faint);display:block;line-height:1.1}
+.dash .mdl-legend{font-family:var(--mono);font-size:8px;color:var(--faint);margin-top:12px}
+.dash .mdl-note{margin-top:16px;font-size:12px;line-height:1.55;color:var(--dim);background:var(--surf2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.dash .mdl-letter{margin-top:16px;width:100%;justify-content:center}
 .dash .sheetfoot{display:flex;flex-direction:column;gap:9px}
 .dash .sf-row{display:flex;gap:8px;align-items:center}
 .dash .btn.sm{width:auto;margin:0;padding:9px 12px;font-size:11.5px;border-radius:9px}
