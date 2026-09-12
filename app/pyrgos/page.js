@@ -687,7 +687,7 @@ export default function Pyrgos() {
       if (a) { a.sel = true; selectById(a.id); } else setSel(null);
     }
   };
-  const zoomBy = (factor) => { const v = view.current; v.radiusNm = Math.max(3, Math.min(40, v.radiusNm * factor)); setRangeNm(Math.round(v.radiusNm)); };
+  const zoomBy = (factor) => { const v = view.current; const floor = v.view === "GROUND" ? 0.5 : 3; v.radiusNm = Math.max(floor, Math.min(40, v.radiusNm * factor)); setRangeNm(Math.max(1, Math.round(v.radiusNm))); };
   const onWheel = (e) => { if (view.current.view === "APPROACH" || view.current.view === "PROC") return; e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.12 : 0.89); };
   const setView = (next) => {
     setChartView(next);
@@ -1107,15 +1107,42 @@ function render(ctx, canvas, S, v, DPR, sweep, mode) {
   // taxiways + gates (brighter when zoomed in)
   ctx.strokeStyle = zoomedIn ? "rgba(120,180,168,0.5)" : "rgba(90,150,140,0.22)"; ctx.lineWidth = zoomedIn ? 2 : 1;
   F.edges.forEach(([a, b]) => { const na = F.nodes[a], nb = F.nodes[b]; if (na && nb) { ctx.beginPath(); ctx.moveTo(toX(na.x), toY(na.y)); ctx.lineTo(toX(nb.x), toY(nb.y)); ctx.stroke(); } });
-  if (zoomedIn) { ctx.fillStyle = "rgba(150,220,205,0.6)"; (F.gates || []).forEach((g) => { const n = F.nodes[g]; if (n) { ctx.beginPath(); ctx.arc(toX(n.x), toY(n.y), 2.4, 0, Math.PI * 2); ctx.fill(); } }); }
-  // ground-chart labels
+  if (zoomedIn && !v.chart) { ctx.fillStyle = "rgba(150,220,205,0.6)"; (F.gates || []).forEach((g) => { const n = F.nodes[g]; if (n) { ctx.beginPath(); ctx.arc(toX(n.x), toY(n.y), 2.4, 0, Math.PI * 2); ctx.fill(); } }); }
+  // ground-chart (SMR) furniture
   if (v.chart) {
-    ctx.font = "8px ui-monospace, monospace"; ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(120,180,168,0.55)";
+    const holds = F.meta.holds || {};
+    // taxiway centrelines — the yellow SMR signature
+    ctx.strokeStyle = "rgba(230,200,120,0.42)"; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
+    F.edges.forEach(([a, b]) => { const na = F.nodes[a], nb = F.nodes[b]; if (na && nb) { ctx.beginPath(); ctx.moveTo(toX(na.x), toY(na.y)); ctx.lineTo(toX(nb.x), toY(nb.y)); ctx.stroke(); } });
+    ctx.setLineDash([]);
+    // hold-short bars (2 solid runway-side + 2 dashed holding-side), perpendicular to the taxiway
+    for (const rw in holds) {
+      const key = holds[rw], hn = F.nodes[key]; if (!hn) continue;
+      let nb = null; for (const [a, b] of F.edges) { if (a === key && F.nodes[b]) { nb = F.nodes[b]; break; } if (b === key && F.nodes[a]) { nb = F.nodes[a]; break; } }
+      let dx = nb ? nb.x - hn.x : F.cx - hn.x, dy = nb ? nb.y - hn.y : F.cy - hn.y; // toward the taxiway, away from the runway
+      const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+      const px = toX(hn.x), py = toY(hn.y), perpx = -dy, perpy = dx, hw = 8;
+      ctx.strokeStyle = "rgba(255,205,135,0.9)"; ctx.lineWidth = 1.5;
+      [-4.5, -1.5, 1.5, 4.5].forEach((off) => {
+        const ox = px + dx * off, oy = py + dy * off;
+        ctx.setLineDash(off > 0 ? [3, 3] : []); // dashed on the holding side, solid toward the runway
+        ctx.beginPath(); ctx.moveTo(ox - perpx * hw, oy - perpy * hw); ctx.lineTo(ox + perpx * hw, oy + perpy * hw); ctx.stroke();
+      });
+      ctx.setLineDash([]);
+    }
+    // stands (boxes)
+    ctx.lineWidth = 1;
+    (F.gates || []).forEach((g) => { const n = F.nodes[g]; if (!n) return; const x = toX(n.x), y = toY(n.y);
+      ctx.fillStyle = "rgba(150,220,205,0.16)"; ctx.strokeStyle = "rgba(150,220,205,0.55)";
+      ctx.beginPath(); ctx.rect(x - 5, y - 5, 10, 10); ctx.fill(); ctx.stroke();
+    });
+    // labels
+    ctx.textAlign = "center";
+    ctx.font = "8px ui-monospace, monospace"; ctx.fillStyle = "rgba(120,180,168,0.55)";
     for (const k in F.nodes) { if (!k.startsWith("G") && !k.startsWith("H")) { const n = F.nodes[k]; ctx.fillText(k, toX(n.x), toY(n.y) - 3); } }
-    ctx.fillStyle = "rgba(150,220,205,0.85)"; (F.gates || []).forEach((g) => { const n = F.nodes[g]; if (n) ctx.fillText(g, toX(n.x), toY(n.y) + 9); });
-    ctx.fillStyle = "rgba(255,205,135,0.85)"; const holds = F.meta.holds || {}; for (const rw in holds) { const n = F.nodes[holds[rw]]; if (n) ctx.fillText("⊣" + rw, toX(n.x), toY(n.y) - 4); }
-    ctx.fillStyle = "rgba(55,224,200,0.35)"; ctx.font = "11px ui-monospace, monospace"; ctx.textAlign = "right"; ctx.fillText("GROUND CHART · SMR", w - 14, 22);
+    ctx.fillStyle = "rgba(160,225,210,0.95)"; ctx.font = "7px ui-monospace, monospace"; (F.gates || []).forEach((g) => { const n = F.nodes[g]; if (n) ctx.fillText(g.replace(/^G/, ""), toX(n.x), toY(n.y) + 2.5); });
+    ctx.fillStyle = "rgba(255,205,135,0.9)"; ctx.font = "8px ui-monospace, monospace"; for (const rw in holds) { const n = F.nodes[holds[rw]]; if (n) ctx.fillText("⊣" + rw, toX(n.x), toY(n.y) - 9); }
+    ctx.fillStyle = "rgba(55,224,200,0.4)"; ctx.font = "10px ui-monospace, monospace"; ctx.textAlign = "center"; ctx.fillText("GROUND CHART · SMR", w / 2, h - 14);
   }
 
   // runways (asphalt fill + edges + centreline + threshold bars + numbers)
