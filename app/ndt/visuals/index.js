@@ -89,10 +89,10 @@ function NdtVsMech({ accent }) {
   return (
     <VStage label="Destructive tests qualify a material by breaking a sample; NDT keeps the part and hunts the flaw. Hover a row.">
       <div className="v-compare">
-        <div className="v-compare-h"><span /><span className="mech">Destructive</span><span className="ndt" style={{ color: accent }}>Non-Destructive</span></div>
+        <div className="v-compare-h"><span /><span className="mech">Destructive</span><span className="ndtc" style={{ color: accent }}>Non-Destructive</span></div>
         {rows.map((r, i) => (
           <div key={r.k} className={"v-compare-r" + (hi === i ? " hi" : "")} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)}>
-            <span className="k">{r.k}</span><span className="mech">{r.mech}</span><span className="ndt">{r.ndt}</span>
+            <span className="k">{r.k}</span><span className="mech">{r.mech}</span><span className="ndtc">{r.ndt}</span>
           </div>
         ))}
       </div>

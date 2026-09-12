@@ -480,7 +480,7 @@ const CSS = `
 .v-compare-r.hi{background:var(--panel)}
 .v-compare-r .k{font-weight:700;color:var(--sub)}
 .v-compare-r .mech{color:var(--muted)}
-.v-compare-r .ndt{color:var(--ink)}
+.v-compare-r .ndtc{color:var(--ink)}
 .v-methods{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px}
 @media(max-width:720px){.v-methods{grid-template-columns:repeat(3,1fr)}}
 .v-method{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--panel2);border:1.5px solid var(--line);border-radius:11px;padding:12px 6px 9px;color:var(--ink);transition:.12s}
