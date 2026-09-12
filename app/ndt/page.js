@@ -19,6 +19,7 @@ export default function NdtBay() {
   const [cur, setCur] = useState("1.1");
   const [done, setDone] = useState({});
   const [loaded, setLoaded] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const mainRef = useRef(null);
 
   useEffect(() => {
@@ -34,7 +35,8 @@ export default function NdtBay() {
   const pct = Math.round((doneCount / SESSION_COUNT) * 100);
   const unitProgress = (u) => u.sessions.filter((s) => done[s.id]).length;
 
-  const go = useCallback((id) => { setCur(id); const s = ALL_SESSIONS.find((x) => x.id === id); if (s) setOpenUnit(s.unitId); }, []);
+  const go = useCallback((id) => { setCur(id); setNavOpen(false); const s = ALL_SESSIONS.find((x) => x.id === id); if (s) setOpenUnit(s.unitId); }, []);
+  const goHome = () => { setCur("home"); setNavOpen(false); };
   const markDone = (id) => setDone((d) => ({ ...d, [id]: true }));
   const prev = () => idx > 0 && go(ALL_SESSIONS[idx - 1].id);
   const next = () => idx < ALL_SESSIONS.length - 1 && go(ALL_SESSIONS[idx + 1].id);
@@ -43,9 +45,16 @@ export default function NdtBay() {
     <div className="ndt" data-theme={dark ? "dark" : "light"}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="ndt-scan" style={{ width: pct + "%" }} />
+      {/* ── mobile top bar ── */}
+      <div className="ndt-mbar">
+        <button className="ndt-hamb" onClick={() => setNavOpen(true)} aria-label="Open menu"><span /><span /><span /></button>
+        <button className="ndt-mbar-brand" onClick={goHome}><span className="ndt-logo">◆</span>NDT Learning</button>
+        <span className="ndt-mbar-prog">{doneCount}/{SESSION_COUNT}</span>
+      </div>
+      {navOpen && <div className="ndt-backdrop" onClick={() => setNavOpen(false)} />}
       {/* ── rail ── */}
-      <aside className="ndt-rail">
-        <button className="ndt-brand" onClick={() => setCur("home")}>
+      <aside className={"ndt-rail" + (navOpen ? " open" : "")}>
+        <button className="ndt-brand" onClick={goHome}>
           <span className="ndt-logo">◆</span>
           <span className="ndt-brandtx"><small>Inspection Bay · {COURSE.code}</small><b>NDT Learning</b></span>
         </button>
@@ -54,7 +63,7 @@ export default function NdtBay() {
           <div className="ndt-bar"><i style={{ width: pct + "%" }} /></div>
         </div>
         <nav className="ndt-nav">
-          <button className={"ndt-home" + (cur === "home" ? " on" : "")} onClick={() => setCur("home")}><span className="ndt-home-ic">◎</span>Overview</button>
+          <button className={"ndt-home" + (cur === "home" ? " on" : "")} onClick={goHome}><span className="ndt-home-ic">◎</span>Overview</button>
           {UNITS.map((u) => {
             const open = openUnit === u.id, up = unitProgress(u);
             return (
@@ -493,5 +502,31 @@ const CSS = `
 .v-ph b{display:block;font-size:16px;margin:9px 0 7px}
 .v-ph p{font-size:12.5px;color:var(--muted);line-height:1.55}
 
-@media(max-width:880px){.ndt{grid-template-columns:1fr}.ndt-rail{display:none}.ndt-session{padding:28px 22px 70px}.ndt-home-wrap{padding:28px 22px 70px}}
+/* mobile top bar + drawer */
+.ndt-mbar{display:none;align-items:center;gap:12px;height:54px;padding:0 14px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:30}
+.ndt-hamb{display:flex;flex-direction:column;justify-content:center;gap:4px;width:38px;height:38px;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:0 9px}
+.ndt-hamb span{height:2px;background:var(--sub);border-radius:2px;display:block}
+.ndt-mbar-brand{display:flex;align-items:center;gap:8px;background:none;border:0;color:var(--ink);font-size:15px;font-weight:700}
+.ndt-mbar-brand .ndt-logo{font-size:16px}
+.ndt-mbar-prog{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--red);font-weight:700}
+.ndt-backdrop{display:none;position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.5);backdrop-filter:blur(2px)}
+
+@media(max-width:880px){
+  .ndt{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .ndt-mbar{display:flex}
+  .ndt-backdrop{display:block}
+  .ndt-rail{position:fixed;top:0;left:0;bottom:0;width:290px;max-width:86vw;z-index:50;transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 0 60px rgba(0,0,0,.5)}
+  .ndt-rail.open{transform:translateX(0)}
+  .ndt-session{padding:24px 18px 80px}
+  .ndt-home-wrap{padding:22px 18px 70px}
+  .ndt-sess-head h1{font-size:27px}
+  .ndt-hero h1{font-size:34px}
+  .ndt-hero-body{padding:24px 22px 26px}
+  .ndt-card{padding:18px}
+}
+@media(max-width:560px){
+  .v-compare-h,.v-compare-r{grid-template-columns:72px 1fr 1fr;gap:7px;padding:8px 6px;font-size:11.5px}
+  .v-row{flex-direction:column;gap:8px}
+  .v-methods{grid-template-columns:repeat(3,1fr)}
+}
 `;
