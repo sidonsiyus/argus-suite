@@ -19,15 +19,16 @@ export default function NdtBay() {
   const [openUnit, setOpenUnit] = useState(1);
   const [cur, setCur] = useState("1.1");
   const [done, setDone] = useState({});
+  const [marks, setMarks] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const mainRef = useRef(null);
 
   useEffect(() => {
-    try { const s = JSON.parse(localStorage.getItem(KEY) || "{}"); if (s.done) setDone(s.done); if (s.dark != null) setDark(s.dark); if (s.cur) setCur(s.cur); } catch (e) {}
+    try { const s = JSON.parse(localStorage.getItem(KEY) || "{}"); if (s.done) setDone(s.done); if (s.marks) setMarks(s.marks); if (s.dark != null) setDark(s.dark); if (s.cur) setCur(s.cur); } catch (e) {}
     setLoaded(true);
   }, []);
-  useEffect(() => { if (!loaded) return; try { localStorage.setItem(KEY, JSON.stringify({ done, dark, cur })); } catch (e) {} }, [done, dark, cur, loaded]);
+  useEffect(() => { if (!loaded) return; try { localStorage.setItem(KEY, JSON.stringify({ done, marks, dark, cur })); } catch (e) {} }, [done, marks, dark, cur, loaded]);
   useEffect(() => { if (mainRef.current) mainRef.current.scrollTop = 0; }, [cur]);
 
   const session = useMemo(() => ALL_SESSIONS.find((s) => s.id === cur), [cur]);
@@ -39,8 +40,10 @@ export default function NdtBay() {
   const go = useCallback((id) => { setCur(id); setNavOpen(false); const s = ALL_SESSIONS.find((x) => x.id === id); if (s) setOpenUnit(s.unitId); }, []);
   const goHome = () => { setCur("home"); setNavOpen(false); };
   const markDone = (id) => setDone((d) => ({ ...d, [id]: true }));
+  const toggleMark = (id) => setMarks((m) => ({ ...m, [id]: !m[id] }));
   const prev = () => idx > 0 && go(ALL_SESSIONS[idx - 1].id);
   const next = () => idx < ALL_SESSIONS.length - 1 && go(ALL_SESSIONS[idx + 1].id);
+  const curUnit = useMemo(() => UNITS.find((u) => u.id === (session ? session.unitId : 0)), [session]);
 
   return (
     <div className="ndt" data-theme={dark ? "dark" : "light"}>
@@ -96,7 +99,10 @@ export default function NdtBay() {
         {cur === "home" ? <Home go={go} done={done} /> : session ? (
           <SessionView key={session.id} session={session} done={!!done[session.id]}
             onDone={() => markDone(session.id)} onPrev={prev} onNext={next}
-            hasPrev={idx > 0} hasNext={idx < ALL_SESSIONS.length - 1} />
+            hasPrev={idx > 0} hasNext={idx < ALL_SESSIONS.length - 1}
+            unitDone={curUnit ? unitProgress(curUnit) : 0} unitTotal={9}
+            bookmarked={!!marks[session.id]} onBookmark={() => toggleMark(session.id)}
+            nextSession={idx < ALL_SESSIONS.length - 1 ? ALL_SESSIONS[idx + 1] : null} go={go} />
         ) : null}
       </main>
     </div>
@@ -147,126 +153,215 @@ function readMins(detail, extra) {
 }
 
 /* ── one session ── */
-function SessionView({ session, done, onDone, onPrev, onNext, hasPrev, hasNext }) {
+function useScrollSpy(ids) {
+  const [active, setActive] = useState(ids[0]);
+  useEffect(() => {
+    const root = document.querySelector(".ndt-main");
+    const els = ids.map((id) => document.getElementById(id)).filter(Boolean);
+    if (!els.length) return;
+    const io = new IntersectionObserver((entries) => {
+      const vis = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (vis[0]) setActive(vis[0].target.id);
+    }, { root, rootMargin: "-18% 0px -72% 0px", threshold: 0 });
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [ids.join(",")]); // eslint-disable-line
+  return active;
+}
+function specFor(s) {
+  const m = s.method;
+  if (/LPT/.test(m)) return [["Reach", "Surface-breaking"], ["Materials", "Any non-porous"], ["Finds", "Surface cracks & porosity"]];
+  if (/MPT/.test(m)) return [["Reach", "Surface & near-surface"], ["Materials", "Ferromagnetic only"], ["Finds", "Surface/near-surface cracks"]];
+  if (/IR/.test(m)) return [["Reach", "Sub-surface (thermal)"], ["Materials", "Most"], ["Finds", "Delaminations, hot spots"]];
+  if (/ET/.test(m)) return [["Reach", "Surface & near-surface"], ["Materials", "Conductive only"], ["Finds", "Cracks, conductivity, coatings"]];
+  if (/UT/.test(m)) return [["Reach", "Volumetric"], ["Materials", "Most solids"], ["Finds", "Internal flaws, thickness"]];
+  if (/AE/.test(m)) return [["Reach", "Whole structure"], ["Materials", "Most"], ["Finds", "Active / growing damage"]];
+  if (/RT/.test(m)) return [["Reach", "Volumetric"], ["Materials", "Most"], ["Finds", "Internal volumetric flaws"]];
+  if (/Visual/.test(m)) return [["Reach", "Surface (visible)"], ["Materials", "Any"], ["Finds", "Visible surface features"]];
+  return [["Unit", "Unit " + s.unitCode], ["Focus", m], ["Sessions", "9"]];
+}
+function Spine({ secs, active, onJump }) {
+  return (
+    <div className="ndt-spine" aria-hidden>
+      {secs.map((s) => (
+        <button key={s.id} className={"ndt-spine-dot" + (active === "sec-" + s.id ? " on" : "")} onClick={() => onJump("sec-" + s.id)} title={s.label} />
+      ))}
+    </div>
+  );
+}
+function ProgressRing({ value, max }) {
+  const pct = max ? value / max : 0, r = 26, c = 2 * Math.PI * r;
+  return (
+    <div className="ndt-ring">
+      <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r={r} className="ndt-ring-bg" /><circle cx="32" cy="32" r={r} className="ndt-ring-fg" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} transform="rotate(-90 32 32)" /></svg>
+      <div className="ndt-ring-tx"><b>{value}</b><span>/ {max}</span></div>
+    </div>
+  );
+}
+function Notes({ id }) {
+  const nk = "ndt_notes_" + id;
+  const [v, setV] = useState("");
+  useEffect(() => { try { setV(localStorage.getItem(nk) || ""); } catch (e) { setV(""); } }, [nk]);
+  const save = (t) => { setV(t); try { localStorage.setItem(nk, t); } catch (e) {} };
+  return (
+    <div className="ndt-side-card">
+      <div className="ndt-side-k">My notes</div>
+      <textarea className="ndt-notes" value={v} onChange={(e) => save(e.target.value)} placeholder="Jot anything for this session… (saved on this device)" />
+    </div>
+  );
+}
+function SidePanel({ session, secs, active, onJump, unitDone, unitTotal, done, onDone, bookmarked, onBookmark, nextSession, go }) {
+  return (
+    <aside className="ndt-side">
+      <div className="ndt-side-card ndt-otp-card">
+        <div className="ndt-side-k">On this page</div>
+        <nav className="ndt-otp">
+          {secs.map((s) => (
+            <button key={s.id} className={"ndt-otp-i" + (active === "sec-" + s.id ? " on" : "")} onClick={() => onJump("sec-" + s.id)}>{s.label}</button>
+          ))}
+        </nav>
+      </div>
+      <div className="ndt-side-card ndt-action">
+        <div className="ndt-action-top"><ProgressRing value={unitDone} max={unitTotal} /><div className="ndt-action-lbl"><b>Unit {session.unitCode}</b><span>{unitDone}/{unitTotal} sessions</span></div></div>
+        <button className={"ndt-side-btn primary" + (done ? " is" : "")} onClick={onDone} disabled={done}>{done ? "✓ Completed" : "Mark complete"}</button>
+        <button className={"ndt-side-btn" + (bookmarked ? " on" : "")} onClick={onBookmark}>{bookmarked ? "★ Bookmarked" : "☆ Bookmark"}</button>
+        {nextSession && <button className="ndt-nextup" onClick={() => go(nextSession.id)}><span>Next up</span><b>{nextSession.title}</b><em>→</em></button>}
+      </div>
+      <div className="ndt-side-card">
+        <div className="ndt-side-k">Quick spec · {session.method}</div>
+        <div className="ndt-spec">{specFor(session).map(([k, v]) => <div key={k} className="ndt-spec-row"><span>{k}</span><b>{v}</b></div>)}</div>
+      </div>
+      <Notes id={session.id} />
+    </aside>
+  );
+}
+
+function SessionView({ session, done, onDone, onPrev, onNext, hasPrev, hasNext, unitDone, unitTotal, bookmarked, onBookmark, nextSession, go }) {
   const videos = VIDEOS[session.id] || [];
   const quiz = QUIZ[session.id] || [];
   const detail = DETAIL[session.id];
   const extra = EXTRA[session.id];
-  const a = session.accent;
+  const secs = [
+    { id: "interactive", label: "Interactive" },
+    { id: "lesson", label: "In detail" },
+    ...(extra?.deepDives ? [{ id: "deepdive", label: "Deep dive" }] : []),
+    ...(extra?.myth ? [{ id: "myth", label: "Myth or fact" }] : []),
+    { id: "video", label: "Video" },
+    ...(detail?.keyTerms ? [{ id: "glossary", label: "Key terms" }] : []),
+    ...(extra?.caseStudy ? [{ id: "case", label: "Case file" }] : []),
+    ...(detail?.applications ? [{ id: "applications", label: "Applications" }] : []),
+    ...(detail?.takeaways ? [{ id: "takeaways", label: "Takeaways" }] : []),
+    ...(quiz.length ? [{ id: "quiz", label: "Check" }] : []),
+  ];
+  const active = useScrollSpy(secs.map((s) => "sec-" + s.id));
+  const jump = (id) => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); };
   return (
-    <article className="ndt-session" style={{ "--uc": session.accent, "--uc2": session.accent2 }}>
-      <header className="ndt-sess-head">
-        <span className="ndt-sess-wm" aria-hidden>{session.unitCode}.{session.n}</span>
-        <span className="ndt-sess-crumb">Unit {session.unitCode} · {session.unitTitle}<b>· {session.method}</b></span>
-        <h1>{session.title}</h1>
-        <p className="ndt-lead">{detail?.overview || session.summary}</p>
-        <div className="ndt-meta">
-          <span className="ndt-chip red">{session.method}</span>
-          <span className="ndt-chip">Session {session.n} of 9</span>
-          {detail && <span className="ndt-chip">◷ ~{readMins(detail, extra)} min read</span>}
-          {extra?.caseStudy && <span className="ndt-chip">▦ Case study</span>}
-          {done && <span className="ndt-chip ok">✓ Complete</span>}
-        </div>
-      </header>
-
-      {/* interactive */}
-      <section className="ndt-card ndt-console">
-        <div className="ndt-card-h"><span className="ndt-k">Interactive</span><h2>Explore it</h2></div>
-        <Visual session={session} accent="#f0454a" accent2="#ff8f52" />
-      </section>
-
-      {/* detailed lesson */}
-      {detail ? (
-        <section className="ndt-card ndt-lesson">
-          <div className="ndt-card-h stripe"><span className="ndt-k">Lesson</span><h2>In detail</h2></div>
-          {detail.sections.map((s, i) => (
-            <div key={i} className="ndt-lsec">
-              <h3><span className="ndt-lsec-n">{String(i + 1).padStart(2, "0")}</span>{s.h}</h3>
-              <p>{s.p}</p>
-              {s.list && <ul className="ndt-llist">{s.list.map((li, j) => <li key={j}>{li}</li>)}</ul>}
-            </div>
-          ))}
-        </section>
-      ) : (
-        <section className="ndt-card">
-          <div className="ndt-card-h stripe"><span className="ndt-k">Lesson</span><h2>Teaching points</h2></div>
-          <div className="ndt-points">
-            {session.points.map((p, i) => (
-              <div key={i} className="ndt-point"><span className="ndt-point-n">{i + 1}</span><div><b>{p.t}</b><p>{p.d}</p></div></div>
-            ))}
+    <div className="ndt-sesswrap" style={{ "--uc": session.accent, "--uc2": session.accent2 }}>
+      <Spine secs={secs} active={active} onJump={jump} />
+      <article className="ndt-session">
+        <header className="ndt-sess-head">
+          <span className="ndt-sess-wm" aria-hidden>{session.unitCode}.{session.n}</span>
+          <span className="ndt-sess-crumb">Unit {session.unitCode} · {session.unitTitle}<b>· {session.method}</b></span>
+          <h1>{session.title}</h1>
+          <p className="ndt-lead">{detail?.overview || session.summary}</p>
+          <div className="ndt-meta">
+            <span className="ndt-chip red">{session.method}</span>
+            <span className="ndt-chip">Session {session.n} of 9</span>
+            {detail && <span className="ndt-chip">◷ ~{readMins(detail, extra)} min read</span>}
+            {extra?.caseStudy && <span className="ndt-chip">▦ Case study</span>}
+            {done && <span className="ndt-chip ok">✓ Complete</span>}
           </div>
+        </header>
+
+        <section id="sec-interactive" className="ndt-card ndt-console">
+          <div className="ndt-card-h"><span className="ndt-k">Interactive</span><h2>Explore it</h2></div>
+          <Visual session={session} accent="#f0454a" accent2="#ff8f52" />
         </section>
-      )}
 
-      {/* deep dive accordion */}
-      {extra?.deepDives && (
-        <section className="ndt-card">
-          <div className="ndt-card-h"><span className="ndt-k">Go deeper</span><h2>Deep dive</h2></div>
-          <DeepDives items={extra.deepDives} />
-        </section>
-      )}
-
-      {/* myth vs fact interactive */}
-      {extra?.myth && <MythFact myth={extra.myth} />}
-
-      {/* video(s) */}
-      <section className="ndt-card">
-        <div className="ndt-card-h"><span className="ndt-k">Watch</span><h2>Video{videos.length > 1 ? "s" : ""}</h2></div>
-        {videos.length ? (
-          <div className="ndt-videos">
-            {videos.map((v) => (
-              <div key={v.id} className="ndt-vid">
-                <div className="ndt-vid-frame"><iframe src={`https://www.youtube.com/embed/${v.id}`} title={v.title} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div>
-                <span className="ndt-vid-t">{v.title}</span>
+        {detail ? (
+          <section id="sec-lesson" className="ndt-card ndt-lesson">
+            <div className="ndt-card-h stripe"><span className="ndt-k">Lesson</span><h2>In detail</h2></div>
+            {detail.sections.map((s, i) => (
+              <div key={i} className="ndt-lsec">
+                <h3><span className="ndt-lsec-n">{String(i + 1).padStart(2, "0")}</span>{s.h}</h3>
+                <p>{s.p}</p>
+                {s.list && <ul className="ndt-llist">{s.list.map((li, j) => <li key={j}>{li}</li>)}</ul>}
               </div>
             ))}
-          </div>
+          </section>
         ) : (
-          <a className="ndt-vid-soon" href={yt(session.title)} target="_blank" rel="noopener noreferrer">
-            <span className="pl">▶</span><span>Curated video coming — <b>search “{session.title}” on YouTube</b> ↗</span>
-          </a>
+          <section id="sec-lesson" className="ndt-card">
+            <div className="ndt-card-h stripe"><span className="ndt-k">Lesson</span><h2>Teaching points</h2></div>
+            <div className="ndt-points">
+              {session.points.map((p, i) => (
+                <div key={i} className="ndt-point"><span className="ndt-point-n">{i + 1}</span><div><b>{p.t}</b><p>{p.d}</p></div></div>
+              ))}
+            </div>
+          </section>
         )}
-      </section>
 
-      {/* key terms — interactive flip cards */}
-      {detail?.keyTerms && (
-        <section className="ndt-card">
-          <div className="ndt-card-h"><span className="ndt-k">Glossary</span><h2>Key terms</h2><span className="ndt-hint">tap a card to flip</span></div>
-          <div className="ndt-terms">
-            {detail.keyTerms.map((t, i) => <FlipTerm key={i} term={t.t} def={t.d} />)}
-          </div>
+        {extra?.deepDives && (
+          <section id="sec-deepdive" className="ndt-card">
+            <div className="ndt-card-h"><span className="ndt-k">Go deeper</span><h2>Deep dive</h2></div>
+            <DeepDives items={extra.deepDives} />
+          </section>
+        )}
+
+        {extra?.myth && <div id="sec-myth"><MythFact myth={extra.myth} /></div>}
+
+        <section id="sec-video" className="ndt-card">
+          <div className="ndt-card-h"><span className="ndt-k">Watch</span><h2>Video{videos.length > 1 ? "s" : ""}</h2></div>
+          {videos.length ? (
+            <div className="ndt-videos">
+              {videos.map((v) => (
+                <div key={v.id} className="ndt-vid">
+                  <div className="ndt-vid-frame"><iframe src={`https://www.youtube.com/embed/${v.id}`} title={v.title} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen /></div>
+                  <span className="ndt-vid-t">{v.title}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <a className="ndt-vid-soon" href={yt(session.title)} target="_blank" rel="noopener noreferrer">
+              <span className="pl">▶</span><span>Curated video coming — <b>search “{session.title}” on YouTube</b> ↗</span>
+            </a>
+          )}
         </section>
-      )}
 
-      {/* case file */}
-      {extra?.caseStudy && <CaseStudy c={extra.caseStudy} />}
+        {detail?.keyTerms && (
+          <section id="sec-glossary" className="ndt-card">
+            <div className="ndt-card-h"><span className="ndt-k">Glossary</span><h2>Key terms</h2><span className="ndt-hint">tap a card to flip</span></div>
+            <div className="ndt-terms">
+              {detail.keyTerms.map((t, i) => <FlipTerm key={i} term={t.t} def={t.d} />)}
+            </div>
+          </section>
+        )}
 
-      {/* applications */}
-      {detail?.applications && (
-        <section className="ndt-card">
-          <div className="ndt-card-h"><span className="ndt-k">In service</span><h2>Aviation applications</h2></div>
-          <ul className="ndt-apps">{detail.applications.map((x, i) => <li key={i}><span className="ndt-app-m">✈</span>{x}</li>)}</ul>
-        </section>
-      )}
+        {extra?.caseStudy && <div id="sec-case"><CaseStudy c={extra.caseStudy} /></div>}
 
-      {/* takeaways */}
-      {detail?.takeaways && (
-        <section className="ndt-card ndt-takeaways">
-          <div className="ndt-card-h stripe"><span className="ndt-k">Remember</span><h2>Key takeaways</h2></div>
-          <ul>{detail.takeaways.map((x, i) => <li key={i}><span className="tk">✓</span>{x}</li>)}</ul>
-        </section>
-      )}
+        {detail?.applications && (
+          <section id="sec-applications" className="ndt-card">
+            <div className="ndt-card-h"><span className="ndt-k">In service</span><h2>Aviation applications</h2></div>
+            <ul className="ndt-apps">{detail.applications.map((x, i) => <li key={i}><span className="ndt-app-m">✈</span>{x}</li>)}</ul>
+          </section>
+        )}
 
-      {/* quiz */}
-      {quiz.length > 0 && <Quiz key={session.id} quiz={quiz} onPass={onDone} />}
+        {detail?.takeaways && (
+          <section id="sec-takeaways" className="ndt-card ndt-takeaways">
+            <div className="ndt-card-h stripe"><span className="ndt-k">Remember</span><h2>Key takeaways</h2></div>
+            <ul>{detail.takeaways.map((x, i) => <li key={i}><span className="tk">✓</span>{x}</li>)}</ul>
+          </section>
+        )}
 
-      {/* footer nav */}
-      <div className="ndt-sess-foot">
-        <button className="ndt-navbtn" onClick={onPrev} disabled={!hasPrev}>← Previous</button>
-        <button className={"ndt-navbtn done" + (done ? " is" : "")} onClick={onDone} disabled={done}>{done ? "✓ Completed" : "Mark complete"}</button>
-        <button className="ndt-navbtn" onClick={onNext} disabled={!hasNext}>Next →</button>
-      </div>
-    </article>
+        {quiz.length > 0 && <div id="sec-quiz"><Quiz key={session.id} quiz={quiz} onPass={onDone} /></div>}
+
+        <div className="ndt-sess-foot">
+          <button className="ndt-navbtn" onClick={onPrev} disabled={!hasPrev}>← Previous</button>
+          <button className={"ndt-navbtn done" + (done ? " is" : "")} onClick={onDone} disabled={done}>{done ? "✓ Completed" : "Mark complete"}</button>
+          <button className="ndt-navbtn" onClick={onNext} disabled={!hasNext}>Next →</button>
+        </div>
+      </article>
+      <SidePanel session={session} secs={secs} active={active} onJump={jump} unitDone={unitDone} unitTotal={unitTotal} done={done} onDone={onDone} bookmarked={bookmarked} onBookmark={onBookmark} nextSession={nextSession} go={go} />
+    </div>
   );
 }
 
@@ -478,9 +573,53 @@ const CSS = `
 .ndt-uc-tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
 .ndt-uc-prog{font-family:var(--mono);font-size:11px;color:var(--sub);font-weight:600}
 
-/* session */
-.ndt-session{max-width:820px;margin:0 auto;padding:38px 42px 90px;position:relative}
+/* session — 3-column layout: spine · article · side panel */
+.ndt-sesswrap{display:grid;grid-template-columns:30px minmax(0,760px) 296px;gap:26px;justify-content:center;max-width:1240px;margin:0 auto;padding:36px 30px 90px;align-items:start}
+.ndt-session{position:relative;min-width:0}
 .ndt-sess-head{margin-bottom:24px;position:relative}
+/* left spine */
+.ndt-spine{position:sticky;top:40px;display:flex;flex-direction:column;gap:14px;align-items:center;padding-top:120px}
+.ndt-spine::before{content:"";position:absolute;top:120px;bottom:8px;left:50%;width:1px;background:var(--line);transform:translateX(-.5px)}
+.ndt-spine-dot{position:relative;width:9px;height:9px;border-radius:50%;background:var(--line2);border:0;padding:0;transition:.15s}
+.ndt-spine-dot:hover{background:var(--muted);transform:scale(1.25)}
+.ndt-spine-dot.on{background:var(--red);box-shadow:0 0 0 4px var(--red-soft)}
+/* right side panel */
+.ndt-side{position:sticky;top:28px;display:flex;flex-direction:column;gap:14px}
+.ndt-side-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+.ndt-side-k{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);font-weight:700;margin-bottom:11px}
+.ndt-otp{display:flex;flex-direction:column;gap:1px}
+.ndt-otp-i{position:relative;text-align:left;background:none;border:0;padding:7px 10px 7px 16px;font-size:12.5px;color:var(--muted);border-radius:7px;font-weight:500}
+.ndt-otp-i:hover{background:var(--panel2);color:var(--ink)}
+.ndt-otp-i.on{color:var(--ink);font-weight:600}
+.ndt-otp-i.on::before{content:"";position:absolute;left:4px;top:8px;bottom:8px;width:3px;background:var(--red);border-radius:2px}
+.ndt-action-top{display:flex;align-items:center;gap:13px;margin-bottom:13px}
+.ndt-ring{position:relative;width:52px;height:52px;flex:none}
+.ndt-ring svg{width:52px;height:52px}
+.ndt-ring-bg{fill:none;stroke:var(--panel2);stroke-width:6}
+.ndt-ring-fg{fill:none;stroke:var(--red);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .5s}
+.ndt-ring-tx{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:1px;font-family:var(--mono)}
+.ndt-ring-tx b{font-size:15px;color:var(--ink)}
+.ndt-ring-tx span{font-size:8px;color:var(--faint)}
+.ndt-action-lbl b{display:block;font-size:13px;font-weight:700}
+.ndt-action-lbl span{font-size:11px;color:var(--muted)}
+.ndt-side-btn{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px;font-size:12.5px;font-weight:600;color:var(--sub);margin-top:8px}
+.ndt-side-btn:hover:not(:disabled){border-color:var(--line2);color:var(--ink)}
+.ndt-side-btn.primary{background:var(--grad);color:#fff;border-color:transparent;margin-top:0}
+.ndt-side-btn.primary.is,.ndt-side-btn.primary:disabled{background:#3fae5a;opacity:1}
+.ndt-side-btn.on{color:var(--red);border-color:var(--red-soft)}
+.ndt-nextup{width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:8px;position:relative}
+.ndt-nextup:hover{border-color:var(--red)}
+.ndt-nextup span{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.ndt-nextup b{display:block;font-size:12.5px;color:var(--ink);margin-top:2px;padding-right:14px;line-height:1.3}
+.ndt-nextup em{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--red);font-style:normal}
+.ndt-spec{display:flex;flex-direction:column;gap:8px}
+.ndt-spec-row{display:flex;justify-content:space-between;gap:10px;font-size:12px}
+.ndt-spec-row span{color:var(--muted)}
+.ndt-spec-row b{color:var(--ink);font-weight:600;text-align:right}
+.ndt-notes{width:100%;min-height:86px;resize:vertical;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px;font-size:12.5px;font-family:var(--font);color:var(--ink);line-height:1.5}
+.ndt-notes:focus{outline:none;border-color:var(--red)}
+@media(max-width:1180px){.ndt-sesswrap{grid-template-columns:minmax(0,760px) 288px;max-width:1080px}.ndt-spine{display:none}}
+@media(max-width:1000px){.ndt-sesswrap{grid-template-columns:minmax(0,820px)}.ndt-side{display:none}}
 .ndt-sess-wm{position:absolute;top:-18px;right:-8px;font-family:var(--mono);font-size:96px;font-weight:800;line-height:1;color:var(--red);opacity:.06;letter-spacing:-.04em;pointer-events:none;user-select:none}
 .ndt-sess-crumb{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .ndt-chip.ok{color:#3fae5a;border-color:rgba(63,174,90,.3);background:rgba(63,174,90,.1)}
@@ -719,7 +858,7 @@ const CSS = `
   .ndt-backdrop{display:block}
   .ndt-rail{position:fixed;top:0;left:0;bottom:0;width:290px;max-width:86vw;z-index:50;transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 0 60px rgba(0,0,0,.5)}
   .ndt-rail.open{transform:translateX(0)}
-  .ndt-session{padding:24px 18px 80px}
+  .ndt-sesswrap{padding:24px 18px 80px;gap:0}
   .ndt-home-wrap{padding:22px 18px 70px}
   .ndt-sess-head h1{font-size:27px}
   .ndt-hero h1{font-size:34px}
