@@ -343,6 +343,265 @@ function MaterialProps({ accent }) {
   );
 }
 
+/* ══════════════ 2.1 · Capillary action ══════════════ */
+function LptIntro({ accent }) {
+  const [clean, setClean] = useState(true);
+  return (
+    <div>
+      <Seg accent={accent} value={clean ? "clean" : "dirty"} onChange={(v) => setClean(v === "clean")}
+        options={[{ v: "clean", label: "Clean surface" }, { v: "dirty", label: "Contaminated" }]} />
+      <VStage label={clean ? "On a clean surface, capillary action pulls penetrant deep into the crack — it will bleed back out to reveal the flaw." : "Oil, rust or paint blocks the crack opening — capillary action is stopped and the flaw stays invisible."}>
+        <svg viewBox="0 0 200 130" className="v-svg" style={{ maxWidth: 340 }}>
+          <rect x="10" y="46" width="180" height="76" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          {/* crack — a narrow V into the block */}
+          <path d="M 96 46 L 100 46 L 99 104 L 97 104 Z" fill="#0f172a" />
+          {/* penetrant that has entered (animated by height) */}
+          <rect x="96.5" y="48" rx="0" width="3" fill={accent}
+            style={{ height: clean ? 54 : 0, transition: "height 1.4s ease" }} />
+          {/* dye applied on the surface */}
+          <rect x="60" y="42" width="80" height="5" rx="2.5" fill={accent} opacity="0.9" />
+          {/* contamination film blocking the opening */}
+          {!clean && <rect x="88" y="43" width="24" height="4" rx="2" fill="#7c6f66" />}
+          <text x="100" y="118" textAnchor="middle" fontSize="7" fill="#94a3b8">surface-breaking crack</text>
+          <text x="150" y="40" textAnchor="middle" fontSize="7.5" fill={accent}>penetrant</text>
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: clean ? accent : "#b91c1c", fontWeight: 700 }}>{clean ? "✓ Penetrant enters the flaw" : "✗ Flaw blocked — a missed crack"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 2.2 · Penetrant type & sensitivity ══════════════ */
+function PenetrantProps({ accent }) {
+  const [dye, setDye] = useState("fluor");
+  const [rem, setRem] = useState("solvent");
+  const sens = (dye === "fluor" ? 2 : 1) + (rem === "post" ? 2 : rem === "solvent" ? 1 : 0);
+  const bars = Math.min(5, sens + 1);
+  return (
+    <div>
+      <Seg accent={accent} value={dye} onChange={setDye} options={[{ v: "visible", label: "Visible dye" }, { v: "fluor", label: "Fluorescent" }]} />
+      <div style={{ height: 6 }} />
+      <Seg accent={accent} value={rem} onChange={setRem} options={[{ v: "water", label: "Water-washable" }, { v: "solvent", label: "Solvent" }, { v: "post", label: "Post-emulsifiable" }]} />
+      <VStage label={dye === "fluor" ? "Fluorescent penetrant glows yellow-green under UV in a dark booth — the highest contrast and sensitivity." : "Visible red dye is read under ordinary white light — simple and portable, lower sensitivity."}>
+        <svg viewBox="0 0 220 90" className="v-svg" style={{ maxWidth: 320 }}>
+          <rect x="10" y="10" width="200" height="70" rx="4" fill={dye === "fluor" ? "#0b1020" : "#e7ecf2"} stroke="#64748b" />
+          {[[70, 34], [120, 50], [150, 30], [95, 60]].map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r={3.5 - i * 0.3} fill={dye === "fluor" ? "#a3ff3c" : "#d21f26"} style={{ filter: dye === "fluor" ? "drop-shadow(0 0 4px #a3ff3c)" : "none" }} />
+          ))}
+          <path d="M 60 26 L 90 66" stroke={dye === "fluor" ? "#a3ff3c" : "#d21f26"} strokeWidth="1.6" style={{ filter: dye === "fluor" ? "drop-shadow(0 0 3px #a3ff3c)" : "none" }} />
+          <text x="110" y="87" textAnchor="middle" fontSize="7" fill="#94a3b8">{dye === "fluor" ? "under UV (black) light" : "under white light"}</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Sensitivity</span><div className="v-meter">{[0, 1, 2, 3, 4].map((i) => <i key={i} style={{ background: i < bars ? accent : undefined }} />)}</div><b>{["low", "low", "med", "high", "v.high", "ultra"][bars]}</b></div>
+    </div>
+  );
+}
+
+/* ══════════════ 2.3 · Developer bleed-out ══════════════ */
+function Developer({ accent }) {
+  const [t, setT] = useState(30);
+  const r = 2 + (t / 100) * 16; // indication grows with developing time
+  return (
+    <div>
+      <VStage label={`Developing time ${t}%: the developer wicks trapped penetrant back out and spreads it into a visible indication — several times wider than the crack itself.`}>
+        <svg viewBox="0 0 200 110" className="v-svg" style={{ maxWidth: 340 }}>
+          <rect x="10" y="20" width="180" height="80" rx="3" fill="#f8fafc" stroke="#94a3b8" />
+          <text x="100" y="15" textAnchor="middle" fontSize="7.5" fill="#94a3b8">white developer coat</text>
+          {/* buried crack */}
+          <line x1="100" y1="55" x2="100" y2="80" stroke="#334155" strokeWidth="1" strokeDasharray="2 2" />
+          {/* bleed-out indication */}
+          <ellipse cx="100" cy="60" rx={r} ry={r * 0.6} fill={accent} opacity="0.85" />
+          <ellipse cx="100" cy="60" rx={r * 1.5} ry={r * 0.9} fill={accent} opacity="0.18" />
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Developing time</span><input type="range" min="0" max="100" value={t} onChange={(e) => setT(+e.target.value)} style={{ accentColor: accent }} /><b>{t}%</b></div>
+      <div className="v-tagline"><span style={{ color: t < 25 ? "#b91c1c" : accent, fontWeight: 700 }}>{t < 25 ? "Too little time — weak, easy to miss" : t > 85 ? "Fully developed — clear indication" : "Bleeding out…"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 2.4 · Will LPT work? ══════════════ */
+const LPT_CASES = [
+  { id: "a", label: "Surface crack in aluminium", ok: true, why: "Surface-breaking + non-porous → LPT works (and MT can't, being non-magnetic)." },
+  { id: "b", label: "Internal porosity in a casting", ok: false, why: "Internal, doesn't break the surface → invisible to LPT. Use RT or UT." },
+  { id: "c", label: "Crack in a porous casting", ok: false, why: "Porous material soaks up penetrant everywhere, masking the flaw." },
+  { id: "d", label: "Crack on a very rough weld", ok: false, why: "Roughness traps penetrant and creates false indications — clean/grind first." },
+  { id: "e", label: "Fatigue crack on a machined shaft", ok: true, why: "Smooth, non-porous, surface-breaking → an ideal LPT job." },
+];
+function LptProsCons({ accent }) {
+  const [sel, setSel] = useState("a");
+  const c = LPT_CASES.find((x) => x.id === sel);
+  return (
+    <div>
+      <div className="v-chips">
+        {LPT_CASES.map((x) => <button key={x.id} className={"v-chip" + (sel === x.id ? " on" : "")} onClick={() => setSel(x.id)} style={sel === x.id ? { borderColor: accent, color: accent } : undefined}>{x.label}</button>)}
+      </div>
+      <VStage label={c.why}>
+        <div className="v-verdict" style={{ borderColor: (c.ok ? "#3fae5a" : "#b91c1c") + "66" }}>
+          <span className="v-verdict-ic" style={{ color: c.ok ? "#3fae5a" : "#b91c1c" }}>{c.ok ? "✓" : "✗"}</span>
+          <b style={{ color: c.ok ? "#3fae5a" : "#b91c1c" }}>{c.ok ? "LPT will find it" : "LPT won't find it"}</b>
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.5 · The six-step LPT procedure ══════════════ */
+const LPT_STEPS = [
+  { n: "Pre-clean", d: "Remove oil, rust and paint so the flaw is open and dry." },
+  { n: "Apply penetrant", d: "Coat the surface evenly with penetrant." },
+  { n: "Dwell", d: "Wait — capillary action pulls penetrant into the flaw." },
+  { n: "Remove excess", d: "Wipe/rinse the surface, leaving penetrant only in the flaw." },
+  { n: "Develop", d: "Apply a thin white developer that wicks penetrant back out." },
+  { n: "Inspect", d: "Read the indication under the correct light." },
+];
+function LptProcedure({ accent }) {
+  const [step, setStep] = useState(0);
+  const s = step;
+  return (
+    <div>
+      <div className="v-steps">
+        {LPT_STEPS.map((x, i) => <button key={i} className={"v-step" + (i === s ? " on" : "") + (i < s ? " done" : "")} onClick={() => setStep(i)} style={i === s ? { borderColor: accent, color: accent } : undefined}><b>{i + 1}</b>{x.n}</button>)}
+      </div>
+      <VStage label={`Step ${s + 1} — ${LPT_STEPS[s].n}: ${LPT_STEPS[s].d}`}>
+        <svg viewBox="0 0 200 110" className="v-svg" style={{ maxWidth: 340 }}>
+          {/* base part, cleaner as step advances */}
+          <rect x="10" y="30" width="180" height="70" rx="3" fill={s === 4 || s === 5 ? "#f8fafc" : "#cbd5e1"} stroke="#64748b" />
+          {s === 0 && [[40, 45], [150, 55], [90, 70]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3" fill="#7c6f66" opacity="0.7" />)}
+          {/* crack */}
+          <line x1="100" y1="30" x2="100" y2="72" stroke="#334155" strokeWidth={s >= 4 ? 1 : 1.4} strokeDasharray={s >= 4 ? "2 2" : "0"} />
+          {/* penetrant on surface (steps 1-2) */}
+          {(s === 1 || s === 2) && <rect x="20" y="26" width="160" height="6" rx="3" fill={accent} opacity="0.85" />}
+          {/* penetrant in crack (steps 2+) */}
+          {s >= 2 && <rect x="98.5" y="32" width="3" height={s >= 4 ? 30 : 38} fill={accent} />}
+          {/* developer coat (steps 4-5) */}
+          {(s === 4 || s === 5) && <rect x="10" y="30" width="180" height="6" rx="2" fill="#ffffff" opacity="0.9" />}
+          {/* indication bleed-out (step 5) */}
+          {s === 5 && <ellipse cx="100" cy="40" rx="10" ry="6" fill={accent} />}
+          <text x="100" y="107" textAnchor="middle" fontSize="7" fill="#94a3b8">{LPT_STEPS[s].n}</text>
+        </svg>
+      </VStage>
+      <div className="v-stepnav">
+        <button className="v-navb" onClick={() => setStep((v) => Math.max(0, v - 1))} disabled={s === 0}>← Back</button>
+        <span>{s + 1} / 6</span>
+        <button className="v-navb" onClick={() => setStep((v) => Math.min(5, v + 1))} disabled={s === 5} style={{ borderColor: accent, color: accent }}>Next →</button>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════ 2.6 · Magnetic flux leakage ══════════════ */
+function MptIntro({ accent }) {
+  const [crack, setCrack] = useState(true);
+  return (
+    <div>
+      <Seg accent={accent} value={crack ? "on" : "off"} onChange={(v) => setCrack(v === "on")}
+        options={[{ v: "off", label: "No flaw" }, { v: "on", label: "Crack present" }]} />
+      <VStage label={crack ? "A crack interrupts the magnetic flux, forcing a leakage field out of the surface. Magnetic particles gather at the leakage field, drawing a visible line over the flaw." : "With no flaw, the magnetic flux flows smoothly through the bar and nothing shows on the surface."}>
+        <svg viewBox="0 0 240 120" className="v-svg" style={{ maxWidth: 380 }}>
+          <rect x="20" y="50" width="200" height="34" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          <text x="30" y="72" fontSize="12" fill="#b91c1c" fontWeight="700">N</text>
+          <text x="205" y="72" fontSize="12" fill="#1d4ed8" fontWeight="700">S</text>
+          {/* internal flux lines */}
+          {[60, 67, 74].map((y) => <line key={y} x1="42" y1={y} x2="198" y2={y} stroke={accent} strokeWidth="1" opacity="0.5" />)}
+          {crack && <>
+            {/* crack */}
+            <line x1="120" y1="50" x2="120" y2="74" stroke="#0f172a" strokeWidth="2.5" />
+            {/* leakage field arcs above the crack */}
+            {[8, 14, 20].map((r, i) => <path key={i} d={`M ${120 - r} 50 A ${r} ${r} 0 0 1 ${120 + r} 50`} fill="none" stroke={accent} strokeWidth="1.2" opacity={0.8 - i * 0.2} />)}
+            {/* particles gathering */}
+            {[-3, 0, 3, -6, 6, 0].map((dx, i) => <circle key={i} cx={120 + dx} cy={46 - (i % 3) * 3} r="1.8" fill="#3a2e29" />)}
+            <text x="120" y="30" textAnchor="middle" fontSize="7.5" fill={accent}>leakage field + particles</text>
+          </>}
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: crack ? accent : "var(--muted)", fontWeight: 700 }}>{crack ? "✓ Flaw revealed by gathered particles" : "Flux flows uninterrupted — nothing to see"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 2.7 · Field direction vs flaw orientation ══════════════ */
+function Magnetization({ accent }) {
+  const [method, setMethod] = useState("yoke");
+  const yoke = method === "yoke"; // longitudinal field (horizontal) finds transverse cracks
+  return (
+    <div>
+      <Seg accent={accent} value={method} onChange={setMethod}
+        options={[{ v: "yoke", label: "Yoke — longitudinal field" }, { v: "coil", label: "Coil — axial field" }, { v: "direct", label: "Direct — circular field" }]} />
+      <VStage label={yoke ? "A yoke drives a longitudinal field between its poles — it reveals cracks that lie TRANSVERSE (across) the field. A crack parallel to the field is missed." : method === "coil" ? "A coil around the part gives an axial field — ideal for transverse cracks in long parts like shafts and bars." : "Direct magnetization (current through the part) gives a circular field around the current path — it reveals LONGITUDINAL cracks."}>
+        <svg viewBox="0 0 240 120" className="v-svg" style={{ maxWidth: 380 }}>
+          <rect x="30" y="46" width="180" height="34" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          {/* field direction arrow */}
+          {method === "direct"
+            ? <g><ellipse cx="120" cy="63" rx="60" ry="20" fill="none" stroke={accent} strokeWidth="1.4" strokeDasharray="4 3" /><text x="120" y="40" textAnchor="middle" fontSize="7.5" fill={accent}>circular field</text></g>
+            : <g><line x1="40" y1="63" x2="200" y2="63" stroke={accent} strokeWidth="1.4" /><polygon points="200,63 192,59 192,67" fill={accent} /><text x="120" y="40" textAnchor="middle" fontSize="7.5" fill={accent}>{method === "coil" ? "axial field" : "longitudinal field"}</text></g>}
+          {/* cracks: one transverse, one longitudinal — highlight the detected one */}
+          <line x1="90" y1="48" x2="90" y2="78" stroke={method !== "direct" ? "#22c55e" : "#94a3b8"} strokeWidth={method !== "direct" ? 3 : 1.5} />
+          <line x1="130" y1="63" x2="165" y2="63" stroke={method === "direct" ? "#22c55e" : "#94a3b8"} strokeWidth={method === "direct" ? 3 : 1.5} />
+          <text x="90" y="92" textAnchor="middle" fontSize="6.5" fill={method !== "direct" ? "#22c55e" : "#94a3b8"}>transverse</text>
+          <text x="147" y="92" textAnchor="middle" fontSize="6.5" fill={method === "direct" ? "#22c55e" : "#94a3b8"}>longitudinal</text>
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: "#22c55e", fontWeight: 700 }}>Detects the {method === "direct" ? "longitudinal" : "transverse"} crack · the parallel one is missed</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 2.8 · Magnetic particle media ══════════════ */
+function MptParticles({ accent }) {
+  const [wet, setWet] = useState(true);
+  const [fluor, setFluor] = useState(true);
+  const pc = fluor ? "#a3ff3c" : "#3a2e29";
+  return (
+    <div>
+      <Seg accent={accent} value={wet ? "wet" : "dry"} onChange={(v) => setWet(v === "wet")} options={[{ v: "dry", label: "Dry powder" }, { v: "wet", label: "Wet suspension" }]} />
+      <div style={{ height: 6 }} />
+      <Seg accent={accent} value={fluor ? "f" : "v"} onChange={(v) => setFluor(v === "f")} options={[{ v: "v", label: "Visible" }, { v: "f", label: "Fluorescent (UV)" }]} />
+      <VStage label={`${wet ? "Wet suspension carries particles into the finest flaws — higher sensitivity" : "Dry powder suits rough surfaces and field work"} · ${fluor ? "fluorescent particles glow under UV for the highest contrast" : "visible particles are read under white light"}.`}>
+        <svg viewBox="0 0 220 96" className="v-svg" style={{ maxWidth: 340 }}>
+          <rect x="10" y="30" width="200" height="50" rx="3" fill={fluor ? "#0b1020" : "#cbd5e1"} stroke="#64748b" />
+          <line x1="110" y1="30" x2="110" y2="70" stroke="#334155" strokeWidth="2" />
+          {/* particle build-up over the crack — denser when wet */}
+          {Array.from({ length: wet ? 26 : 14 }).map((_, i) => {
+            const dx = (Math.sin(i * 2.3) * (wet ? 5 : 8)); const dy = (i % 6) * 3 - 8;
+            return <circle key={i} cx={110 + dx} cy={40 + dy} r={wet ? 1.3 : 1.8} fill={pc} style={fluor ? { filter: "drop-shadow(0 0 2px #a3ff3c)" } : undefined} />;
+          })}
+          <text x="110" y="90" textAnchor="middle" fontSize="7" fill="#94a3b8">particles gather at the leakage field</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.9 · Demagnetization ══════════════ */
+function Demag({ accent }) {
+  const [cyc, setCyc] = useState(0);
+  const residual = Math.round(100 * Math.exp(-cyc / 3)); // decays with cycles
+  const W = 280, H = 90, mid = 45;
+  // build a decaying-AC waveform up to the current cycle count
+  const N = Math.max(1, cyc);
+  const wave = Array.from({ length: 160 }, (_, i) => {
+    const p = i / 159; const amp = Math.exp(-p * (N / 1.5)); const yv = mid - Math.sin(p * N * Math.PI * 2) * amp * 34;
+    return `${10 + p * (W - 20)},${yv}`;
+  }).join(" ");
+  return (
+    <div>
+      <VStage label={`${cyc} demag cycles: a reversing AC field of decreasing amplitude drives residual magnetism toward zero. A gauss meter verifies it is below the specified limit.`}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="v-svg" style={{ maxWidth: 400 }}>
+          <line x1="10" y1={mid} x2={W - 10} y2={mid} stroke="#94a3b8" strokeWidth="0.6" />
+          {cyc > 0 && <polyline points={wave} fill="none" stroke={accent} strokeWidth="1.6" />}
+          <text x={W - 12} y="14" textAnchor="end" fontSize="8" fill="#94a3b8">decaying AC field →</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Demag cycles</span><input type="range" min="0" max="9" value={cyc} onChange={(e) => setCyc(+e.target.value)} style={{ accentColor: accent }} /><b>{cyc}</b></div>
+      <div className="v-row">
+        <div className="v-fact"><b style={{ color: residual < 15 ? "#3fae5a" : "#b91c1c" }}>{residual}%</b><span>residual field (gauss)</span></div>
+        <div className="v-fact"><b style={{ color: residual < 15 ? "#3fae5a" : accent }}>{residual < 15 ? "PASS" : "above limit"}</b><span>vs specification</span></div>
+      </div>
+    </div>
+  );
+}
+
 /* ── polished fallback for sessions whose bespoke visual isn't built yet ── */
 function Placeholder({ accent, session }) {
   return (
@@ -357,8 +616,12 @@ function Placeholder({ accent, session }) {
 }
 
 export const VISUALS = {
+  // Unit I
   IntroTesting, NdtVsMech, MethodMap, DefectGallery, MaterialChar,
   MeritsScale, LimitsRadar, MaterialProps, VisualInspect,
+  // Unit II
+  LptIntro, PenetrantProps, Developer, LptProsCons, LptProcedure,
+  MptIntro, Magnetization, MptParticles, Demag,
 };
 
 export function Visual({ session, accent, accent2 }) {

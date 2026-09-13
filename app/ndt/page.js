@@ -668,6 +668,19 @@ const CSS = `
 .v-mmethod b{font-family:var(--mono);font-size:13px}
 .v-mmethod small{display:block;font-size:10px;color:var(--muted);margin:1px 0 3px}
 .v-mmethod span{font-family:var(--mono);font-size:9px;letter-spacing:.04em}
+.v-meter{flex:1;display:flex;gap:4px}
+.v-meter i{flex:1;height:8px;border-radius:3px;background:var(--line2)}
+.v-verdict{display:flex;align-items:center;gap:12px;justify-content:center;padding:22px;border:1.5px solid;border-radius:12px;background:var(--panel)}
+.v-verdict-ic{font-size:26px;font-weight:800}
+.v-verdict b{font-size:16px}
+.v-steps{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:14px}
+.v-step{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:11.5px;font-weight:600;color:var(--muted)}
+.v-step b{font-family:var(--mono);font-size:10px;width:16px;height:16px;border-radius:5px;background:var(--panel);display:flex;align-items:center;justify-content:center}
+.v-step.done{color:var(--sub)}
+.v-step.done b{background:var(--red-soft);color:var(--red)}
+.v-stepnav{display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.v-navb{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 15px;font-size:12.5px;font-weight:600;color:var(--sub)}
+.v-navb:disabled{opacity:.4;cursor:default}
 .v-ph{border:1.5px dashed var(--hair);border-radius:12px;padding:28px;max-width:440px;margin:0 auto}
 .v-ph-ic{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--red)}
 .v-ph b{display:block;font-size:16px;margin:9px 0 7px}
