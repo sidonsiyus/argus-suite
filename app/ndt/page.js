@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { UNITS, ALL_SESSIONS, SESSION_COUNT, COURSE } from "../../lib/ndt/curriculum";
 import { DETAIL } from "../../lib/ndt/content";
+import { EXTRA } from "../../lib/ndt/extra";
 import { QUIZ } from "../../lib/ndt/assessments";
 import { VIDEOS } from "../../lib/ndt/videos";
 import { Visual } from "./visuals";
@@ -143,6 +144,7 @@ function SessionView({ session, done, onDone, onPrev, onNext, hasPrev, hasNext }
   const videos = VIDEOS[session.id] || [];
   const quiz = QUIZ[session.id] || [];
   const detail = DETAIL[session.id];
+  const extra = EXTRA[session.id];
   const a = session.accent;
   return (
     <article className="ndt-session" style={{ "--uc": session.accent, "--uc2": session.accent2 }}>
@@ -182,6 +184,17 @@ function SessionView({ session, done, onDone, onPrev, onNext, hasPrev, hasNext }
         </section>
       )}
 
+      {/* deep dive accordion */}
+      {extra?.deepDives && (
+        <section className="ndt-card">
+          <div className="ndt-card-h"><span className="ndt-k">Go deeper</span><h2>Deep dive</h2></div>
+          <DeepDives items={extra.deepDives} />
+        </section>
+      )}
+
+      {/* myth vs fact interactive */}
+      {extra?.myth && <MythFact myth={extra.myth} />}
+
       {/* video(s) */}
       <section className="ndt-card">
         <div className="ndt-card-h"><span className="ndt-k">Watch</span><h2>Video{videos.length > 1 ? "s" : ""}</h2></div>
@@ -201,15 +214,18 @@ function SessionView({ session, done, onDone, onPrev, onNext, hasPrev, hasNext }
         )}
       </section>
 
-      {/* key terms */}
+      {/* key terms — interactive flip cards */}
       {detail?.keyTerms && (
         <section className="ndt-card">
-          <div className="ndt-card-h"><span className="ndt-k">Glossary</span><h2>Key terms</h2></div>
+          <div className="ndt-card-h"><span className="ndt-k">Glossary</span><h2>Key terms</h2><span className="ndt-hint">tap a card to flip</span></div>
           <div className="ndt-terms">
-            {detail.keyTerms.map((t, i) => (<div key={i} className="ndt-term"><b>{t.t}</b><p>{t.d}</p></div>))}
+            {detail.keyTerms.map((t, i) => <FlipTerm key={i} term={t.t} def={t.d} />)}
           </div>
         </section>
       )}
+
+      {/* case file */}
+      {extra?.caseStudy && <CaseStudy c={extra.caseStudy} />}
 
       {/* applications */}
       {detail?.applications && (
@@ -237,6 +253,72 @@ function SessionView({ session, done, onDone, onPrev, onNext, hasPrev, hasNext }
         <button className="ndt-navbtn" onClick={onNext} disabled={!hasNext}>Next →</button>
       </div>
     </article>
+  );
+}
+
+/* ── deep-dive accordion ── */
+function DeepDives({ items }) {
+  const [open, setOpen] = useState(0);
+  return (
+    <div className="ndt-dd">
+      {items.map((it, i) => {
+        const on = open === i;
+        return (
+          <div key={i} className={"ndt-dd-item" + (on ? " on" : "")}>
+            <button className="ndt-dd-h" onClick={() => setOpen(on ? -1 : i)}>
+              <span className="ndt-dd-plus">{on ? "−" : "+"}</span>{it.t}
+            </button>
+            {on && <p className="ndt-dd-b">{it.p}</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── myth vs fact reveal ── */
+function MythFact({ myth }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <section className="ndt-card ndt-myth">
+      <div className="ndt-card-h"><span className="ndt-k">Test your intuition</span><h2>Myth or fact?</h2></div>
+      <div className="ndt-myth-claim">“{myth.claim}”</div>
+      {!shown ? (
+        <div className="ndt-myth-ask"><button className="ndt-mbtn myth" onClick={() => setShown("myth")}>Myth</button><button className="ndt-mbtn fact" onClick={() => setShown("fact")}>Fact</button></div>
+      ) : (
+        <div className="ndt-myth-rev"><span className="ndt-myth-tag">✗ Myth</span><p>{myth.truth}</p><button className="ndt-btn sm ghost" onClick={() => setShown(false)}>Try again</button></div>
+      )}
+    </section>
+  );
+}
+
+/* ── flip-card glossary term ── */
+function FlipTerm({ term, def }) {
+  const [flip, setFlip] = useState(false);
+  return (
+    <button className={"ndt-flip" + (flip ? " on" : "")} onClick={() => setFlip((f) => !f)}>
+      <span className="ndt-flip-in">
+        <span className="ndt-flip-f"><b>{term}</b><small>tap for definition</small></span>
+        <span className="ndt-flip-b">{def}</span>
+      </span>
+    </button>
+  );
+}
+
+/* ── case file ── */
+function CaseStudy({ c }) {
+  const rows = [
+    ["Context", c.context], ["The challenge", c.challenge], ["Approach", c.approach],
+    ["What was found", c.finding], ["Outcome", c.outcome],
+  ];
+  return (
+    <section className="ndt-card ndt-case">
+      <div className="ndt-card-h stripe"><span className="ndt-k">Case file</span><h2>{c.title}</h2><span className="ndt-case-tag">{c.tag}</span></div>
+      <div className="ndt-case-rows">
+        {rows.map(([k, v]) => (<div key={k} className="ndt-case-row"><span className="ndt-case-k">{k}</span><p>{v}</p></div>))}
+      </div>
+      <div className="ndt-case-lesson"><span className="ndt-case-lb">Lesson</span>{c.lesson}</div>
+    </section>
   );
 }
 
@@ -438,6 +520,46 @@ const CSS = `
 .ndt-takeaways ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
 .ndt-takeaways li{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;line-height:1.6;color:var(--ink);font-weight:500}
 .ndt-takeaways .tk{flex:none;width:22px;height:22px;border-radius:6px;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:1px}
+
+/* deep-dive accordion */
+.ndt-hint{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.ndt-dd{display:flex;flex-direction:column;gap:8px}
+.ndt-dd-item{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--panel2);transition:border-color .15s}
+.ndt-dd-item.on{border-color:var(--red-soft)}
+.ndt-dd-h{width:100%;display:flex;align-items:center;gap:11px;background:none;border:0;padding:14px 15px;text-align:left;font-size:14px;font-weight:600;color:var(--ink)}
+.ndt-dd-plus{font-family:var(--mono);font-size:16px;color:var(--red);width:16px;flex:none;text-align:center}
+.ndt-dd-b{padding:0 15px 15px 42px;font-size:13.5px;line-height:1.65;color:var(--sub);margin:0}
+
+/* myth vs fact */
+.ndt-myth-claim{font-size:17px;font-weight:600;line-height:1.5;font-style:italic;color:var(--ink);padding:6px 0 16px}
+.ndt-myth-ask{display:flex;gap:10px}
+.ndt-mbtn{flex:1;padding:13px;border-radius:11px;border:1.5px solid var(--border);background:var(--panel2);font-size:14px;font-weight:700;color:var(--sub)}
+.ndt-mbtn.myth:hover{border-color:var(--red);color:var(--red)}
+.ndt-mbtn.fact:hover{border-color:#3fae5a;color:#3fae5a}
+.ndt-myth-rev{border:1px solid var(--red-soft);background:var(--red-soft);border-radius:12px;padding:16px}
+.ndt-myth-tag{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--red);margin-bottom:8px}
+.ndt-myth-rev p{font-size:14px;line-height:1.65;color:var(--ink);margin:0 0 12px}
+
+/* flip cards */
+.ndt-flip{perspective:900px;background:none;border:0;padding:0;height:96px;text-align:left}
+.ndt-flip-in{position:relative;display:block;width:100%;height:100%;transition:transform .5s;transform-style:preserve-3d}
+.ndt-flip.on .ndt-flip-in{transform:rotateY(180deg)}
+.ndt-flip-f,.ndt-flip-b{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:10px;border:1px solid var(--line);border-left:3px solid var(--red);padding:13px 15px;display:flex;flex-direction:column;justify-content:center;overflow:auto}
+.ndt-flip-f{background:var(--panel2)}
+.ndt-flip-f b{font-size:14px;font-weight:700}
+.ndt-flip-f small{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-top:5px}
+.ndt-flip-b{background:var(--panel3);transform:rotateY(180deg);font-size:12.5px;line-height:1.5;color:var(--sub)}
+
+/* case file */
+.ndt-case{background:linear-gradient(135deg,var(--panel),var(--panel2))}
+.ndt-case-tag{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ndt-case-rows{display:flex;flex-direction:column;gap:14px}
+.ndt-case-row{display:grid;grid-template-columns:130px 1fr;gap:14px;align-items:baseline}
+@media(max-width:640px){.ndt-case-row{grid-template-columns:1fr;gap:3px}}
+.ndt-case-k{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--red);font-weight:700;padding-top:2px}
+.ndt-case-row p{font-size:14px;line-height:1.65;color:var(--sub);margin:0}
+.ndt-case-lesson{margin-top:18px;padding:15px 17px;background:var(--red-soft);border-radius:11px;font-size:14.5px;line-height:1.6;color:var(--ink);font-weight:500}
+.ndt-case-lb{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--red);font-weight:700;margin-bottom:6px}
 
 /* quiz */
 .ndt-qscore{margin-left:auto;font-family:var(--mono);font-weight:700;color:var(--red)}
