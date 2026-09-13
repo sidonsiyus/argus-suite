@@ -810,6 +810,238 @@ function EtProsCons({ accent }) {
   );
 }
 
+/* ══════════════ 4.1 · Pulse-echo A-scan ══════════════ */
+function UtPrinciple({ accent }) {
+  const [depth, setDepth] = useState(45); // % of thickness
+  const flawY = 30 + (depth / 100) * 46;
+  const flawEchoX = 40 + (depth / 100) * 150; // echo time ∝ depth
+  return (
+    <div>
+      <VStage label={`A pulse-echo probe times the echoes. The flaw sits at ${depth}% depth, so its echo returns before the back-wall echo — its arrival time gives the depth.`}>
+        <svg viewBox="0 0 220 160" className="v-svg" style={{ maxWidth: 380 }}>
+          {/* block + probe + flaw */}
+          <rect x="20" y="26" width="180" height="52" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          <rect x="96" y="16" width="28" height="10" rx="2" fill={accent} />
+          <rect x="104" y={flawY} width="12" height="4" rx="2" fill="#dc2626" />
+          <line x1="110" y1="26" x2="110" y2={flawY} stroke={accent} strokeWidth="1" strokeDasharray="2 2" />
+          {/* A-scan */}
+          <line x1="20" y1="140" x2="200" y2="140" stroke="#64748b" strokeWidth="0.8" />
+          <line x1="40" y1="96" x2="40" y2="140" stroke={accent} strokeWidth="2" />
+          <text x="40" y="152" textAnchor="middle" fontSize="6.5" fill="#94a3b8">pulse</text>
+          <line x1={flawEchoX} y1="112" x2={flawEchoX} y2="140" stroke="#dc2626" strokeWidth="2" style={{ transition: "all .12s" }} />
+          <text x={flawEchoX} y="152" textAnchor="middle" fontSize="6.5" fill="#dc2626">flaw</text>
+          <line x1="192" y1="104" x2="192" y2="140" stroke="#475569" strokeWidth="2" />
+          <text x="192" y="152" textAnchor="middle" fontSize="6.5" fill="#94a3b8">back wall</text>
+          <text x="110" y="92" textAnchor="middle" fontSize="7" fill="#94a3b8">A-scan · echo amplitude vs time</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Flaw depth</span><input type="range" min="5" max="90" value={depth} onChange={(e) => setDepth(+e.target.value)} style={{ accentColor: accent }} /><b>{depth}%</b></div>
+    </div>
+  );
+}
+
+/* ══════════════ 4.2 · Piezoelectric transducer ══════════════ */
+function Transducer({ accent }) {
+  const [mode, setMode] = useState("send");
+  const send = mode === "send";
+  return (
+    <div>
+      <Seg accent={accent} value={mode} onChange={setMode} options={[{ v: "send", label: "Send (voltage → sound)" }, { v: "recv", label: "Receive (sound → voltage)" }]} />
+      <VStage label={send ? "A voltage pulse deforms the piezoelectric crystal, which launches a sound pulse into the part." : "A returning echo deforms the crystal, which generates a voltage the instrument reads. One crystal does both."}>
+        <svg viewBox="0 0 220 120" className="v-svg" style={{ maxWidth: 340 }}>
+          <rect x="80" y="20" width="60" height="20" rx="3" fill={accent} opacity={send ? 1 : 0.5} />
+          <text x="110" y="34" textAnchor="middle" fontSize="8" fill="#fff">crystal</text>
+          {/* voltage side */}
+          <text x="110" y="14" textAnchor="middle" fontSize="8" fill={send ? accent : "var(--muted)"}>{send ? "⚡ voltage in" : "⚡ voltage out"}</text>
+          {/* part + wave */}
+          <rect x="30" y="52" width="160" height="56" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          {[0, 1, 2].map((i) => <path key={i} d={`M 40 ${68 + i * 14} q 30 -6 60 0 q 30 6 60 0`} fill="none" stroke={accent} strokeWidth="1.4" opacity={(send ? 1 : 0.6) * (1 - i * 0.25)} transform={send ? "" : "scale(1,-1) translate(0,-160)"} />)}
+          <polygon points={send ? "110,44 106,52 114,52" : "110,52 106,44 114,44"} fill={accent} />
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: accent, fontWeight: 700 }}>{send ? "Electrical → mechanical: launching a pulse" : "Mechanical → electrical: reading the echo"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 4.3 · Pulse-echo vs through-transmission ══════════════ */
+function UtMethods({ accent }) {
+  const [mode, setMode] = useState("pe");
+  const pe = mode === "pe";
+  return (
+    <div>
+      <Seg accent={accent} value={mode} onChange={setMode} options={[{ v: "pe", label: "Pulse-echo" }, { v: "tt", label: "Through-transmission" }]} />
+      <VStage label={pe ? "One probe sends and receives from the same side; the flaw echo's timing gives its depth. Needs access to only one side — the standard method." : "A transmitter and a receiver sit on opposite faces; a flaw reduces the received signal. Needs two-sided access and gives no depth."}>
+        <svg viewBox="0 0 220 110" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="20" y="34" width="180" height="46" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          <rect x="96" y="24" width="28" height="10" rx="2" fill={accent} />
+          <rect x="104" y="55" width="12" height="4" rx="2" fill="#dc2626" />
+          {pe ? <>
+            <line x1="110" y1="34" x2="110" y2="55" stroke={accent} strokeWidth="1.4" />
+            <line x1="110" y1="55" x2="110" y2="34" stroke="#dc2626" strokeWidth="1.4" strokeDasharray="3 2" />
+            <text x="150" y="20" fontSize="7" fill={accent}>send + receive</text>
+          </> : <>
+            <rect x="96" y="80" width="28" height="10" rx="2" fill="#475569" />
+            <line x1="110" y1="34" x2="110" y2="80" stroke={accent} strokeWidth="1.4" opacity="0.5" strokeDasharray="3 2" />
+            <text x="150" y="20" fontSize="7" fill={accent}>transmit ↓</text>
+            <text x="150" y="102" fontSize="7" fill="#475569">receive ↓ (weakened)</text>
+          </>}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.4 · Straight vs angle beam ══════════════ */
+function BeamAngles({ accent }) {
+  const [angle, setAngle] = useState("angle");
+  const straight = angle === "straight";
+  return (
+    <div>
+      <Seg accent={accent} value={angle} onChange={setAngle} options={[{ v: "straight", label: "Straight beam" }, { v: "angle", label: "Angle beam" }]} />
+      <VStage label={straight ? "A straight beam travels down and reflects off flaws parallel to the surface — but runs straight past a vertical weld crack." : "An angle beam refracts sideways (via a wedge), reaching the vertical weld crack the straight beam misses."}>
+        <svg viewBox="0 0 220 110" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="20" y="40" width="180" height="55" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          {/* weld with vertical crack */}
+          <rect x="100" y="40" width="20" height="55" fill="#b8c2cc" />
+          <line x1="110" y1="50" x2="110" y2="85" stroke="#dc2626" strokeWidth="3" />
+          {straight ? <>
+            <rect x="46" y="30" width="24" height="10" rx="2" fill={accent} />
+            <line x1="58" y1="40" x2="58" y2="90" stroke={accent} strokeWidth="2" strokeDasharray="3 3" />
+            <text x="58" y="106" textAnchor="middle" fontSize="6.5" fill="#94a3b8">misses the crack</text>
+          </> : <>
+            <rect x="46" y="30" width="24" height="10" rx="2" fill={accent} transform="rotate(20 58 35)" />
+            <line x1="60" y1="40" x2="110" y2="66" stroke={accent} strokeWidth="2" />
+            <polygon points="110,66 103,63 105,70" fill={accent} />
+            <text x="90" y="106" textAnchor="middle" fontSize="6.5" fill="#22c55e">hits the crack ✓</text>
+          </>}
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: straight ? "#b91c1c" : "#22c55e", fontWeight: 700 }}>{straight ? "✗ Vertical crack missed — wrong orientation" : "✓ Angle beam reaches the weld crack"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 4.5 · A / B / C scan ══════════════ */
+function ScanTypes({ accent }) {
+  const [scan, setScan] = useState("A");
+  return (
+    <div>
+      <Seg accent={accent} value={scan} onChange={setScan} options={[{ v: "A", label: "A-scan" }, { v: "B", label: "B-scan" }, { v: "C", label: "C-scan" }]} />
+      <VStage label={scan === "A" ? "A-scan: echo amplitude vs time at one point — the trace you read to detect and size." : scan === "B" ? "B-scan: A-scans stacked along a line into a cross-sectional (side) view showing flaw depth and length." : "C-scan: a top-down plan map colour-coded by echo strength — shows the flaw's extent over an area."}>
+        <svg viewBox="0 0 220 100" className="v-svg" style={{ maxWidth: 340 }}>
+          {scan === "A" && <><line x1="20" y1="80" x2="200" y2="80" stroke="#64748b" strokeWidth="0.8" /><line x1="40" y1="30" x2="40" y2="80" stroke={accent} strokeWidth="2" /><line x1="110" y1="52" x2="110" y2="80" stroke="#dc2626" strokeWidth="2" /><line x1="185" y1="40" x2="185" y2="80" stroke="#475569" strokeWidth="2" /></>}
+          {scan === "B" && <><rect x="20" y="20" width="180" height="60" rx="3" fill="#e2e8f0" stroke="#64748b" /><line x1="20" y1="24" x2="200" y2="24" stroke="#475569" strokeWidth="2" /><line x1="20" y1="76" x2="200" y2="76" stroke="#475569" strokeWidth="2" /><ellipse cx="120" cy="50" rx="22" ry="6" fill="#dc2626" opacity="0.8" /></>}
+          {scan === "C" && <><rect x="20" y="14" width="180" height="72" rx="3" fill="#0b3d2e" stroke="#64748b" />{[[80, 40, 18], [130, 55, 12]].map(([x, y, r], i) => <ellipse key={i} cx={x} cy={y} rx={r} ry={r * 0.7} fill="#dc2626" opacity="0.85" style={{ filter: "blur(1px)" }} />)}</>}
+          <text x="110" y="96" textAnchor="middle" fontSize="7" fill="#94a3b8">{scan === "A" ? "trace (depth)" : scan === "B" ? "cross-section (side)" : "plan map (top-down)"}</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.6 · Phased array beam steering ══════════════ */
+function PhasedArray({ accent }) {
+  const [ang, setAng] = useState(0); // -40..40
+  const rad = ((ang + 90) * Math.PI) / 180;
+  const ox = 110, oy = 34, L = 70;
+  return (
+    <div>
+      <VStage label={`Beam steered to ${ang}° — with no probe motion. Each element fires with a tiny delay so the wavefronts add up in the chosen direction. Sweeping the angle builds a live sectorial image.`}>
+        <svg viewBox="0 0 220 120" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="20" y="30" width="180" height="80" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          {/* element array */}
+          {Array.from({ length: 12 }).map((_, i) => <rect key={i} x={92 + i * 3} y="24" width="2.2" height="8" rx="1" fill={accent} />)}
+          {/* swept fan (faint) */}
+          {[-40, -20, 0, 20, 40].map((a) => { const r = ((a + 90) * Math.PI) / 180; return <line key={a} x1={ox} y1={oy} x2={ox + Math.cos(r) * L} y2={oy + Math.sin(r) * L} stroke={accent} strokeWidth="1" opacity="0.18" />; })}
+          {/* active beam */}
+          <line x1={ox} y1={oy} x2={ox + Math.cos(rad) * L} y2={oy + Math.sin(rad) * L} stroke={accent} strokeWidth="3" strokeLinecap="round" />
+          <text x="110" y="118" textAnchor="middle" fontSize="7" fill="#94a3b8">electronically steered beam</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Beam angle</span><input type="range" min="-40" max="40" value={ang} onChange={(e) => setAng(+e.target.value)} style={{ accentColor: accent }} /><b>{ang}°</b></div>
+    </div>
+  );
+}
+
+/* ══════════════ 4.7 · TOFD tip diffraction ══════════════ */
+function Tofd({ accent }) {
+  const [h, setH] = useState(40); // crack height %
+  const topY = 42, botY = topY + (h / 100) * 34;
+  return (
+    <div>
+      <VStage label={`TOFD times the waves diffracted from the crack's top and bottom tips. Taller crack (${h}%) → bigger gap between the two tip signals — that gives the through-wall height directly, regardless of echo strength.`}>
+        <svg viewBox="0 0 220 130" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="20" y="34" width="180" height="52" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          <rect x="30" y="24" width="22" height="10" rx="2" fill={accent} transform="rotate(30 41 29)" />
+          <rect x="168" y="24" width="22" height="10" rx="2" fill="#475569" transform="rotate(-30 179 29)" />
+          <text x="41" y="18" fontSize="6.5" fill={accent}>T</text><text x="179" y="18" fontSize="6.5" fill="#475569">R</text>
+          {/* crack + tips */}
+          <line x1="110" y1={topY} x2="110" y2={botY} stroke="#dc2626" strokeWidth="2.5" />
+          <circle cx="110" cy={topY} r="2.5" fill="#fde047" /><circle cx="110" cy={botY} r="2.5" fill="#fde047" />
+          {/* signal timeline */}
+          <line x1="20" y1="110" x2="200" y2="110" stroke="#64748b" strokeWidth="0.8" />
+          <line x1="40" y1="98" x2="40" y2="110" stroke="#94a3b8" strokeWidth="1.6" />
+          <text x="40" y="122" textAnchor="middle" fontSize="6" fill="#94a3b8">lateral</text>
+          <line x1={70 + (topY - 42) } y1="100" x2={70} y2="110" stroke="#dc2626" strokeWidth="1.8" />
+          <text x="70" y="122" textAnchor="middle" fontSize="6" fill="#dc2626">top tip</text>
+          <line x1={90 + (h / 100) * 60} y1="100" x2={90 + (h / 100) * 60} y2="110" stroke="#dc2626" strokeWidth="1.8" />
+          <text x={90 + (h / 100) * 60} y="122" textAnchor="middle" fontSize="6" fill="#dc2626">bottom tip</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Crack height</span><input type="range" min="10" max="95" value={h} onChange={(e) => setH(+e.target.value)} style={{ accentColor: accent }} /><b>{h}%</b></div>
+    </div>
+  );
+}
+
+/* ══════════════ 4.8 · Acoustic emission principle ══════════════ */
+function AePrinciple({ accent }) {
+  const [load, setLoad] = useState(30);
+  const active = load > 60;
+  return (
+    <div>
+      <VStage label={active ? `Under ${load}% load the crack grows and releases a burst of stress-wave energy — the sensors 'hear' it. AE reacts only to ACTIVE damage.` : `At ${load}% load the crack is stable and silent — no emission. AE needs the structure stressed to trigger active flaws.`}>
+        <svg viewBox="0 0 220 110" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="20" y="40" width="180" height="40" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          {/* load arrows */}
+          <polygon points="10,60 20,54 20,66" fill={active ? "#dc2626" : "#94a3b8"} />
+          <polygon points="210,60 200,54 200,66" fill={active ? "#dc2626" : "#94a3b8"} />
+          {/* crack */}
+          <line x1="110" y1="48" x2="110" y2="72" stroke="#dc2626" strokeWidth="2.5" />
+          {/* sensors */}
+          <rect x="55" y="32" width="12" height="8" rx="2" fill={accent} /><rect x="153" y="32" width="12" height="8" rx="2" fill={accent} />
+          {/* emission waves */}
+          {active && [10, 18, 26].map((r, i) => <circle key={i} cx="110" cy="60" r={r} fill="none" stroke={accent} strokeWidth="1.3" opacity={0.8 - i * 0.22} />)}
+          <text x="110" y="98" textAnchor="middle" fontSize="7" fill="#94a3b8">{active ? "stress-wave burst → sensors" : "stable crack — silent"}</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Load</span><input type="range" min="0" max="100" value={load} onChange={(e) => setLoad(+e.target.value)} style={{ accentColor: accent }} /><b>{load}%</b></div>
+      <div className="v-tagline"><span style={{ color: active ? accent : "var(--muted)", fontWeight: 700 }}>{active ? "✓ Active emission detected" : "no emission — flaw not growing"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 4.9 · AE source location ══════════════ */
+function AeApplications({ accent }) {
+  const [src, setSrc] = useState({ x: 130, y: 60 });
+  const sensors = [{ x: 40, y: 30 }, { x: 190, y: 30 }, { x: 40, y: 95 }, { x: 190, y: 95 }];
+  const dist = (s) => Math.round(Math.hypot(s.x - src.x, s.y - src.y));
+  return (
+    <div>
+      <VStage label="Click anywhere on the tank to place an active source. Each sensor 'hears' it at a different time; comparing those arrival times triangulates where the damage is — so UT/RT can go straight to the spot.">
+        <svg viewBox="0 0 230 125" className="v-svg" style={{ maxWidth: 380, cursor: "crosshair" }}
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const sx = ((e.clientX - r.left) / r.width) * 230, sy = ((e.clientY - r.top) / r.height) * 125; setSrc({ x: Math.max(20, Math.min(210, sx)), y: Math.max(18, Math.min(107, sy)) }); }}>
+          <rect x="14" y="14" width="202" height="97" rx="8" fill="#e2e8f0" stroke="#64748b" />
+          {sensors.map((s, i) => <g key={i}><circle cx={s.x} cy={s.y} r={4} fill={accent} /><circle cx={s.x} cy={s.y} r={dist(s) * 0.9} fill="none" stroke={accent} strokeWidth="0.8" opacity="0.25" /></g>)}
+          <g><circle cx={src.x} cy={src.y} r="5" fill="#dc2626" /><circle cx={src.x} cy={src.y} r="9" fill="none" stroke="#dc2626" strokeWidth="1.2" /></g>
+          <text x="115" y="121" textAnchor="middle" fontSize="7" fill="#94a3b8">4 sensors · red = located active source</text>
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: accent, fontWeight: 700 }}>Arrival-time differences pinpoint the source — global monitoring, local follow-up</span></div>
+    </div>
+  );
+}
+
 /* ── polished fallback for sessions whose bespoke visual isn't built yet ── */
 function Placeholder({ accent, session }) {
   return (
@@ -833,6 +1065,9 @@ export const VISUALS = {
   // Unit III
   ThermoPrinciple, ContactNonContact, LiquidCrystal, IrDetectors, ThermoInstrument,
   EddyGen, EddyProbes, EddyArrange, EtProsCons,
+  // Unit IV
+  UtPrinciple, Transducer, UtMethods, BeamAngles, ScanTypes,
+  PhasedArray, Tofd, AePrinciple, AeApplications,
 };
 
 export function Visual({ session, accent, accent2 }) {
