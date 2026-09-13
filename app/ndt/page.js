@@ -79,6 +79,7 @@ export default function NdtBay() {
         <button className="ndt-searchbtn" onClick={() => setSearch(true)}><span className="ndt-search-ic">⌕</span>Search<kbd>⌘K</kbd></button>
         <nav className="ndt-nav">
           <button className={"ndt-home" + (cur === "home" ? " on" : "")} onClick={goHome}><span className="ndt-home-ic">◎</span>Overview</button>
+          <button className={"ndt-home" + (cur === "revise" ? " on" : "")} onClick={() => { setCur("revise"); setNavOpen(false); }}><span className="ndt-home-ic">◆</span>Revision &amp; exams</button>
           {UNITS.map((u) => {
             const open = openUnit === u.id, up = unitProgress(u);
             return (
@@ -107,7 +108,7 @@ export default function NdtBay() {
 
       {/* ── main ── */}
       <main className="ndt-main" ref={mainRef}>
-        {cur === "home" ? <Home go={go} done={done} /> : session ? (
+        {cur === "home" ? <Home go={go} done={done} /> : cur === "revise" ? <Revise go={go} /> : session ? (
           <SessionView key={session.id} session={session} done={!!done[session.id]}
             onDone={() => markDone(session.id)} onPrev={prev} onNext={next}
             hasPrev={idx > 0} hasNext={idx < ALL_SESSIONS.length - 1}
@@ -150,6 +151,118 @@ function SearchPalette({ onClose, go }) {
           {ql && sessions.length === 0 && terms.length === 0 && <div className="ndt-search-empty">No matches for “{q}”.</div>}
         </div>
         <div className="ndt-search-foot"><span>{sessions.length + terms.length} result{sessions.length + terms.length === 1 ? "" : "s"}</span><kbd>esc</kbd></div>
+      </div>
+    </div>
+  );
+}
+
+/* ── revision & exams ── */
+const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function unitTerms(uid) { const u = UNITS.find((x) => x.id === uid); return u ? u.sessions.flatMap((s) => (DETAIL[s.id]?.keyTerms || []).map((t) => ({ ...t, sid: s.id }))) : []; }
+function allTerms() { return UNITS.flatMap((u) => unitTerms(u.id)); }
+function unitQuestions(uid) { const u = UNITS.find((x) => x.id === uid); return u ? u.sessions.flatMap((s) => (QUIZ[s.id] || []).map((q) => ({ ...q, sid: s.id }))) : []; }
+
+function Revise({ go }) {
+  const [mode, setMode] = useState("flash");
+  const [exam, setExam] = useState(null);
+  return (
+    <div className="ndt-revwrap">
+      <div className="ndt-rev-head">
+        <span className="ndt-eyebrow"><i className="led" />Revise · self-test</span>
+        <h1>Revision &amp; exams</h1>
+        <p>Drill the glossary with flashcards, then test yourself with a per-unit exam or the final across all five methods.</p>
+      </div>
+      <div className="ndt-rev-tabs">
+        <button className={mode === "flash" ? "on" : ""} onClick={() => setMode("flash")}>◆ Flashcards</button>
+        <button className={mode === "exam" ? "on" : ""} onClick={() => setMode("exam")}>▦ Exams</button>
+      </div>
+      {mode === "flash" ? <FlashHub /> : <ExamHub onStart={setExam} />}
+      {exam && <ExamRunner exam={exam} onClose={() => setExam(null)} />}
+    </div>
+  );
+}
+function FlashHub() {
+  const [uid, setUid] = useState(0);
+  const cards = useMemo(() => shuffle(uid ? unitTerms(uid) : allTerms()), [uid]);
+  return (
+    <div>
+      <div className="ndt-cmp-filter ndt-rev-filter">
+        <button className={uid === 0 ? "on" : ""} onClick={() => setUid(0)}>All</button>
+        {UNITS.map((u) => <button key={u.id} className={uid === u.id ? "on" : ""} onClick={() => setUid(u.id)}>Unit {u.code}</button>)}
+      </div>
+      <Flashcards key={uid} cards={cards} />
+    </div>
+  );
+}
+function Flashcards({ cards }) {
+  const [i, setI] = useState(0);
+  const [flip, setFlip] = useState(false);
+  const [known, setKnown] = useState(() => new Set());
+  if (!cards.length) return <div className="ndt-rev-empty">No terms.</div>;
+  const c = cards[i % cards.length];
+  const nav = (d) => { setFlip(false); setI((v) => (v + d + cards.length) % cards.length); };
+  const markKnown = () => { setKnown((k) => new Set(k).add(i)); nav(1); };
+  return (
+    <div className="ndt-flash">
+      <div className="ndt-flash-meta"><span>{i + 1} / {cards.length}</span><span>{known.size} marked known</span></div>
+      <button className={"ndt-flashcard" + (flip ? " on" : "")} onClick={() => setFlip((f) => !f)}>
+        <span className="ndt-flashcard-in">
+          <span className="ndt-flashcard-f"><small>TERM</small><b>{c.t}</b><em>tap to reveal</em></span>
+          <span className="ndt-flashcard-b"><small>DEFINITION</small><p>{c.d}</p></span>
+        </span>
+      </button>
+      <div className="ndt-flash-nav">
+        <button className="ndt-navb" onClick={() => nav(-1)}>← Prev</button>
+        <button className="ndt-navb ok" onClick={markKnown}>✓ Got it</button>
+        <button className="ndt-navb" onClick={() => nav(1)}>Next →</button>
+      </div>
+    </div>
+  );
+}
+function ExamHub({ onStart }) {
+  const start = (title, qs) => onStart({ title, questions: shuffle(qs).slice(0, Math.min(qs.length, 12)) });
+  return (
+    <div className="ndt-examcards">
+      {UNITS.map((u) => { const qs = unitQuestions(u.id); return (
+        <button key={u.id} className="ndt-examcard" onClick={() => start("Unit " + u.code + " exam", qs)}>
+          <span className="ndt-examcard-k">Unit {u.code}</span><b>{u.title}</b><small>{Math.min(qs.length, 12)} questions · pass 70%</small>
+        </button>
+      ); })}
+      <button className="ndt-examcard final" onClick={() => start("Final exam · all methods", UNITS.flatMap((u) => unitQuestions(u.id)))}>
+        <span className="ndt-examcard-k">Final</span><b>All five methods</b><small>12 questions · pass 70%</small>
+      </button>
+    </div>
+  );
+}
+function ExamRunner({ exam, onClose }) {
+  const [ans, setAns] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const qs = exam.questions;
+  const score = qs.reduce((n, q, i) => n + (ans[i] === q.answer ? 1 : 0), 0);
+  const pct = Math.round((score / qs.length) * 100), pass = pct >= 70;
+  return (
+    <div className="ndt-exam-ovl" onClick={onClose}>
+      <div className="ndt-exam" onClick={(e) => e.stopPropagation()}>
+        <div className="ndt-exam-h"><b>{exam.title}</b>{!submitted && <span className="ndt-exam-prog">{Object.keys(ans).length}/{qs.length}</span>}<button className="mdl-x" onClick={onClose}>✕</button></div>
+        <div className="ndt-exam-body">
+          {submitted && <div className={"ndt-exam-score" + (pass ? " pass" : " fail")}><b>{pct}%</b><span>{score}/{qs.length} correct · {pass ? "PASS" : "below 70% — review & retake"}</span></div>}
+          {qs.map((q, i) => (
+            <div key={i} className="ndt-q">
+              <b>{i + 1}. {q.q}</b>
+              <div className="ndt-opts">
+                {q.options.map((o, j) => {
+                  const sel = ans[i] === j, right = submitted && j === q.answer, wrong = submitted && sel && j !== q.answer;
+                  return <button key={j} className={"ndt-opt" + (sel ? " sel" : "") + (right ? " right" : "") + (wrong ? " wrong" : "")} disabled={submitted} onClick={() => setAns((a) => ({ ...a, [i]: j }))}><span className="ndt-opt-m">{String.fromCharCode(65 + j)}</span>{o}</button>;
+                })}
+              </div>
+              {submitted && <p className={"ndt-explain" + (ans[i] === q.answer ? " ok" : " no")}>{ans[i] === q.answer ? "✓ " : "✗ "}{q.explain}</p>}
+            </div>
+          ))}
+        </div>
+        <div className="ndt-exam-foot">
+          {!submitted ? <button className="ndt-btn sm" disabled={Object.keys(ans).length < qs.length} onClick={() => setSubmitted(true)}>Submit exam</button>
+            : <><button className="ndt-btn sm ghost" onClick={() => { setAns({}); setSubmitted(false); }}>Retake</button><button className="ndt-btn sm" onClick={onClose}>Done</button></>}
+        </div>
       </div>
     </div>
   );
@@ -663,6 +776,52 @@ const CSS = `
 .ndt-cmp-tag.surface{background:rgba(255,176,32,.16);color:#c47f10}
 .ndt-cmp-tag.volumetric{background:var(--red-soft);color:var(--red)}
 .ndt-cmp-dots{color:var(--red);letter-spacing:2px;font-size:10px}
+/* revision & exams */
+.ndt-revwrap{max-width:900px;margin:0 auto;padding:40px 42px 90px}
+.ndt-rev-head h1{font-size:36px;font-weight:800;letter-spacing:-.025em;margin:12px 0 12px}
+.ndt-rev-head p{font-size:15px;line-height:1.65;color:var(--sub);max-width:600px}
+.ndt-rev-tabs{display:inline-flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:4px;margin:26px 0 20px}
+.ndt-rev-tabs button{background:none;border:0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;color:var(--muted)}
+.ndt-rev-tabs button.on{background:var(--grad);color:#fff}
+.ndt-rev-filter{margin-bottom:20px}
+.ndt-rev-empty{padding:30px;text-align:center;color:var(--muted)}
+.ndt-flash{max-width:520px;margin:0 auto}
+.ndt-flash-meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px}
+.ndt-flashcard{width:100%;perspective:1200px;background:none;border:0;padding:0;height:220px}
+.ndt-flashcard-in{position:relative;display:block;width:100%;height:100%;transition:transform .55s;transform-style:preserve-3d}
+.ndt-flashcard.on .ndt-flashcard-in{transform:rotateY(180deg)}
+.ndt-flashcard-f,.ndt-flashcard-b{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border:1px solid var(--border);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:var(--shadow)}
+.ndt-flashcard-f{background:linear-gradient(135deg,var(--panel),var(--panel2))}
+.ndt-flashcard-f small,.ndt-flashcard-b small{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--red);font-weight:700}
+.ndt-flashcard-f b{font-size:26px;font-weight:700;margin:14px 0 10px;letter-spacing:-.01em}
+.ndt-flashcard-f em{font-family:var(--mono);font-size:10px;color:var(--faint);font-style:normal}
+.ndt-flashcard-b{background:var(--panel);transform:rotateY(180deg)}
+.ndt-flashcard-b p{font-size:15px;line-height:1.6;color:var(--ink);margin-top:12px}
+.ndt-flash-nav{display:flex;gap:10px;margin-top:16px}
+.ndt-navb{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:12px;font-size:13px;font-weight:600;color:var(--sub)}
+.ndt-navb:hover{border-color:var(--red);color:var(--ink)}
+.ndt-navb.ok{background:var(--red-soft);color:var(--red);border-color:transparent}
+.ndt-examcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.ndt-examcard{position:relative;text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;overflow:hidden;color:var(--ink)}
+.ndt-examcard::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--stripe);opacity:.85}
+.ndt-examcard:hover{border-color:var(--red);transform:translateY(-2px)}
+.ndt-examcard.final::before{background:var(--grad)}
+.ndt-examcard-k{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--red)}
+.ndt-examcard b{display:block;font-size:15px;font-weight:700;margin:8px 0 6px}
+.ndt-examcard small{font-size:11.5px;color:var(--muted)}
+.ndt-exam-ovl{position:fixed;inset:0;z-index:70;background:rgba(6,4,3,.6);backdrop-filter:blur(3px);display:flex;justify-content:center;align-items:flex-start;padding:6vh 20px 20px;animation:ndtfade .14s ease}
+.ndt-exam{width:100%;max-width:640px;max-height:88vh;background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:0 30px 80px -30px rgba(0,0,0,.7);display:flex;flex-direction:column;overflow:hidden}
+.ndt-exam-h{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.ndt-exam-h b{font-size:15px;flex:1}
+.ndt-exam-prog{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.ndt-exam-h .mdl-x{position:static}
+.ndt-exam-body{overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:20px}
+.ndt-exam-score{border-radius:12px;padding:16px;text-align:center;border:1px solid}
+.ndt-exam-score b{font-size:34px;font-weight:800;display:block}
+.ndt-exam-score span{font-size:12.5px;color:var(--sub)}
+.ndt-exam-score.pass{border-color:#3fae5a55;background:rgba(63,174,90,.1)}.ndt-exam-score.pass b{color:#3fae5a}
+.ndt-exam-score.fail{border-color:var(--red-soft);background:var(--red-soft)}.ndt-exam-score.fail b{color:var(--red)}
+.ndt-exam-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 18px;border-top:1px solid var(--line)}
 
 /* ── main ── */
 .ndt-main{overflow-y:auto;min-height:0;position:relative;
