@@ -670,6 +670,11 @@ const CSS = `
 .v-mmethod span{font-family:var(--mono);font-size:9px;letter-spacing:.04em}
 .v-meter{flex:1;display:flex;gap:4px}
 .v-meter i{flex:1;height:8px;border-radius:3px;background:var(--line2)}
+.v-bars{display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;margin:0 auto}
+.v-bar{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:center}
+.v-bar span{font-size:11.5px;color:var(--muted);text-align:left}
+.v-bar-track{display:flex;gap:4px}
+.v-bar-track i{flex:1;height:9px;border-radius:3px;background:var(--line2)}
 .v-verdict{display:flex;align-items:center;gap:12px;justify-content:center;padding:22px;border:1.5px solid;border-radius:12px;background:var(--panel)}
 .v-verdict-ic{font-size:26px;font-weight:800}
 .v-verdict b{font-size:16px}

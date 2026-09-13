@@ -602,6 +602,214 @@ function Demag({ accent }) {
   );
 }
 
+/* ══════════════ 3.1 · Heat flow reveals a flaw ══════════════ */
+function ThermoPrinciple({ accent }) {
+  const [t, setT] = useState(50);
+  const contrast = Math.sin((t / 100) * Math.PI) * (t < 8 ? t / 8 : 1); // peaks mid-cooling
+  return (
+    <div>
+      <VStage label={`${t}% into the cooling after a heat flash: sound material drains heat away, but the void traps it — a warm spot grows over the hidden flaw, then fades as everything equalises.`}>
+        <svg viewBox="0 0 220 110" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="10" y="20" width="200" height="70" rx="4" fill="#334155" />
+          {/* even residual heat */}
+          <rect x="10" y="20" width="200" height="70" rx="4" fill="#f59e0b" opacity={0.12 * (1 - t / 130)} />
+          {/* void + hot spot over it */}
+          <rect x="96" y="58" width="28" height="10" rx="2" fill="#0b1020" />
+          <ellipse cx="110" cy="42" rx="26" ry="16" fill={accent} opacity={0.75 * contrast} style={{ filter: "blur(2px)" }} />
+          <text x="110" y="102" textAnchor="middle" fontSize="7" fill="#94a3b8">hidden void (poor heat conductor)</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Time after flash</span><input type="range" min="0" max="100" value={t} onChange={(e) => setT(+e.target.value)} style={{ accentColor: accent }} /><b>{t}%</b></div>
+      <div className="v-tagline"><span style={{ color: contrast > 0.4 ? accent : "var(--muted)", fontWeight: 700 }}>{contrast > 0.4 ? "✓ Thermal contrast — flaw visible" : "waiting for contrast to build…"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 3.2 · Contact vs non-contact ══════════════ */
+function ContactNonContact({ accent }) {
+  const [mode, setMode] = useState("ir");
+  const ir = mode === "ir";
+  return (
+    <div>
+      <Seg accent={accent} value={mode} onChange={setMode} options={[{ v: "lc", label: "Contact — liquid crystal" }, { v: "ir", label: "Non-contact — IR camera" }]} />
+      <VStage label={ir ? "An infrared camera reads the part's radiation from a distance — fast, wide-area, works on hot or moving parts (needs emissivity data)." : "A thermochromic coating on the surface maps temperature as vivid colour — cheap and high-resolution, but contact and a narrow range."}>
+        <svg viewBox="0 0 220 110" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="20" y="34" width="180" height="56" rx="4" fill={ir ? "#0b1020" : "#111"} stroke="#64748b" />
+          {ir ? <>
+            {[["#4b1d6b", 30], ["#b1215f", 70], ["#f59e0b", 55], ["#fde047", 130], ["#f97316", 100]].map(([c, x], i) => <circle key={i} cx={20 + x} cy={50 + (i % 3) * 12} r={12 - i} fill={c} opacity="0.8" style={{ filter: "blur(2px)" }} />)}
+            <g transform="translate(180,14)"><rect x="-14" y="-10" width="28" height="16" rx="2" fill={accent} /><path d="M -10 6 L 10 6 L 4 22 L -4 22 Z" fill={accent} opacity="0.25" /></g>
+          </> : <>
+            {[["#dc2626", 0], ["#f59e0b", 24], ["#22c55e", 48], ["#3b82f6", 72], ["#6366f1", 96], ["#dc2626", 120], ["#f59e0b", 144]].map(([c, x], i) => <rect key={i} x={30 + x} y="40" width="24" height="44" fill={c} opacity="0.85" />)}
+          </>}
+          <text x="110" y="104" textAnchor="middle" fontSize="7" fill="#94a3b8">{ir ? "IR radiation map (remote)" : "liquid-crystal colour map (on surface)"}</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 3.3 · Thermochromic liquid crystal ══════════════ */
+function LiquidCrystal({ accent }) {
+  const [temp, setTemp] = useState(50);
+  // colour-play band 35–65: below=black, in-band spectrum, above=black
+  const col = temp < 35 || temp > 65 ? "#0b0b0b" : `hsl(${(65 - temp) / 30 * 260}, 85%, 52%)`;
+  const inBand = temp >= 35 && temp <= 65;
+  return (
+    <div>
+      <VStage label={`At ${temp}°C the crystal shows ${inBand ? "a colour set by temperature (red hot → blue cool)" : "black — outside its narrow colour-play band"}. You choose the formulation to bracket the temperatures of interest.`}>
+        <svg viewBox="0 0 220 90" className="v-svg" style={{ maxWidth: 320 }}>
+          <rect x="20" y="20" width="180" height="50" rx="6" fill={col} stroke="#64748b" style={{ transition: "fill .2s" }} />
+          <text x="110" y="82" textAnchor="middle" fontSize="7.5" fill="#94a3b8">thermochromic coating (band 35–65°C)</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Temperature</span><input type="range" min="20" max="80" value={temp} onChange={(e) => setTemp(+e.target.value)} style={{ accentColor: accent }} /><b>{temp}°C</b></div>
+      <div className="v-tagline"><span style={{ color: inBand ? accent : "var(--muted)", fontWeight: 700 }}>{inBand ? "In the colour-play band — reading temperature" : "Outside the band — appears black"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 3.4 · Thermal vs photon detectors ══════════════ */
+function IrDetectors({ accent }) {
+  const [type, setType] = useState("thermal");
+  const photon = type === "photon";
+  const rows = [
+    { k: "Sensitivity", t: 2, p: 5 }, { k: "Speed", t: 2, p: 5 }, { k: "Cost", t: 1, p: 4 }, { k: "Cooling", t: 0, p: 5 },
+  ];
+  return (
+    <div>
+      <Seg accent={accent} value={type} onChange={setType} options={[{ v: "thermal", label: "Thermal (uncooled)" }, { v: "photon", label: "Photon (cooled)" }]} />
+      <VStage label={photon ? "Photon (quantum) detectors convert IR photons straight to signal — very sensitive and fast, but must be cryogenically cooled and cost more." : "Thermal detectors (microbolometers) absorb heat and change a property — uncooled, cheap and robust, but slower and less sensitive."}>
+        <div className="v-bars">
+          {rows.map((r) => (
+            <div key={r.k} className="v-bar"><span>{r.k === "Cost" ? "Affordability" : r.k === "Cooling" ? "Cooling need" : r.k}</span>
+              <div className="v-bar-track">{[0, 1, 2, 3, 4].map((i) => <i key={i} style={{ background: i < (photon ? (r.k === "Cost" ? 5 - r.p : r.p) : (r.k === "Cost" ? 5 - r.t : r.t)) ? accent : undefined }} />)}</div>
+            </div>
+          ))}
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 3.5 · Active vs passive thermography ══════════════ */
+function ThermoInstrument({ accent }) {
+  const [mode, setMode] = useState("active");
+  const active = mode === "active";
+  return (
+    <div>
+      <Seg accent={accent} value={mode} onChange={setMode} options={[{ v: "passive", label: "Passive" }, { v: "active", label: "Active" }]} />
+      <VStage label={active ? "Active: a flash heats the surface and the camera films it cooling. Sound material dissipates heat evenly; a hidden flaw slows it and appears as an anomaly." : "Passive: the camera reads temperature differences the part already has — like a loose electrical joint running hot."}>
+        <svg viewBox="0 0 220 110" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="15" y="34" width="190" height="56" rx="4" fill="#334155" stroke="#64748b" />
+          {active ? <>
+            <g transform="translate(110,14)"><path d="M -10 0 L 10 0 M 0 -8 L 0 8 M -7 -6 L 7 6 M 7 -6 L -7 6" stroke="#fde047" strokeWidth="1.6" /></g>
+            <ellipse cx="90" cy="60" rx="20" ry="12" fill={accent} opacity="0.6" style={{ filter: "blur(2px)" }} />
+            <rect x="80" y="70" width="20" height="8" rx="2" fill="#0b1020" />
+            <text x="90" y="102" textAnchor="middle" fontSize="7" fill="#94a3b8">flash → flaw traps heat</text>
+          </> : <>
+            <rect x="150" y="46" width="14" height="14" rx="2" fill="#475569" />
+            <ellipse cx="157" cy="53" rx="16" ry="10" fill={accent} opacity="0.7" style={{ filter: "blur(2px)" }} />
+            <text x="110" y="102" textAnchor="middle" fontSize="7" fill="#94a3b8">a naturally hot connection</text>
+          </>}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 3.6 · Eddy current generation ══════════════ */
+function EddyGen({ accent }) {
+  const [crack, setCrack] = useState(true);
+  return (
+    <div>
+      <Seg accent={accent} value={crack ? "on" : "off"} onChange={(v) => setCrack(v === "on")} options={[{ v: "off", label: "Sound conductor" }, { v: "on", label: "Crack present" }]} />
+      <VStage label={crack ? "The crack forces the eddy currents to divert around it, changing their path — the coil's impedance shifts, producing a signal." : "In a sound conductor the induced eddy currents flow in smooth loops and the coil sees a steady baseline impedance."}>
+        <svg viewBox="0 0 220 120" className="v-svg" style={{ maxWidth: 360 }}>
+          <rect x="20" y="55" width="180" height="55" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          {/* coil above */}
+          <ellipse cx="110" cy="40" rx="26" ry="9" fill="none" stroke={accent} strokeWidth="2" />
+          <line x1="110" y1="31" x2="110" y2="55" stroke={accent} strokeWidth="1.2" strokeDasharray="3 3" />
+          {/* eddy current loops */}
+          {[18, 30].map((r, i) => crack
+            ? <g key={i}><path d={`M ${110 - r} 80 a ${r} 7 0 0 1 ${r - 6} -6`} fill="none" stroke={accent} strokeWidth="1.4" opacity={0.8 - i * 0.2} /><path d={`M ${110 + 6} 74 a ${r} 7 0 0 1 ${r - 6} 6`} fill="none" stroke={accent} strokeWidth="1.4" opacity={0.8 - i * 0.2} /></g>
+            : <ellipse key={i} cx="110" cy="80" rx={r} ry="7" fill="none" stroke={accent} strokeWidth="1.4" opacity={0.8 - i * 0.2} />)}
+          {crack && <line x1="110" y1="55" x2="110" y2="90" stroke="#0f172a" strokeWidth="2.5" />}
+          <text x="110" y="118" textAnchor="middle" fontSize="7" fill="#94a3b8">induced eddy currents</text>
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: crack ? accent : "var(--muted)", fontWeight: 700 }}>{crack ? "✓ Impedance shifts — flaw detected" : "steady baseline impedance"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 3.7 · Probe types & the impedance plane ══════════════ */
+function EddyProbes({ accent }) {
+  const [effect, setEffect] = useState("crack");
+  // crack signal points one way, lift-off another
+  const ang = effect === "crack" ? -55 : effect === "liftoff" ? 200 : -20;
+  const x = 110 + Math.cos((ang * Math.PI) / 180) * 40, y = 70 + Math.sin((ang * Math.PI) / 180) * 40;
+  return (
+    <div>
+      <Seg accent={accent} value={effect} onChange={setEffect} options={[{ v: "crack", label: "Crack" }, { v: "liftoff", label: "Lift-off" }, { v: "cond", label: "Conductivity" }]} />
+      <VStage label={`On the impedance plane, a ${effect === "crack" ? "crack" : effect === "liftoff" ? "lift-off change" : "conductivity change"} moves the signal in its own characteristic direction — that's how the operator tells a real crack from lift-off or a benign feature.`}>
+        <svg viewBox="0 0 220 140" className="v-svg" style={{ maxWidth: 300 }}>
+          <line x1="30" y1="70" x2="190" y2="70" stroke="#64748b" strokeWidth="0.8" />
+          <line x1="110" y1="15" x2="110" y2="125" stroke="#64748b" strokeWidth="0.8" />
+          <text x="186" y="66" fontSize="7" fill="#94a3b8">R</text><text x="114" y="22" fontSize="7" fill="#94a3b8">X</text>
+          <line x1="110" y1="70" x2={x} y2={y} stroke={accent} strokeWidth="2" />
+          <circle cx={x} cy={y} r="4" fill={accent} />
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: accent, fontWeight: 700 }}>Differential probes respond to abrupt changes (cracks); absolute probes measure the slow ones (conductivity, thickness)</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 3.8 · Eddy current arrangements ══════════════ */
+const EDDY_ARR = [
+  { id: "surface", name: "Surface probe", d: "A coil scanned over a face to find cracks — the most common arrangement." },
+  { id: "encircle", name: "Encircling coil", d: "The bar or tube passes through the coil; the whole cross-section is tested at speed." },
+  { id: "remote", name: "Remote field", d: "An internal probe reads the through-wall field to inspect tube walls from inside." },
+];
+function EddyArrange({ accent }) {
+  const [sel, setSel] = useState("surface");
+  const a = EDDY_ARR.find((x) => x.id === sel);
+  return (
+    <div>
+      <div className="v-chips">{EDDY_ARR.map((x) => <button key={x.id} className={"v-chip" + (sel === x.id ? " on" : "")} onClick={() => setSel(x.id)} style={sel === x.id ? { borderColor: accent, color: accent } : undefined}>{x.name}</button>)}</div>
+      <VStage label={a.d}>
+        <svg viewBox="0 0 220 96" className="v-svg" style={{ maxWidth: 320 }}>
+          {sel === "surface" && <><rect x="20" y="50" width="180" height="36" rx="3" fill="#cbd5e1" stroke="#64748b" /><ellipse cx="110" cy="40" rx="20" ry="7" fill="none" stroke={accent} strokeWidth="2" /><line x1="70" y1="68" x2="70" y2="82" stroke="#0f172a" strokeWidth="2" /></>}
+          {sel === "encircle" && <><rect x="30" y="44" width="160" height="16" rx="8" fill="#cbd5e1" stroke="#64748b" /><ellipse cx="110" cy="52" rx="10" ry="24" fill="none" stroke={accent} strokeWidth="2.5" /><polygon points="182,52 170,48 170,56" fill="#64748b" /></>}
+          {sel === "remote" && <><rect x="20" y="34" width="180" height="12" rx="2" fill="#cbd5e1" stroke="#64748b" /><rect x="20" y="60" width="180" height="12" rx="2" fill="#cbd5e1" stroke="#64748b" /><rect x="70" y="48" width="16" height="10" rx="2" fill={accent} /><line x1="86" y1="53" x2="180" y2="53" stroke={accent} strokeWidth="1.2" strokeDasharray="3 3" /></>}
+          <text x="110" y="92" textAnchor="middle" fontSize="7" fill="#94a3b8">{a.name}</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 3.9 · Skin effect & frequency ══════════════ */
+function EtProsCons({ accent }) {
+  const [freq, setFreq] = useState(50);
+  const depth = Math.max(6, 46 - (freq / 100) * 38); // higher freq → shallower
+  return (
+    <div>
+      <VStage label={`At ${freq}% frequency the eddy currents penetrate ~${Math.round(46 - depth + 6)} 'units' deep. Higher frequency = shallower and more surface-sensitive (skin effect); lower = deeper. Eddy current is always a surface/near-surface method.`}>
+        <svg viewBox="0 0 220 100" className="v-svg" style={{ maxWidth: 340 }}>
+          <rect x="20" y="20" width="180" height="70" rx="3" fill="#cbd5e1" stroke="#64748b" />
+          <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={accent} stopOpacity="0.85" /><stop offset="1" stopColor={accent} stopOpacity="0" /></linearGradient>
+          <rect x="20" y="20" width="180" height={depth} fill="url(#skin)" style={{ transition: "height .15s" }} />
+          <ellipse cx="110" cy="14" rx="18" ry="6" fill="none" stroke={accent} strokeWidth="2" />
+          <text x="110" y="86" textAnchor="middle" fontSize="7" fill="#3a2e29">eddy-current penetration depth</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Frequency</span><input type="range" min="0" max="100" value={freq} onChange={(e) => setFreq(+e.target.value)} style={{ accentColor: accent }} /><b>{freq < 40 ? "low" : freq > 70 ? "high" : "mid"}</b></div>
+      <div className="v-tagline"><span style={{ color: accent, fontWeight: 700 }}>{freq > 70 ? "Shallow — fine surface cracks" : freq < 40 ? "Deeper — but still near-surface" : "Balanced penetration"}</span></div>
+    </div>
+  );
+}
+
 /* ── polished fallback for sessions whose bespoke visual isn't built yet ── */
 function Placeholder({ accent, session }) {
   return (
@@ -622,6 +830,9 @@ export const VISUALS = {
   // Unit II
   LptIntro, PenetrantProps, Developer, LptProsCons, LptProcedure,
   MptIntro, Magnetization, MptParticles, Demag,
+  // Unit III
+  ThermoPrinciple, ContactNonContact, LiquidCrystal, IrDetectors, ThermoInstrument,
+  EddyGen, EddyProbes, EddyArrange, EtProsCons,
 };
 
 export function Visual({ session, accent, accent2 }) {
