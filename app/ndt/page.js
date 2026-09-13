@@ -675,6 +675,10 @@ const CSS = `
 .v-bar span{font-size:11.5px;color:var(--muted);text-align:left}
 .v-bar-track{display:flex;gap:4px}
 .v-bar-track i{flex:1;height:9px;border-radius:3px;background:var(--line2)}
+.v-flow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center}
+.v-flow-step{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:12px;color:var(--ink);position:relative}
+.v-flow-step span{font-family:var(--mono);font-size:10px;font-weight:700}
+.v-flow-step em{position:absolute;right:-14px;color:var(--faint);font-style:normal}
 .v-verdict{display:flex;align-items:center;gap:12px;justify-content:center;padding:22px;border:1.5px solid;border-radius:12px;background:var(--panel)}
 .v-verdict-ic{font-size:26px;font-weight:800}
 .v-verdict b{font-size:16px}

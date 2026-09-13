@@ -1042,6 +1042,221 @@ function AeApplications({ accent }) {
   );
 }
 
+/* ══════════════ 5.1 · X-ray attenuation & the shadow image ══════════════ */
+function RtPrinciple({ accent }) {
+  const [thick, setThick] = useState(50);
+  const [voidOn, setVoidOn] = useState(true);
+  // film darkness: more thickness → more absorbed → lighter film; void → darker
+  const base = 90 - (thick / 100) * 55;
+  return (
+    <div>
+      <Seg accent={accent} value={voidOn ? "v" : "n"} onChange={(v) => setVoidOn(v === "v")} options={[{ v: "n", label: "Sound part" }, { v: "v", label: "With a void" }]} />
+      <VStage label={`Radiation passes through and is absorbed by the material. The void is 'missing' material, so more radiation gets through there and the film darkens — the flaw appears as a dark spot.`}>
+        <svg viewBox="0 0 220 150" className="v-svg" style={{ maxWidth: 340 }}>
+          {/* source */}
+          <circle cx="110" cy="14" r="6" fill={accent} />
+          {[80, 110, 140].map((x) => <line key={x} x1="110" y1="20" x2={x} y2="52" stroke={accent} strokeWidth="1" opacity="0.4" />)}
+          {/* part */}
+          <rect x="50" y="52" width="120" height="40" rx="3" fill="#94a3b8" stroke="#64748b" />
+          {voidOn && <ellipse cx="110" cy="72" rx="12" ry="7" fill="#334155" />}
+          {/* film with density */}
+          <rect x="40" y="112" width="140" height="24" rx="2" fill={`hsl(30,4%,${base}%)`} stroke="#64748b" />
+          {voidOn && <ellipse cx="110" cy="124" rx="14" ry="7" fill={`hsl(30,4%,${Math.max(12, base - 40)}%)`} />}
+          <text x="110" y="146" textAnchor="middle" fontSize="7" fill="#94a3b8">film — darker = more radiation reached it</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Part thickness</span><input type="range" min="10" max="100" value={thick} onChange={(e) => setThick(+e.target.value)} style={{ accentColor: accent }} /><b>{thick}%</b></div>
+      <div className="v-tagline"><span style={{ color: voidOn ? accent : "var(--muted)", fontWeight: 700 }}>{voidOn ? "✓ Void transmits more → dark indication" : "uniform thickness → uniform film"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 5.2 · Film vs digital imaging ══════════════ */
+function RtImaging({ accent }) {
+  const [mode, setMode] = useState("dr");
+  const steps = mode === "film" ? ["Expose film", "Chemical develop", "Fix & dry", "Read on light box"] : mode === "dr" ? ["Expose flat panel", "Instant digital image", "Process on screen", "Store & share"] : ["Expose imaging plate", "Laser-scan readout", "Digital image", "Erase & reuse plate"];
+  return (
+    <div>
+      <Seg accent={accent} value={mode} onChange={setMode} options={[{ v: "film", label: "Film" }, { v: "dr", label: "Digital (DR)" }, { v: "cr", label: "Computed (CR)" }]} />
+      <VStage label={mode === "film" ? "Film: high resolution and a permanent record, but chemical processing and a fresh sheet per shot." : mode === "dr" ? "Direct digital: a flat-panel detector gives an instant image — fast, chemical-free, processable." : "Computed radiography: a reusable imaging plate is exposed like film, then laser-scanned into a digital image and erased for reuse."}>
+        <div className="v-flow">
+          {steps.map((s, i) => <div key={i} className="v-flow-step" style={{ borderColor: accent + "44" }}><span style={{ color: accent }}>{i + 1}</span>{s}{i < 3 && <em>→</em>}</div>)}
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 5.3 · Filters & screens vs scatter ══════════════ */
+function FiltersScreens({ accent }) {
+  const [on, setOn] = useState(true);
+  return (
+    <div>
+      <Seg accent={accent} value={on ? "on" : "off"} onChange={(v) => setOn(v === "on")} options={[{ v: "off", label: "No filter / screen" }, { v: "on", label: "Filter + lead screen" }]} />
+      <VStage label={on ? "A filter hardens the beam and a lead screen absorbs scatter — the fog clears and contrast lifts, so small flaws stand out (and the exposure can be shorter)." : "Without a filter or screen, scattered radiation fogs the film with a grey haze that washes out contrast and hides fine flaws."}>
+        <svg viewBox="0 0 220 90" className="v-svg" style={{ maxWidth: 320 }}>
+          <rect x="20" y="18" width="180" height="54" rx="3" fill={`hsl(30,4%,${on ? 46 : 62}%)`} stroke="#64748b" />
+          {/* fog overlay when off */}
+          {!on && <rect x="20" y="18" width="180" height="54" rx="3" fill="#cbd5e1" opacity="0.32" />}
+          {/* a flaw */}
+          <line x1="90" y1="30" x2="130" y2="58" stroke={on ? "#e5e7eb" : "#9ca3af"} strokeWidth={on ? 2 : 1.4} opacity={on ? 0.95 : 0.5} />
+          <text x="110" y="84" textAnchor="middle" fontSize="7" fill="#94a3b8">{on ? "crisp, high-contrast radiograph" : "scatter fog — low contrast"}</text>
+        </svg>
+      </VStage>
+      <div className="v-tagline"><span style={{ color: on ? accent : "#b91c1c", fontWeight: 700 }}>{on ? "✓ Scatter cut — flaw visible" : "✗ Fogged — flaw hard to see"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 5.4 · Shadow geometry & unsharpness ══════════════ */
+function Geometry({ accent }) {
+  const [fs, setFs] = useState(14); // focal-spot size
+  const a = 46, b = 42; // source→flaw, flaw→film (px)
+  const P = Math.round((fs * b) / a * 10) / 10; // geometric unsharpness
+  const M = (a + b) / a, umbra = Math.max(2, 20 * M - P);
+  return (
+    <div>
+      <VStage label={`Focal-spot size ${fs} → geometric unsharpness (penumbra) ≈ ${P}. A smaller focal spot casts a sharper shadow; the fuzzy penumbra at the flaw's edges is what blurs fine detail.`}>
+        <svg viewBox="0 0 220 130" className="v-svg" style={{ maxWidth: 340 }}>
+          {/* source */}
+          <rect x={110 - fs / 2} y="10" width={fs} height="6" rx="2" fill={accent} />
+          <text x="110" y="8" textAnchor="middle" fontSize="6.5" fill="#94a3b8">focal spot</text>
+          {/* flaw (opaque) */}
+          <rect x="100" y="58" width="20" height="5" rx="1" fill="#0f172a" />
+          {/* film */}
+          <rect x="20" y="100" width="180" height="16" rx="2" fill="hsl(30,4%,60%)" stroke="#64748b" />
+          {/* penumbra + umbra */}
+          <rect x={110 - umbra / 2 - P} y="100" width={umbra + 2 * P} height="16" fill="#0f172a" opacity="0.28" />
+          <rect x={110 - umbra / 2} y="100" width={umbra} height="16" fill="#0f172a" opacity="0.85" />
+          <text x="110" y="126" textAnchor="middle" fontSize="6.5" fill="#94a3b8">dark umbra + fuzzy penumbra (blur)</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Focal spot</span><input type="range" min="2" max="30" value={fs} onChange={(e) => setFs(+e.target.value)} style={{ accentColor: accent }} /><b>{fs < 8 ? "small" : fs > 20 ? "large" : "med"}</b></div>
+      <div className="v-tagline"><span style={{ color: fs < 8 ? "#22c55e" : fs > 20 ? "#b91c1c" : accent, fontWeight: 700 }}>{fs < 8 ? "Sharp edges — fine flaws resolved" : fs > 20 ? "Blurred — fine flaws lost" : "Moderate sharpness"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 5.5 · Characteristic (H&D) curve ══════════════ */
+function FilmCurve({ accent }) {
+  const [exp, setExp] = useState(50);
+  const W = 240, H = 130, pad = 24;
+  const density = (e) => 0.3 + 3.4 / (1 + Math.exp(-(e - 50) / 12)); // S-curve
+  const d = density(exp);
+  const good = d > 1.5 && d < 3.5;
+  const x = (e) => pad + (e / 100) * (W - pad * 2);
+  const y = (dv) => H - pad - (dv / 4) * (H - pad * 2);
+  return (
+    <div>
+      <VStage label={`Exposure ${exp}% → film density ${d.toFixed(1)}. Land the image on the steep middle of the curve (high contrast) where small flaws show; too light (toe) or too dark (shoulder) and detail is lost.`}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="v-svg" style={{ maxWidth: 380 }}>
+          {/* useful band */}
+          <rect x={pad} y={y(3.5)} width={W - pad * 2} height={y(1.5) - y(3.5)} fill={accent} opacity="0.08" />
+          <polyline points={Array.from({ length: 60 }, (_, i) => { const e = (i / 59) * 100; return `${x(e)},${y(density(e))}`; }).join(" ")} fill="none" stroke={accent} strokeWidth="2" />
+          <circle cx={x(exp)} cy={y(d)} r="4.5" fill={good ? "#22c55e" : "#b91c1c"} />
+          <text x={pad} y={H - 6} fontSize="8" fill="#94a3b8">log exposure →</text>
+          <text x={pad - 4} y={pad} fontSize="8" fill="#94a3b8" textAnchor="end" transform={`rotate(-90 ${pad - 4} ${pad})`}>density</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Exposure</span><input type="range" min="0" max="100" value={exp} onChange={(e) => setExp(+e.target.value)} style={{ accentColor: accent }} /><b>{exp}%</b></div>
+      <div className="v-tagline"><span style={{ color: good ? "#22c55e" : "#b91c1c", fontWeight: 700 }}>{good ? "✓ In the useful high-contrast band" : d <= 1.5 ? "Too light — under-exposed" : "Too dark — over-exposed"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 5.6 · Penetrameter (IQI) ══════════════ */
+function Penetrameter({ accent }) {
+  const [sens, setSens] = useState(60); // achieved sensitivity %
+  const wiresVisible = Math.floor((sens / 100) * 6); // more sensitivity → more wires seen
+  const required = 4;
+  const valid = wiresVisible >= required;
+  return (
+    <div>
+      <VStage label={`The IQI has 6 wires from thick to thin. At this exposure ${wiresVisible} are visible; the code requires wire ${required}. ${valid ? "The required wire shows → the radiograph's sensitivity is proven valid." : "The required wire is NOT visible → the radiograph is rejected, however clean the part looks."}`}>
+        <svg viewBox="0 0 220 80" className="v-svg" style={{ maxWidth: 320 }}>
+          <rect x="20" y="18" width="180" height="44" rx="3" fill="hsl(30,4%,52%)" stroke="#64748b" />
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <g key={i}>
+              <line x1={40 + i * 26} y1="26" x2={40 + i * 26} y2="54" stroke={i < wiresVisible ? "#e5e7eb" : "hsl(30,4%,50%)"} strokeWidth={4.5 - i * 0.6} opacity={i < wiresVisible ? 0.95 : 0.35} />
+              {i + 1 === required && <text x={40 + i * 26} y="72" textAnchor="middle" fontSize="7" fill={valid ? "#22c55e" : "#b91c1c"}>req'd</text>}
+            </g>
+          ))}
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Achieved sensitivity</span><input type="range" min="20" max="100" value={sens} onChange={(e) => setSens(+e.target.value)} style={{ accentColor: accent }} /><b>{wiresVisible}/6</b></div>
+      <div className="v-tagline"><span style={{ color: valid ? "#22c55e" : "#b91c1c", fontWeight: 700 }}>{valid ? "✓ Required IQI wire visible — valid radiograph" : "✗ Required wire not seen — radiograph rejected"}</span></div>
+    </div>
+  );
+}
+
+/* ══════════════ 5.7 · Radiographic equivalence ══════════════ */
+const RT_MATERIALS = [
+  { id: "mg", name: "Magnesium", factor: 0.6 }, { id: "al", name: "Aluminium", factor: 0.18 },
+  { id: "ti", name: "Titanium", factor: 0.45 }, { id: "steel", name: "Steel", factor: 1.0 },
+  { id: "cu", name: "Copper", factor: 1.4 }, { id: "pb", name: "Lead", factor: 14 },
+];
+function Equivalence({ accent }) {
+  const [sel, setSel] = useState("al");
+  const m = RT_MATERIALS.find((x) => x.id === sel);
+  const attn = Math.min(100, Math.log10(m.factor * 10 + 1) * 42);
+  return (
+    <div>
+      <div className="v-chips">{RT_MATERIALS.map((x) => <button key={x.id} className={"v-chip" + (sel === x.id ? " on" : "")} onClick={() => setSel(x.id)} style={sel === x.id ? { borderColor: accent, color: accent } : undefined}>{x.name}</button>)}</div>
+      <VStage label={`For the same thickness, ${m.name} attenuates radiation like ${m.factor}× that of steel (its equivalence factor). Multiply the real thickness by the factor to get the equivalent steel thickness, then use the steel exposure chart.`}>
+        <svg viewBox="0 0 220 70" className="v-svg" style={{ maxWidth: 320 }}>
+          <text x="20" y="24" fontSize="9" fill="var(--muted)">attenuation vs steel</text>
+          <rect x="20" y="32" width="180" height="16" rx="8" fill="var(--panel2)" stroke="var(--line)" />
+          <rect x="20" y="32" width={1.8 * attn} height="16" rx="8" fill={accent} style={{ transition: "width .2s" }} />
+          <text x="20" y="62" fontSize="10" fill="var(--ink)" fontWeight="700">factor ≈ {m.factor}×</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 5.8 · Fluoroscopy vs static ══════════════ */
+function Fluoroscopy({ accent }) {
+  const [mode, setMode] = useState("live");
+  const [ang, setAng] = useState(0);
+  const live = mode === "live";
+  return (
+    <div>
+      <Seg accent={accent} value={mode} onChange={setMode} options={[{ v: "static", label: "Static (film)" }, { v: "live", label: "Real-time (fluoroscopy)" }]} />
+      <VStage label={live ? "Fluoroscopy shows a live image — rotate the part while watching and a flaw appears at the angle that aligns with the beam. Fast, dynamic, lower resolution." : "A static film is one fixed exposure at one angle — highest resolution and a permanent record, but a flaw at the wrong angle can be missed."}>
+        <svg viewBox="0 0 220 100" className="v-svg" style={{ maxWidth: 320 }}>
+          <rect x="60" y="30" width="100" height="40" rx="4" fill="hsl(30,4%,46%)" stroke="#64748b" transform={live ? `rotate(${ang} 110 50)` : ""} />
+          <line x1="90" y1="40" x2="130" y2="60" stroke={live && Math.abs(ang) > 20 ? "#e5e7eb" : "#6b7280"} strokeWidth="2.5" opacity={live && Math.abs(ang) > 20 ? 1 : 0.4} transform={live ? `rotate(${ang} 110 50)` : ""} />
+          <text x="110" y="92" textAnchor="middle" fontSize="7" fill="#94a3b8">{live ? "rotate to reveal the flaw" : "one fixed exposure"}</text>
+        </svg>
+      </VStage>
+      {live && <div className="v-slider"><span>Rotate part</span><input type="range" min="-45" max="45" value={ang} onChange={(e) => setAng(+e.target.value)} style={{ accentColor: accent }} /><b>{ang}°</b></div>}
+    </div>
+  );
+}
+
+/* ══════════════ 5.9 · Computed tomography ══════════════ */
+function CtScan({ accent }) {
+  const [n, setN] = useState(1);
+  // more projections → sharper reconstruction of a hidden flaw
+  const clarity = Math.min(1, (n - 1) / 11);
+  return (
+    <div>
+      <VStage label={`${n} projection${n > 1 ? "s" : ""}: a single radiograph superimposes everything along the beam, so a flaw's depth is ambiguous. Combining many views around the part reconstructs a true cross-section that locates the flaw in 3-D.`}>
+        <svg viewBox="0 0 220 120" className="v-svg" style={{ maxWidth: 320 }}>
+          <circle cx="110" cy="60" r="42" fill="var(--panel2)" stroke="#64748b" />
+          {/* projection directions */}
+          {Array.from({ length: n }).map((_, i) => { const a = (i / n) * Math.PI; return <line key={i} x1={110 - Math.cos(a) * 52} y1={60 - Math.sin(a) * 52} x2={110 + Math.cos(a) * 52} y2={60 + Math.sin(a) * 52} stroke={accent} strokeWidth="0.8" opacity="0.3" />; })}
+          {/* reconstructed flaw — sharpens with more projections */}
+          <circle cx="122" cy="50" r={7} fill="#dc2626" opacity={0.15 + clarity * 0.8} style={{ filter: clarity < 0.5 ? "blur(4px)" : "none", transition: "all .2s" }} />
+          <text x="110" y="114" textAnchor="middle" fontSize="7" fill="#94a3b8">CT reconstruction from projections</text>
+        </svg>
+      </VStage>
+      <div className="v-slider"><span>Projections</span><input type="range" min="1" max="12" value={n} onChange={(e) => setN(+e.target.value)} style={{ accentColor: accent }} /><b>{n}</b></div>
+      <div className="v-tagline"><span style={{ color: clarity > 0.6 ? "#22c55e" : accent, fontWeight: 700 }}>{n === 1 ? "single radiograph — flaw depth ambiguous" : clarity > 0.6 ? "✓ 3-D reconstruction — flaw located" : "reconstruction sharpening…"}</span></div>
+    </div>
+  );
+}
+
 /* ── polished fallback for sessions whose bespoke visual isn't built yet ── */
 function Placeholder({ accent, session }) {
   return (
@@ -1068,6 +1283,9 @@ export const VISUALS = {
   // Unit IV
   UtPrinciple, Transducer, UtMethods, BeamAngles, ScanTypes,
   PhasedArray, Tofd, AePrinciple, AeApplications,
+  // Unit V
+  RtPrinciple, RtImaging, FiltersScreens, Geometry, FilmCurve,
+  Penetrameter, Equivalence, Fluoroscopy, CtScan,
 };
 
 export function Visual({ session, accent, accent2 }) {
