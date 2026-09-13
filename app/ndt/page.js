@@ -22,7 +22,17 @@ export default function NdtBay() {
   const [marks, setMarks] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [search, setSearch] = useState(false);
   const mainRef = useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearch((s) => !s); }
+      else if (e.key === "Escape") setSearch(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     try { const s = JSON.parse(localStorage.getItem(KEY) || "{}"); if (s.done) setDone(s.done); if (s.marks) setMarks(s.marks); if (s.dark != null) setDark(s.dark); if (s.cur) setCur(s.cur); } catch (e) {}
@@ -66,6 +76,7 @@ export default function NdtBay() {
           <div className="ndt-prog-top"><span>Certification progress</span><b>{doneCount}/{SESSION_COUNT}</b></div>
           <div className="ndt-bar"><i style={{ width: pct + "%" }} /></div>
         </div>
+        <button className="ndt-searchbtn" onClick={() => setSearch(true)}><span className="ndt-search-ic">⌕</span>Search<kbd>⌘K</kbd></button>
         <nav className="ndt-nav">
           <button className={"ndt-home" + (cur === "home" ? " on" : "")} onClick={goHome}><span className="ndt-home-ic">◎</span>Overview</button>
           {UNITS.map((u) => {
@@ -105,6 +116,41 @@ export default function NdtBay() {
             nextSession={idx < ALL_SESSIONS.length - 1 ? ALL_SESSIONS[idx + 1] : null} go={go} />
         ) : null}
       </main>
+      {search && <SearchPalette onClose={() => setSearch(false)} go={(id) => { go(id); setSearch(false); }} />}
+    </div>
+  );
+}
+
+/* ── command-palette search ── */
+function SearchPalette({ onClose, go }) {
+  const [q, setQ] = useState("");
+  const ref = useRef(null);
+  useEffect(() => { ref.current?.focus(); }, []);
+  const ql = q.trim().toLowerCase();
+  const sessions = (ql ? ALL_SESSIONS.filter((s) => (s.title + " " + s.method + " " + s.unitTitle + " " + (s.summary || "")).toLowerCase().includes(ql)) : ALL_SESSIONS).slice(0, ql ? 8 : 6);
+  const terms = ql ? Object.entries(DETAIL).flatMap(([id, d]) => (d.keyTerms || []).map((t) => ({ ...t, id }))).filter((t) => (t.t + " " + t.d).toLowerCase().includes(ql)).slice(0, 6) : [];
+  return (
+    <div className="ndt-search-ovl" onClick={onClose}>
+      <div className="ndt-search" onClick={(e) => e.stopPropagation()}>
+        <div className="ndt-search-in"><span className="ndt-search-ic">⌕</span><input ref={ref} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search sessions, methods and glossary terms…" /></div>
+        <div className="ndt-search-res">
+          {sessions.length > 0 && <div className="ndt-search-grp">Sessions</div>}
+          {sessions.map((s) => (
+            <button key={s.id} className="ndt-search-i" onClick={() => go(s.id)}>
+              <span className="si-n" style={{ color: s.accent }}>{s.unitCode}.{s.n}</span>
+              <span className="si-t">{s.title}</span><span className="si-m">{s.method}</span>
+            </button>
+          ))}
+          {terms.length > 0 && <div className="ndt-search-grp">Glossary</div>}
+          {terms.map((t, i) => (
+            <button key={i} className="ndt-search-i term" onClick={() => go(t.id)}>
+              <span className="si-term">{t.t}</span><span className="si-def">{t.d}</span>
+            </button>
+          ))}
+          {ql && sessions.length === 0 && terms.length === 0 && <div className="ndt-search-empty">No matches for “{q}”.</div>}
+        </div>
+        <div className="ndt-search-foot"><span>{sessions.length + terms.length} result{sessions.length + terms.length === 1 ? "" : "s"}</span><kbd>esc</kbd></div>
+      </div>
     </div>
   );
 }
@@ -139,6 +185,51 @@ function Home({ go, done }) {
             </button>
           );
         })}
+      </div>
+      <MethodCompare />
+    </div>
+  );
+}
+
+/* ── method comparison tool ── */
+const METHODS_CMP = [
+  { id: "VT", name: "Visual", kind: "surface", energy: "Light", materials: "Any", finds: "Visible surface flaws", cost: 1, portable: 3 },
+  { id: "PT", name: "Liquid Penetrant", kind: "surface", energy: "Dye + capillarity", materials: "Non-porous", finds: "Surface-breaking cracks", cost: 1, portable: 3 },
+  { id: "MT", name: "Magnetic Particle", kind: "surface", energy: "Magnetic field", materials: "Ferromagnetic", finds: "Surface / near-surface cracks", cost: 2, portable: 3 },
+  { id: "ET", name: "Eddy Current", kind: "surface", energy: "Induced current", materials: "Conductive", finds: "Cracks, conductivity, coatings", cost: 2, portable: 2 },
+  { id: "IR", name: "Thermography", kind: "surface", energy: "Infrared / heat", materials: "Most", finds: "Delaminations, hot spots", cost: 3, portable: 2 },
+  { id: "UT", name: "Ultrasonic", kind: "volumetric", energy: "Sound", materials: "Most solids", finds: "Internal flaws, thickness", cost: 2, portable: 2 },
+  { id: "AE", name: "Acoustic Emission", kind: "volumetric", energy: "Stress waves", materials: "Most", finds: "Active / growing damage", cost: 3, portable: 2 },
+  { id: "RT", name: "Radiography", kind: "volumetric", energy: "X / γ rays", materials: "Most", finds: "Internal volumetric flaws", cost: 3, portable: 1 },
+];
+function MethodCompare() {
+  const [filter, setFilter] = useState("all");
+  const rows = METHODS_CMP.filter((m) => filter === "all" || m.kind === filter);
+  const dots = (n) => "●".repeat(n) + "○".repeat(3 - n);
+  return (
+    <div className="ndt-cmp">
+      <div className="ndt-cmp-h">
+        <div className="ndt-sec-eyebrow" style={{ margin: 0 }}>Compare the eight methods</div>
+        <div className="ndt-cmp-filter">
+          {[["all", "All"], ["surface", "Surface"], ["volumetric", "Volumetric"]].map(([v, l]) => (
+            <button key={v} className={filter === v ? "on" : ""} onClick={() => setFilter(v)}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div className="ndt-cmp-scroll">
+        <table className="ndt-cmp-t">
+          <thead><tr><th>Method</th><th>Reach</th><th>Energy</th><th>Materials</th><th>Detects</th><th>Cost</th><th>Portability</th></tr></thead>
+          <tbody>
+            {rows.map((m) => (
+              <tr key={m.id}>
+                <td><b>{m.id}</b> {m.name}</td>
+                <td><span className={"ndt-cmp-tag " + m.kind}>{m.kind}</span></td>
+                <td>{m.energy}</td><td>{m.materials}</td><td>{m.finds}</td>
+                <td className="ndt-cmp-dots">{dots(m.cost)}</td><td className="ndt-cmp-dots">{dots(m.portable)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -530,6 +621,48 @@ const CSS = `
 .st{line-height:1.25}
 .ndt-theme{margin:8px 14px 16px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px;color:var(--sub);font-family:var(--mono);letter-spacing:.04em}
 .ndt-theme:hover{border-color:var(--red);color:var(--ink)}
+/* rail search trigger */
+.ndt-searchbtn{display:flex;align-items:center;gap:9px;margin:0 12px 8px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.5px;color:var(--muted)}
+.ndt-searchbtn:hover{border-color:var(--line2);color:var(--ink)}
+.ndt-search-ic{color:var(--red);font-size:14px}
+.ndt-searchbtn kbd{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--faint);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:2px 5px}
+/* search palette */
+.ndt-search-ovl{position:fixed;inset:0;z-index:80;background:rgba(6,4,3,.55);backdrop-filter:blur(3px);display:flex;justify-content:center;align-items:flex-start;padding:12vh 20px 20px;animation:ndtfade .12s ease}
+@keyframes ndtfade{from{opacity:0}to{opacity:1}}
+.ndt-search{width:100%;max-width:560px;background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:0 30px 80px -30px rgba(0,0,0,.7);overflow:hidden;max-height:72vh;display:flex;flex-direction:column}
+.ndt-search-in{display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.ndt-search-in .ndt-search-ic{font-size:18px}
+.ndt-search-in input{flex:1;background:none;border:0;outline:none;font-family:var(--font);font-size:16px;color:var(--ink)}
+.ndt-search-res{overflow-y:auto;padding:8px}
+.ndt-search-grp{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:10px 10px 5px}
+.ndt-search-i{width:100%;display:flex;align-items:center;gap:11px;text-align:left;background:none;border:0;padding:10px 11px;border-radius:9px;color:var(--ink)}
+.ndt-search-i:hover{background:var(--panel2)}
+.si-n{font-family:var(--mono);font-size:11px;font-weight:700;min-width:28px}
+.si-t{flex:1;font-size:13.5px;font-weight:600}
+.si-m{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ndt-search-i.term{align-items:flex-start}
+.si-term{font-size:13px;font-weight:700;min-width:120px;color:var(--red)}
+.si-def{flex:1;font-size:12px;color:var(--muted);line-height:1.45}
+.ndt-search-empty{padding:24px;text-align:center;font-size:13px;color:var(--muted)}
+.ndt-search-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10px;color:var(--faint)}
+.ndt-search-foot kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:2px 6px}
+/* method comparison */
+.ndt-cmp{margin-top:38px}
+.ndt-cmp-h{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.ndt-cmp-filter{display:inline-flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:3px}
+.ndt-cmp-filter button{background:none;border:0;border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;color:var(--muted)}
+.ndt-cmp-filter button.on{background:var(--grad);color:#fff}
+.ndt-cmp-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:14px}
+.ndt-cmp-t{width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px}
+.ndt-cmp-t th{text-align:left;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--red);font-weight:700;padding:12px 14px;background:var(--panel2);border-bottom:1px solid var(--border)}
+.ndt-cmp-t td{padding:12px 14px;border-bottom:1px solid var(--line);color:var(--sub)}
+.ndt-cmp-t tr:last-child td{border-bottom:0}
+.ndt-cmp-t tr:hover td{background:var(--panel2)}
+.ndt-cmp-t td b{color:var(--ink);font-family:var(--mono)}
+.ndt-cmp-tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:5px}
+.ndt-cmp-tag.surface{background:rgba(255,176,32,.16);color:#c47f10}
+.ndt-cmp-tag.volumetric{background:var(--red-soft);color:var(--red)}
+.ndt-cmp-dots{color:var(--red);letter-spacing:2px;font-size:10px}
 
 /* ── main ── */
 .ndt-main{overflow-y:auto;min-height:0;position:relative;
