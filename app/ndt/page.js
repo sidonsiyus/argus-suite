@@ -138,6 +138,13 @@ function Home({ go, done }) {
   );
 }
 function nextUndone(done) { const s = ALL_SESSIONS.find((x) => !done[x.id]); return s ? s.id : "1.1"; }
+function readMins(detail, extra) {
+  let w = (detail.overview || "").split(/\s+/).length;
+  (detail.sections || []).forEach((s) => { w += (s.p || "").split(/\s+/).length; (s.list || []).forEach((l) => (w += l.split(/\s+/).length)); });
+  (extra?.deepDives || []).forEach((d) => (w += (d.p || "").split(/\s+/).length));
+  if (extra?.caseStudy) w += Object.values(extra.caseStudy).join(" ").split(/\s+/).length;
+  return Math.max(3, Math.round(w / 190));
+}
 
 /* ── one session ── */
 function SessionView({ session, done, onDone, onPrev, onNext, hasPrev, hasNext }) {
@@ -149,10 +156,17 @@ function SessionView({ session, done, onDone, onPrev, onNext, hasPrev, hasNext }
   return (
     <article className="ndt-session" style={{ "--uc": session.accent, "--uc2": session.accent2 }}>
       <header className="ndt-sess-head">
+        <span className="ndt-sess-wm" aria-hidden>{session.unitCode}.{session.n}</span>
         <span className="ndt-sess-crumb">Unit {session.unitCode} · {session.unitTitle}<b>· {session.method}</b></span>
         <h1>{session.title}</h1>
         <p className="ndt-lead">{detail?.overview || session.summary}</p>
-        <div className="ndt-meta"><span className="ndt-chip red">{session.method}</span><span className="ndt-chip">Session {session.n} of 9</span><span className="ndt-chip">Unit {session.unitCode}</span></div>
+        <div className="ndt-meta">
+          <span className="ndt-chip red">{session.method}</span>
+          <span className="ndt-chip">Session {session.n} of 9</span>
+          {detail && <span className="ndt-chip">◷ ~{readMins(detail, extra)} min read</span>}
+          {extra?.caseStudy && <span className="ndt-chip">▦ Case study</span>}
+          {done && <span className="ndt-chip ok">✓ Complete</span>}
+        </div>
       </header>
 
       {/* interactive */}
@@ -423,7 +437,14 @@ const CSS = `
 .ndt-theme:hover{border-color:var(--red);color:var(--ink)}
 
 /* ── main ── */
-.ndt-main{overflow-y:auto;min-height:0;background:radial-gradient(1000px 520px at 100% -8%,var(--red-soft),transparent 55%)}
+.ndt-main{overflow-y:auto;min-height:0;position:relative;
+  background:
+    radial-gradient(1000px 520px at 100% -8%,var(--red-soft),transparent 55%),
+    linear-gradient(var(--line) 1px,transparent 1px),
+    linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:auto,44px 44px,44px 44px;background-position:0 0,-1px -1px,-1px -1px}
+.ndt[data-theme="light"] .ndt-main{background-blend-mode:normal}
+.ndt-main::before{content:"";position:sticky;top:0;display:block;height:0;z-index:1}
 
 /* home */
 .ndt-home-wrap{max-width:1060px;margin:0 auto;padding:40px 42px 80px}
@@ -458,9 +479,16 @@ const CSS = `
 .ndt-uc-prog{font-family:var(--mono);font-size:11px;color:var(--sub);font-weight:600}
 
 /* session */
-.ndt-session{max-width:820px;margin:0 auto;padding:38px 42px 90px}
-.ndt-sess-head{margin-bottom:24px}
+.ndt-session{max-width:820px;margin:0 auto;padding:38px 42px 90px;position:relative}
+.ndt-sess-head{margin-bottom:24px;position:relative}
+.ndt-sess-wm{position:absolute;top:-18px;right:-8px;font-family:var(--mono);font-size:96px;font-weight:800;line-height:1;color:var(--red);opacity:.06;letter-spacing:-.04em;pointer-events:none;user-select:none}
 .ndt-sess-crumb{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ndt-chip.ok{color:#3fae5a;border-color:rgba(63,174,90,.3);background:rgba(63,174,90,.1)}
+/* technical corner brackets on key cards */
+.ndt-console,.ndt-case{position:relative}
+.ndt-console::before,.ndt-console::after,.ndt-case::before,.ndt-case::after{content:"";position:absolute;width:16px;height:16px;border:2px solid var(--red);opacity:.5;pointer-events:none}
+.ndt-console::before,.ndt-case::before{top:10px;left:10px;border-right:0;border-bottom:0}
+.ndt-console::after,.ndt-case::after{bottom:10px;right:10px;border-left:0;border-top:0}
 .ndt-sess-crumb b{color:var(--red);margin-left:5px;font-weight:700}
 .ndt-sess-head h1{font-size:34px;font-weight:800;letter-spacing:-.025em;margin:10px 0 14px;line-height:1.08}
 .ndt-lead{font-size:16px;line-height:1.7;color:var(--sub);max-width:720px}
@@ -619,6 +647,27 @@ const CSS = `
 .v-methoddetail p{font-size:13px;color:var(--sub);line-height:1.55;margin:8px 0}
 .v-hunt{max-width:520px}
 .v-win{margin-top:12px;font-size:13px;font-weight:600;text-align:center}
+.v-chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-bottom:14px}
+.v-chip{background:var(--panel2);border:1.5px solid var(--line);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--muted)}
+.v-chip:hover{border-color:var(--hair);color:var(--ink)}
+.v-chip.on{color:var(--ink)}
+.v-tagline{text-align:center;margin-top:12px;font-size:12.5px}
+.v-slider{display:flex;align-items:center;gap:12px;margin-top:14px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.v-slider span{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:none}
+.v-slider input{flex:1}
+.v-slider b{font-family:var(--mono);font-size:13px;color:var(--red);min-width:34px;text-align:right}
+.v-matrix{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:center;text-align:left}
+@media(max-width:560px){.v-matrix{grid-template-columns:1fr}}
+.v-mprops{display:flex;flex-direction:column;gap:8px}
+.v-mprop{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted)}
+.v-mprop.yes{color:var(--ink);font-weight:600}
+.v-mprop .dot{width:9px;height:9px;border-radius:50%;background:var(--line2);flex:none}
+.v-mmethods{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.v-mmethod{background:var(--panel);border:1.5px solid var(--line);border-radius:9px;padding:9px 11px;opacity:.5}
+.v-mmethod.on{opacity:1}
+.v-mmethod b{font-family:var(--mono);font-size:13px}
+.v-mmethod small{display:block;font-size:10px;color:var(--muted);margin:1px 0 3px}
+.v-mmethod span{font-family:var(--mono);font-size:9px;letter-spacing:.04em}
 .v-ph{border:1.5px dashed var(--hair);border-radius:12px;padding:28px;max-width:440px;margin:0 auto}
 .v-ph-ic{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--red)}
 .v-ph b{display:block;font-size:16px;margin:9px 0 7px}
