@@ -613,7 +613,16 @@ const CSS = `
 .ndt-navbtn.done.is{background:#3fae5a;opacity:1}
 
 /* visual stage — restyled for the console identity */
-.v-stage{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px;text-align:center}
+.v-stage{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px;text-align:center}
+.v-stage-top{position:absolute;top:10px;right:10px;z-index:2}
+.v-play{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:5px 11px}
+.v-play span{font-size:8px}
+.v-play:hover{border-color:var(--line2);color:var(--ink)}
+.v-play.on{color:var(--red);border-color:var(--red-soft)}
+/* global smooth easing on slider/toggle-driven SVG shapes (rAF elements opt out with .no-tween) */
+.v-stage svg rect,.v-stage svg circle,.v-stage svg ellipse,.v-stage svg line,.v-stage svg path,.v-stage svg polygon,.v-stage svg polyline{transition:x .25s ease,y .25s ease,cx .25s ease,cy .25s ease,r .25s ease,rx .25s ease,ry .25s ease,width .25s ease,height .25s ease,opacity .25s ease,fill .25s ease,transform .25s ease}
+.v-stage svg .no-tween{transition:none!important}
+@media(prefers-reduced-motion:reduce){.v-stage svg *{transition:none!important}}
 .v-svg{width:100%;max-width:460px;height:auto;display:block;margin:0 auto}
 .v-cap{font-size:12.5px;line-height:1.55;color:var(--muted);margin-top:13px;max-width:560px;margin-left:auto;margin-right:auto}
 .v-seg{display:inline-flex;gap:4px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:14px}

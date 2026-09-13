@@ -6,9 +6,30 @@
 import { useState, useEffect, useRef } from "react";
 
 /* ── shared bits ── */
-function VStage({ children, label }) {
+const REDUCED = () => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// elapsed seconds via rAF while `active`; frozen (and reset-safe) when paused or reduced-motion
+function useTick(active = true, speed = 1) {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    if (!active || REDUCED()) return;
+    let raf, start;
+    const loop = (ts) => { start ??= ts; setT(((ts - start) / 1000) * speed); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [active, speed]);
+  return t;
+}
+function usePlay(initial = true) {
+  const [on, setOn] = useState(initial && !REDUCED());
+  return [on, setOn];
+}
+function PlayPill({ on, set, label = "Animate" }) {
+  return <button className={"v-play" + (on ? " on" : "")} onClick={() => set((v) => !v)} title={on ? "Pause" : "Play"}><span>{on ? "❚❚" : "▶"}</span>{label}</button>;
+}
+function VStage({ children, label, pill }) {
   return (
     <div className="v-stage">
+      {pill && <div className="v-stage-top">{pill}</div>}
       {children}
       {label && <div className="v-cap">{label}</div>}
     </div>
@@ -281,6 +302,9 @@ function MeritsScale({ accent }) {
 /* ══════════════ 1.7 · Flaw orientation & detectability ══════════════ */
 function LimitsRadar({ accent }) {
   const [ang, setAng] = useState(0); // 0 = facing beam (best), 90 = edge-on (worst)
+  const [play, setPlay] = usePlay(false);
+  const tk = useTick(play, 1);
+  useEffect(() => { if (play) setAng(Math.round(45 + 45 * Math.sin(tk * 0.9))); }, [tk, play]);
   const det = Math.round(Math.cos((ang * Math.PI) / 180) * 100);
   const rad = (ang * Math.PI) / 180;
   const cx = 150, cy = 95, L = 34;
@@ -288,7 +312,7 @@ function LimitsRadar({ accent }) {
   const col = det > 66 ? "#22c55e" : det > 33 ? "#eab308" : "#dc2626";
   return (
     <div>
-      <VStage label={`Crack at ${ang}° to the beam. Detectability ≈ ${det}%. A crack facing the beam reflects strongly; edge-on it nearly vanishes — orientation can matter more than size.`}>
+      <VStage pill={<PlayPill on={play} set={setPlay} label="Sweep" />} label={`Crack at ${ang}° to the beam. Detectability ≈ ${det}%. A crack facing the beam reflects strongly; edge-on it nearly vanishes — orientation can matter more than size.`}>
         <svg viewBox="0 0 300 150" className="v-svg" style={{ maxWidth: 400 }}>
           <rect x="30" y="70" width="240" height="60" rx="3" fill="#cbd5e1" stroke="#64748b" />
           {/* UT probe + beam from top */}
@@ -457,13 +481,16 @@ const LPT_STEPS = [
 ];
 function LptProcedure({ accent }) {
   const [step, setStep] = useState(0);
+  const [play, setPlay] = usePlay(false);
+  const t = useTick(play, 1);
+  useEffect(() => { if (play) setStep(Math.floor((t / 1.5) % 6)); }, [t, play]);
   const s = step;
   return (
     <div>
       <div className="v-steps">
-        {LPT_STEPS.map((x, i) => <button key={i} className={"v-step" + (i === s ? " on" : "") + (i < s ? " done" : "")} onClick={() => setStep(i)} style={i === s ? { borderColor: accent, color: accent } : undefined}><b>{i + 1}</b>{x.n}</button>)}
+        {LPT_STEPS.map((x, i) => <button key={i} className={"v-step" + (i === s ? " on" : "") + (i < s ? " done" : "")} onClick={() => { setPlay(false); setStep(i); }} style={i === s ? { borderColor: accent, color: accent } : undefined}><b>{i + 1}</b>{x.n}</button>)}
       </div>
-      <VStage label={`Step ${s + 1} — ${LPT_STEPS[s].n}: ${LPT_STEPS[s].d}`}>
+      <VStage pill={<PlayPill on={play} set={setPlay} label="Play" />} label={`Step ${s + 1} — ${LPT_STEPS[s].n}: ${LPT_STEPS[s].d}`}>
         <svg viewBox="0 0 200 110" className="v-svg" style={{ maxWidth: 340 }}>
           {/* base part, cleaner as step advances */}
           <rect x="10" y="30" width="180" height="70" rx="3" fill={s === 4 || s === 5 ? "#f8fafc" : "#cbd5e1"} stroke="#64748b" />
@@ -493,11 +520,13 @@ function LptProcedure({ accent }) {
 /* ══════════════ 2.6 · Magnetic flux leakage ══════════════ */
 function MptIntro({ accent }) {
   const [crack, setCrack] = useState(true);
+  const [play, setPlay] = usePlay();
+  const t = useTick(play && crack, 1);
   return (
     <div>
       <Seg accent={accent} value={crack ? "on" : "off"} onChange={(v) => setCrack(v === "on")}
         options={[{ v: "off", label: "No flaw" }, { v: "on", label: "Crack present" }]} />
-      <VStage label={crack ? "A crack interrupts the magnetic flux, forcing a leakage field out of the surface. Magnetic particles gather at the leakage field, drawing a visible line over the flaw." : "With no flaw, the magnetic flux flows smoothly through the bar and nothing shows on the surface."}>
+      <VStage pill={<PlayPill on={play} set={setPlay} />} label={crack ? "A crack interrupts the magnetic flux, forcing a leakage field out of the surface. Magnetic particles gather at the leakage field, drawing a visible line over the flaw." : "With no flaw, the magnetic flux flows smoothly through the bar and nothing shows on the surface."}>
         <svg viewBox="0 0 240 120" className="v-svg" style={{ maxWidth: 380 }}>
           <rect x="20" y="50" width="200" height="34" rx="3" fill="#cbd5e1" stroke="#64748b" />
           <text x="30" y="72" fontSize="12" fill="#b91c1c" fontWeight="700">N</text>
@@ -505,12 +534,15 @@ function MptIntro({ accent }) {
           {/* internal flux lines */}
           {[60, 67, 74].map((y) => <line key={y} x1="42" y1={y} x2="198" y2={y} stroke={accent} strokeWidth="1" opacity="0.5" />)}
           {crack && <>
-            {/* crack */}
             <line x1="120" y1="50" x2="120" y2="74" stroke="#0f172a" strokeWidth="2.5" />
-            {/* leakage field arcs above the crack */}
             {[8, 14, 20].map((r, i) => <path key={i} d={`M ${120 - r} 50 A ${r} ${r} 0 0 1 ${120 + r} 50`} fill="none" stroke={accent} strokeWidth="1.2" opacity={0.8 - i * 0.2} />)}
-            {/* particles gathering */}
-            {[-3, 0, 3, -6, 6, 0].map((dx, i) => <circle key={i} cx={120 + dx} cy={46 - (i % 3) * 3} r="1.8" fill="#3a2e29" />)}
+            {/* particles: drift in from the sides and settle at the leakage field */}
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+              const ph = play ? ((t * 0.6 + i / 8) % 1) : 1; // 0 = far, 1 = gathered
+              const side = i % 2 ? 1 : -1, startX = 120 + side * 26, x = startX + (120 + side * ((i % 3) * 2.2) - startX) * ph;
+              const y = 46 - ((i % 3) * 3) * ph - (1 - ph) * 2;
+              return <circle key={i} className="no-tween" cx={x} cy={y} r={1.5 + ph * 0.6} fill="#3a2e29" opacity={0.35 + ph * 0.6} />;
+            })}
             <text x="120" y="30" textAnchor="middle" fontSize="7.5" fill={accent}>leakage field + particles</text>
           </>}
         </svg>
@@ -720,14 +752,17 @@ function ThermoInstrument({ accent }) {
 /* ══════════════ 3.6 · Eddy current generation ══════════════ */
 function EddyGen({ accent }) {
   const [crack, setCrack] = useState(true);
+  const [play, setPlay] = usePlay();
+  const t = useTick(play, 1);
+  const pulse = play ? 0.45 + 0.55 * Math.abs(Math.sin(t * 2.4)) : 1;
   return (
     <div>
       <Seg accent={accent} value={crack ? "on" : "off"} onChange={(v) => setCrack(v === "on")} options={[{ v: "off", label: "Sound conductor" }, { v: "on", label: "Crack present" }]} />
-      <VStage label={crack ? "The crack forces the eddy currents to divert around it, changing their path — the coil's impedance shifts, producing a signal." : "In a sound conductor the induced eddy currents flow in smooth loops and the coil sees a steady baseline impedance."}>
+      <VStage pill={<PlayPill on={play} set={setPlay} />} label={crack ? "The crack forces the eddy currents to divert around it, changing their path — the coil's impedance shifts, producing a signal." : "In a sound conductor the induced eddy currents flow in smooth loops and the coil sees a steady baseline impedance."}>
         <svg viewBox="0 0 220 120" className="v-svg" style={{ maxWidth: 360 }}>
           <rect x="20" y="55" width="180" height="55" rx="3" fill="#cbd5e1" stroke="#64748b" />
           {/* coil above */}
-          <ellipse cx="110" cy="40" rx="26" ry="9" fill="none" stroke={accent} strokeWidth="2" />
+          <ellipse cx="110" cy="40" rx="26" ry="9" fill="none" stroke={accent} strokeWidth="2" className="no-tween" style={{ opacity: pulse }} />
           <line x1="110" y1="31" x2="110" y2="55" stroke={accent} strokeWidth="1.2" strokeDasharray="3 3" />
           {/* eddy current loops */}
           {[18, 30].map((r, i) => crack
@@ -813,22 +848,30 @@ function EtProsCons({ accent }) {
 /* ══════════════ 4.1 · Pulse-echo A-scan ══════════════ */
 function UtPrinciple({ accent }) {
   const [depth, setDepth] = useState(45); // % of thickness
+  const [play, setPlay] = usePlay();
+  const t = useTick(play, 1);
   const flawY = 30 + (depth / 100) * 46;
   const flawEchoX = 40 + (depth / 100) * 150; // echo time ∝ depth
+  // travelling pulse: down to the flaw, then back up, on a loop
+  const cyc = (t / 1.7) % 1, down = cyc < 0.5, frac = down ? cyc / 0.5 : (1 - cyc) / 0.5;
+  const pulseY = 26 + frac * (flawY - 26);
+  const echoHot = cyc > 0.92 || cyc < 0.06; // flash the flaw echo as the pulse returns
   return (
     <div>
-      <VStage label={`A pulse-echo probe times the echoes. The flaw sits at ${depth}% depth, so its echo returns before the back-wall echo — its arrival time gives the depth.`}>
+      <VStage pill={<PlayPill on={play} set={setPlay} />} label={`A pulse-echo probe times the echoes. The flaw sits at ${depth}% depth, so its echo returns before the back-wall echo — its arrival time gives the depth.`}>
         <svg viewBox="0 0 220 160" className="v-svg" style={{ maxWidth: 380 }}>
           {/* block + probe + flaw */}
           <rect x="20" y="26" width="180" height="52" rx="3" fill="#cbd5e1" stroke="#64748b" />
           <rect x="96" y="16" width="28" height="10" rx="2" fill={accent} />
           <rect x="104" y={flawY} width="12" height="4" rx="2" fill="#dc2626" />
           <line x1="110" y1="26" x2="110" y2={flawY} stroke={accent} strokeWidth="1" strokeDasharray="2 2" />
+          {/* travelling pulse */}
+          {play && <g className="no-tween"><ellipse cx="110" cy={pulseY} rx="9" ry="3" fill="none" stroke={down ? accent : "#dc2626"} strokeWidth="1.6" opacity="0.9" /></g>}
           {/* A-scan */}
           <line x1="20" y1="140" x2="200" y2="140" stroke="#64748b" strokeWidth="0.8" />
           <line x1="40" y1="96" x2="40" y2="140" stroke={accent} strokeWidth="2" />
           <text x="40" y="152" textAnchor="middle" fontSize="6.5" fill="#94a3b8">pulse</text>
-          <line x1={flawEchoX} y1="112" x2={flawEchoX} y2="140" stroke="#dc2626" strokeWidth="2" style={{ transition: "all .12s" }} />
+          <line className="no-tween" x1={flawEchoX} y1={echoHot ? 106 : 112} x2={flawEchoX} y2="140" stroke="#dc2626" strokeWidth={echoHot ? 3 : 2} />
           <text x={flawEchoX} y="152" textAnchor="middle" fontSize="6.5" fill="#dc2626">flaw</text>
           <line x1="192" y1="104" x2="192" y2="140" stroke="#475569" strokeWidth="2" />
           <text x="192" y="152" textAnchor="middle" fontSize="6.5" fill="#94a3b8">back wall</text>
@@ -843,19 +886,24 @@ function UtPrinciple({ accent }) {
 /* ══════════════ 4.2 · Piezoelectric transducer ══════════════ */
 function Transducer({ accent }) {
   const [mode, setMode] = useState("send");
+  const [play, setPlay] = usePlay();
+  const t = useTick(play, 1);
   const send = mode === "send";
   return (
     <div>
       <Seg accent={accent} value={mode} onChange={setMode} options={[{ v: "send", label: "Send (voltage → sound)" }, { v: "recv", label: "Receive (sound → voltage)" }]} />
-      <VStage label={send ? "A voltage pulse deforms the piezoelectric crystal, which launches a sound pulse into the part." : "A returning echo deforms the crystal, which generates a voltage the instrument reads. One crystal does both."}>
+      <VStage pill={<PlayPill on={play} set={setPlay} />} label={send ? "A voltage pulse deforms the piezoelectric crystal, which launches a sound pulse into the part." : "A returning echo deforms the crystal, which generates a voltage the instrument reads. One crystal does both."}>
         <svg viewBox="0 0 220 120" className="v-svg" style={{ maxWidth: 340 }}>
-          <rect x="80" y="20" width="60" height="20" rx="3" fill={accent} opacity={send ? 1 : 0.5} />
+          <rect x="80" y="20" width="60" height="20" rx="3" fill={accent} className="no-tween" style={{ opacity: play ? (send ? 0.6 + 0.4 * Math.abs(Math.sin(t * 4)) : 0.5) : (send ? 1 : 0.5) }} />
           <text x="110" y="34" textAnchor="middle" fontSize="8" fill="#fff">crystal</text>
-          {/* voltage side */}
           <text x="110" y="14" textAnchor="middle" fontSize="8" fill={send ? accent : "var(--muted)"}>{send ? "⚡ voltage in" : "⚡ voltage out"}</text>
-          {/* part + wave */}
           <rect x="30" y="52" width="160" height="56" rx="3" fill="#cbd5e1" stroke="#64748b" />
-          {[0, 1, 2].map((i) => <path key={i} d={`M 40 ${68 + i * 14} q 30 -6 60 0 q 30 6 60 0`} fill="none" stroke={accent} strokeWidth="1.4" opacity={(send ? 1 : 0.6) * (1 - i * 0.25)} transform={send ? "" : "scale(1,-1) translate(0,-160)"} />)}
+          {/* wavefronts travel down (send) / up (receive) on a loop */}
+          {[0, 1, 2].map((i) => {
+            const ph = play ? ((t * 0.9 + i / 3) % 1) : (i / 3);
+            const op = (send ? 1 : 0.7) * (1 - ph) * 0.9;
+            return <path key={i} className="no-tween" d={`M 40 ${send ? 60 + ph * 42 : 100 - ph * 42} q 30 -6 60 0 q 30 6 60 0`} fill="none" stroke={accent} strokeWidth="1.5" opacity={op} />;
+          })}
           <polygon points={send ? "110,44 106,52 114,52" : "110,52 106,44 114,44"} fill={accent} />
         </svg>
       </VStage>
@@ -943,11 +991,14 @@ function ScanTypes({ accent }) {
 /* ══════════════ 4.6 · Phased array beam steering ══════════════ */
 function PhasedArray({ accent }) {
   const [ang, setAng] = useState(0); // -40..40
+  const [play, setPlay] = usePlay();
+  const t = useTick(play, 1);
+  useEffect(() => { if (play) setAng(Math.round(Math.sin(t * 1.1) * 40)); }, [t, play]);
   const rad = ((ang + 90) * Math.PI) / 180;
   const ox = 110, oy = 34, L = 70;
   return (
     <div>
-      <VStage label={`Beam steered to ${ang}° — with no probe motion. Each element fires with a tiny delay so the wavefronts add up in the chosen direction. Sweeping the angle builds a live sectorial image.`}>
+      <VStage pill={<PlayPill on={play} set={setPlay} label="Sweep" />} label={`Beam steered to ${ang}° — with no probe motion. Each element fires with a tiny delay so the wavefronts add up in the chosen direction. Sweeping the angle builds a live sectorial image.`}>
         <svg viewBox="0 0 220 120" className="v-svg" style={{ maxWidth: 360 }}>
           <rect x="20" y="30" width="180" height="80" rx="3" fill="#cbd5e1" stroke="#64748b" />
           {/* element array */}
@@ -997,21 +1048,21 @@ function Tofd({ accent }) {
 /* ══════════════ 4.8 · Acoustic emission principle ══════════════ */
 function AePrinciple({ accent }) {
   const [load, setLoad] = useState(30);
+  const [play, setPlay] = usePlay();
   const active = load > 60;
+  const t = useTick(play && active, 1);
   return (
     <div>
-      <VStage label={active ? `Under ${load}% load the crack grows and releases a burst of stress-wave energy — the sensors 'hear' it. AE reacts only to ACTIVE damage.` : `At ${load}% load the crack is stable and silent — no emission. AE needs the structure stressed to trigger active flaws.`}>
+      <VStage pill={<PlayPill on={play} set={setPlay} />} label={active ? `Under ${load}% load the crack grows and releases a burst of stress-wave energy — the sensors 'hear' it. AE reacts only to ACTIVE damage.` : `At ${load}% load the crack is stable and silent — no emission. AE needs the structure stressed to trigger active flaws.`}>
         <svg viewBox="0 0 220 110" className="v-svg" style={{ maxWidth: 360 }}>
           <rect x="20" y="40" width="180" height="40" rx="3" fill="#cbd5e1" stroke="#64748b" />
-          {/* load arrows */}
           <polygon points="10,60 20,54 20,66" fill={active ? "#dc2626" : "#94a3b8"} />
           <polygon points="210,60 200,54 200,66" fill={active ? "#dc2626" : "#94a3b8"} />
-          {/* crack */}
           <line x1="110" y1="48" x2="110" y2="72" stroke="#dc2626" strokeWidth="2.5" />
-          {/* sensors */}
           <rect x="55" y="32" width="12" height="8" rx="2" fill={accent} /><rect x="153" y="32" width="12" height="8" rx="2" fill={accent} />
-          {/* emission waves */}
-          {active && [10, 18, 26].map((r, i) => <circle key={i} cx="110" cy="60" r={r} fill="none" stroke={accent} strokeWidth="1.3" opacity={0.8 - i * 0.22} />)}
+          {/* emission waves — expanding bursts when active */}
+          {active && (play ? [0, 1, 2].map((i) => { const ph = ((t * 1.1 + i / 3) % 1); return <circle key={i} className="no-tween" cx="110" cy="60" r={4 + ph * 28} fill="none" stroke={accent} strokeWidth="1.4" opacity={(1 - ph) * 0.85} />; })
+            : [10, 18, 26].map((r, i) => <circle key={i} cx="110" cy="60" r={r} fill="none" stroke={accent} strokeWidth="1.3" opacity={0.8 - i * 0.22} />))}
           <text x="110" y="98" textAnchor="middle" fontSize="7" fill="#94a3b8">{active ? "stress-wave burst → sensors" : "stable crack — silent"}</text>
         </svg>
       </VStage>
@@ -1046,16 +1097,19 @@ function AeApplications({ accent }) {
 function RtPrinciple({ accent }) {
   const [thick, setThick] = useState(50);
   const [voidOn, setVoidOn] = useState(true);
+  const [play, setPlay] = usePlay();
+  const t = useTick(play, 1);
+  const beam = play ? 0.25 + 0.35 * Math.abs(Math.sin(t * 3)) : 0.4;
   // film darkness: more thickness → more absorbed → lighter film; void → darker
   const base = 90 - (thick / 100) * 55;
   return (
     <div>
       <Seg accent={accent} value={voidOn ? "v" : "n"} onChange={(v) => setVoidOn(v === "v")} options={[{ v: "n", label: "Sound part" }, { v: "v", label: "With a void" }]} />
-      <VStage label={`Radiation passes through and is absorbed by the material. The void is 'missing' material, so more radiation gets through there and the film darkens — the flaw appears as a dark spot.`}>
+      <VStage pill={<PlayPill on={play} set={setPlay} />} label={`Radiation passes through and is absorbed by the material. The void is 'missing' material, so more radiation gets through there and the film darkens — the flaw appears as a dark spot.`}>
         <svg viewBox="0 0 220 150" className="v-svg" style={{ maxWidth: 340 }}>
           {/* source */}
-          <circle cx="110" cy="14" r="6" fill={accent} />
-          {[80, 110, 140].map((x) => <line key={x} x1="110" y1="20" x2={x} y2="52" stroke={accent} strokeWidth="1" opacity="0.4" />)}
+          <circle cx="110" cy="14" r="6" fill={accent} className="no-tween" style={{ opacity: play ? 0.6 + 0.4 * Math.abs(Math.sin(t * 3)) : 1 }} />
+          {[80, 110, 140].map((x) => <line key={x} className="no-tween" x1="110" y1="20" x2={x} y2="52" stroke={accent} strokeWidth="1" opacity={beam} />)}
           {/* part */}
           <rect x="50" y="52" width="120" height="40" rx="3" fill="#94a3b8" stroke="#64748b" />
           {voidOn && <ellipse cx="110" cy="72" rx="12" ry="7" fill="#334155" />}
@@ -1111,12 +1165,15 @@ function FiltersScreens({ accent }) {
 /* ══════════════ 5.4 · Shadow geometry & unsharpness ══════════════ */
 function Geometry({ accent }) {
   const [fs, setFs] = useState(14); // focal-spot size
+  const [play, setPlay] = usePlay(false);
+  const tk = useTick(play, 1);
+  useEffect(() => { if (play) setFs(Math.round(16 + 13 * Math.sin(tk * 0.8))); }, [tk, play]);
   const a = 46, b = 42; // source→flaw, flaw→film (px)
   const P = Math.round((fs * b) / a * 10) / 10; // geometric unsharpness
   const M = (a + b) / a, umbra = Math.max(2, 20 * M - P);
   return (
     <div>
-      <VStage label={`Focal-spot size ${fs} → geometric unsharpness (penumbra) ≈ ${P}. A smaller focal spot casts a sharper shadow; the fuzzy penumbra at the flaw's edges is what blurs fine detail.`}>
+      <VStage pill={<PlayPill on={play} set={setPlay} label="Sweep" />} label={`Focal-spot size ${fs} → geometric unsharpness (penumbra) ≈ ${P}. A smaller focal spot casts a sharper shadow; the fuzzy penumbra at the flaw's edges is what blurs fine detail.`}>
         <svg viewBox="0 0 220 130" className="v-svg" style={{ maxWidth: 340 }}>
           {/* source */}
           <rect x={110 - fs / 2} y="10" width={fs} height="6" rx="2" fill={accent} />
@@ -1237,11 +1294,14 @@ function Fluoroscopy({ accent }) {
 /* ══════════════ 5.9 · Computed tomography ══════════════ */
 function CtScan({ accent }) {
   const [n, setN] = useState(1);
+  const [play, setPlay] = usePlay(false);
+  const t = useTick(play, 1);
+  useEffect(() => { if (play) setN(1 + Math.floor((t / 0.45) % 12)); }, [t, play]);
   // more projections → sharper reconstruction of a hidden flaw
   const clarity = Math.min(1, (n - 1) / 11);
   return (
     <div>
-      <VStage label={`${n} projection${n > 1 ? "s" : ""}: a single radiograph superimposes everything along the beam, so a flaw's depth is ambiguous. Combining many views around the part reconstructs a true cross-section that locates the flaw in 3-D.`}>
+      <VStage pill={<PlayPill on={play} set={setPlay} label="Build" />} label={`${n} projection${n > 1 ? "s" : ""}: a single radiograph superimposes everything along the beam, so a flaw's depth is ambiguous. Combining many views around the part reconstructs a true cross-section that locates the flaw in 3-D.`}>
         <svg viewBox="0 0 220 120" className="v-svg" style={{ maxWidth: 320 }}>
           <circle cx="110" cy="60" r="42" fill="var(--panel2)" stroke="#64748b" />
           {/* projection directions */}
