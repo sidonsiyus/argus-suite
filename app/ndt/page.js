@@ -414,6 +414,96 @@ function Notes({ id }) {
     </div>
   );
 }
+// Build the grounding context sent to the tutor route for this session.
+function tutorContext(session) {
+  const d = DETAIL[session.id] || {};
+  const x = EXTRA[session.id] || {};
+  return {
+    unit: "Unit " + session.unitCode + " · " + (UNITS.find((u) => u.id === session.unit)?.title || ""),
+    title: session.n + " " + session.title,
+    overview: d.overview || session.summary || "",
+    sections: (d.sections || []).map((s) => ({ h: s.h, p: s.p })),
+    terms: d.keyTerms || [],
+    caseStudy: x.caseStudy || null,
+  };
+}
+function AskTutor({ session }) {
+  const [q, setQ] = useState("");
+  const [msgs, setMsgs] = useState([]); // {role:'you'|'tutor', text}
+  const [busy, setBusy] = useState(false);
+  const scrollRef = useRef(null);
+  // Fresh thread when the session changes.
+  useEffect(() => { setMsgs([]); setQ(""); setBusy(false); }, [session.id]);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs, busy]);
+
+  const send = useCallback(async () => {
+    const question = q.trim();
+    if (!question || busy) return;
+    setMsgs((m) => [...m, { role: "you", text: question }]);
+    setQ("");
+    setBusy(true);
+    try {
+      const r = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, context: tutorContext(session) }),
+      });
+      const d = await r.json();
+      const text = d?.answer
+        || (d?.error === "tutor_unconfigured"
+            ? "The tutor isn't switched on yet — ask your instructor to add the API key. In the meantime, try the lesson notes and case file above."
+            : "I couldn't reach the tutor just now. Please try again in a moment, or ask your instructor.");
+      setMsgs((m) => [...m, { role: "tutor", text }]);
+    } catch {
+      setMsgs((m) => [...m, { role: "tutor", text: "Network hiccup — I couldn't reach the tutor. Try again in a moment." }]);
+    } finally {
+      setBusy(false);
+    }
+  }, [q, busy, session]);
+
+  const suggestions = [
+    "Explain this session simply",
+    "Give me a real aviation example",
+    "How is this method different from the others?",
+  ];
+
+  return (
+    <div className="ndt-side-card ndt-ask">
+      <div className="ndt-side-k">Ask a doubt <span className="ndt-ask-badge">AI tutor</span></div>
+      <div className="ndt-ask-log" ref={scrollRef}>
+        {msgs.length === 0 && !busy && (
+          <div className="ndt-ask-empty">
+            <p>Stuck on anything in this session? Ask and I'll explain — grounded in this lesson.</p>
+            <div className="ndt-ask-sugs">
+              {suggestions.map((s) => (
+                <button key={s} className="ndt-ask-sug" onClick={() => setQ(s)} disabled={busy}>{s}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {msgs.map((m, i) => (
+          <div key={i} className={"ndt-ask-msg " + m.role}>
+            <span className="ndt-ask-who">{m.role === "you" ? "You" : "Tutor"}</span>
+            <div className="ndt-ask-bubble">{m.text}</div>
+          </div>
+        ))}
+        {busy && <div className="ndt-ask-msg tutor"><span className="ndt-ask-who">Tutor</span><div className="ndt-ask-bubble ndt-ask-typing"><i /><i /><i /></div></div>}
+      </div>
+      <div className="ndt-ask-in">
+        <textarea
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="Type your doubt…  (Enter to send)"
+          rows={2}
+          disabled={busy}
+        />
+        <button className="ndt-ask-send" onClick={send} disabled={busy || !q.trim()}>{busy ? "…" : "Ask"}</button>
+      </div>
+      <div className="ndt-ask-foot">AI can be wrong — verify anything important with your instructor.</div>
+    </div>
+  );
+}
 function SidePanel({ session, secs, active, onJump, unitDone, unitTotal, done, onDone, bookmarked, onBookmark, nextSession, go }) {
   return (
     <aside className="ndt-side">
@@ -435,6 +525,7 @@ function SidePanel({ session, secs, active, onJump, unitDone, unitTotal, done, o
         <div className="ndt-side-k">Quick spec · {session.method}</div>
         <div className="ndt-spec">{specFor(session).map(([k, v]) => <div key={k} className="ndt-spec-row"><span>{k}</span><b>{v}</b></div>)}</div>
       </div>
+      <AskTutor session={session} />
       <Notes id={session.id} />
     </aside>
   );
@@ -910,6 +1001,29 @@ const CSS = `
 .ndt-spec-row b{color:var(--ink);font-weight:600;text-align:right}
 .ndt-notes{width:100%;min-height:86px;resize:vertical;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px;font-size:12.5px;font-family:var(--font);color:var(--ink);line-height:1.5}
 .ndt-notes:focus{outline:none;border-color:var(--red)}
+.ndt-ask-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:20px;background:var(--red-soft);color:var(--red);font-family:var(--font);font-size:8.5px;letter-spacing:.06em;font-weight:800;vertical-align:middle}
+.ndt-ask-log{display:flex;flex-direction:column;gap:10px;max-height:340px;overflow-y:auto;margin-bottom:10px;padding-right:2px}
+.ndt-ask-empty p{margin:0 0 10px;font-size:12.5px;color:var(--muted);line-height:1.55}
+.ndt-ask-sugs{display:flex;flex-direction:column;gap:6px}
+.ndt-ask-sug{text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:var(--font);font-size:12px;color:var(--ink);cursor:pointer;transition:border-color .15s,color .15s}
+.ndt-ask-sug:hover{border-color:var(--red);color:var(--red)}
+.ndt-ask-msg{display:flex;flex-direction:column;gap:3px}
+.ndt-ask-msg.you{align-items:flex-end}
+.ndt-ask-who{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.ndt-ask-bubble{max-width:92%;padding:9px 11px;border-radius:11px;font-size:12.5px;line-height:1.55;white-space:pre-wrap;word-wrap:break-word}
+.ndt-ask-msg.you .ndt-ask-bubble{background:var(--grad);color:#fff;border-bottom-right-radius:3px}
+.ndt-ask-msg.tutor .ndt-ask-bubble{background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-bottom-left-radius:3px}
+.ndt-ask-typing{display:flex;gap:4px;align-items:center}
+.ndt-ask-typing i{width:6px;height:6px;border-radius:50%;background:var(--red);opacity:.4;animation:ndtdot 1s infinite}
+.ndt-ask-typing i:nth-child(2){animation-delay:.15s}.ndt-ask-typing i:nth-child(3){animation-delay:.3s}
+@keyframes ndtdot{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+.ndt-ask-in{display:flex;gap:8px;align-items:flex-end}
+.ndt-ask-in textarea{flex:1;resize:none;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:12.5px;font-family:var(--font);color:var(--ink);line-height:1.45}
+.ndt-ask-in textarea:focus{outline:none;border-color:var(--red)}
+.ndt-ask-send{flex:none;background:var(--grad);color:#fff;border:none;border-radius:9px;padding:0 14px;height:38px;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.ndt-ask-send:disabled{opacity:.45;cursor:default}
+.ndt-ask-foot{margin-top:9px;font-size:10px;color:var(--muted);line-height:1.4}
+@media(prefers-reduced-motion:reduce){.ndt-ask-typing i{animation:none}}
 @media(max-width:1180px){.ndt-sesswrap{grid-template-columns:minmax(0,760px) 288px;max-width:1080px}.ndt-spine{display:none}}
 @media(max-width:1000px){.ndt-sesswrap{grid-template-columns:minmax(0,820px)}.ndt-side{display:none}}
 .ndt-sess-wm{position:absolute;top:-18px;right:-8px;font-family:var(--mono);font-size:96px;font-weight:800;line-height:1;color:var(--red);opacity:.06;letter-spacing:-.04em;pointer-events:none;user-select:none}
