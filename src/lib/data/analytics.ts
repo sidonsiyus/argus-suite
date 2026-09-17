@@ -203,11 +203,12 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       // completion as it accrues. This is the scatter's X axis.
       const progress = Math.round(0.5 * readinessPct + 0.5 * poaProgress);
 
-      // Pipeline stage.
+      // Pipeline stage — banded on the blended progression score so the funnel
+      // actually distributes (progress > 0 alone put everyone in "In progress").
       let stage: PipelineStage;
       if (placedStudents.has(s.id)) stage = "Placed";
       else if (readyCount >= 4 && progress >= 70) stage = "Ready";
-      else if (progress > 0 || (sessionsByStudent.get(s.id) || []).length > 0) stage = "In progress";
+      else if (progress >= 20) stage = "In progress";
       else stage = "Not started";
       stageCounts[stage] += 1;
 
