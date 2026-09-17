@@ -65,7 +65,7 @@ export function CohortOverview({ analytics }: { analytics: CohortAnalytics }) {
           <AtRiskScatter points={scatter} />
         </ChartCard>
 
-        <ChartCard eyebrow="Pipeline" title="Readiness funnel" subtitle="Where the cohort sits" icon={Users} height={340} empty={kpis.totalStudents === 0}>
+        <ChartCard eyebrow="Pipeline" title="Readiness funnel" subtitle="Where the cohort sits" icon={Users} accent="blue" height={340} empty={kpis.totalStudents === 0}>
           <PipelineFunnel funnel={funnel} />
         </ChartCard>
       </div>
@@ -76,6 +76,7 @@ export function CohortOverview({ analytics }: { analytics: CohortAnalytics }) {
         title="Career-readiness matrix"
         subtitle="Green = ready · amber = in progress · grey = missing. A pale column is a cohort-wide gap."
         icon={CheckCircle2}
+        accent="violet"
         height={380}
         bodyClassName="px-3 py-2"
         empty={readinessMatrix.rows.length === 0}

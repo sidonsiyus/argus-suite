@@ -33,6 +33,20 @@ export const CHART_SERIES = [
   CHART.rose,
 ] as const;
 
+// Validated categorical palette (dataviz skill reference instance). Fixed order,
+// CVD-safe on the adjacent pairlist in both modes; first 3 clear all-pairs
+// (scatter/bubble). Never cycle — a 9th series folds to "Other" or facets.
+export const CATEGORICAL_LIGHT = [
+  "#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948",
+];
+export const CATEGORICAL_DARK = [
+  "#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767",
+];
+// Single-hue blue ordinal ramp for ordered stages (funnels/tiers). Light starts
+// no lighter than step 250; dark no darker than step 600.
+export const ORDINAL_LIGHT = ["#86b6ef", "#3987e5", "#256abf", "#184f95"];
+export const ORDINAL_DARK = ["#184f95", "#256abf", "#3987e5", "#86b6ef"];
+
 export interface ResolvedPalette {
   emerald: string;
   amber: string;
@@ -43,6 +57,10 @@ export interface ResolvedPalette {
   grid: string;
   surface: string;
   series: string[];
+  /** Validated categorical hues for the current theme (fixed order). */
+  categorical: string[];
+  /** Ordered ordinal ramp (light→dark meaning low→high) for the current theme. */
+  ordinal: string[];
   isDark: boolean;
 }
 
@@ -57,10 +75,12 @@ const FALLBACK: ResolvedPalette = {
   grid: "#eae9e4",
   surface: "#ffffff",
   series: ["#059669", "#2563eb", "#d97706", "#e11d48"],
+  categorical: CATEGORICAL_LIGHT,
+  ordinal: ORDINAL_LIGHT,
   isDark: false,
 };
 
-const VAR_MAP: Record<keyof Omit<ResolvedPalette, "series" | "isDark">, string> = {
+const VAR_MAP: Record<keyof Omit<ResolvedPalette, "series" | "isDark" | "categorical" | "ordinal">, string> = {
   emerald: "--accent-emerald",
   amber: "--accent-amber",
   blue: "--accent-blue",
@@ -86,7 +106,12 @@ function resolve(): ResolvedPalette {
     surface: read(VAR_MAP.surface, FALLBACK.surface),
     isDark: document.documentElement.classList.contains("dark"),
   };
-  return { ...p, series: [p.emerald, p.blue, p.amber, p.rose] };
+  return {
+    ...p,
+    series: [p.emerald, p.blue, p.amber, p.rose],
+    categorical: p.isDark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT,
+    ordinal: p.isDark ? ORDINAL_DARK : ORDINAL_LIGHT,
+  };
 }
 
 /** Returns resolved hex chart colours, re-resolving when the theme class flips. */

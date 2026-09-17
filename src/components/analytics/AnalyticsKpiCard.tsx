@@ -1,6 +1,7 @@
 import React from "react";
 import { LucideIcon, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fmtDelta } from "@/lib/charts/format";
 
 interface AnalyticsKpiCardProps {
   label: string;
@@ -15,17 +16,17 @@ interface AnalyticsKpiCardProps {
   spark?: number[];
 }
 
-const ACCENT: Record<string, { text: string; bg: string; stroke: string }> = {
-  emerald: { text: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-500/10", stroke: "var(--accent-emerald)" },
-  amber: { text: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-500/10", stroke: "var(--accent-amber)" },
-  blue: { text: "text-blue-700 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-500/10", stroke: "var(--accent-blue)" },
-  rose: { text: "text-rose-700 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-500/10", stroke: "var(--accent-rose)" },
+const ACCENT: Record<string, { text: string; chip: string; bar: string; stroke: string }> = {
+  emerald: { text: "text-emerald-700 dark:text-emerald-400", chip: "bg-emerald-50 dark:bg-emerald-500/10", bar: "from-emerald-400/70", stroke: "var(--accent-emerald)" },
+  amber: { text: "text-amber-700 dark:text-amber-400", chip: "bg-amber-50 dark:bg-amber-500/10", bar: "from-amber-400/70", stroke: "var(--accent-amber)" },
+  blue: { text: "text-blue-700 dark:text-blue-400", chip: "bg-blue-50 dark:bg-blue-500/10", bar: "from-blue-400/70", stroke: "var(--accent-blue)" },
+  rose: { text: "text-rose-700 dark:text-rose-400", chip: "bg-rose-50 dark:bg-rose-500/10", bar: "from-rose-400/70", stroke: "var(--accent-rose)" },
 };
 
 function Sparkline({ data, stroke }: { data: number[]; stroke: string }) {
   if (!data || data.length < 2) return null;
-  const w = 96;
-  const h = 28;
+  const w = 104;
+  const h = 30;
   const max = Math.max(...data, 1);
   const min = Math.min(...data, 0);
   const span = max - min || 1;
@@ -34,19 +35,13 @@ function Sparkline({ data, stroke }: { data: number[]; stroke: string }) {
     const y = h - ((v - min) / span) * (h - 4) - 2;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
+  const area = `0,${h} ${pts.join(" ")} ${w},${h}`;
   const last = pts.at(-1)!.split(",");
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible" aria-hidden>
-      <polyline
-        points={pts.join(" ")}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity={0.9}
-      />
-      <circle cx={Number(last[0])} cy={Number(last[1])} r={2.4} fill={stroke} />
+      <polygon points={area} fill={stroke} opacity={0.08} />
+      <polyline points={pts.join(" ")} fill="none" stroke={stroke} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={Number(last[0])} cy={Number(last[1])} r={2.6} fill={stroke} />
     </svg>
   );
 }
@@ -71,32 +66,32 @@ export function AnalyticsKpiCard({
       : "text-rose-600 dark:text-rose-400";
 
   return (
-    <div className="bg-surface border border-border rounded-xl shadow-card p-5 transition-all duration-150 hover:border-border-strong hover:shadow-md">
-      <div className="flex items-start justify-between">
-        <span className="text-xs font-medium uppercase tracking-wider text-ink-muted">{label}</span>
-        <div className={cn("p-2 rounded-lg border border-border/60", a.bg)}>
-          <Icon className={cn("w-4 h-4", a.text)} />
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-semibold tracking-tight text-ink">{value}</span>
-            {suffix && <span className="text-sm font-medium text-ink-muted">{suffix}</span>}
+    <div className="relative bg-surface border border-border rounded-2xl shadow-card overflow-hidden transition-all duration-200 hover:border-border-strong hover:shadow-md hover:-translate-y-0.5">
+      <div className={cn("h-0.5 w-full bg-gradient-to-r to-transparent", a.bar)} />
+      <div className="p-5">
+        <div className="flex items-start justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
+          <div className={cn("p-2 rounded-xl", a.chip)}>
+            <Icon className={cn("w-4 h-4", a.text)} />
           </div>
-          {trend !== undefined && (
-            <div className={cn("mt-1.5 flex items-center gap-1 text-xs font-medium", trendColor)}>
-              <TrendIcon className="w-3.5 h-3.5" />
-              <span>
-                {trend > 0 ? "+" : ""}
-                {trend}
-                {trendUnit} vs last week
-              </span>
-            </div>
-          )}
         </div>
-        {spark && <Sparkline data={spark} stroke={a.stroke} />}
+
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-[34px] leading-none font-bold tracking-tight text-ink tabular-nums">{value}</span>
+              {suffix && <span className="text-base font-semibold text-ink-muted">{suffix}</span>}
+            </div>
+            {trend !== undefined && (
+              <div className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium", trendColor)}>
+                <TrendIcon className="w-3.5 h-3.5" />
+                <span className="tabular-nums">{fmtDelta(trend)}{trendUnit}</span>
+                <span className="text-ink-muted font-normal">vs last week</span>
+              </div>
+            )}
+          </div>
+          {spark && <Sparkline data={spark} stroke={a.stroke} />}
+        </div>
       </div>
     </div>
   );

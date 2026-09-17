@@ -2,6 +2,7 @@
 
 import { SessionJourneyNode } from "@/lib/analytics/types";
 import { cn } from "@/lib/utils";
+import { fmtDayMonth, prettyEnum } from "@/lib/charts/format";
 
 const STATUS_COLOR: Record<string, string> = {
   COMPLETED: "bg-emerald-500 border-emerald-600",
@@ -10,14 +11,6 @@ const STATUS_COLOR: Record<string, string> = {
   CANCELLED: "bg-stone-300 dark:bg-stone-600 border-stone-400",
   NO_SHOW: "bg-rose-500 border-rose-600",
 };
-
-function fmt(d: string) {
-  try {
-    return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-  } catch {
-    return d;
-  }
-}
 
 export function SessionJourney({ nodes }: { nodes: SessionJourneyNode[] }) {
   if (nodes.length === 0) {
@@ -46,11 +39,11 @@ export function SessionJourney({ nodes }: { nodes: SessionJourneyNode[] }) {
                 <div
                   className={cn("rounded-full border-2 shrink-0 transition-transform hover:scale-110", STATUS_COLOR[n.status] || STATUS_COLOR.COMPLETED)}
                   style={{ width: s, height: s }}
-                  title={`${fmt(n.date)} · ${n.focus} · ${n.durationMinutes}m · ${n.status.toLowerCase()}`}
+                  title={`${fmtDayMonth(n.date)} · ${n.focus} · ${n.durationMinutes} min · ${prettyEnum(n.status)}`}
                 />
-                <span className="mt-2 text-[10px] text-ink-secondary font-medium">{fmt(n.date)}</span>
-                <span className="text-[9px] text-ink-muted truncate max-w-[70px] text-center">
-                  {n.type.replace(/_/g, " ").toLowerCase()}
+                <span className="mt-2 text-[10px] text-ink-secondary font-medium">{fmtDayMonth(n.date)}</span>
+                <span className="text-[9px] text-ink-muted truncate max-w-[70px] text-center" title={prettyEnum(n.type)}>
+                  {prettyEnum(n.type)}
                 </span>
               </div>
               {i < nodes.length - 1 && <div className="w-6 h-px bg-border-strong shrink-0 -mt-6" />}

@@ -13,14 +13,7 @@ import {
 } from "recharts";
 import { EngagementPoint, MilestoneFlag } from "@/lib/analytics/types";
 import { useChartPalette } from "@/lib/charts/palette";
-
-function fmt(ts: number) {
-  try {
-    return new Date(ts).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-  } catch {
-    return "";
-  }
-}
+import { fmtDayMonth as fmt } from "@/lib/charts/format";
 
 export function EngagementLine({
   points,

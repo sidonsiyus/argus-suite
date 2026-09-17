@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { GanttBar } from "@/lib/analytics/types";
 import { cn } from "@/lib/utils";
+import { fmtDate as fmt } from "@/lib/charts/format";
 
 const PRIORITY_FILL: Record<string, string> = {
   CRITICAL: "bg-rose-500",
@@ -12,13 +13,6 @@ const PRIORITY_FILL: Record<string, string> = {
 };
 
 const t = (d: string) => new Date(d + "T00:00:00").getTime();
-const fmt = (d: string) => {
-  try {
-    return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" });
-  } catch {
-    return d;
-  }
-};
 
 export function PoaGantt({ bars, studentId }: { bars: GanttBar[]; studentId: string }) {
   const router = useRouter();

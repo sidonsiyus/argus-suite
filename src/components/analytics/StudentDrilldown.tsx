@@ -53,6 +53,7 @@ export function StudentDrilldown({ data }: { data: StudentAnalytics }) {
         title="Session timeline"
         subtitle="Each session over time · +N = tasks completed after it"
         icon={Route}
+        accent="blue"
         height={170}
         bodyClassName="px-1 py-2"
         empty={data.journey.length === 0}
@@ -80,6 +81,7 @@ export function StudentDrilldown({ data }: { data: StudentAnalytics }) {
           title="Skills profile"
           subtitle="Average rating by area · dashed = earlier assessment"
           icon={RadarIcon}
+          accent="violet"
           height={280}
           empty={data.radar.length === 0}
           emptyLabel="No skill assessments yet"
@@ -94,6 +96,7 @@ export function StudentDrilldown({ data }: { data: StudentAnalytics }) {
         title="Plans of action"
         subtitle="Timeline from created to target · fill = progress · priority-coloured"
         icon={GanttChartSquare}
+        accent="amber"
         height={300}
         empty={data.gantt.length === 0}
         emptyLabel="No plans of action yet"
