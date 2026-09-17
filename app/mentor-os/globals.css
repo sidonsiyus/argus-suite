@@ -118,3 +118,61 @@ body {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #3e635c;
 }
+
+/* ── Phase 3 polish ──────────────────────────────────────────────── */
+
+/* Subtle workspace texture — a faint dot grid removes the flat-white feel */
+:root {
+  --dot: rgba(20, 20, 19, 0.028);
+}
+.dark {
+  --dot: rgba(255, 255, 255, 0.022);
+}
+body {
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+  background-attachment: fixed;
+}
+
+/* Content enter animation (used on the main content wrapper, keyed per route) */
+@keyframes mosEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mos-enter {
+  animation: mosEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Staggered card rise — apply .mos-rise to a container to lift its children in */
+.mos-rise > * {
+  animation: mosEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.mos-rise > *:nth-child(1) { animation-delay: 0.02s; }
+.mos-rise > *:nth-child(2) { animation-delay: 0.06s; }
+.mos-rise > *:nth-child(3) { animation-delay: 0.1s; }
+.mos-rise > *:nth-child(4) { animation-delay: 0.14s; }
+.mos-rise > *:nth-child(5) { animation-delay: 0.18s; }
+.mos-rise > *:nth-child(6) { animation-delay: 0.22s; }
+
+/* Reusable mono eyebrow */
+.mos-eyebrow {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mos-enter,
+  .mos-rise > * {
+    animation: none;
+  }
+}

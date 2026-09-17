@@ -23,7 +23,7 @@ export function CohortOverview({ analytics }: { analytics: CohortAnalytics }) {
   return (
     <div className="space-y-6">
       {/* KPI strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mos-rise grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <AnalyticsKpiCard label="Avg readiness" value={kpis.avgReadiness} suffix="%" icon={Gauge} accent="emerald" />
         <AnalyticsKpiCard
           label="Sessions this week"

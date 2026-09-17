@@ -47,52 +47,31 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     }
   };
 
-  // Exactly the 8 operational modules specified in Section 5
-  const navItems: NavItem[] = [
+  // Operational modules, grouped into sections for legibility.
+  const navGroups: { label: string; items: NavItem[] }[] = [
     {
-      label: "Dashboard",
-      href: "/mentor-os/dashboard",
-      icon: LayoutDashboard,
+      label: "Overview",
+      items: [
+        { label: "Dashboard", href: "/mentor-os/dashboard", icon: LayoutDashboard },
+        { label: "Analytics", href: "/mentor-os/analytics", icon: BarChart3 },
+      ],
     },
     {
-      label: "Analytics",
-      href: "/mentor-os/analytics",
-      icon: BarChart3,
+      label: "People",
+      items: [
+        { label: "Students", href: "/mentor-os/students", icon: Users },
+        { label: "Groups", href: "/mentor-os/groups", icon: UsersRound },
+      ],
     },
     {
-      label: "Students",
-      href: "/mentor-os/students",
-      icon: Users,
-    },
-    {
-      label: "Sessions",
-      href: "/mentor-os/sessions",
-      icon: CalendarCheck,
-    },
-    {
-      label: "Calendar",
-      href: "/mentor-os/calendar",
-      icon: Calendar,
-    },
-    {
-      label: "Resources",
-      href: "/mentor-os/resources",
-      icon: BookOpen,
-    },
-    {
-      label: "Internships",
-      href: "/mentor-os/internships",
-      icon: Briefcase,
-    },
-    {
-      label: "Achievements",
-      href: "/mentor-os/achievements",
-      icon: Award,
-    },
-    {
-      label: "Groups",
-      href: "/mentor-os/groups",
-      icon: UsersRound,
+      label: "Operations",
+      items: [
+        { label: "Sessions", href: "/mentor-os/sessions", icon: CalendarCheck },
+        { label: "Calendar", href: "/mentor-os/calendar", icon: Calendar },
+        { label: "Resources", href: "/mentor-os/resources", icon: BookOpen },
+        { label: "Internships", href: "/mentor-os/internships", icon: Briefcase },
+        { label: "Achievements", href: "/mentor-os/achievements", icon: Award },
+      ],
     },
   ];
 
@@ -134,41 +113,48 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         {/* Navigation List */}
-        <nav className="p-3 space-y-1" aria-label="Main Navigation">
-          {navItems.map((item) => {
-            const isCurrent =
-              item.href === "/mentor-os/dashboard"
-                ? pathname === "/mentor-os/dashboard" || pathname === "/mentor-os"
-                : pathname.startsWith(item.href);
+        <nav className="p-3 space-y-4" aria-label="Main Navigation">
+          {navGroups.map((group) => (
+            <div key={group.label} className="space-y-1">
+              <p className="mos-eyebrow px-3 pb-1 text-emerald-500/70">{group.label}</p>
+              {group.items.map((item) => {
+                const isCurrent =
+                  item.href === "/mentor-os/dashboard"
+                    ? pathname === "/mentor-os/dashboard" || pathname === "/mentor-os"
+                    : pathname.startsWith(item.href);
 
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                onClick={onClose}
-                aria-current={isCurrent ? "page" : undefined}
-                className={cn(
-                  "flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50",
-                  isCurrent
-                    ? "bg-nav-surface text-nav-text border border-nav-border/90 font-semibold shadow-sm"
-                    : "text-nav-muted hover:text-nav-text hover:bg-nav-hover/60"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <item.icon
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    onClick={onClose}
+                    aria-current={isCurrent ? "page" : undefined}
                     className={cn(
-                      "w-4 h-4 shrink-0",
-                      isCurrent ? "text-emerald-400" : "text-nav-muted"
+                      "relative flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50",
+                      isCurrent
+                        ? "bg-nav-surface text-nav-text border border-nav-border/90 font-semibold shadow-sm"
+                        : "text-nav-muted hover:text-nav-text hover:bg-nav-hover/60 hover:translate-x-0.5"
                     )}
-                  />
-                  <span>{item.label}</span>
-                </div>
-                {isCurrent && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                )}
-              </Link>
-            );
-          })}
+                  >
+                    {/* Active left indicator */}
+                    {isCurrent && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+                    )}
+                    <div className="flex items-center gap-3">
+                      <item.icon
+                        className={cn(
+                          "w-4 h-4 shrink-0 transition-colors",
+                          isCurrent ? "text-emerald-400" : "text-nav-muted"
+                        )}
+                      />
+                      <span>{item.label}</span>
+                    </div>
+                    {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </div>
 

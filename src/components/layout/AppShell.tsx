@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { TopBar, BreadcrumbItem } from "./TopBar";
 
@@ -27,6 +28,7 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const pathname = usePathname();
 
   return (
     <div className="min-h-screen flex bg-workspace">
@@ -46,7 +48,7 @@ export function AppShell({
           breadcrumbs={breadcrumbs}
           onMenuClick={() => setIsMobileNavOpen(true)}
         />
-        <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto">
+        <main key={pathname} className="mos-enter flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto">
           {children}
         </main>
       </div>
