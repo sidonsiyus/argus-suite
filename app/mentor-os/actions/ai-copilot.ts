@@ -22,6 +22,7 @@ export async function generateInsightsAction(studentId: string) {
     }
 
     const result = await generateAndPersistRecommendations(studentId);
+    revalidatePath(`/mentor-os/students/${studentId}`);
     revalidatePath(`/students/${studentId}`);
 
     return {
@@ -82,6 +83,7 @@ export async function approveRecommendationAction(
 
     const res = await executeApproveRecommendation(recId, studentId);
     if (res.success) {
+      revalidatePath(`/mentor-os/students/${studentId}`);
       revalidatePath(`/students/${studentId}`);
     }
     return res;
@@ -125,6 +127,7 @@ export async function editAndApproveRecommendationAction(
       edits
     );
     if (res.success) {
+      revalidatePath(`/mentor-os/students/${studentId}`);
       revalidatePath(`/students/${studentId}`);
     }
     return res;
@@ -163,6 +166,7 @@ export async function rejectRecommendationAction(
       reason
     );
     if (res.success) {
+      revalidatePath(`/mentor-os/students/${studentId}`);
       revalidatePath(`/students/${studentId}`);
     }
     return res;

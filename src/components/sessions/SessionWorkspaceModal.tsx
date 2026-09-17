@@ -12,6 +12,7 @@ import {
   Target,
   ArrowRight,
   CalendarClock,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -21,6 +22,7 @@ import { completeSessionAction, linkMilestoneToSessionAction } from "@/app/actio
 import { useToast } from "@/components/ui/ToastProvider";
 import { POAFollowUpSection } from "./POAFollowUpSection";
 import { CreatePOAModal } from "@/components/student-detail/CreatePOAModal";
+import { DeleteSessionModal } from "./DeleteSessionModal";
 
 interface SimpleMilestone {
   id: string;
@@ -58,6 +60,7 @@ export function SessionWorkspaceModal({
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isCreatePOAOpen, setIsCreatePOAOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [poaRefreshKey, setPoaRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -313,6 +316,19 @@ export function SessionWorkspaceModal({
 
           {/* Actions */}
           <div className="pt-3 border-t border-border flex items-center justify-end gap-3 sticky bottom-0 bg-surface/90 backdrop-blur-xs py-2">
+            {!session.is_historical && session.status !== "HISTORICAL" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDeleteOpen(true)}
+                disabled={isPending}
+                className="mr-auto text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/40 text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Session</span>
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -350,6 +366,20 @@ export function SessionWorkspaceModal({
           careerGoalTitle={session.focus_area}
           onSuccess={() => {
             setPoaRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+
+      {/* Delete Session Modal */}
+      {session && (
+        <DeleteSessionModal
+          isOpen={isDeleteOpen}
+          onClose={() => setIsDeleteOpen(false)}
+          session={session}
+          onSuccess={() => {
+            setIsDeleteOpen(false);
+            onClose();
+            if (onSuccess) onSuccess();
           }}
         />
       )}

@@ -9,6 +9,7 @@ import {
   executeCancelSession,
   executeRescheduleSession,
   executeLinkMilestoneToSession,
+  executeDeleteSession,
 } from "@/lib/data/sessions";
 import { SessionType } from "@/lib/sessions/types";
 
@@ -177,3 +178,44 @@ export async function linkMilestoneToSessionAction(
     return { success: false, error: err?.message || "Failed to link milestone" };
   }
 }
+
+export async function deleteMentoringSessionAction(
+  sessionId: string,
+  confirmText?: string
+) {
+  try {
+    if (!sessionId) {
+      return { success: false, error: "Session ID is required" };
+    }
+
+    if (confirmText !== "DELETE") {
+      return {
+        success: false,
+        error: "Confirmation failed. You must type DELETE to confirm deletion.",
+      };
+    }
+
+    const res = await executeDeleteSession(sessionId);
+
+    // Revalidate relevant routes
+    revalidatePath("/mentor-os/sessions");
+    revalidatePath("/mentor-os/calendar");
+    revalidatePath("/mentor-os/dashboard");
+    if (res.studentId) {
+      revalidatePath(`/mentor-os/students/${res.studentId}`);
+      revalidatePath(`/students/${res.studentId}`);
+    }
+    revalidatePath("/sessions");
+    revalidatePath("/calendar");
+    revalidatePath("/dashboard");
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    console.error("deleteMentoringSessionAction error:", err);
+    return {
+      success: false,
+      error: err?.message || "Failed to delete mentoring session",
+    };
+  }
+}
+

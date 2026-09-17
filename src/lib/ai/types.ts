@@ -104,7 +104,8 @@ export interface CohortSynthesisResult {
 }
 
 export interface AIProvider {
-  name: 'groq' | 'anthropic' | 'openai' | 'gemini';
+  name: 'openrouter' | 'groq' | 'anthropic' | 'openai' | 'gemini';
+  modelName?: string;
   generateCopilotInsights(context: SanitizedStudentContext): Promise<CopilotAnalysisResult>;
   generatePOA(context: SanitizedStudentContext): Promise<SuggestedAction[]>;
   generateImprovementPlan(context: SanitizedStudentContext): Promise<ImprovementPlanResult>;

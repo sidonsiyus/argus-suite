@@ -19,6 +19,7 @@ import {
   History,
   Target,
   MessageSquare,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -35,6 +36,7 @@ import { ScheduleSessionModal } from "./ScheduleSessionModal";
 import { RescheduleSessionModal } from "./RescheduleSessionModal";
 import { SessionWorkspaceModal } from "./SessionWorkspaceModal";
 import { CancelSessionModal } from "./CancelSessionModal";
+import { DeleteSessionModal } from "./DeleteSessionModal";
 
 interface SimpleCadet {
   id: string;
@@ -61,6 +63,12 @@ export function SessionsDirectory({
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  const [sessionsList, setSessionsList] = useState<SessionItem[]>(initialSessions);
+
+  React.useEffect(() => {
+    setSessionsList(initialSessions);
+  }, [initialSessions]);
+
   // Modals state
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [selectedForReschedule, setSelectedForReschedule] =
@@ -69,24 +77,26 @@ export function SessionsDirectory({
     useState<SessionItem | null>(null);
   const [selectedForCancel, setSelectedForCancel] =
     useState<SessionItem | null>(null);
+  const [selectedForDelete, setSelectedForDelete] =
+    useState<SessionItem | null>(null);
 
   const todayStr = new Date().toISOString().split("T")[0];
 
   // Metrics
-  const todayCount = initialSessions.filter(
+  const todayCount = sessionsList.filter(
     (s) => s.session_date === todayStr && s.status !== "CANCELLED"
   ).length;
-  const upcomingCount = initialSessions.filter(
+  const upcomingCount = sessionsList.filter(
     (s) =>
       (s.status === "PLANNED" || s.status === "IN_PROGRESS") &&
       s.session_date >= todayStr
   ).length;
-  const followUpsCount = initialSessions.filter(
+  const followUpsCount = sessionsList.filter(
     (s) => s.follow_up_date && s.follow_up_date >= todayStr
   ).length;
 
   // Filtered list
-  const filteredSessions = initialSessions.filter((s) => {
+  const filteredSessions = sessionsList.filter((s) => {
     // 1. Tab filter
     if (activeTab === "upcoming") {
       if (s.status !== "PLANNED" && s.status !== "IN_PROGRESS") return false;
@@ -467,6 +477,18 @@ export function SessionsDirectory({
                         <span>View Notes</span>
                       </Button>
                     )}
+
+                    {!session.is_historical && session.status !== "HISTORICAL" && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedForDelete(session)}
+                        className="px-2 py-1 rounded-lg text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Delete Session"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Delete</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -501,6 +523,19 @@ export function SessionsDirectory({
         isOpen={Boolean(selectedForCancel)}
         onClose={() => setSelectedForCancel(null)}
         session={selectedForCancel}
+      />
+
+      {/* Delete Modal */}
+      <DeleteSessionModal
+        isOpen={Boolean(selectedForDelete)}
+        onClose={() => setSelectedForDelete(null)}
+        session={selectedForDelete}
+        onSuccess={() => {
+          if (selectedForDelete) {
+            const delId = selectedForDelete.id;
+            setSessionsList((prev) => prev.filter((s) => s.id !== delId));
+          }
+        }}
       />
     </div>
   );

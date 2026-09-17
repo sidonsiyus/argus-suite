@@ -598,7 +598,7 @@ export async function executeLinkMilestoneToSession(
   await recordAuditLog(
     supabase,
     "SESSION_MILESTONE_LINK",
-    `${sessionId}:${milestoneId}`,
+    milestoneId,
     user.id,
     null,
     { session_id: sessionId, milestone_id: milestoneId, status: milestone.status }
@@ -606,3 +606,88 @@ export async function executeLinkMilestoneToSession(
 
   return { success: true };
 }
+
+// ---------------------------------------------------------------------------
+// 13. Execute Delete Session
+// ---------------------------------------------------------------------------
+export async function executeDeleteSession(sessionId: string) {
+  const { user, supabase } = await getAuthenticatedFaculty();
+
+  const existing = await getSessionById(sessionId);
+  if (!existing) {
+    throw new Error("Mentoring session not found or already deleted");
+  }
+
+  // Historical Protection: Never allow deleting historical baseline records
+  if (
+    existing.is_historical ||
+    existing.status === "HISTORICAL" ||
+    existing.provenance === "HISTORICAL_IMPORT" ||
+    existing.provenance === "HISTORICAL_PROFILE"
+  ) {
+    throw new Error(
+      "Historical mentoring sessions are permanent institutional records and cannot be deleted."
+    );
+  }
+
+  // Authorization Check: Must be the mentor who created the session, or an admin
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (existing.mentor_id !== user.id && profile?.role !== "admin") {
+    throw new Error(
+      "Unauthorized: You can only delete mentoring sessions you created."
+    );
+  }
+
+  // 1. Record Audit Log before deleting (preserves historical record & before-state)
+  await recordAuditLog(
+    supabase,
+    "DELETE",
+    sessionId,
+    user.id,
+    {
+      id: existing.id,
+      student_id: existing.student_id,
+      student_name: existing.student_name,
+      mentor_id: existing.mentor_id,
+      scheduled_at: existing.scheduled_at,
+      session_date: existing.session_date,
+      session_type: existing.session_type,
+      focus_area: existing.focus_area,
+      status: existing.status,
+      observations: existing.observations,
+      notes: existing.notes,
+      outcome: existing.outcome,
+      follow_up_date: existing.follow_up_date,
+      deleted_at: new Date().toISOString(),
+    },
+    null
+  );
+
+  // 2. Safely remove session-specific association records (session_milestones)
+  const { error: smError } = await supabase
+    .from("session_milestones")
+    .delete()
+    .eq("session_id", sessionId);
+
+  if (smError) {
+    console.error("Warning: Error deleting session_milestones:", smError);
+  }
+
+  // 3. Delete the session record
+  const { error: delError } = await supabase
+    .from("sessions")
+    .delete()
+    .eq("id", sessionId);
+
+  if (delError) {
+    throw new Error(delError.message || "Failed to delete mentoring session");
+  }
+
+  return { success: true, studentId: existing.student_id };
+}
+

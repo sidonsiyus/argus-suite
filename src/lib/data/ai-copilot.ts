@@ -231,7 +231,7 @@ export async function generateAndPersistRecommendations(
       .insert({
         student_id: studentId,
         provider: provider.name,
-        model_name: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+        model_name: provider.modelName || process.env.OPENROUTER_MODEL || "google/gemini-3.5-flash-lite",
         prompt_scope: "STUDENT_360_COPILOT",
         sanitized_input_context: context,
         raw_response: { summary: result.student_summary, career_alignment: result.career_alignment_observation },
