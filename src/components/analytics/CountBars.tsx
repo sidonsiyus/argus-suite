@@ -23,6 +23,7 @@ export function CountBars({
   /** Fixed scale max (e.g. 5 for ratings). Defaults to the largest value. */
   max?: number;
   hue?: "blue" | "emerald" | "amber" | "violet";
+  /** "/5" (rating), "%", "/N" (of total), or "" (plain count). */
   unit?: string;
   emptyLabel?: string;
 }) {
@@ -52,9 +53,25 @@ export function CountBars({
             <div className="flex-1 h-5 rounded-md bg-surface-subtle overflow-hidden">
               <div className="h-full rounded-md transition-all duration-500 ease-out" style={{ width: `${w}%`, background: color }} />
             </div>
-            <div className="w-10 shrink-0 text-right text-xs font-semibold text-ink tabular-nums">
-              {unit === "/5" ? it.value.toFixed(1) : fmtInt(it.value)}
-              {unit === "/5" && <span className="text-ink-muted font-normal">/5</span>}
+            <div className="w-12 shrink-0 text-right text-xs font-semibold text-ink tabular-nums">
+              {unit === "/5" ? (
+                <>
+                  {it.value.toFixed(1)}
+                  <span className="text-ink-muted font-normal">/5</span>
+                </>
+              ) : unit === "%" ? (
+                <>
+                  {fmtInt(it.value)}
+                  <span className="text-ink-muted font-normal">%</span>
+                </>
+              ) : unit.startsWith("/") ? (
+                <>
+                  {fmtInt(it.value)}
+                  <span className="text-ink-muted font-normal">{unit}</span>
+                </>
+              ) : (
+                fmtInt(it.value)
+              )}
             </div>
           </div>
         );

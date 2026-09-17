@@ -67,6 +67,26 @@ export interface CohortSkills {
   assessedCount: number;
 }
 
+export interface CohortReadiness {
+  byDocument: Array<{ label: string; ready: number; total: number }>;
+  byTrack: Array<{ track: string; avg: number; count: number }>;
+}
+
+export interface CohortAchievements {
+  byCategory: CountItem[];
+  weekly: Array<{ label: string; count: number }>;
+  verified: number;
+  pending: number;
+  total: number;
+  zeroCount: number;
+}
+
+export interface CohortActivity {
+  weekly: Array<{ label: string; count: number }>;
+  byEntity: CountItem[];
+  aiRecs: { pending: number; approved: number; rejected: number };
+}
+
 export interface CohortAnalytics {
   kpis: CohortKpis;
   scatter: ScatterPoint[];
@@ -74,6 +94,9 @@ export interface CohortAnalytics {
   readinessMatrix: ReadinessMatrix;
   engagement: CohortEngagement;
   skills: CohortSkills;
+  readiness: CohortReadiness;
+  achievements: CohortAchievements;
+  activity: CohortActivity;
   generatedAt: string;
 }
 

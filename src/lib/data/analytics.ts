@@ -85,6 +85,11 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       { data: internshipsRaw },
       { data: assessRaw },
       { data: skillsRaw },
+      { data: goalsRaw },
+      { data: rolesRaw },
+      { data: achievementsRaw },
+      { data: auditRaw },
+      { data: aiRecsRaw },
     ] = await Promise.all([
       supabase.from("students").select("id, full_name, reg_no, sno").order("sno", { ascending: true }),
       supabase.from("sessions").select("id, student_id, session_date, status, session_type, duration_minutes, follow_up_date"),
@@ -101,6 +106,11 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       supabase.from("internships").select("student_id, status"),
       supabase.from("skill_assessments").select("student_id, skill_id, rating, assessed_at").order("assessed_at", { ascending: true }),
       supabase.from("skills").select("id, name, category"),
+      supabase.from("student_career_goals").select("student_id, custom_role_title, career_role_id, is_primary").eq("is_primary", true),
+      supabase.from("career_roles").select("id, title, short_title"),
+      supabase.from("achievements").select("student_id, category, is_verified, date_achieved, created_at"),
+      supabase.from("audit_logs").select("entity_table, action, created_at").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("ai_recommendations").select("status"),
     ]);
 
     const students = (studentsRaw || []) as any[];
@@ -309,6 +319,65 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       assessedCount: latestRating.size,
     };
 
+    // ── Readiness section ───────────────────────────────────────────────
+    const roleTitle = new Map<string, string>();
+    ((rolesRaw || []) as any[]).forEach((r) => roleTitle.set(r.id, r.short_title || r.title));
+    const trackByStudent = new Map<string, string>();
+    ((goalsRaw || []) as any[]).forEach((g) => {
+      const t = g.custom_role_title || roleTitle.get(g.career_role_id) || "Unassigned";
+      trackByStudent.set(g.student_id, t);
+    });
+    const readyPctByStudent = new Map<string, number>();
+    readinessRows.forEach((r) => {
+      const ready = r.cells.filter((c) => c === "READY").length;
+      readyPctByStudent.set(r.studentId, Math.round((ready / READINESS_COLUMNS.length) * 100));
+    });
+    const trackAgg = new Map<string, number[]>();
+    students.forEach((s) => {
+      const track = trackByStudent.get(s.id) || "Unassigned";
+      if (!trackAgg.has(track)) trackAgg.set(track, []);
+      trackAgg.get(track)!.push(readyPctByStudent.get(s.id) || 0);
+    });
+    const readiness = {
+      byDocument: READINESS_COLUMNS.map((label, i) => ({ label, ready: columnReady[i], total: students.length })),
+      byTrack: Array.from(trackAgg.entries())
+        .map(([track, arr]) => ({ track, avg: Math.round(arr.reduce((s, v) => s + v, 0) / arr.length), count: arr.length }))
+        .sort((a, b) => b.count - a.count),
+    };
+
+    // ── Achievements section ────────────────────────────────────────────
+    const ach = (achievementsRaw || []) as any[];
+    const withAch = new Set(ach.map((a) => a.student_id));
+    const achievements = {
+      byCategory: countBy(ach.map((a) => prettyEnum(a.category || "Other"))),
+      weekly: weeklyLabelledBuckets(
+        ach.map((a) => String(a.date_achieved || a.created_at || "").split("T")[0]).filter(Boolean),
+        todayStr,
+        12
+      ),
+      verified: ach.filter((a) => a.is_verified).length,
+      pending: ach.filter((a) => !a.is_verified).length,
+      total: ach.length,
+      zeroCount: students.filter((s) => !withAch.has(s.id)).length,
+    };
+
+    // ── Activity section ────────────────────────────────────────────────
+    const audit = (auditRaw || []) as any[];
+    const aiRecs = (aiRecsRaw || []) as any[];
+    const activity = {
+      weekly: weeklyLabelledBuckets(
+        audit.map((l) => String(l.created_at || "").split("T")[0]).filter(Boolean),
+        todayStr,
+        12
+      ),
+      byEntity: countBy(audit.map((l) => prettyEnum(l.entity_table || "system"))).slice(0, 6),
+      aiRecs: {
+        pending: aiRecs.filter((r) => (r.status || "").toUpperCase() === "PENDING").length,
+        approved: aiRecs.filter((r) => /APPROV/i.test(r.status || "")).length,
+        rejected: aiRecs.filter((r) => /REJECT/i.test(r.status || "")).length,
+      },
+    };
+
     const analytics: CohortAnalytics = {
       kpis: {
         totalStudents: students.length,
@@ -333,6 +402,9 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       },
       engagement,
       skills,
+      readiness,
+      achievements,
+      activity,
       generatedAt: new Date().toISOString(),
     };
 
@@ -398,6 +470,9 @@ function emptyAnalytics(): CohortAnalytics {
     readinessMatrix: { columns: [...READINESS_COLUMNS], rows: [], columnReady: new Array(6).fill(0) },
     engagement: { weekly: [], typeMix: [], goneQuiet: [], followUps: { overdue: 0, upcoming: 0 }, avgSessionsPerCadet: 0 },
     skills: { radar: [], weakest: [], strongest: [], assessedCount: 0 },
+    readiness: { byDocument: [], byTrack: [] },
+    achievements: { byCategory: [], weekly: [], verified: 0, pending: 0, total: 0, zeroCount: 0 },
+    activity: { weekly: [], byEntity: [], aiRecs: { pending: 0, approved: 0, rejected: 0 } },
     generatedAt: new Date().toISOString(),
   };
 }

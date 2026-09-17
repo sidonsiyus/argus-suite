@@ -6,7 +6,6 @@ import { ChartCard } from "@/components/ui/ChartCard";
 import { AnalyticsKpiCard } from "./AnalyticsKpiCard";
 import { AtRiskScatter } from "./AtRiskScatter";
 import { PipelineFunnel } from "./PipelineFunnel";
-import { ReadinessHeatmap } from "./ReadinessHeatmap";
 
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
@@ -18,7 +17,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 export function CohortOverview({ analytics }: { analytics: CohortAnalytics }) {
-  const { kpis, scatter, funnel, readinessMatrix } = analytics;
+  const { kpis, scatter, funnel } = analytics;
 
   return (
     <div className="space-y-6">
@@ -69,20 +68,6 @@ export function CohortOverview({ analytics }: { analytics: CohortAnalytics }) {
           <PipelineFunnel funnel={funnel} />
         </ChartCard>
       </div>
-
-      {/* Readiness matrix */}
-      <ChartCard
-        eyebrow="Documents"
-        title="Career-readiness matrix"
-        subtitle="Green = ready · amber = in progress · grey = missing. A pale column is a cohort-wide gap."
-        icon={CheckCircle2}
-        accent="violet"
-        height={380}
-        bodyClassName="px-3 py-2"
-        empty={readinessMatrix.rows.length === 0}
-      >
-        <ReadinessHeatmap matrix={readinessMatrix} />
-      </ChartCard>
     </div>
   );
 }
