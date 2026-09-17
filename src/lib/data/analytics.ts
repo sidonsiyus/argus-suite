@@ -161,7 +161,7 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
     });
 
     // Milestone progress like the POA layer: tasks first, else % / status.
-    function milestoneProgress(m: any): number {
+    const milestoneProgress = (m: any): number => {
       const tasks = tasksByMilestone.get(m.id) || [];
       if (tasks.length > 0) {
         const done = tasks.filter((t) => t.is_completed).length;
@@ -169,7 +169,7 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       }
       if (m.status === "COMPLETED") return 100;
       return m.completion_percentage || (m.status === "IN_PROGRESS" ? 50 : 0);
-    }
+    };
 
     // ── Per-student rollups ─────────────────────────────────────────────
     const scatter: ScatterPoint[] = [];
