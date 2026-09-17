@@ -75,6 +75,7 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
   error: any;
 }> {
   return queryWithFallback(async (supabase) => {
+    try {
     const todayStr = getTodayIST();
 
     const [
@@ -409,6 +410,9 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
     };
 
     return { data: analytics, error: null };
+    } catch (e: any) {
+      return { data: null, error: e?.message || String(e) };
+    }
   });
 });
 

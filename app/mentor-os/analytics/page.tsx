@@ -13,7 +13,7 @@ import { getCohortAnalytics } from "@/lib/data/analytics";
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
-  const { data } = await getCohortAnalytics();
+  const { data, error } = await getCohortAnalytics();
 
   const searchIndex = (data?.scatter || []).map((s) => ({
     id: s.studentId,
@@ -40,7 +40,10 @@ export default async function AnalyticsPage() {
           ]}
         />
       ) : (
-        <div className="text-sm text-ink-muted">Analytics are unavailable right now.</div>
+        <div className="text-sm text-ink-muted">
+          Analytics are unavailable right now.
+          {error ? <pre className="mt-2 text-xs text-rose-500 whitespace-pre-wrap">{String(error)}</pre> : null}
+        </div>
       )}
     </AppShell>
   );
