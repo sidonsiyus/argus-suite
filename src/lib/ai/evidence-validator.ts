@@ -226,6 +226,10 @@ export function validateEvidenceAgainstContext(
       // Academic / Cohort Grounding Validation
       else if (source.includes("academic") || source.includes("programme") || source.includes("cohort")) {
         hasAtLeastOneGroundedItem = true;
+      }
+      // Mentoring Sessions / Observations Grounding Validation
+      else if (source.includes("session") || source.includes("observation")) {
+        hasAtLeastOneGroundedItem = true;
       } else {
         // Unknown / Fabricated Source
         throw new Error(

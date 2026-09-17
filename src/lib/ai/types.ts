@@ -45,7 +45,16 @@ export const copilotEvidenceSchema = z.object({
 });
 
 export const copilotRecommendationSchema = z.object({
-  type: z.enum(["INSIGHT", "MENTORING_FOCUS", "MILESTONE", "QUESTION"]),
+  type: z.preprocess((val) => {
+    if (typeof val === "string") {
+      const upper = val.toUpperCase().trim();
+      if (upper === "MENTOR_FOCUS" || upper === "MENTORING" || upper === "FOCUS") {
+        return "MENTORING_FOCUS";
+      }
+      return upper;
+    }
+    return val;
+  }, z.enum(["INSIGHT", "MENTORING_FOCUS", "MILESTONE", "QUESTION"])),
   title: z.string().min(3).max(200),
   rationale: z.string().min(5).max(1000),
   suggested_action: z.string().min(5).max(1000),

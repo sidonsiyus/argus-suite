@@ -35,10 +35,25 @@ export class OpenRouterProvider implements AIProvider {
     const rawResult = await this.callOpenRouter(COPILOT_SYSTEM_PROMPT, userPrompt);
 
     // Strict schema validation using Zod
-    const validated = copilotAnalysisSchema.parse(rawResult);
+    let validated: CopilotAnalysisResult;
+    try {
+      validated = copilotAnalysisSchema.parse(rawResult);
+    } catch (zodErr: any) {
+      console.error("[OpenRouter] Schema validation error:", zodErr);
+      const err = new Error("AI response failed schema validation.");
+      (err as any).code = "AI_VALIDATION_ERROR";
+      throw err;
+    }
 
     // Cross-validate evidence against the actual SanitizedStudentContext
-    validateEvidenceAgainstContext(validated.recommendations, context);
+    try {
+      validateEvidenceAgainstContext(validated.recommendations, context);
+    } catch (evidenceErr: any) {
+      console.error("[OpenRouter] Evidence validation error:", evidenceErr);
+      const err = new Error(`AI evidence validation failed: ${evidenceErr.message}`);
+      (err as any).code = "AI_VALIDATION_ERROR";
+      throw err;
+    }
 
     return validated;
   }
@@ -55,7 +70,7 @@ export class OpenRouterProvider implements AIProvider {
 
   private async callOpenRouter(systemPrompt: string, userPrompt: string): Promise<any> {
     if (!this.apiKey || this.apiKey.trim() === "") {
-      const err = new Error("AI service is not configured. Please contact the system administrator.");
+      const err = new Error("AI service is not configured. OPENROUTER_API_KEY is missing.");
       (err as any).code = "MISSING_CONFIGURATION";
       throw err;
     }
@@ -77,6 +92,7 @@ export class OpenRouterProvider implements AIProvider {
             { role: "user", content: userPrompt },
           ],
           temperature: 0.2,
+          max_tokens: 2500,
           response_format: { type: "json_object" },
         }),
         signal: AbortSignal.timeout(25000),
@@ -88,7 +104,7 @@ export class OpenRouterProvider implements AIProvider {
         fetchErr.name === "AbortError"
       ) {
         const err = new Error("AI request timed out after 25 seconds. Please try again.");
-        (err as any).code = "TIMEOUT";
+        (err as any).code = "OPENROUTER_TIMEOUT";
         throw err;
       }
       const err = new Error("Unable to reach AI service. Please check network connectivity.");
@@ -98,18 +114,36 @@ export class OpenRouterProvider implements AIProvider {
 
     if (!res.ok) {
       const status = res.status;
+      let errorDetail = "";
+      try {
+        const errJson = await res.json();
+        errorDetail = errJson?.error?.message || "";
+      } catch {
+        errorDetail = await res.text().catch(() => "");
+      }
+
       if (status === 401 || status === 403) {
-        const err = new Error("AI service authentication failed. Invalid credentials configured.");
-        (err as any).code = "AUTH_ERROR";
+        const err = new Error("AI service authentication failed. Please verify OPENROUTER_API_KEY.");
+        (err as any).code = "OPENROUTER_AUTH_ERROR";
+        throw err;
+      }
+      if (status === 402) {
+        const err = new Error(`AI credit limit reached or token limit exceeded: ${errorDetail || "Insufficient credits"}`);
+        (err as any).code = "OPENROUTER_CREDIT_ERROR";
+        throw err;
+      }
+      if (status === 404) {
+        const err = new Error(`AI model not found or unavailable on OpenRouter: ${this.model}`);
+        (err as any).code = "OPENROUTER_MODEL_ERROR";
         throw err;
       }
       if (status === 429) {
         const err = new Error("AI rate limit reached. Please wait a moment before generating more insights.");
-        (err as any).code = "RATE_LIMIT";
+        (err as any).code = "OPENROUTER_RATE_LIMIT";
         throw err;
       }
-      const err = new Error(`AI service responded with status ${status}. Generation aborted.`);
-      (err as any).code = "PROVIDER_ERROR";
+      const err = new Error(`OpenRouter responded with status ${status}: ${errorDetail || "Generation aborted."}`);
+      (err as any).code = "OPENROUTER_PROVIDER_ERROR";
       throw err;
     }
 
@@ -118,14 +152,14 @@ export class OpenRouterProvider implements AIProvider {
       data = await res.json();
     } catch {
       const err = new Error("AI provider returned invalid JSON response.");
-      (err as any).code = "MALFORMED_RESPONSE";
+      (err as any).code = "OPENROUTER_INVALID_RESPONSE";
       throw err;
     }
 
     const content = data?.choices?.[0]?.message?.content;
     if (!content) {
       const err = new Error("AI provider returned an empty response.");
-      (err as any).code = "EMPTY_RESPONSE";
+      (err as any).code = "OPENROUTER_INVALID_RESPONSE";
       throw err;
     }
 
@@ -134,7 +168,7 @@ export class OpenRouterProvider implements AIProvider {
       return JSON.parse(cleaned);
     } catch {
       const err = new Error("AI generated malformed JSON. Validation failed.");
-      (err as any).code = "MALFORMED_JSON";
+      (err as any).code = "OPENROUTER_INVALID_RESPONSE";
       throw err;
     }
   }

@@ -30,7 +30,10 @@ export async function generateInsightsAction(studentId: string) {
       result,
     };
   } catch (err: any) {
-    console.error("AI Copilot generation error (server-side):", err);
+    console.error("AI Copilot generation error (server-side):", {
+      code: err?.code,
+      message: err?.message,
+    });
     // Return safe user-facing message, never exposing stack traces, API keys, or raw SQL
     const isPrivacyViolation = err?.message && err.message.includes("CRITICAL PRIVACY VIOLATION");
     if (isPrivacyViolation) {
@@ -45,16 +48,52 @@ export async function generateInsightsAction(studentId: string) {
         error: "Unauthorized. Faculty mentor credentials required.",
       };
     }
-    if (err?.message && (
-      err.message.includes("AI service is not configured") ||
-      err.message.includes("timed out") ||
-      err.message.includes("rate limit") ||
-      err.message.includes("authentication failed") ||
-      err.message.includes("Unable to reach")
-    )) {
+    if (err?.code === "MISSING_CONFIGURATION" || err?.message?.includes("AI service is not configured")) {
       return {
         success: false,
-        error: err.message,
+        error: "AI service is not configured. OPENROUTER_API_KEY is missing.",
+      };
+    }
+    if (err?.code === "OPENROUTER_CREDIT_ERROR" || err?.message?.includes("credit")) {
+      return {
+        success: false,
+        error: "AI credit limit reached or token limit exceeded. Please check your OpenRouter credits balance.",
+      };
+    }
+    if (err?.code === "OPENROUTER_AUTH_ERROR" || err?.message?.includes("authentication failed")) {
+      return {
+        success: false,
+        error: "AI authentication failed. Please verify OPENROUTER_API_KEY.",
+      };
+    }
+    if (err?.code === "OPENROUTER_MODEL_ERROR" || err?.message?.includes("model not found")) {
+      return {
+        success: false,
+        error: "AI model error. The configured OpenRouter model is unavailable.",
+      };
+    }
+    if (err?.code === "OPENROUTER_RATE_LIMIT" || err?.message?.includes("rate limit")) {
+      return {
+        success: false,
+        error: "AI rate limit reached. Please wait a moment before generating more insights.",
+      };
+    }
+    if (err?.code === "OPENROUTER_TIMEOUT" || err?.message?.includes("timed out")) {
+      return {
+        success: false,
+        error: "AI generation timed out after 25 seconds. Please try again.",
+      };
+    }
+    if (err?.code === "AI_VALIDATION_ERROR") {
+      return {
+        success: false,
+        error: "AI output validation failed: generated response did not pass evidence grounding requirements.",
+      };
+    }
+    if (err?.code === "NETWORK_ERROR" || err?.message?.includes("Unable to reach")) {
+      return {
+        success: false,
+        error: "Unable to reach AI service. Please check network connectivity.",
       };
     }
     return {
