@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTodayIST, calculateDaysDiff } from "@/lib/data/dashboard";
+import { prettyEnum } from "@/lib/charts/format";
 import {
   CohortAnalytics,
   PipelineStage,
@@ -345,7 +346,7 @@ export const getStudentAnalytics = cache(async function getStudentAnalytics(
       .single();
     if (!student) return null;
 
-    const [{ data: sessionsRaw }, { data: milestonesRaw }, { data: skillsRaw }, { data: assessRaw }] =
+    const [{ data: sessionsRaw }, { data: milestonesRaw }, { data: skillsRaw }, { data: assessRaw }, { data: readinessRaw }] =
       await Promise.all([
         supabase
           .from("sessions")
@@ -364,6 +365,13 @@ export const getStudentAnalytics = cache(async function getStudentAnalytics(
           .select("skill_id, rating, assessed_at")
           .eq("student_id", studentId)
           .order("assessed_at", { ascending: true }),
+        supabase
+          .from("career_readiness")
+          .select(
+            "resume_status, linkedin_status, passport_status, driving_license_status, pan_card_status, aadhaar_card_status"
+          )
+          .eq("student_id", studentId)
+          .single(),
       ]);
 
     const sessions = ((sessionsRaw || []) as any[]).filter((s) => s.session_date);
@@ -445,8 +453,10 @@ export const getStudentAnalytics = cache(async function getStudentAnalytics(
       .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2)));
 
     // ── Skills radar (avg rating per category, current vs earliest) ────
-    const skillMeta = new Map<string, { category: string }>();
-    ((skillsRaw || []) as any[]).forEach((sk) => skillMeta.set(sk.id, { category: sk.category || "General" }));
+    const skillMeta = new Map<string, { category: string; name: string }>();
+    ((skillsRaw || []) as any[]).forEach((sk) =>
+      skillMeta.set(sk.id, { category: sk.category || "General", name: sk.name || "Skill" })
+    );
     const firstBySkill = new Map<string, number>();
     const lastBySkill = new Map<string, number>();
     ((assessRaw || []) as any[]).forEach((a) => {
@@ -476,7 +486,53 @@ export const getStudentAnalytics = cache(async function getStudentAnalytics(
 
     const allRatings = Array.from(lastBySkill.values()).filter((r) => r > 0);
 
+    // ── Per-skill bars (ranked) ────────────────────────────────────────
+    const skillsBars = Array.from(lastBySkill.entries())
+      .filter(([, r]) => r > 0)
+      .map(([id, rating]) => ({ name: skillMeta.get(id)?.name || "Skill", rating }))
+      .sort((a, b) => b.rating - a.rating);
+
+    // ── Readiness (6 shared documents) ────────────────────────────────
+    const rd = (readinessRaw || {}) as any;
+    const readinessCells = READINESS_FIELDS.map((f) => readinessCell(rd[f]));
+    const readiness = {
+      columns: [...READINESS_COLUMNS],
+      cells: readinessCells,
+      readyCount: readinessCells.filter((c) => c === "READY").length,
+    };
+
+    // ── POA status breakdown ──────────────────────────────────────────
+    const statusCounts = new Map<string, number>();
+    milestones.forEach((m) => {
+      const label = prettyEnum(m.status);
+      statusCounts.set(label, (statusCounts.get(label) || 0) + 1);
+    });
+    const poaStatus = Array.from(statusCounts.entries()).map(([label, count]) => ({ label, count }));
+
+    // ── Session-type mix ──────────────────────────────────────────────
+    const typeCounts = new Map<string, number>();
+    sessions
+      .filter((s) => s.status !== "CANCELLED")
+      .forEach((s) => {
+        const label = prettyEnum(s.session_type || "General Mentoring");
+        typeCounts.set(label, (typeCounts.get(label) || 0) + 1);
+      });
+    const sessionTypeMix = Array.from(typeCounts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // ── Task totals ───────────────────────────────────────────────────
+    const taskTotals = {
+      completed: tasks.filter((t) => t.is_completed).length,
+      total: tasks.length,
+    };
+
     return {
+      readiness,
+      poaStatus,
+      sessionTypeMix,
+      skillsBars,
+      taskTotals,
       studentId: student.id,
       name: student.full_name,
       regNo: student.reg_no,

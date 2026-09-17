@@ -8,10 +8,12 @@ import {
   Briefcase,
   Layers,
   FileText,
+  BarChart3,
 } from "lucide-react";
 
 interface Student360WorkspaceProps {
   overviewContent: React.ReactNode;
+  analyticsContent?: React.ReactNode;
   developmentContent: React.ReactNode;
   sessionsContent: React.ReactNode;
   careerContent: React.ReactNode;
@@ -23,10 +25,11 @@ interface Student360WorkspaceProps {
   documentsCount?: number;
 }
 
-type WorkspaceTab = "overview" | "development" | "sessions" | "career" | "documents" | "all";
+type WorkspaceTab = "overview" | "analytics" | "development" | "sessions" | "career" | "documents" | "all";
 
 export function Student360Workspace({
   overviewContent,
+  analyticsContent,
   developmentContent,
   sessionsContent,
   careerContent,
@@ -46,6 +49,7 @@ export function Student360Workspace({
 
   const tabs: Array<{ id: WorkspaceTab; label: string; icon: React.ElementType; badge?: number }> = [
     { id: "overview", label: "Overview & Profile", icon: User },
+    ...(analyticsContent ? [{ id: "analytics" as WorkspaceTab, label: "Analytics", icon: BarChart3 }] : []),
     { id: "development", label: "Skills & Action Plans", icon: GraduationCap, badge: milestonesCount },
     { id: "sessions", label: "Mentoring Sessions", icon: CalendarCheck, badge: sessionsCount },
     { id: "career", label: "Career & Industry", icon: Briefcase, badge: careerItemsCount },
@@ -97,6 +101,13 @@ export function Student360Workspace({
       {(activeTab === "overview" || activeTab === "all") && (
         <div className="space-y-6 animate-in fade-in duration-100">
           {overviewContent}
+        </div>
+      )}
+
+      {/* Tab: Analytics */}
+      {analyticsContent && (activeTab === "analytics" || activeTab === "all") && (
+        <div className="space-y-6 animate-in fade-in duration-100">
+          {analyticsContent}
         </div>
       )}
 

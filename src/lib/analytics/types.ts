@@ -93,6 +93,11 @@ export interface RadarAxis {
   earlier: number | null;
 }
 
+export interface CountItem {
+  label: string;
+  count: number;
+}
+
 export interface StudentAnalytics {
   studentId: string;
   name: string;
@@ -102,6 +107,19 @@ export interface StudentAnalytics {
   milestoneFlags: MilestoneFlag[];
   gantt: GanttBar[];
   radar: RadarAxis[];
+  /** 6 career-readiness documents at a glance. */
+  readiness: {
+    columns: string[];
+    cells: Array<"READY" | "PARTIAL" | "MISSING">;
+    readyCount: number;
+  };
+  /** POAs grouped by status. */
+  poaStatus: CountItem[];
+  /** Sessions grouped by type. */
+  sessionTypeMix: CountItem[];
+  /** Per-skill current ratings (0–5), ranked. */
+  skillsBars: Array<{ name: string; rating: number }>;
+  taskTotals: { completed: number; total: number };
   totals: {
     sessions: number;
     milestones: number;
