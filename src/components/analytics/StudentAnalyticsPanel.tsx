@@ -1,6 +1,7 @@
 "use client";
 
-import { Route, Activity, Radar as RadarIcon, GanttChartSquare, FileCheck, ListTodo, PieChart, BarChart3 } from "lucide-react";
+import { useState } from "react";
+import { Route, Activity, Radar as RadarIcon, GanttChartSquare, FileCheck, ListTodo, PieChart, BarChart3, LineChart, TrendingUp } from "lucide-react";
 import { StudentAnalytics } from "@/lib/analytics/types";
 import { ChartCard } from "@/components/ui/ChartCard";
 import { StudentKpiStrip } from "./StudentKpiStrip";
@@ -10,12 +11,16 @@ import { PoaGantt } from "./PoaGantt";
 import { SkillsRadar } from "./SkillsRadar";
 import { ReadinessRing } from "./ReadinessRing";
 import { CountBars } from "./CountBars";
+import { SkillTrendChart } from "./SkillTrendChart";
+import { SkillProgressEditor } from "./SkillProgressEditor";
 
 /**
  * The full per-student analytics dashboard body (no page header) — shared by the
  * standalone drill-down route and the Student 360 "Analytics" tab.
  */
 export function StudentAnalyticsPanel({ data }: { data: StudentAnalytics }) {
+  const [editorOpen, setEditorOpen] = useState(false);
+
   return (
     <div className="space-y-6">
       <StudentKpiStrip data={data} />
@@ -135,6 +140,38 @@ export function StudentAnalyticsPanel({ data }: { data: StudentAnalytics }) {
           <PoaGantt bars={data.gantt} studentId={data.studentId} />
         </ChartCard>
       </div>
+
+      {/* Skill development over sessions */}
+      <ChartCard
+        eyebrow="Growth"
+        title="Skill development"
+        subtitle="How each skill rating has changed over time"
+        icon={LineChart}
+        accent="emerald"
+        height={320}
+        action={
+          data.skillsForEditor.length > 0 ? (
+            <button
+              onClick={() => setEditorOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent-emerald text-white hover:opacity-90 transition-opacity"
+            >
+              <TrendingUp className="w-3.5 h-3.5" /> Log skill progress
+            </button>
+          ) : undefined
+        }
+      >
+        <SkillTrendChart series={data.skillTrend} />
+      </ChartCard>
+
+      {editorOpen && (
+        <SkillProgressEditor
+          studentId={data.studentId}
+          studentName={data.name}
+          skills={data.skillsForEditor}
+          sessions={data.sessionOptions}
+          onClose={() => setEditorOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -12,6 +12,9 @@ import {
   SessionJourneyNode,
   GanttBar,
   RadarAxis,
+  SkillTrendSeries,
+  EditorSkill,
+  SessionOption,
 } from "@/lib/analytics/types";
 
 async function queryWithFallback<T>(queryFn: (client: any) => Promise<T>): Promise<T> {
@@ -492,6 +495,42 @@ export const getStudentAnalytics = cache(async function getStudentAnalytics(
       .map(([id, rating]) => ({ name: skillMeta.get(id)?.name || "Skill", rating }))
       .sort((a, b) => b.rating - a.rating);
 
+    // ── Skill development trend (per-skill rating history) ─────────────
+    const pointsBySkill = new Map<string, Array<{ date: string; rating: number }>>();
+    ((assessRaw || []) as any[]).forEach((a) => {
+      if (!a.assessed_at || !a.rating) return;
+      const d = String(a.assessed_at).split("T")[0];
+      if (!pointsBySkill.has(a.skill_id)) pointsBySkill.set(a.skill_id, []);
+      pointsBySkill.get(a.skill_id)!.push({ date: d, rating: a.rating });
+    });
+    const skillTrend: SkillTrendSeries[] = Array.from(pointsBySkill.entries()).map(([skillId, points]) => ({
+      skillId,
+      name: skillMeta.get(skillId)?.name || "Skill",
+      category: skillMeta.get(skillId)?.category || "General",
+      points,
+    }));
+
+    // All skills with current rating, for the mentor editor.
+    const skillsForEditor: EditorSkill[] = ((skillsRaw || []) as any[])
+      .map((sk) => ({
+        id: sk.id,
+        name: sk.name || "Skill",
+        category: sk.category || "General",
+        rating: lastBySkill.get(sk.id) || 0,
+      }))
+      .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+
+    // Sessions (most recent first) for attributing an update to a session.
+    const sessionOptions: SessionOption[] = sessions
+      .filter((s) => s.status !== "CANCELLED")
+      .slice()
+      .reverse()
+      .map((s) => ({
+        id: s.id,
+        date: s.session_date,
+        label: `${s.session_date} · ${prettyEnum(s.session_type || "General Mentoring")}`,
+      }));
+
     // ── Readiness (6 shared documents) ────────────────────────────────
     const rd = (readinessRaw || {}) as any;
     const readinessCells = READINESS_FIELDS.map((f) => readinessCell(rd[f]));
@@ -532,6 +571,9 @@ export const getStudentAnalytics = cache(async function getStudentAnalytics(
       poaStatus,
       sessionTypeMix,
       skillsBars,
+      skillTrend,
+      skillsForEditor,
+      sessionOptions,
       taskTotals,
       studentId: student.id,
       name: student.full_name,

@@ -98,6 +98,26 @@ export interface CountItem {
   count: number;
 }
 
+export interface SkillTrendSeries {
+  skillId: string;
+  name: string;
+  category: string;
+  points: Array<{ date: string; rating: number }>;
+}
+
+export interface EditorSkill {
+  id: string;
+  name: string;
+  category: string;
+  rating: number; // current (0 = unrated)
+}
+
+export interface SessionOption {
+  id: string;
+  date: string;
+  label: string;
+}
+
 export interface StudentAnalytics {
   studentId: string;
   name: string;
@@ -119,6 +139,12 @@ export interface StudentAnalytics {
   sessionTypeMix: CountItem[];
   /** Per-skill current ratings (0–5), ranked. */
   skillsBars: Array<{ name: string; rating: number }>;
+  /** Per-skill rating history over time (development trend). */
+  skillTrend: SkillTrendSeries[];
+  /** All skills with their current rating, for the mentor skill editor. */
+  skillsForEditor: EditorSkill[];
+  /** The cadet's sessions, for attributing a skill update to a session. */
+  sessionOptions: SessionOption[];
   taskTotals: { completed: number; total: number };
   totals: {
     sessions: number;
