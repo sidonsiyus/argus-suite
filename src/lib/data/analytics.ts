@@ -83,9 +83,11 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       { data: milestonesRaw },
       { data: readinessRaw },
       { data: internshipsRaw },
+      { data: assessRaw },
+      { data: skillsRaw },
     ] = await Promise.all([
       supabase.from("students").select("id, full_name, reg_no, sno").order("sno", { ascending: true }),
-      supabase.from("sessions").select("id, student_id, session_date, status"),
+      supabase.from("sessions").select("id, student_id, session_date, status, session_type, duration_minutes, follow_up_date"),
       supabase
         .from("milestones")
         .select(
@@ -97,6 +99,8 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
           "student_id, resume_status, linkedin_status, passport_status, driving_license_status, pan_card_status, aadhaar_card_status"
         ),
       supabase.from("internships").select("student_id, status"),
+      supabase.from("skill_assessments").select("student_id, skill_id, rating, assessed_at").order("assessed_at", { ascending: true }),
+      supabase.from("skills").select("id, name, category"),
     ]);
 
     const students = (studentsRaw || []) as any[];
@@ -255,6 +259,56 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
     const tasksThisWeek = tasksSpark.at(-1) || 0;
     const tasksTrend = tasksThisWeek - (tasksSpark.at(-2) || 0);
 
+    // ── Engagement section ──────────────────────────────────────────────
+    const activeSessions = (sessionsRaw || []).filter((s: any) => s.status !== "CANCELLED" && s.session_date);
+    const engagement = {
+      weekly: weeklyLabelledBuckets(activeSessions.map((s: any) => s.session_date), todayStr, 12),
+      typeMix: countBy(activeSessions.map((s: any) => prettyEnum(s.session_type || "General Mentoring"))),
+      goneQuiet: scatter
+        .filter((p) => p.daysSinceActivity === null || p.daysSinceActivity > 21)
+        .sort((a, b) => (b.daysSinceActivity ?? 9999) - (a.daysSinceActivity ?? 9999))
+        .slice(0, 12)
+        .map((p) => ({ studentId: p.studentId, name: p.name, regNo: p.regNo, days: p.daysSinceActivity })),
+      followUps: (() => {
+        let overdue = 0;
+        let upcoming = 0;
+        activeSessions.forEach((s: any) => {
+          if (!s.follow_up_date) return;
+          if (s.follow_up_date < todayStr) overdue += 1;
+          else upcoming += 1;
+        });
+        return { overdue, upcoming };
+      })(),
+      avgSessionsPerCadet: Math.round((activeSessions.length / students.length) * 10) / 10,
+    };
+
+    // ── Skills section (latest rating per student+skill) ────────────────
+    const skillCat = new Map<string, { name: string; category: string }>();
+    ((skillsRaw || []) as any[]).forEach((sk) => skillCat.set(sk.id, { name: sk.name || "Skill", category: sk.category || "General" }));
+    const latestRating = new Map<string, number>(); // key student|skill → rating
+    ((assessRaw || []) as any[]).forEach((a) => {
+      if (a.rating) latestRating.set(`${a.student_id}|${a.skill_id}`, a.rating); // assess ordered asc → last wins
+    });
+    const catRatings = new Map<string, number[]>();
+    const skillRatings = new Map<string, number[]>();
+    latestRating.forEach((rating, key) => {
+      const skillId = key.split("|")[1];
+      const meta = skillCat.get(skillId);
+      if (!meta || rating <= 0) return;
+      if (!catRatings.has(meta.category)) catRatings.set(meta.category, []);
+      catRatings.get(meta.category)!.push(rating);
+      if (!skillRatings.has(meta.name)) skillRatings.set(meta.name, []);
+      skillRatings.get(meta.name)!.push(rating);
+    });
+    const mean = (arr: number[]) => (arr.length ? Number((arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(1)) : 0);
+    const skillAverages = Array.from(skillRatings.entries()).map(([name, arr]) => ({ name, avg: mean(arr) }));
+    const skills = {
+      radar: Array.from(catRatings.entries()).map(([category, arr]) => ({ category, avg: mean(arr) })),
+      weakest: skillAverages.slice().sort((a, b) => a.avg - b.avg).slice(0, 8),
+      strongest: skillAverages.slice().sort((a, b) => b.avg - a.avg).slice(0, 8),
+      assessedCount: latestRating.size,
+    };
+
     const analytics: CohortAnalytics = {
       kpis: {
         totalStudents: students.length,
@@ -277,12 +331,37 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
         rows: readinessRows,
         columnReady,
       },
+      engagement,
+      skills,
       generatedAt: new Date().toISOString(),
     };
 
     return { data: analytics, error: null };
   });
 });
+
+// Labelled weekly buckets for the last N weeks (oldest → current).
+function weeklyLabelledBuckets(dates: string[], todayStr: string, weeks: number): Array<{ label: string; count: number }> {
+  const counts = new Array(weeks).fill(0);
+  dates.forEach((d) => {
+    const diff = -calculateDaysDiff(d, todayStr);
+    if (diff < 0) return;
+    const w = Math.floor(diff / 7);
+    if (w < weeks) counts[weeks - 1 - w] += 1;
+  });
+  return counts.map((count, i) => {
+    const weeksAgo = weeks - 1 - i;
+    return { label: weeksAgo === 0 ? "This wk" : `${weeksAgo}w`, count };
+  });
+}
+
+function countBy(labels: string[]): Array<{ label: string; count: number }> {
+  const m = new Map<string, number>();
+  labels.forEach((l) => m.set(l, (m.get(l) || 0) + 1));
+  return Array.from(m.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+}
 
 // Count dated items into the last 8 ISO weeks (index 7 = current week).
 function weeklyBuckets(dates: string[], todayStr: string): number[] {
@@ -317,6 +396,8 @@ function emptyAnalytics(): CohortAnalytics {
       { stage: "Placed", count: 0 },
     ],
     readinessMatrix: { columns: [...READINESS_COLUMNS], rows: [], columnReady: new Array(6).fill(0) },
+    engagement: { weekly: [], typeMix: [], goneQuiet: [], followUps: { overdue: 0, upcoming: 0 }, avgSessionsPerCadet: 0 },
+    skills: { radar: [], weakest: [], strongest: [], assessedCount: 0 },
     generatedAt: new Date().toISOString(),
   };
 }

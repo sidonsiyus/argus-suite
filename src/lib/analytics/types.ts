@@ -46,11 +46,34 @@ export interface CohortKpis {
   atRiskCount: number;
 }
 
+export interface CohortEngagement {
+  /** Sessions per week, last ~12 weeks. */
+  weekly: Array<{ label: string; count: number }>;
+  /** Sessions grouped by type across the cohort. */
+  typeMix: CountItem[];
+  /** Cadets with no activity in a while (most silent first). */
+  goneQuiet: Array<{ studentId: string; name: string; regNo: string; days: number | null }>;
+  followUps: { overdue: number; upcoming: number };
+  avgSessionsPerCadet: number;
+}
+
+export interface CohortSkills {
+  /** Average rating by category across the cohort. */
+  radar: Array<{ category: string; avg: number }>;
+  /** Weakest skills cohort-wide (lowest average first). */
+  weakest: Array<{ name: string; avg: number }>;
+  /** Strongest skills cohort-wide. */
+  strongest: Array<{ name: string; avg: number }>;
+  assessedCount: number;
+}
+
 export interface CohortAnalytics {
   kpis: CohortKpis;
   scatter: ScatterPoint[];
   funnel: FunnelBucket[];
   readinessMatrix: ReadinessMatrix;
+  engagement: CohortEngagement;
+  skills: CohortSkills;
   generatedAt: string;
 }
 
