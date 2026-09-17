@@ -56,10 +56,11 @@ export function AtRiskScatter({ points }: { points: ScatterPoint[] }) {
           dataKey="progress"
           name="Progress"
           unit="%"
-          domain={[0, 100]}
+          domain={[-4, 104]}
+          ticks={[0, 25, 50, 75, 100]}
           tick={axisTick}
           stroke={palette.grid}
-          label={{ value: "Progress →", position: "insideBottom", offset: -12, fill: palette.muted, fontSize: 11 }}
+          label={{ value: "Progression →", position: "insideBottom", offset: -12, fill: palette.muted, fontSize: 11 }}
         />
         <YAxis
           type="number"

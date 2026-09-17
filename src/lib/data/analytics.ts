@@ -163,7 +163,7 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
 
     students.forEach((s) => {
       const ms = milestonesByStudent.get(s.id) || [];
-      const progress =
+      const poaProgress =
         ms.length > 0 ? Math.round(ms.reduce((sum, m) => sum + milestoneProgress(m), 0) / ms.length) : 0;
 
       const openCritical = ms.filter(
@@ -197,6 +197,11 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       const readinessPct = Math.round((readyCount / READINESS_COLUMNS.length) * 100);
       readinessSum += readinessPct;
       readinessRows.push({ studentId: s.id, name: s.full_name, regNo: s.reg_no, cells });
+
+      // Blended progression score: half document-readiness, half POA progress.
+      // Readiness is the populated signal early on; POA progress rewards plan
+      // completion as it accrues. This is the scatter's X axis.
+      const progress = Math.round(0.5 * readinessPct + 0.5 * poaProgress);
 
       // Pipeline stage.
       let stage: PipelineStage;
