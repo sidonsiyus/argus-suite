@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Compass,
   LayoutDashboard,
+  BarChart3,
   Users,
   CalendarCheck,
   Calendar,
@@ -52,6 +53,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       label: "Dashboard",
       href: "/mentor-os/dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      label: "Analytics",
+      href: "/mentor-os/analytics",
+      icon: BarChart3,
     },
     {
       label: "Students",
