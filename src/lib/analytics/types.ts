@@ -53,3 +53,59 @@ export interface CohortAnalytics {
   readinessMatrix: ReadinessMatrix;
   generatedAt: string;
 }
+
+// ── Per-student drill-down ────────────────────────────────────────────
+export interface SessionJourneyNode {
+  id: string;
+  date: string;
+  status: string;
+  type: string;
+  focus: string;
+  durationMinutes: number;
+  /** Tasks completed in the interval that opened with this session. */
+  tasksCompleted: number;
+}
+
+export interface EngagementPoint {
+  date: string;
+  cumulativeSessions: number;
+}
+
+export interface MilestoneFlag {
+  date: string;
+  title: string;
+}
+
+export interface GanttBar {
+  id: string;
+  title: string;
+  start: string;
+  end: string | null;
+  progress: number;
+  priority: string;
+  status: string;
+  overdue: boolean;
+}
+
+export interface RadarAxis {
+  category: string;
+  current: number;
+  earlier: number | null;
+}
+
+export interface StudentAnalytics {
+  studentId: string;
+  name: string;
+  regNo: string;
+  journey: SessionJourneyNode[];
+  engagement: EngagementPoint[];
+  milestoneFlags: MilestoneFlag[];
+  gantt: GanttBar[];
+  radar: RadarAxis[];
+  totals: {
+    sessions: number;
+    milestones: number;
+    completedMilestones: number;
+    skillAvg: number | null;
+  };
+}

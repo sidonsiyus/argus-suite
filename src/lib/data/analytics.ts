@@ -7,6 +7,10 @@ import {
   PipelineStage,
   ScatterPoint,
   ReadinessMatrix,
+  StudentAnalytics,
+  SessionJourneyNode,
+  GanttBar,
+  RadarAxis,
 } from "@/lib/analytics/types";
 
 async function queryWithFallback<T>(queryFn: (client: any) => Promise<T>): Promise<T> {
@@ -312,3 +316,181 @@ function emptyAnalytics(): CohortAnalytics {
     generatedAt: new Date().toISOString(),
   };
 }
+
+function progressOf(m: any, tasks: any[]): number {
+  if (tasks.length > 0) {
+    const done = tasks.filter((t) => t.is_completed).length;
+    return Math.round((done / tasks.length) * 100);
+  }
+  if (m.status === "COMPLETED") return 100;
+  return m.completion_percentage || (m.status === "IN_PROGRESS" ? 50 : 0);
+}
+
+const PRIORITY_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+
+/**
+ * Per-student progression data for the analytics drill-down:
+ * session journey, cumulative engagement, POA Gantt, and a skills radar.
+ */
+export const getStudentAnalytics = cache(async function getStudentAnalytics(
+  studentId: string
+): Promise<StudentAnalytics | null> {
+  return queryWithFallback(async (supabase) => {
+    const todayStr = getTodayIST();
+
+    const { data: student } = await supabase
+      .from("students")
+      .select("id, full_name, reg_no")
+      .eq("id", studentId)
+      .single();
+    if (!student) return null;
+
+    const [{ data: sessionsRaw }, { data: milestonesRaw }, { data: skillsRaw }, { data: assessRaw }] =
+      await Promise.all([
+        supabase
+          .from("sessions")
+          .select("id, session_date, status, session_type, focus_area, duration_minutes")
+          .eq("student_id", studentId)
+          .order("session_date", { ascending: true }),
+        supabase
+          .from("milestones")
+          .select(
+            "id, title, status, priority, completion_percentage, target_date, created_at, completed_at, provenance, category, is_archived, parent_milestone_id"
+          )
+          .eq("student_id", studentId),
+        supabase.from("skills").select("id, name, category"),
+        supabase
+          .from("skill_assessments")
+          .select("skill_id, rating, assessed_at")
+          .eq("student_id", studentId)
+          .order("assessed_at", { ascending: true }),
+      ]);
+
+    const sessions = ((sessionsRaw || []) as any[]).filter((s) => s.session_date);
+    const milestones = ((milestonesRaw || []) as any[]).filter(
+      (m) => !m.parent_milestone_id && !isHistoricalMilestone(m)
+    );
+
+    // Tasks for these milestones.
+    const mIds = milestones.map((m) => m.id);
+    let tasks: any[] = [];
+    if (mIds.length > 0) {
+      const { data } = await supabase
+        .from("milestone_tasks")
+        .select("milestone_id, is_completed, completed_at")
+        .in("milestone_id", mIds);
+      tasks = data || [];
+    }
+    const tasksByMilestone = new Map<string, any[]>();
+    tasks.forEach((t) => {
+      if (!tasksByMilestone.has(t.milestone_id)) tasksByMilestone.set(t.milestone_id, []);
+      tasksByMilestone.get(t.milestone_id)!.push(t);
+    });
+
+    // ── Session journey + engagement ──────────────────────────────────
+    const activeSessions = sessions.filter((s) => s.status !== "CANCELLED");
+    const sessionDates = activeSessions.map((s) => s.session_date).sort();
+    const completedTaskDates = tasks
+      .filter((t) => t.is_completed && t.completed_at)
+      .map((t) => String(t.completed_at).split("T")[0]);
+
+    // Attribute each completed task to the interval opened by the latest session <= its date.
+    const tasksPerSessionDate = new Map<string, number>();
+    completedTaskDates.forEach((d) => {
+      let owner: string | null = null;
+      for (const sd of sessionDates) {
+        if (sd <= d) owner = sd;
+        else break;
+      }
+      if (owner) tasksPerSessionDate.set(owner, (tasksPerSessionDate.get(owner) || 0) + 1);
+    });
+
+    const journey: SessionJourneyNode[] = sessions.map((s) => ({
+      id: s.id,
+      date: s.session_date,
+      status: !s.status || s.status === "HISTORICAL" ? "COMPLETED" : s.status,
+      type: s.session_type || "GENERAL_MENTORING",
+      focus: s.focus_area || "General mentoring",
+      durationMinutes: s.duration_minutes || 30,
+      tasksCompleted: s.status === "CANCELLED" ? 0 : tasksPerSessionDate.get(s.session_date) || 0,
+    }));
+
+    let running = 0;
+    const engagement = activeSessions.map((s) => {
+      running += 1;
+      return { date: s.session_date, cumulativeSessions: running };
+    });
+
+    const milestoneFlags = milestones
+      .filter((m) => m.completed_at)
+      .map((m) => ({ date: String(m.completed_at).split("T")[0], title: m.title }));
+
+    // ── POA Gantt ─────────────────────────────────────────────────────
+    const gantt: GanttBar[] = milestones
+      .map((m) => {
+        const start = (m.created_at ? String(m.created_at).split("T")[0] : null) || todayStr;
+        const end = m.target_date || null;
+        const overdue = Boolean(end && end < todayStr && m.status !== "COMPLETED");
+        return {
+          id: m.id,
+          title: m.title,
+          start,
+          end,
+          progress: progressOf(m, tasksByMilestone.get(m.id) || []),
+          priority: m.priority || "MEDIUM",
+          status: m.status,
+          overdue,
+        };
+      })
+      .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2)));
+
+    // ── Skills radar (avg rating per category, current vs earliest) ────
+    const skillMeta = new Map<string, { category: string }>();
+    ((skillsRaw || []) as any[]).forEach((sk) => skillMeta.set(sk.id, { category: sk.category || "General" }));
+    const firstBySkill = new Map<string, number>();
+    const lastBySkill = new Map<string, number>();
+    ((assessRaw || []) as any[]).forEach((a) => {
+      if (!firstBySkill.has(a.skill_id)) firstBySkill.set(a.skill_id, a.rating);
+      lastBySkill.set(a.skill_id, a.rating);
+    });
+    const catCurrent = new Map<string, number[]>();
+    const catEarlier = new Map<string, number[]>();
+    lastBySkill.forEach((rating, skillId) => {
+      const cat = skillMeta.get(skillId)?.category || "General";
+      if (rating > 0) {
+        if (!catCurrent.has(cat)) catCurrent.set(cat, []);
+        catCurrent.get(cat)!.push(rating);
+      }
+      const first = firstBySkill.get(skillId);
+      if (first !== undefined && first !== rating && first > 0) {
+        if (!catEarlier.has(cat)) catEarlier.set(cat, []);
+        catEarlier.get(cat)!.push(first);
+      }
+    });
+    const avg = (arr: number[]) => (arr.length ? Number((arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(1)) : 0);
+    const radar: RadarAxis[] = Array.from(catCurrent.keys()).map((category) => ({
+      category,
+      current: avg(catCurrent.get(category) || []),
+      earlier: catEarlier.has(category) ? avg(catEarlier.get(category)!) : null,
+    }));
+
+    const allRatings = Array.from(lastBySkill.values()).filter((r) => r > 0);
+
+    return {
+      studentId: student.id,
+      name: student.full_name,
+      regNo: student.reg_no,
+      journey,
+      engagement,
+      milestoneFlags,
+      gantt,
+      radar,
+      totals: {
+        sessions: activeSessions.length,
+        milestones: milestones.length,
+        completedMilestones: milestones.filter((m) => m.status === "COMPLETED").length,
+        skillAvg: allRatings.length ? avg(allRatings) : null,
+      },
+    };
+  });
+});

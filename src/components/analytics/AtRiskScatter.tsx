@@ -92,14 +92,14 @@ export function AtRiskScatter({ points }: { points: ScatterPoint[] }) {
                   <div>Open critical: <b className="text-ink">{p.openCritical}</b></div>
                 </div>
                 {p.atRisk && <div className="mt-1.5 text-rose-600 dark:text-rose-400 font-medium">⚠ Needs attention</div>}
-                <div className="mt-1 text-[10px] text-ink-muted">Click to open profile</div>
+                <div className="mt-1 text-[10px] text-ink-muted">Click for full analytics</div>
               </div>
             );
           }}
         />
         <Scatter
           data={data}
-          onClick={(d: any) => d?.studentId && router.push(`/mentor-os/students/${d.studentId}`)}
+          onClick={(d: any) => d?.studentId && router.push(`/mentor-os/analytics/${d.studentId}`)}
           className="cursor-pointer"
         >
           {data.map((p) => (

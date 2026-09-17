@@ -35,7 +35,7 @@ export function ReadinessHeatmap({ matrix }: { matrix: ReadinessMatrix }) {
         {rows.map((r) => (
           <button
             key={r.studentId}
-            onClick={() => router.push(`/mentor-os/students/${r.studentId}`)}
+            onClick={() => router.push(`/mentor-os/analytics/${r.studentId}`)}
             className="grid w-full items-center hover:bg-surface-subtle transition-colors text-left group"
             style={{ gridTemplateColumns: `minmax(120px,1.4fr) repeat(${columns.length}, 1fr)` }}
             title={`Open ${r.name}`}
