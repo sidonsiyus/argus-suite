@@ -16,11 +16,10 @@ import { StudentInternshipsCard } from "@/components/student-detail/StudentInter
 import { StudentGroupsCard } from "@/components/student-detail/StudentGroupsCard";
 import { AICopilotCard } from "@/components/student-detail/AICopilotCard";
 import { StudentDocumentsTab } from "@/components/student-detail/StudentDocumentsTab";
-import { StudentAnalyticsPanel } from "@/components/analytics/StudentAnalyticsPanel";
+import { StudentAnalyticsLazy } from "@/components/analytics/StudentAnalyticsLazy";
 import { getStudentRecommendations } from "@/lib/data/ai-copilot";
 import { getInternshipOpportunities } from "@/lib/data/internships";
 import { getStudentDocuments } from "@/lib/data/documents";
-import { getStudentAnalytics } from "@/lib/data/analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -34,13 +33,12 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
   const { id } = await params;
 
   // Concurrently fetch 360 data, opportunities, topbar search index, AI recommendations, and documents
-  const [studentData, opportunities, topBarData, initialRecommendations, documents, studentAnalytics] = await Promise.all([
+  const [studentData, opportunities, topBarData, initialRecommendations, documents] = await Promise.all([
     getStudent360(id),
     getInternshipOpportunities({ status: "active" }),
     getTopBarHeaderData(),
     getStudentRecommendations(id),
     getStudentDocuments(id),
-    getStudentAnalytics(id),
   ]);
 
   if (!studentData) {
@@ -68,7 +66,7 @@ export default async function StudentDetailPage({ params }: StudentDetailPagePro
           sessionsCount={studentData.sessions?.length || 0}
           careerItemsCount={(studentData.internships?.length || 0) + (studentData.achievements?.length || 0)}
           documentsCount={documents.length}
-          analyticsContent={studentAnalytics ? <StudentAnalyticsPanel data={studentAnalytics} /> : undefined}
+          analyticsContent={<StudentAnalyticsLazy studentId={id} />}
           overviewContent={
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               <div className="lg:col-span-7 space-y-6">
