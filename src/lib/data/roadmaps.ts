@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthenticatedFaculty } from "@/lib/data/achievements";
 import { roadmapForSlug, CareerRoadmap } from "@/lib/mentor-os/roadmaps";
 
 async function queryWithFallback<T>(queryFn: (client: any) => Promise<T>): Promise<T> {
@@ -84,6 +85,7 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
         { data: readinessRaw },
         { data: milestonesRaw },
         { data: achievementsRaw },
+        { data: progressRaw },
       ] = await Promise.all([
         supabase.from("students").select("id, full_name, reg_no, sno").order("sno", { ascending: true }),
         supabase.from("student_career_goals").select("student_id, career_role_id, custom_role_title, is_primary").eq("is_primary", true),
@@ -91,6 +93,8 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
         supabase.from("career_readiness").select("student_id, resume_status, linkedin_status, passport_status, driving_license_status, pan_card_status, aadhaar_card_status"),
         supabase.from("milestones").select("student_id, status, provenance, category, is_archived, parent_milestone_id"),
         supabase.from("achievements").select("student_id"),
+        // Resilient: if the table isn't migrated yet this returns null → all estimated.
+        supabase.from("roadmap_progress").select("student_id, track_slug, current_stage_key"),
       ]);
 
       const students = (studentsRaw || []) as any[];
@@ -117,18 +121,29 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
       const achByStudent = new Map<string, number>();
       ((achievementsRaw || []) as any[]).forEach((a) => achByStudent.set(a.student_id, (achByStudent.get(a.student_id) || 0) + 1));
 
+      // Explicit mentor-set placement (overrides the estimate).
+      const explicit = new Map<string, string>(); // `${student}|${track}` → stage_key
+      ((progressRaw || []) as any[]).forEach((p) => explicit.set(`${p.student_id}|${p.track_slug}`, p.current_stage_key));
+
       // Group students into track clusters.
       const clusters = new Map<string, RoadmapStudent[]>();
       students.forEach((s) => {
         const slug = trackByStudent.get(s.id) || "generic";
         const roadmap = roadmapForSlug(slug === "generic" ? null : slug);
-        const stageIndex = deriveStageIndex(
-          readyByStudent.get(s.id) || 0,
-          completedByStudent.get(s.id) || 0,
-          achByStudent.get(s.id) || 0,
-          roadmap.stages.length
-        );
         const key = roadmap.slug; // normalises unknown slugs to "generic"
+
+        const setKey = explicit.get(`${s.id}|${key}`);
+        const setIdx = setKey ? roadmap.stages.findIndex((st) => st.key === setKey) : -1;
+        const estimated = setIdx < 0;
+        const stageIndex = estimated
+          ? deriveStageIndex(
+              readyByStudent.get(s.id) || 0,
+              completedByStudent.get(s.id) || 0,
+              achByStudent.get(s.id) || 0,
+              roadmap.stages.length
+            )
+          : setIdx;
+
         if (!clusters.has(key)) clusters.set(key, []);
         clusters.get(key)!.push({
           id: s.id,
@@ -136,7 +151,7 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
           regNo: s.reg_no,
           stageIndex,
           stageKey: roadmap.stages[stageIndex]?.key || roadmap.stages[0].key,
-          estimated: true,
+          estimated,
         });
       });
 
@@ -164,6 +179,50 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
     }
   });
 });
+
+/**
+ * Mentor confirms/overrides where a cadet stands on a track's roadmap.
+ * Upserts one row per (student, track). Faculty-only (RLS + is_faculty()).
+ */
+export async function executeSetRoadmapStage(
+  studentId: string,
+  trackSlug: string,
+  stageKey: string
+): Promise<{ success: boolean; error?: string }> {
+  const { supabase, user } = await getAuthenticatedFaculty();
+
+  const { error } = await supabase.from("roadmap_progress").upsert(
+    {
+      student_id: studentId,
+      track_slug: trackSlug,
+      current_stage_key: stageKey,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "student_id,track_slug" }
+  );
+
+  if (error) {
+    console.error("Error setting roadmap stage:", error);
+    return { success: false, error: "Failed to update the cadet's stage." };
+  }
+
+  // Best-effort audit (never blocks the write).
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_table: "roadmap_progress",
+      entity_id: studentId,
+      action: "UPDATE",
+      actor_id: user.id,
+      actor_role: "faculty",
+      new_values: { track_slug: trackSlug, current_stage_key: stageKey },
+    });
+  } catch {
+    /* ignore */
+  }
+
+  return { success: true };
+}
 
 // Best-effort mapping from a free-text custom role title to a roadmap slug.
 function slugFromTitle(title: string | null | undefined): string {

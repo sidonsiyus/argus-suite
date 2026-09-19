@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Users, Flag, GraduationCap } from "lucide-react";
+import { ArrowLeft, ChevronRight, Users, Flag, GraduationCap, SlidersHorizontal } from "lucide-react";
 import { CohortRoadmaps, TrackCluster, RoadmapStudent } from "@/lib/data/roadmaps";
 import { roadmapForSlug } from "@/lib/mentor-os/roadmaps";
+import { setStudentRoadmapStageAction } from "@/app/actions/roadmaps";
 import { cn } from "@/lib/utils";
 
 function StudentChip({ s }: { s: RoadmapStudent }) {
@@ -57,11 +58,32 @@ function ClusterCard({ track, onOpen }: { track: TrackCluster; onOpen: () => voi
 
 function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => void }) {
   const rm = roadmapForSlug(track.slug === "generic" ? null : track.slug);
+  const [students, setStudents] = useState<RoadmapStudent[]>(track.students);
+  const [manage, setManage] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const byStage = new Map<number, RoadmapStudent[]>();
-  track.students.forEach((s) => {
+  students.forEach((s) => {
     if (!byStage.has(s.stageIndex)) byStage.set(s.stageIndex, []);
     byStage.get(s.stageIndex)!.push(s);
   });
+
+  async function setStage(studentId: string, stageIndex: number) {
+    const stageKey = rm.stages[stageIndex]?.key;
+    if (!stageKey) return;
+    const prev = students;
+    // optimistic
+    setStudents((list) => list.map((s) => (s.id === studentId ? { ...s, stageIndex, stageKey, estimated: false } : s)));
+    setSavingId(studentId);
+    setError(null);
+    const res = await setStudentRoadmapStageAction({ studentId, trackSlug: rm.slug, stageKey });
+    setSavingId(null);
+    if (!res.success) {
+      setStudents(prev); // rollback
+      setError(res.error || "Couldn't save — the roadmap_progress table may not be migrated yet.");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -79,11 +101,19 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs">
             <Users className="w-3.5 h-3.5 text-accent-emerald" /> <b className="text-ink">{track.studentCount}</b> cadets
           </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs">
-            <Flag className="w-3.5 h-3.5 text-accent-emerald" /> {rm.stages.length} stages
-          </span>
+          <button
+            onClick={() => setManage((m) => !m)}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors",
+              manage ? "bg-accent-emerald text-white" : "bg-surface border border-border text-ink-secondary hover:text-ink"
+            )}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" /> Manage stages
+          </button>
         </div>
       </div>
+
+      {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
 
       {/* Roadmap stepper */}
       <div className="relative">
@@ -134,7 +164,7 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
 
                   {here.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border/70">
-                      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-muted mb-2">Cadets at this stage · auto-estimated</p>
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-muted mb-2">Cadets at this stage</p>
                       <div className="flex flex-wrap gap-1.5">
                         {here.map((s) => <StudentChip key={s.id} s={s} />)}
                       </div>
@@ -147,8 +177,50 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
         </div>
       </div>
 
+      {/* Manage cadet stages */}
+      {manage && (
+        <div className="bg-surface border border-border rounded-2xl shadow-card overflow-hidden">
+          <div className="px-5 pt-4 pb-3 border-b border-border/70">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-accent-emerald" />
+              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-accent-emerald">Manage</span>
+            </div>
+            <h3 className="text-[15px] font-semibold text-ink">Cadet stages</h3>
+            <p className="text-xs text-ink-muted mt-0.5">Confirm or move each cadet along the roadmap. Overrides the auto-estimate.</p>
+          </div>
+          <div className="divide-y divide-border/70">
+            {students.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 px-5 py-2.5">
+                <Link href={`/mentor-os/students/${s.id}`} className="flex-1 min-w-0 hover:text-accent-emerald">
+                  <div className="text-sm font-medium text-ink truncate">{s.name}</div>
+                  <div className="text-[10px] text-ink-muted">{s.regNo}</div>
+                </Link>
+                <span className={cn(
+                  "text-[10px] px-2 py-0.5 rounded-full border shrink-0",
+                  s.estimated
+                    ? "bg-surface-subtle text-ink-muted border-border"
+                    : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20"
+                )}>
+                  {s.estimated ? "estimated" : "confirmed"}
+                </span>
+                <select
+                  value={s.stageIndex}
+                  disabled={savingId === s.id}
+                  onChange={(e) => setStage(s.id, Number(e.target.value))}
+                  className="text-xs bg-surface-subtle border border-border rounded-lg px-2.5 py-1.5 text-ink focus:outline-none focus:border-accent-emerald max-w-[220px] disabled:opacity-50"
+                >
+                  {rm.stages.map((st, i) => (
+                    <option key={st.key} value={i}>{i + 1}. {st.title}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="text-[11px] text-ink-muted">
-        Stage placement is auto-estimated from readiness, milestones and achievements. Mentor confirmation & material attachment arrive next.
+        Stage placement is auto-estimated from readiness, milestones and achievements until a mentor confirms it. Use <b>Manage stages</b> to override.
       </p>
     </div>
   );
