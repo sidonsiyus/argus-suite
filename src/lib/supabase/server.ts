@@ -25,3 +25,6 @@ export function createServerSupabase() {
     }
   );
 }
+
+// Alias used by the appointment portal — maps to the same server client.
+export const createClient = createServerSupabase;

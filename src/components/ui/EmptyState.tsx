@@ -1,5 +1,5 @@
 import React from "react";
-import { LucideIcon, Inbox } from "lucide-react";
+import { LucideIcon, Inbox, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
@@ -8,6 +8,8 @@ interface EmptyStateProps {
   description?: string;
   action?: React.ReactNode;
   className?: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 export function EmptyState({
@@ -16,6 +18,8 @@ export function EmptyState({
   description,
   action,
   className,
+  actionLabel,
+  onAction,
 }: EmptyStateProps) {
   return (
     <div
@@ -32,6 +36,16 @@ export function EmptyState({
         <p className="text-xs text-ink-muted max-w-sm mt-1 leading-relaxed">
           {description}
         </p>
+      )}
+      {actionLabel && onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-aviation hover:bg-aviation-800 text-white text-xs font-semibold shadow-2xs transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          {actionLabel}
+        </button>
       )}
       {action && <div className="mt-4">{action}</div>}
     </div>
