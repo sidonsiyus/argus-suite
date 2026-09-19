@@ -676,6 +676,8 @@ export default function Home() {
               <a className="btn btn-primary" href="#modules">Browse systems ↓</a>
               <a className="btn btn-ghost" href="/ground-school">Course notes →</a>
               <a className="btn btn-ghost" href="/argus.html">Live radar ✈</a>
+              {/* TODO: update href to the deployed appointment portal URL once deployed */}
+              <a className="btn btn-ghost" href="#" aria-label="Faculty–Student Appointment Portal">Book appointment 📅</a>
             </div>
             <div className="hero-stats">
               <div className="stat"><div className="n serif">{MODULES.length}</div><div className="l">Modules</div></div>
