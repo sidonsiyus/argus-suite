@@ -382,6 +382,47 @@ export async function executeSetStudentTrack(
   return { success: true };
 }
 
+/**
+ * Remove a cadet from their current career track — clears the primary career
+ * goal's role/title so they become "Unassigned" (they move to the generic
+ * development roadmap). Faculty-only.
+ */
+export async function executeRemoveStudentFromTrack(studentId: string): Promise<{ success: boolean; error?: string }> {
+  const { supabase, user } = await getAuthenticatedFaculty();
+  const { data: rows } = await supabase
+    .from("student_career_goals")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("is_primary", true)
+    .limit(1);
+  const existing = rows?.[0];
+  if (!existing) return { success: true }; // nothing to remove
+
+  const { error } = await supabase
+    .from("student_career_goals")
+    .update({ career_role_id: null, custom_role_title: null, provenance: "MENTOR_ENTERED", updated_at: new Date().toISOString() })
+    .eq("id", existing.id);
+  if (error) {
+    console.error("Error removing cadet from track:", error);
+    return { success: false, error: "Failed to remove the cadet from the track." };
+  }
+
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_table: "student_career_goals",
+      entity_id: studentId,
+      action: "UPDATE",
+      actor_id: user.id,
+      actor_role: "faculty",
+      new_values: { track_slug: null, action: "removed_from_track" },
+    });
+  } catch {
+    /* ignore */
+  }
+
+  return { success: true };
+}
+
 /** Attach an existing resource to a roadmap stage. Faculty-only, idempotent. */
 export async function executeAttachStageResource(
   trackSlug: string,

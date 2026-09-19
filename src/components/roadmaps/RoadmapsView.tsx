@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles, UserPlus, X, Paperclip, FileText, ExternalLink, FileDown } from "lucide-react";
+import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles, UserPlus, X, Paperclip, FileText, ExternalLink, FileDown, UserMinus } from "lucide-react";
 import { CohortRoadmaps, TrackCluster, RoadmapStudent, StageMaterial } from "@/lib/data/roadmaps";
-import { setStudentRoadmapStageAction, setStudentTrackAction, detachStageResourceAction } from "@/app/actions/roadmaps";
+import { setStudentRoadmapStageAction, setStudentTrackAction, removeStudentFromTrackAction, detachStageResourceAction } from "@/app/actions/roadmaps";
 import { getResourceFileUrlAction } from "@/app/actions/resources";
 import { ROADMAPS } from "@/lib/mentor-os/roadmaps";
 import { RoadmapAiReview } from "./RoadmapAiReview";
@@ -182,6 +182,19 @@ function TrackDetail({ track, allTracks, onBack }: { track: TrackCluster; allTra
     if (!res.success) {
       setStudents(prev);
       setError(res.error || "Couldn't change track.");
+    }
+  }
+
+  async function removeCadet(studentId: string) {
+    const prev = students;
+    setStudents((list) => list.filter((s) => s.id !== studentId)); // optimistic
+    setSavingId(studentId);
+    setError(null);
+    const res = await removeStudentFromTrackAction(studentId);
+    setSavingId(null);
+    if (!res.success) {
+      setStudents(prev);
+      setError(res.error || "Couldn't remove cadet from track.");
     }
   }
 
@@ -413,6 +426,15 @@ function TrackDetail({ track, allTracks, onBack }: { track: TrackCluster; allTra
                     <option key={st.key} value={i}>{i + 1}. {st.title}</option>
                   ))}
                 </select>
+                <button
+                  onClick={() => removeCadet(s.id)}
+                  disabled={savingId === s.id}
+                  title="Remove cadet from this track (set unassigned)"
+                  className="p-1.5 rounded-lg text-ink-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 disabled:opacity-50 shrink-0"
+                  aria-label="Remove cadet from track"
+                >
+                  <UserMinus className="w-3.5 h-3.5" />
+                </button>
               </div>
             ))}
           </div>
