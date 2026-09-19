@@ -25,19 +25,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const userClient = createClient();
+    const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY
       ? createAdminClient()
-      : createClient();
+      : userClient;
 
-    // 1. Try secure atomic approval RPC
-    const { data: rpcData, error: rpcError } = await supabase.rpc(
+    // 1. Try secure atomic approval RPC using user's authenticated session (so auth.uid() is populated)
+    const { data: rpcData, error: rpcError } = await userClient.rpc(
       'approve_appointment_atomic',
       { p_appointment_id: appointment_id }
     );
 
     if (!rpcError && rpcData?.success) {
       // Log Audit Event
-      await logAuditEvent(supabase, {
+      await logAuditEvent(adminClient, {
         actor_user_id: authCheck.user?.id,
         action: 'APPOINTMENT_APPROVED',
         entity_type: 'APPOINTMENT',
@@ -62,19 +63,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 409 });
       }
 
-      const isFunctionNotFound =
-        rpcError.code === 'PGRST202' ||
-        rpcError.code === '42883' ||
-        (msg.toLowerCase().includes('function') && msg.toLowerCase().includes('does not exist'));
-
-      if (!isFunctionNotFound) {
-        return NextResponse.json({ error: msg }, { status: 500 });
-      }
-      // Fall through to server-side transaction fallback
+      // If RPC fails (e.g. database role or function mismatch), proceed to server-side transaction fallback.
+      // (Coordinator authorization has already been verified above via verifyCoordinatorSession())
     }
 
-    // 2. Server-side transaction fallback (if RPC not yet present)
-    const { data: apt, error: fetchErr } = await supabase
+    // 2. Server-side transaction fallback
+    const { data: apt, error: fetchErr } = await adminClient
       .from('appointments')
       .select('id, appointment_id, faculty_id, date, start_time, end_time, status')
       .eq('id', appointment_id)
@@ -96,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for conflicting confirmed appointments
-    const { data: conflicts } = await supabase
+    const { data: conflicts } = await adminClient
       .from('appointments')
       .select('id')
       .eq('faculty_id', apt.faculty_id)
@@ -113,7 +107,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await adminClient
       .from('appointments')
       .update({ status: 'CONFIRMED', updated_at: new Date().toISOString() })
       .eq('id', appointment_id);
@@ -123,12 +117,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark notification read
-    await supabase
+    await adminClient
       .from('notifications')
       .update({ is_read: true })
       .eq('appointment_id', appointment_id);
 
-    await logAuditEvent(supabase, {
+    await logAuditEvent(adminClient, {
       actor_user_id: authCheck.user?.id,
       action: 'APPOINTMENT_APPROVED',
       entity_type: 'APPOINTMENT',

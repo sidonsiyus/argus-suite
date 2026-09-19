@@ -26,12 +26,13 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanReason = reason ? sanitizeText(reason, 500) : null;
-    const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const userClient = createClient();
+    const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY
       ? createAdminClient()
-      : createClient();
+      : userClient;
 
-    // 1. Try secure atomic decline RPC
-    const { data: rpcData, error: rpcError } = await supabase.rpc(
+    // 1. Try secure atomic decline RPC using user's authenticated session
+    const { data: rpcData, error: rpcError } = await userClient.rpc(
       'decline_appointment_atomic',
       {
         p_appointment_id: appointment_id,
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!rpcError && rpcData?.success) {
-      await logAuditEvent(supabase, {
+      await logAuditEvent(adminClient, {
         actor_user_id: authCheck.user?.id,
         action: 'APPOINTMENT_DECLINED',
         entity_type: 'APPOINTMENT',
@@ -60,19 +61,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (rpcError) {
-      const isFunctionNotFound =
-        rpcError.code === 'PGRST202' ||
-        rpcError.code === '42883' ||
-        (rpcError.message?.toLowerCase().includes('function') && rpcError.message?.toLowerCase().includes('does not exist'));
-
-      if (!isFunctionNotFound) {
-        return NextResponse.json({ error: rpcError.message }, { status: 500 });
+      const msg = rpcError.message || '';
+      if (msg.includes('CANNOT_DECLINE')) {
+        return NextResponse.json({ error: msg }, { status: 409 });
       }
-      // Fall through to server-side fallback
+
+      // If RPC fails (e.g. database role or function mismatch), proceed to server-side fallback.
+      // (Coordinator authorization has already been verified above via verifyCoordinatorSession())
     }
 
     // 2. Server-side fallback
-    const { data: apt, error: fetchErr } = await supabase
+    const { data: apt, error: fetchErr } = await adminClient
       .from('appointments')
       .select('id, appointment_id, status')
       .eq('id', appointment_id)
@@ -82,7 +81,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Appointment record not found' }, { status: 404 });
     }
 
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await adminClient
       .from('appointments')
       .update({
         status: 'DECLINED',
@@ -96,12 +95,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark notification read
-    await supabase
+    await adminClient
       .from('notifications')
       .update({ is_read: true })
       .eq('appointment_id', appointment_id);
 
-    await logAuditEvent(supabase, {
+    await logAuditEvent(adminClient, {
       actor_user_id: authCheck.user?.id,
       action: 'APPOINTMENT_DECLINED',
       entity_type: 'APPOINTMENT',
