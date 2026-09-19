@@ -25,6 +25,14 @@ export interface RoadmapStudent {
   estimated: boolean;
 }
 
+export interface StageMaterial {
+  linkId: string; // roadmap_stage_resources.id
+  resourceId: string;
+  title: string;
+  url: string | null;
+  resourceType: string;
+}
+
 export interface TrackCluster {
   slug: string;
   title: string;
@@ -40,6 +48,8 @@ export interface TrackCluster {
   examGuidance?: string;
   /** SEED (code) | AI_SUGGESTED | MENTOR_EDITED */
   source: string;
+  /** Materials attached per stage_key. */
+  materials: Record<string, StageMaterial[]>;
 }
 
 export interface CohortRoadmaps {
@@ -93,6 +103,7 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
         { data: achievementsRaw },
         { data: progressRaw },
         { data: templatesRaw },
+        { data: materialsRaw },
       ] = await Promise.all([
         supabase.from("students").select("id, full_name, reg_no, sno, cohorts!inner(code)").eq("cohorts.code", MENTOR_COHORT_CODE).order("sno", { ascending: true }),
         supabase.from("student_career_goals").select("student_id, career_role_id, custom_role_title, is_primary").eq("is_primary", true),
@@ -104,6 +115,8 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
         supabase.from("roadmap_progress").select("student_id, track_slug, current_stage_key"),
         // Editable / AI-approved templates. Absent table → null → code seed used.
         supabase.from("roadmap_templates").select("track_slug, stages, exam_guidance, source"),
+        // Stage materials. Absent table → null → no materials.
+        supabase.from("roadmap_stage_resources").select("id, track_slug, stage_key, resource_id, resources(id, title, url, resource_type)"),
       ]);
 
       const students = (studentsRaw || []) as any[];
@@ -141,6 +154,23 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
           templateBySlug.set(t.track_slug, { stages: t.stages, examGuidance: t.exam_guidance || undefined, source: t.source || "MENTOR_EDITED" });
         }
       });
+      // Stage materials keyed by track → stage_key → materials.
+      const materialsByTrack = new Map<string, Record<string, StageMaterial[]>>();
+      ((materialsRaw || []) as any[]).forEach((row) => {
+        const r = row.resources;
+        if (!r) return;
+        if (!materialsByTrack.has(row.track_slug)) materialsByTrack.set(row.track_slug, {});
+        const byStage = materialsByTrack.get(row.track_slug)!;
+        if (!byStage[row.stage_key]) byStage[row.stage_key] = [];
+        byStage[row.stage_key].push({
+          linkId: row.id,
+          resourceId: row.resource_id,
+          title: r.title,
+          url: r.url ?? null,
+          resourceType: r.resource_type || "GUIDE",
+        });
+      });
+
       // Effective roadmap = DB template (if any) over the code seed.
       const effective = (codeSlug: string) => {
         const code = roadmapForSlug(codeSlug === "generic" ? null : codeSlug);
@@ -196,6 +226,7 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
             stages: eff.stages,
             examGuidance: eff.examGuidance,
             source: eff.source,
+            materials: materialsByTrack.get(eff.meta.slug) || {},
             stageCount: eff.stages.length,
             studentCount: studentsInTrack.length,
             avgStageIndex: Math.round(avg * 10) / 10,
@@ -348,6 +379,39 @@ export async function executeSetStudentTrack(
     /* ignore */
   }
 
+  return { success: true };
+}
+
+/** Attach an existing resource to a roadmap stage. Faculty-only, idempotent. */
+export async function executeAttachStageResource(
+  trackSlug: string,
+  stageKey: string,
+  resourceId: string
+): Promise<{ success: boolean; error?: string; linkId?: string }> {
+  const { supabase, user } = await getAuthenticatedFaculty();
+  const { data, error } = await supabase
+    .from("roadmap_stage_resources")
+    .upsert(
+      { track_slug: trackSlug, stage_key: stageKey, resource_id: resourceId, created_by: user.id },
+      { onConflict: "track_slug,stage_key,resource_id" }
+    )
+    .select("id")
+    .single();
+  if (error) {
+    console.error("Error attaching stage resource:", error);
+    return { success: false, error: "Failed to attach material." };
+  }
+  return { success: true, linkId: data?.id };
+}
+
+/** Detach a material from a stage. Faculty-only. */
+export async function executeDetachStageResource(linkId: string): Promise<{ success: boolean; error?: string }> {
+  const { supabase } = await getAuthenticatedFaculty();
+  const { error } = await supabase.from("roadmap_stage_resources").delete().eq("id", linkId);
+  if (error) {
+    console.error("Error detaching stage resource:", error);
+    return { success: false, error: "Failed to remove material." };
+  }
   return { success: true };
 }
 

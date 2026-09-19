@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { executeSetRoadmapStage, executeSaveRoadmapTemplate, executeSetStudentTrack } from "@/lib/data/roadmaps";
+import { executeSetRoadmapStage, executeSaveRoadmapTemplate, executeSetStudentTrack, executeAttachStageResource, executeDetachStageResource } from "@/lib/data/roadmaps";
 import { getAuthenticatedFaculty } from "@/lib/data/achievements";
 import { roadmapForSlug, RoadmapStage } from "@/lib/mentor-os/roadmaps";
 
@@ -45,6 +45,37 @@ export async function setStudentTrackAction(raw: { studentId: string; trackSlug:
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || "Failed to change track." };
+  }
+}
+
+// ── Stage materials (P4) ──────────────────────────────────────────────
+const AttachSchema = z.object({
+  trackSlug: z.string().min(1).max(64),
+  stageKey: z.string().min(1).max(64),
+  resourceId: z.string().uuid("Invalid resource id"),
+});
+
+export async function attachStageResourceAction(raw: { trackSlug: string; stageKey: string; resourceId: string }) {
+  try {
+    const v = AttachSchema.parse(raw);
+    const res = await executeAttachStageResource(v.trackSlug, v.stageKey, v.resourceId);
+    if (!res.success) return { success: false, error: res.error || "Failed to attach material.", linkId: null };
+    revalidatePath("/mentor-os/roadmaps");
+    return { success: true, error: null, linkId: res.linkId || null };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Failed to attach material.", linkId: null };
+  }
+}
+
+export async function detachStageResourceAction(linkId: string) {
+  try {
+    if (!linkId) return { success: false, error: "Missing id." };
+    const res = await executeDetachStageResource(linkId);
+    if (!res.success) return { success: false, error: res.error || "Failed to remove material." };
+    revalidatePath("/mentor-os/roadmaps");
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Failed to remove material." };
   }
 }
 

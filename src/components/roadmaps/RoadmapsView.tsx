@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles, UserPlus, X } from "lucide-react";
-import { CohortRoadmaps, TrackCluster, RoadmapStudent } from "@/lib/data/roadmaps";
-import { setStudentRoadmapStageAction, setStudentTrackAction } from "@/app/actions/roadmaps";
+import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles, UserPlus, X, Paperclip, FileText, ExternalLink } from "lucide-react";
+import { CohortRoadmaps, TrackCluster, RoadmapStudent, StageMaterial } from "@/lib/data/roadmaps";
+import { setStudentRoadmapStageAction, setStudentTrackAction, detachStageResourceAction } from "@/app/actions/roadmaps";
+import { getResourceFileUrlAction } from "@/app/actions/resources";
 import { ROADMAPS } from "@/lib/mentor-os/roadmaps";
 import { RoadmapAiReview } from "./RoadmapAiReview";
+import { AttachMaterialModal } from "./AttachMaterialModal";
 import { cn } from "@/lib/utils";
 
 const TRACK_OPTIONS = Object.values(ROADMAPS).map((r) => ({ slug: r.slug, title: r.title, icon: r.icon }));
@@ -132,8 +134,33 @@ function TrackDetail({ track, allTracks, onBack }: { track: TrackCluster; allTra
   const [manage, setManage] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [materials, setMaterials] = useState<Record<string, StageMaterial[]>>(track.materials || {});
+  const [attachKey, setAttachKey] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  function onMaterialAttached(stageKey: string, m: StageMaterial) {
+    setMaterials((prev) => ({ ...prev, [stageKey]: [...(prev[stageKey] || []), m] }));
+    setAttachKey(null);
+  }
+  async function detachMaterial(stageKey: string, linkId: string) {
+    const prev = materials;
+    setMaterials((cur) => ({ ...cur, [stageKey]: (cur[stageKey] || []).filter((m) => m.linkId !== linkId) }));
+    const res = await detachStageResourceAction(linkId);
+    if (!res.success) {
+      setMaterials(prev);
+      setError(res.error || "Couldn't remove material.");
+    }
+  }
+  async function openMaterial(m: StageMaterial) {
+    if (m.url && /^https?:\/\//.test(m.url)) {
+      window.open(m.url, "_blank", "noopener");
+      return;
+    }
+    const res = await getResourceFileUrlAction(m.resourceId);
+    const url = (res as any)?.url;
+    if (url) window.open(url, "_blank", "noopener");
+  }
 
   const candidates: Candidate[] = allTracks
     .filter((t) => t.slug !== track.slug)
@@ -231,6 +258,15 @@ function TrackDetail({ track, allTracks, onBack }: { track: TrackCluster; allTra
       </div>
 
       {aiOpen && <RoadmapAiReview trackSlug={track.slug} trackTitle={track.title} onClose={() => setAiOpen(false)} />}
+      {attachKey && (
+        <AttachMaterialModal
+          trackSlug={track.slug}
+          stageKey={attachKey}
+          stageTitle={stages.find((s) => s.key === attachKey)?.title || attachKey}
+          onClose={() => setAttachKey(null)}
+          onAttached={(m) => onMaterialAttached(attachKey, m)}
+        />
+      )}
       {addOpen && (
         <AddCadetPicker
           currentSlug={track.slug}
@@ -289,6 +325,30 @@ function TrackDetail({ track, allTracks, onBack }: { track: TrackCluster; allTra
                       ))}
                     </ul>
                   )}
+
+                  {/* Support material */}
+                  <div className="mt-3 pt-3 border-t border-border/70">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-muted inline-flex items-center gap-1">
+                        <Paperclip className="w-3 h-3" /> Support material
+                      </p>
+                      <button onClick={() => setAttachKey(stage.key)} className="text-[11px] font-semibold text-accent-emerald hover:underline">+ Attach</button>
+                    </div>
+                    {(materials[stage.key] || []).length === 0 ? (
+                      <p className="text-[11px] text-ink-muted">No material yet — attach a link or upload a file.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {(materials[stage.key] || []).map((m) => (
+                          <span key={m.linkId} className="inline-flex items-center gap-1 text-[11px] bg-surface-subtle border border-border rounded-md pl-2 pr-1 py-0.5">
+                            <button onClick={() => openMaterial(m)} className="inline-flex items-center gap-1 text-ink-secondary hover:text-accent-emerald max-w-[170px] truncate">
+                              {m.resourceType === "DOCUMENT" ? <FileText className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />} {m.title}
+                            </button>
+                            <button onClick={() => detachMaterial(stage.key, m.linkId)} className="text-ink-muted hover:text-rose-500" aria-label="Remove material"><X className="w-3 h-3" /></button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   {here.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border/70">
