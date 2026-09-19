@@ -7,6 +7,7 @@ import {
   Compass,
   LayoutDashboard,
   BarChart3,
+  Route,
   Users,
   CalendarCheck,
   Calendar,
@@ -54,6 +55,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       items: [
         { label: "Dashboard", href: "/mentor-os/dashboard", icon: LayoutDashboard },
         { label: "Analytics", href: "/mentor-os/analytics", icon: BarChart3 },
+        { label: "Roadmaps", href: "/mentor-os/roadmaps", icon: Route },
       ],
     },
     {
