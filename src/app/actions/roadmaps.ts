@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { executeSetRoadmapStage, executeSaveRoadmapTemplate } from "@/lib/data/roadmaps";
+import { executeSetRoadmapStage, executeSaveRoadmapTemplate, executeSetStudentTrack } from "@/lib/data/roadmaps";
 import { getAuthenticatedFaculty } from "@/lib/data/achievements";
 import { roadmapForSlug, RoadmapStage } from "@/lib/mentor-os/roadmaps";
 
@@ -26,6 +26,25 @@ export async function setStudentRoadmapStageAction(raw: {
     return { success: true, error: null };
   } catch (err: any) {
     return { success: false, error: err?.message || "Failed to update stage." };
+  }
+}
+
+// ── Change a cadet's career track ─────────────────────────────────────
+const SetTrackSchema = z.object({
+  studentId: z.string().uuid("Invalid cadet id"),
+  trackSlug: z.string().min(1).max(64),
+});
+
+export async function setStudentTrackAction(raw: { studentId: string; trackSlug: string }) {
+  try {
+    const v = SetTrackSchema.parse(raw);
+    const res = await executeSetStudentTrack(v.studentId, v.trackSlug);
+    if (!res.success) return { success: false, error: res.error || "Failed to change track." };
+    revalidatePath("/mentor-os/roadmaps");
+    revalidatePath(`/mentor-os/students/${v.studentId}`);
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Failed to change track." };
   }
 }
 

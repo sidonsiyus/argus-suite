@@ -300,6 +300,57 @@ export async function executeSaveRoadmapTemplate(
   return { success: true };
 }
 
+/**
+ * Reassign a cadet's PRIMARY career goal to a different track (so they move to
+ * that track's roadmap). Updates career_role_id + display title on the existing
+ * primary goal, or inserts one. Faculty-only.
+ */
+export async function executeSetStudentTrack(
+  studentId: string,
+  trackSlug: string
+): Promise<{ success: boolean; error?: string }> {
+  const { supabase, user } = await getAuthenticatedFaculty();
+
+  const { data: roleRows } = await supabase.from("career_roles").select("id, title").eq("slug", trackSlug).limit(1);
+  const role = roleRows?.[0];
+  if (!role) return { success: false, error: "Unknown career track." };
+
+  const now = new Date().toISOString();
+  const { data: existingRows } = await supabase
+    .from("student_career_goals")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("is_primary", true)
+    .limit(1);
+  const existing = existingRows?.[0];
+
+  const payload = { career_role_id: role.id, custom_role_title: role.title, provenance: "MENTOR_ENTERED" as const, updated_at: now };
+
+  const { error } = existing
+    ? await supabase.from("student_career_goals").update(payload).eq("id", existing.id)
+    : await supabase.from("student_career_goals").insert({ student_id: studentId, is_primary: true, ...payload });
+
+  if (error) {
+    console.error("Error changing cadet track:", error);
+    return { success: false, error: "Failed to change the cadet's track." };
+  }
+
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_table: "student_career_goals",
+      entity_id: studentId,
+      action: "UPDATE",
+      actor_id: user.id,
+      actor_role: "faculty",
+      new_values: { career_role_id: role.id, track_slug: trackSlug },
+    });
+  } catch {
+    /* ignore */
+  }
+
+  return { success: true };
+}
+
 // Best-effort mapping from a free-text custom role title to a roadmap slug.
 function slugFromTitle(title: string | null | undefined): string {
   const t = (title || "").toLowerCase();

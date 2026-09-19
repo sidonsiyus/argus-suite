@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles, UserPlus, X } from "lucide-react";
 import { CohortRoadmaps, TrackCluster, RoadmapStudent } from "@/lib/data/roadmaps";
-import { setStudentRoadmapStageAction } from "@/app/actions/roadmaps";
+import { setStudentRoadmapStageAction, setStudentTrackAction } from "@/app/actions/roadmaps";
+import { ROADMAPS } from "@/lib/mentor-os/roadmaps";
 import { RoadmapAiReview } from "./RoadmapAiReview";
 import { cn } from "@/lib/utils";
+
+const TRACK_OPTIONS = Object.values(ROADMAPS).map((r) => ({ slug: r.slug, title: r.title, icon: r.icon }));
 
 function StudentChip({ s }: { s: RoadmapStudent }) {
   return (
@@ -56,13 +59,104 @@ function ClusterCard({ track, onOpen }: { track: TrackCluster; onOpen: () => voi
   );
 }
 
-function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => void }) {
+interface Candidate extends RoadmapStudent {
+  fromTitle: string;
+}
+
+function AddCadetPicker({
+  currentSlug,
+  currentTitle,
+  candidates,
+  onClose,
+  onAdded,
+}: {
+  currentSlug: string;
+  currentTitle: string;
+  candidates: Candidate[];
+  onClose: () => void;
+  onAdded: (c: Candidate) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const ql = q.trim().toLowerCase();
+  const list = ql ? candidates.filter((c) => (c.name + " " + c.regNo).toLowerCase().includes(ql)) : candidates;
+
+  async function pick(c: Candidate) {
+    setBusyId(c.id);
+    setError(null);
+    const res = await setStudentTrackAction({ studentId: c.id, trackSlug: currentSlug });
+    setBusyId(null);
+    if (res.success) onAdded(c);
+    else setError(res.error || "Couldn't change track.");
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      <div className="relative w-full max-w-md max-h-[80vh] flex flex-col bg-surface border border-border-strong rounded-2xl shadow-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Add cadet to {currentTitle}</h3>
+            <p className="text-xs text-ink-muted">Reassigns their primary career goal to this track.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-subtle" aria-label="Close"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="px-5 py-3 border-b border-border">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search cadets on other tracks…" className="w-full text-sm bg-surface-subtle border border-border rounded-lg px-3 py-2 text-ink focus:outline-none focus:border-accent-emerald" />
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {list.length === 0 ? (
+            <div className="p-6 text-center text-sm text-ink-muted">No cadets on other tracks.</div>
+          ) : (
+            list.map((c) => (
+              <button key={c.id} onClick={() => pick(c)} disabled={busyId === c.id} className="w-full flex items-center justify-between gap-2 px-5 py-2.5 hover:bg-surface-subtle text-left disabled:opacity-50">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-ink truncate">{c.name}</div>
+                  <div className="text-[10px] text-ink-muted">{c.regNo} · now on {c.fromTitle}</div>
+                </div>
+                <UserPlus className="w-4 h-4 text-accent-emerald shrink-0" />
+              </button>
+            ))
+          )}
+        </div>
+        {error && <p className="px-5 py-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+function TrackDetail({ track, allTracks, onBack }: { track: TrackCluster; allTracks: TrackCluster[]; onBack: () => void }) {
   const stages = track.stages;
   const [students, setStudents] = useState<RoadmapStudent[]>(track.students);
   const [manage, setManage] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const candidates: Candidate[] = allTracks
+    .filter((t) => t.slug !== track.slug)
+    .flatMap((t) => t.students.map((s) => ({ ...s, fromTitle: t.title })));
+
+  function onAdded(c: Candidate) {
+    setStudents((list) => (list.some((s) => s.id === c.id) ? list : [...list, { ...c, stageIndex: 0, stageKey: stages[0].key, estimated: true }]));
+    setAddOpen(false);
+  }
+
+  async function changeTrack(studentId: string, newSlug: string) {
+    if (newSlug === track.slug) return;
+    const prev = students;
+    setStudents((list) => list.filter((s) => s.id !== studentId)); // optimistic remove
+    setSavingId(studentId);
+    setError(null);
+    const res = await setStudentTrackAction({ studentId, trackSlug: newSlug });
+    setSavingId(null);
+    if (!res.success) {
+      setStudents(prev);
+      setError(res.error || "Couldn't change track.");
+    }
+  }
 
   const byStage = new Map<number, RoadmapStudent[]>();
   students.forEach((s) => {
@@ -113,6 +207,12 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
             <Users className="w-3.5 h-3.5 text-accent-emerald" /> <b className="text-ink">{track.studentCount}</b> cadets
           </span>
           <button
+            onClick={() => setAddOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface border border-border text-ink-secondary hover:text-accent-emerald hover:border-emerald-300 dark:hover:border-emerald-500/40 transition-colors"
+          >
+            <UserPlus className="w-3.5 h-3.5" /> Add cadet
+          </button>
+          <button
             onClick={() => setAiOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface border border-border text-ink-secondary hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-300 dark:hover:border-violet-500/40 transition-colors"
           >
@@ -131,6 +231,15 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
       </div>
 
       {aiOpen && <RoadmapAiReview trackSlug={track.slug} trackTitle={track.title} onClose={() => setAiOpen(false)} />}
+      {addOpen && (
+        <AddCadetPicker
+          currentSlug={track.slug}
+          currentTitle={track.title}
+          candidates={candidates}
+          onClose={() => setAddOpen(false)}
+          onAdded={onAdded}
+        />
+      )}
 
       {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
 
@@ -223,10 +332,22 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
                   {s.estimated ? "estimated" : "confirmed"}
                 </span>
                 <select
+                  value={track.slug}
+                  disabled={savingId === s.id}
+                  onChange={(e) => changeTrack(s.id, e.target.value)}
+                  title="Change career track"
+                  className="text-xs bg-surface-subtle border border-border rounded-lg px-2 py-1.5 text-ink-secondary focus:outline-none focus:border-accent-emerald max-w-[150px] disabled:opacity-50"
+                >
+                  {track.slug === "generic" && <option value="generic">Unassigned</option>}
+                  {TRACK_OPTIONS.map((t) => (
+                    <option key={t.slug} value={t.slug}>{t.icon} {t.title}</option>
+                  ))}
+                </select>
+                <select
                   value={s.stageIndex}
                   disabled={savingId === s.id}
                   onChange={(e) => setStage(s.id, Number(e.target.value))}
-                  className="text-xs bg-surface-subtle border border-border rounded-lg px-2.5 py-1.5 text-ink focus:outline-none focus:border-accent-emerald max-w-[220px] disabled:opacity-50"
+                  className="text-xs bg-surface-subtle border border-border rounded-lg px-2.5 py-1.5 text-ink focus:outline-none focus:border-accent-emerald max-w-[200px] disabled:opacity-50"
                 >
                   {stages.map((st, i) => (
                     <option key={st.key} value={i}>{i + 1}. {st.title}</option>
@@ -249,7 +370,7 @@ export function RoadmapsView({ data }: { data: CohortRoadmaps }) {
   const [openSlug, setOpenSlug] = useState<string | null>(null);
   const track = data.tracks.find((t) => t.slug === openSlug) || null;
 
-  if (track) return <TrackDetail track={track} onBack={() => setOpenSlug(null)} />;
+  if (track) return <TrackDetail track={track} allTracks={data.tracks} onBack={() => setOpenSlug(null)} />;
 
   return (
     <div className="space-y-5">
