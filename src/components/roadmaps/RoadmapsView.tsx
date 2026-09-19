@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles, UserPlus, X, Paperclip, FileText, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles, UserPlus, X, Paperclip, FileText, ExternalLink, FileDown } from "lucide-react";
 import { CohortRoadmaps, TrackCluster, RoadmapStudent, StageMaterial } from "@/lib/data/roadmaps";
 import { setStudentRoadmapStageAction, setStudentTrackAction, detachStageResourceAction } from "@/app/actions/roadmaps";
 import { getResourceFileUrlAction } from "@/app/actions/resources";
@@ -434,9 +434,18 @@ export function RoadmapsView({ data }: { data: CohortRoadmaps }) {
 
   return (
     <div className="space-y-5">
-      <p className="text-xs text-ink-muted">
-        {data.tracks.length} career tracks across {data.totalStudents} cadets. Open a track to see its roadmap and where each cadet stands.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-ink-muted">
+          {data.tracks.length} career tracks across {data.totalStudents} cadets. Open a track to see its roadmap and where each cadet stands.
+        </p>
+        <Link
+          href="/mentor-os/roadmaps/report"
+          target="_blank"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-accent-emerald text-white hover:opacity-90 transition-opacity"
+        >
+          <FileDown className="w-3.5 h-3.5" /> Export PDF report
+        </Link>
+      </div>
       <div className="mos-rise grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {data.tracks.map((t) => (
           <ClusterCard key={t.slug} track={t} onOpen={() => setOpenSlug(t.slug)} />
