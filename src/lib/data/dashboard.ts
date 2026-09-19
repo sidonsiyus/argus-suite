@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { MENTOR_COHORT_CODE } from "@/lib/mentor-os/cohort";
 import {
   CommandCenterData,
   DashboardKpis,
@@ -90,7 +91,8 @@ export const getCommandCenterData = cache(async function getCommandCenterData():
       // 1. Total Cadets & Search Index (Strict data minimization)
       supabase
         .from("students")
-        .select("id, full_name, reg_no, sno, student_career_goals(custom_role_title)", { count: "exact" })
+        .select("id, full_name, reg_no, sno, student_career_goals(custom_role_title), cohorts!inner(code)", { count: "exact" })
+        .eq("cohorts.code", MENTOR_COHORT_CODE)
         .order("sno", { ascending: true }),
 
       // 2. Mentoring Sessions (Today's Sessions + Follow-ups)

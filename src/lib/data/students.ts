@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { MENTOR_COHORT_CODE } from "@/lib/mentor-os/cohort";
 
 export interface DirectoryStudent {
   id: string;
@@ -52,7 +53,8 @@ export const getStudentsDirectory = cache(async function getStudentsDirectory():
       // 1. Fetch Students (Operational fields only - NO phone, NO email, NO demographics)
       supabase
         .from("students")
-        .select("id, sno, full_name, reg_no")
+        .select("id, sno, full_name, reg_no, cohorts!inner(code)")
+        .eq("cohorts.code", MENTOR_COHORT_CODE)
         .order("sno", { ascending: true }),
 
       // 2. Fetch Primary Career Goals

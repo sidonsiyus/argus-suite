@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedFaculty } from "@/lib/data/achievements";
 import { roadmapForSlug, CareerRoadmap } from "@/lib/mentor-os/roadmaps";
+import { MENTOR_COHORT_CODE } from "@/lib/mentor-os/cohort";
 
 async function queryWithFallback<T>(queryFn: (client: any) => Promise<T>): Promise<T> {
   try {
@@ -87,7 +88,7 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
         { data: achievementsRaw },
         { data: progressRaw },
       ] = await Promise.all([
-        supabase.from("students").select("id, full_name, reg_no, sno").order("sno", { ascending: true }),
+        supabase.from("students").select("id, full_name, reg_no, sno, cohorts!inner(code)").eq("cohorts.code", MENTOR_COHORT_CODE).order("sno", { ascending: true }),
         supabase.from("student_career_goals").select("student_id, career_role_id, custom_role_title, is_primary").eq("is_primary", true),
         supabase.from("career_roles").select("id, slug, title"),
         supabase.from("career_readiness").select("student_id, resume_status, linkedin_status, passport_status, driving_license_status, pan_card_status, aadhaar_card_status"),

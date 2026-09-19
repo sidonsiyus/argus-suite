@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTodayIST, calculateDaysDiff } from "@/lib/data/dashboard";
 import { prettyEnum } from "@/lib/charts/format";
+import { MENTOR_COHORT_CODE } from "@/lib/mentor-os/cohort";
 import {
   CohortAnalytics,
   PipelineStage,
@@ -92,7 +93,7 @@ export const getCohortAnalytics = cache(async function getCohortAnalytics(): Pro
       { data: auditRaw },
       { data: aiRecsRaw },
     ] = await Promise.all([
-      supabase.from("students").select("id, full_name, reg_no, sno").order("sno", { ascending: true }),
+      supabase.from("students").select("id, full_name, reg_no, sno, cohorts!inner(code)").eq("cohorts.code", MENTOR_COHORT_CODE).order("sno", { ascending: true }),
       supabase.from("sessions").select("id, student_id, session_date, status, session_type, duration_minutes, follow_up_date"),
       supabase
         .from("milestones")

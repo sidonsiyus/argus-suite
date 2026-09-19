@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { MENTOR_COHORT_CODE } from "@/lib/mentor-os/cohort";
 
 export interface TopBarStudentItem {
   id: string;
@@ -26,7 +27,8 @@ export const getTopBarHeaderData = cache(async (): Promise<TopBarHeaderData> => 
     // 1. Single minimal query for cadet search index (order by sno)
     const { data: students } = await supabase
       .from("students")
-      .select("id, full_name, reg_no, student_career_goals(custom_role_title)")
+      .select("id, full_name, reg_no, student_career_goals(custom_role_title), cohorts!inner(code)")
+      .eq("cohorts.code", MENTOR_COHORT_CODE)
       .order("sno", { ascending: true });
 
     const searchIndex: TopBarStudentItem[] = (students || []).map((s: any) => ({
