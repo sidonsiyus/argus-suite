@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Users, Flag, GraduationCap, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ChevronRight, Users, GraduationCap, SlidersHorizontal, Sparkles } from "lucide-react";
 import { CohortRoadmaps, TrackCluster, RoadmapStudent } from "@/lib/data/roadmaps";
-import { roadmapForSlug } from "@/lib/mentor-os/roadmaps";
 import { setStudentRoadmapStageAction } from "@/app/actions/roadmaps";
+import { RoadmapAiReview } from "./RoadmapAiReview";
 import { cn } from "@/lib/utils";
 
 function StudentChip({ s }: { s: RoadmapStudent }) {
@@ -57,9 +57,10 @@ function ClusterCard({ track, onOpen }: { track: TrackCluster; onOpen: () => voi
 }
 
 function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => void }) {
-  const rm = roadmapForSlug(track.slug === "generic" ? null : track.slug);
+  const stages = track.stages;
   const [students, setStudents] = useState<RoadmapStudent[]>(track.students);
   const [manage, setManage] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,14 +71,14 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
   });
 
   async function setStage(studentId: string, stageIndex: number) {
-    const stageKey = rm.stages[stageIndex]?.key;
+    const stageKey = stages[stageIndex]?.key;
     if (!stageKey) return;
     const prev = students;
     // optimistic
     setStudents((list) => list.map((s) => (s.id === studentId ? { ...s, stageIndex, stageKey, estimated: false } : s)));
     setSavingId(studentId);
     setError(null);
-    const res = await setStudentRoadmapStageAction({ studentId, trackSlug: rm.slug, stageKey });
+    const res = await setStudentRoadmapStageAction({ studentId, trackSlug: track.slug, stageKey });
     setSavingId(null);
     if (!res.success) {
       setStudents(prev); // rollback
@@ -93,14 +94,30 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
             <ArrowLeft className="w-3.5 h-3.5" /> All career tracks
           </button>
           <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
-            <span>{rm.icon}</span> {rm.title}
+            <span>{track.icon}</span> {track.title}
+            {track.source && track.source !== "SEED" && (
+              <span className="text-[10px] font-mono uppercase tracking-wider text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-1.5 py-0.5 rounded">
+                {track.source === "AI_SUGGESTED" ? "AI-refined" : "edited"}
+              </span>
+            )}
           </h2>
-          <p className="text-xs text-ink-muted mt-0.5 max-w-2xl">{rm.summary}</p>
+          <p className="text-xs text-ink-muted mt-0.5 max-w-2xl">{track.summary}</p>
+          {track.examGuidance && (
+            <p className="text-[11px] text-ink-secondary mt-2 max-w-2xl bg-surface-subtle border border-border rounded-lg px-3 py-2">
+              <b className="text-ink">Exam guidance:</b> {track.examGuidance}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2.5">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs">
             <Users className="w-3.5 h-3.5 text-accent-emerald" /> <b className="text-ink">{track.studentCount}</b> cadets
           </span>
+          <button
+            onClick={() => setAiOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface border border-border text-ink-secondary hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-300 dark:hover:border-violet-500/40 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" /> Suggest with AI
+          </button>
           <button
             onClick={() => setManage((m) => !m)}
             className={cn(
@@ -113,6 +130,8 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
         </div>
       </div>
 
+      {aiOpen && <RoadmapAiReview trackSlug={track.slug} trackTitle={track.title} onClose={() => setAiOpen(false)} />}
+
       {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
 
       {/* Roadmap stepper */}
@@ -120,7 +139,7 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
         {/* connecting line */}
         <div className="absolute left-[19px] top-2 bottom-2 w-px bg-border" aria-hidden />
         <div className="space-y-4">
-          {rm.stages.map((stage, i) => {
+          {stages.map((stage, i) => {
             const here = byStage.get(i) || [];
             return (
               <div key={stage.key} className="relative flex gap-4">
@@ -209,7 +228,7 @@ function TrackDetail({ track, onBack }: { track: TrackCluster; onBack: () => voi
                   onChange={(e) => setStage(s.id, Number(e.target.value))}
                   className="text-xs bg-surface-subtle border border-border rounded-lg px-2.5 py-1.5 text-ink focus:outline-none focus:border-accent-emerald max-w-[220px] disabled:opacity-50"
                 >
-                  {rm.stages.map((st, i) => (
+                  {stages.map((st, i) => (
                     <option key={st.key} value={i}>{i + 1}. {st.title}</option>
                   ))}
                 </select>

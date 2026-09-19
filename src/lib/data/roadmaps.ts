@@ -2,7 +2,7 @@ import { cache } from "react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedFaculty } from "@/lib/data/achievements";
-import { roadmapForSlug, CareerRoadmap } from "@/lib/mentor-os/roadmaps";
+import { roadmapForSlug, CareerRoadmap, RoadmapStage } from "@/lib/mentor-os/roadmaps";
 import { MENTOR_COHORT_CODE } from "@/lib/mentor-os/cohort";
 
 async function queryWithFallback<T>(queryFn: (client: any) => Promise<T>): Promise<T> {
@@ -31,10 +31,15 @@ export interface TrackCluster {
   icon: string;
   authority: string;
   summary: string;
+  /** Effective roadmap stages (mentor/AI-edited DB template, else code seed). */
+  stages: RoadmapStage[];
   stageCount: number;
   studentCount: number;
   avgStageIndex: number;
   students: RoadmapStudent[];
+  examGuidance?: string;
+  /** SEED (code) | AI_SUGGESTED | MENTOR_EDITED */
+  source: string;
 }
 
 export interface CohortRoadmaps {
@@ -87,6 +92,7 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
         { data: milestonesRaw },
         { data: achievementsRaw },
         { data: progressRaw },
+        { data: templatesRaw },
       ] = await Promise.all([
         supabase.from("students").select("id, full_name, reg_no, sno, cohorts!inner(code)").eq("cohorts.code", MENTOR_COHORT_CODE).order("sno", { ascending: true }),
         supabase.from("student_career_goals").select("student_id, career_role_id, custom_role_title, is_primary").eq("is_primary", true),
@@ -96,6 +102,8 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
         supabase.from("achievements").select("student_id"),
         // Resilient: if the table isn't migrated yet this returns null → all estimated.
         supabase.from("roadmap_progress").select("student_id, track_slug, current_stage_key"),
+        // Editable / AI-approved templates. Absent table → null → code seed used.
+        supabase.from("roadmap_templates").select("track_slug, stages, exam_guidance, source"),
       ]);
 
       const students = (studentsRaw || []) as any[];
@@ -126,22 +134,41 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
       const explicit = new Map<string, string>(); // `${student}|${track}` → stage_key
       ((progressRaw || []) as any[]).forEach((p) => explicit.set(`${p.student_id}|${p.track_slug}`, p.current_stage_key));
 
+      // Editable / AI-approved templates keyed by resolved track slug.
+      const templateBySlug = new Map<string, { stages: RoadmapStage[]; examGuidance?: string; source: string }>();
+      ((templatesRaw || []) as any[]).forEach((t) => {
+        if (Array.isArray(t.stages) && t.stages.length > 0) {
+          templateBySlug.set(t.track_slug, { stages: t.stages, examGuidance: t.exam_guidance || undefined, source: t.source || "MENTOR_EDITED" });
+        }
+      });
+      // Effective roadmap = DB template (if any) over the code seed.
+      const effective = (codeSlug: string) => {
+        const code = roadmapForSlug(codeSlug === "generic" ? null : codeSlug);
+        const tpl = templateBySlug.get(code.slug);
+        return {
+          meta: code,
+          stages: tpl?.stages || code.stages,
+          examGuidance: tpl?.examGuidance,
+          source: tpl ? tpl.source : "SEED",
+        };
+      };
+
       // Group students into track clusters.
       const clusters = new Map<string, RoadmapStudent[]>();
       students.forEach((s) => {
         const slug = trackByStudent.get(s.id) || "generic";
-        const roadmap = roadmapForSlug(slug === "generic" ? null : slug);
-        const key = roadmap.slug; // normalises unknown slugs to "generic"
+        const eff = effective(slug);
+        const key = eff.meta.slug; // normalises unknown slugs to "generic"
 
         const setKey = explicit.get(`${s.id}|${key}`);
-        const setIdx = setKey ? roadmap.stages.findIndex((st) => st.key === setKey) : -1;
+        const setIdx = setKey ? eff.stages.findIndex((st) => st.key === setKey) : -1;
         const estimated = setIdx < 0;
         const stageIndex = estimated
           ? deriveStageIndex(
               readyByStudent.get(s.id) || 0,
               completedByStudent.get(s.id) || 0,
               achByStudent.get(s.id) || 0,
-              roadmap.stages.length
+              eff.stages.length
             )
           : setIdx;
 
@@ -151,22 +178,25 @@ export const getCohortRoadmaps = cache(async function getCohortRoadmaps(): Promi
           name: s.full_name,
           regNo: s.reg_no,
           stageIndex,
-          stageKey: roadmap.stages[stageIndex]?.key || roadmap.stages[0].key,
+          stageKey: eff.stages[stageIndex]?.key || eff.stages[0].key,
           estimated,
         });
       });
 
       const tracks: TrackCluster[] = Array.from(clusters.entries())
         .map(([slug, studentsInTrack]) => {
-          const rm: CareerRoadmap = roadmapForSlug(slug === "generic" ? null : slug);
+          const eff = effective(slug);
           const avg = studentsInTrack.reduce((sum, st) => sum + st.stageIndex, 0) / studentsInTrack.length;
           return {
-            slug: rm.slug,
-            title: rm.title,
-            icon: rm.icon,
-            authority: rm.authority,
-            summary: rm.summary,
-            stageCount: rm.stages.length,
+            slug: eff.meta.slug,
+            title: eff.meta.title,
+            icon: eff.meta.icon,
+            authority: eff.meta.authority,
+            summary: eff.meta.summary,
+            stages: eff.stages,
+            examGuidance: eff.examGuidance,
+            source: eff.source,
+            stageCount: eff.stages.length,
             studentCount: studentsInTrack.length,
             avgStageIndex: Math.round(avg * 10) / 10,
             students: studentsInTrack.sort((a, b) => b.stageIndex - a.stageIndex || a.name.localeCompare(b.name)),
@@ -217,6 +247,51 @@ export async function executeSetRoadmapStage(
       actor_id: user.id,
       actor_role: "faculty",
       new_values: { track_slug: trackSlug, current_stage_key: stageKey },
+    });
+  } catch {
+    /* ignore */
+  }
+
+  return { success: true };
+}
+
+/**
+ * Persist an approved (mentor-reviewed) roadmap template as the active template
+ * for a track. Faculty-only. Reads fall back to the code seed if absent.
+ */
+export async function executeSaveRoadmapTemplate(
+  trackSlug: string,
+  stages: RoadmapStage[],
+  examGuidance: string | null,
+  source: "AI_SUGGESTED" | "MENTOR_EDITED"
+): Promise<{ success: boolean; error?: string }> {
+  const { supabase, user } = await getAuthenticatedFaculty();
+
+  const { error } = await supabase.from("roadmap_templates").upsert(
+    {
+      track_slug: trackSlug,
+      stages,
+      exam_guidance: examGuidance,
+      source,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "track_slug" }
+  );
+
+  if (error) {
+    console.error("Error saving roadmap template:", error);
+    return { success: false, error: "Failed to save the roadmap." };
+  }
+
+  try {
+    await supabase.from("audit_logs").insert({
+      entity_table: "roadmap_templates",
+      entity_id: trackSlug,
+      action: "UPDATE",
+      actor_id: user.id,
+      actor_role: "faculty",
+      new_values: { track_slug: trackSlug, source, stage_count: stages.length },
     });
   } catch {
     /* ignore */
