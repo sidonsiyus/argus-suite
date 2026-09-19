@@ -403,7 +403,7 @@ export default function StudentBookingPage() {
       {/* Institutional Header */}
       <header className="border-b border-surface-border bg-white px-6 py-4 shadow-xs">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/appointments" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-aviation flex items-center justify-center text-white shadow-sm">
               <Plane className="w-5 h-5 text-aviation-200" />
             </div>
@@ -417,7 +417,7 @@ export default function StudentBookingPage() {
             </div>
           </Link>
           <Link
-            href="/login"
+            href="/appointments/login"
             className="text-xs font-semibold text-aviation-800 hover:text-aviation-950 px-3.5 py-1.5 rounded-lg border border-surface-border hover:bg-surface transition-colors"
           >
             Coordinator Sign In

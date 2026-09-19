@@ -8,8 +8,12 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Only run MENTOR OS authentication on /mentor-os routes
-  if (!pathname.startsWith("/mentor-os")) {
+  // Only run authentication on protected routes
+  if (
+    !pathname.startsWith("/mentor-os") &&
+    !pathname.startsWith("/appointments/coordinator") &&
+    pathname !== "/appointments/login"
+  ) {
     return supabaseResponse;
   }
 
@@ -48,6 +52,25 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Coordinator route protection
+  const isCoordinatorRoute = pathname.startsWith("/appointments/coordinator");
+  const isCoordinatorLogin =
+    pathname === "/appointments/coordinator/login" || pathname === "/appointments/login";
+
+  if (isCoordinatorRoute && !isCoordinatorLogin && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/appointments/login";
+    url.searchParams.set("redirectTo", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  if (isCoordinatorLogin && user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/appointments/coordinator";
+    url.searchParams.delete("redirectTo");
+    return NextResponse.redirect(url);
+  }
 
   const isAuthRoute = pathname.startsWith("/mentor-os/login");
 

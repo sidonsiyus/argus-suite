@@ -122,21 +122,21 @@ export default function CoordinatorDashboardPage() {
               New Appointment
             </button>
             <Link
-              href="/coordinator/students?action=new"
+              href="/appointments/coordinator/students?action=new"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-surface border border-surface-border text-aviation-950 rounded-lg text-xs font-semibold transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add Student
             </Link>
             <Link
-              href="/coordinator/faculty?action=new"
+              href="/appointments/coordinator/faculty?action=new"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-surface border border-surface-border text-aviation-950 rounded-lg text-xs font-semibold transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add Faculty
             </Link>
             <Link
-              href="/coordinator/sessions?action=new"
+              href="/appointments/coordinator/sessions?action=new"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-surface border border-surface-border text-aviation-950 rounded-lg text-xs font-semibold transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -242,7 +242,7 @@ export default function CoordinatorDashboardPage() {
               </p>
             </div>
             <Link
-              href="/coordinator/appointments"
+              href="/appointments/coordinator/appointments"
               className="text-xs font-semibold text-aviation-700 hover:text-aviation-950 flex items-center gap-1"
             >
               View All Appointments &rarr;
@@ -301,7 +301,7 @@ export default function CoordinatorDashboardPage() {
                   Upcoming Appointments
                 </h3>
                 <Link
-                  href="/coordinator/calendar"
+                  href="/appointments/coordinator/calendar"
                   className="text-xs font-semibold text-aviation-700 hover:text-aviation-950"
                 >
                   Master Calendar &rarr;
@@ -349,7 +349,7 @@ export default function CoordinatorDashboardPage() {
                   Recent Conducted Sessions
                 </h3>
                 <Link
-                  href="/coordinator/sessions"
+                  href="/appointments/coordinator/sessions"
                   className="text-xs font-semibold text-aviation-700 hover:text-aviation-950"
                 >
                   Sessions Directory &rarr;

@@ -27,10 +27,10 @@ export function Header({
       setLoggingOut(true);
       const supabase = createClient();
       await supabase.auth.signOut();
-      router.push('/login');
+      router.push('/appointments/login');
       router.refresh();
     } catch (err) {
-      router.push('/login');
+      router.push('/appointments/login');
     } finally {
       setLoggingOut(false);
     }
@@ -157,9 +157,9 @@ function NotificationBell() {
         setUnreadCount((c) => Math.max(0, c - 1));
       }
       setIsOpen(false);
-      router.push('/coordinator/requests');
+      router.push('/appointments/coordinator/requests');
     } catch {
-      router.push('/coordinator/requests');
+      router.push('/appointments/coordinator/requests');
     }
   };
 
@@ -255,7 +255,7 @@ function NotificationBell() {
                 type="button"
                 onClick={() => {
                   setIsOpen(false);
-                  router.push('/coordinator/requests');
+                  router.push('/appointments/coordinator/requests');
                 }}
                 className="text-xs font-semibold text-aviation hover:underline"
               >

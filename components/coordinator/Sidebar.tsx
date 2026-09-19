@@ -17,14 +17,14 @@ import {
 } from 'lucide-react';
 
 const navigationItems = [
-  { name: 'Dashboard', href: '/coordinator', icon: LayoutDashboard, exact: true },
-  { name: 'Calendar', href: '/coordinator/calendar', icon: Calendar },
-  { name: 'Appointments', href: '/coordinator/appointments', icon: Clock },
-  { name: 'Pending Requests', href: '/coordinator/requests', icon: Inbox },
-  { name: 'Students', href: '/coordinator/students', icon: GraduationCap },
-  { name: 'Faculty', href: '/coordinator/faculty', icon: Users },
-  { name: 'Sessions', href: '/coordinator/sessions', icon: BookOpen },
-  { name: 'Settings', href: '/coordinator/settings', icon: Settings },
+  { name: 'Dashboard', href: '/appointments/coordinator', icon: LayoutDashboard, exact: true },
+  { name: 'Calendar', href: '/appointments/coordinator/calendar', icon: Calendar },
+  { name: 'Appointments', href: '/appointments/coordinator/appointments', icon: Clock },
+  { name: 'Pending Requests', href: '/appointments/coordinator/requests', icon: Inbox },
+  { name: 'Students', href: '/appointments/coordinator/students', icon: GraduationCap },
+  { name: 'Faculty', href: '/appointments/coordinator/faculty', icon: Users },
+  { name: 'Sessions', href: '/appointments/coordinator/sessions', icon: BookOpen },
+  { name: 'Settings', href: '/appointments/coordinator/settings', icon: Settings },
 ];
 
 export function Sidebar() {
@@ -50,7 +50,7 @@ export function Sidebar() {
 
   const isActive = (item: (typeof navigationItems)[0]) => {
     if (item.exact) {
-      return pathname === '/coordinator' || pathname === '/coordinator/dashboard';
+      return pathname === '/appointments/coordinator' || pathname === '/appointments/coordinator/dashboard';
     }
     return pathname.startsWith(item.href);
   };

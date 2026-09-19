@@ -22,7 +22,7 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-4">
             <Link
-              href="/appointments/coordinator/login"
+              href="/appointments/login"
               className="text-xs font-medium text-aviation-700 hover:text-aviation-950 px-3 py-1.5 rounded border border-surface-border hover:bg-surface transition-colors"
             >
               Coordinator Portal
@@ -90,7 +90,7 @@ export default function HomePage() {
 
           {/* 3. Coordinator Card */}
           <Link
-            href="/appointments/coordinator/login"
+            href="/appointments/login"
             className="group block p-6 bg-white rounded-xl border border-surface-border hover:border-aviation-300 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
           >
             <div>

@@ -11,7 +11,7 @@ import { SetupRequired } from '@/components/ui/SetupRequired';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirectTo') || '/coordinator';
+  const redirectTo = searchParams.get('redirectTo') || '/appointments/coordinator';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -58,7 +58,7 @@ function LoginForm() {
       {/* Header */}
       <header className="border-b border-surface-border bg-white px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/appointments" className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-aviation flex items-center justify-center text-white shadow-sm">
               <Plane className="w-5 h-5 text-aviation-200" />
             </div>
