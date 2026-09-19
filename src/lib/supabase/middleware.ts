@@ -57,6 +57,8 @@ export async function updateSession(request: NextRequest) {
     !isAuthRoute &&
     (pathname === "/mentor-os" ||
       pathname.startsWith("/mentor-os/dashboard") ||
+      pathname.startsWith("/mentor-os/analytics") ||
+      pathname.startsWith("/mentor-os/roadmaps") ||
       pathname.startsWith("/mentor-os/students") ||
       pathname.startsWith("/mentor-os/sessions") ||
       pathname.startsWith("/mentor-os/calendar") ||
