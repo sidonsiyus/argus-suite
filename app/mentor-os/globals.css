@@ -47,43 +47,43 @@
 .dark {
   color-scheme: dark;
 
-  /* Deep Emerald & Slate Workspace Backgrounds */
-  --bg-workspace: #0b1412;
-  --bg-surface: #12201d;
-  --bg-surface-subtle: #182b27;
-  --bg-surface-hover: #1e3530;
+  /* Black / Dark Workspace */
+  --bg-workspace: #0a0a0a;
+  --bg-surface: #141414;
+  --bg-surface-subtle: #1a1a1a;
+  --bg-surface-hover: #222222;
 
   /* Borders & Dividers */
-  --border-subtle: #1e3530;
-  --border-strong: #2c4943;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
 
   /* Text & Ink */
-  --text-primary: #f2fbf7;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
+  --text-primary: #f5f5f5;
+  --text-secondary: #d0d0d0;
+  --text-muted: #888888;
 
-  /* Deep Emerald Navigation in Dark Mode */
-  --emerald-nav: #061814;
-  --emerald-nav-surface: #0c241f;
-  --emerald-nav-border: #153830;
-  --emerald-nav-hover: #1e4b41;
-  --emerald-nav-text: #f2fbf7;
-  --emerald-nav-muted: #86efac;
+  /* Red / Black Sidebar Navigation */
+  --emerald-nav: #0a0a0a;
+  --emerald-nav-surface: #111111;
+  --emerald-nav-border: rgba(255, 255, 255, 0.08);
+  --emerald-nav-hover: rgba(239, 68, 68, 0.08);
+  --emerald-nav-text: #f5f5f5;
+  --emerald-nav-muted: #fca5a5;  /* soft red for muted nav text */
 
   /* Status Accents in Dark Mode */
-  --accent-emerald: #10b981;
-  --accent-emerald-subtle: #064e3b;
-  --accent-amber: #f59e0b;
-  --accent-amber-subtle: #78350f;
-  --accent-blue: #3b82f6;
-  --accent-blue-subtle: #1e3a8a;
-  --accent-rose: #f43f5e;
-  --accent-rose-subtle: #881337;
+  --accent-emerald: #34d399;
+  --accent-emerald-subtle: rgba(52, 211, 153, 0.12);
+  --accent-amber: #fbbf24;
+  --accent-amber-subtle: rgba(251, 191, 36, 0.12);
+  --accent-blue: #60a5fa;
+  --accent-blue-subtle: rgba(96, 165, 250, 0.12);
+  --accent-rose: #f87171;
+  --accent-rose-subtle: rgba(248, 113, 113, 0.12);
 
-  /* Restrained Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  /* Deeper Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.7), 0 1px 2px -1px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.8), 0 2px 4px -2px rgba(0, 0, 0, 0.6);
 }
 
 body {
@@ -113,10 +113,10 @@ body {
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #2c4943;
+  background: rgba(255, 255, 255, 0.12);
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #3e635c;
+  background: rgba(255, 255, 255, 0.22);
 }
 
 /* ── Phase 3 polish ──────────────────────────────────────────────── */
@@ -176,3 +176,84 @@ body {
     animation: none;
   }
 }
+
+/* ── Dark mode: replace emerald sidebar accents with red ──────────── */
+
+/* Active nav left indicator (hardcoded bg-emerald-400 in Sidebar.tsx) */
+.dark [class*="bg-emerald-400"][class*="rounded-r-full"],
+.dark span.bg-emerald-400[class*="shadow"] {
+  background-color: #ef4444 !important;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5) !important;
+}
+
+/* Active nav dot indicator (w-1.5 h-1.5 rounded-full bg-emerald-400) */
+.dark span.bg-emerald-400.rounded-full:not([class*="animate"]) {
+  background-color: #ef4444 !important;
+}
+
+/* Online pulse dot in sidebar footer */
+.dark span.bg-emerald-400.animate-pulse {
+  background-color: #ef4444 !important;
+}
+
+/* Active nav icon (text-emerald-400) */
+.dark .text-emerald-400 {
+  color: #ef4444 !important;
+}
+
+/* Nav group eyebrow labels (text-emerald-500/70) */
+.dark .text-emerald-500\/70,
+.dark [class*="text-emerald-5"] {
+  color: rgba(239, 68, 68, 0.6) !important;
+}
+
+/* PROD badge in sidebar header (bg-emerald-900/80 text-emerald-300 border-emerald-700) */
+.dark [class*="bg-emerald-900"],
+.dark [class*="text-emerald-300"],
+.dark [class*="border-emerald-7"] {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+/* AERO SCIENCE subtitle & faculty role text in sidebar */
+.dark [class*="text-emerald-4"][class*="font-mono"] {
+  color: #fca5a5 !important;
+}
+
+/* Compass icon in brand */
+.dark .text-accent-emerald,
+.dark [class*="text-emerald-400"].w-5 {
+  color: #ef4444 !important;
+}
+
+/* TopBar breadcrumb hover */
+.dark .hover\:text-emerald-800:hover {
+  color: #ef4444 !important;
+}
+
+/* Search input focus ring */
+.dark .focus\:ring-emerald-800\/20:focus,
+.dark .focus\:border-emerald-800:focus {
+  --tw-ring-color: rgba(239, 68, 68, 0.2) !important;
+  border-color: #ef4444 !important;
+}
+
+/* Search result hover */
+.dark .hover\:bg-emerald-50\/60:hover {
+  background-color: rgba(239, 68, 68, 0.06) !important;
+}
+.dark .group:hover .group-hover\:text-emerald-900 {
+  color: #ef4444 !important;
+}
+
+/* UserCircle in TopBar profile */
+.dark .text-emerald-900 {
+  color: #ef4444 !important;
+}
+
+/* Smooth dark mode transition */
+.dark * {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+

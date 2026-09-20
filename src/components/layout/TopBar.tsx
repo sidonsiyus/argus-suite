@@ -214,7 +214,7 @@ export function TopBar({
           title={`Theme: ${theme} (Click to switch)`}
         >
           {theme === "dark" ? (
-            <Moon className="w-4 h-4 text-emerald-400" />
+            <Moon className="w-4 h-4 text-red-400" />
           ) : theme === "light" ? (
             <Sun className="w-4 h-4 text-amber-500" />
           ) : (
@@ -238,7 +238,7 @@ export function TopBar({
 
         {/* Faculty Profile Badge */}
         <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-border">
-          <UserCircle className="w-6 h-6 text-emerald-900 dark:text-emerald-400 shrink-0" />
+          <UserCircle className="w-6 h-6 text-emerald-900 dark:text-red-400 shrink-0" />
           <div className="hidden md:block">
             <p className="text-xs font-medium text-ink leading-tight">
               Siddarth J
