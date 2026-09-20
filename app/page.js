@@ -710,7 +710,8 @@ export default function Home() {
 
         <footer className="foot">
           <span className="foot-title">ARGUS · Aviation Terminal</span>
-          <span>Press <kbd>⌘K</kbd> to jump anywhere · made by sid</span>
+          <span>Press <kbd>⌘K</kbd> to jump anywhere</span>
+          <span>© {new Date().getFullYear()} · made by <span style={{color:'var(--accent)', fontWeight:600}}>sid</span></span>
         </footer>
       </main>
 
