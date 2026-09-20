@@ -2,44 +2,218 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --primary: #062820;
-  --background: #FBFBFA;
-  --surface: #FFFFFF;
-  --border: #EAE9E4;
+/* ─── Appointments Portal · Light Mode (Red / White / Black) ─── */
+:root,
+.appointments-root {
+  --av-bg: #ffffff;
+  --av-bg-2: #f8f8f8;
+  --av-surface: #ffffff;
+  --av-surface-subtle: #f4f4f4;
+  --av-border: #e4e4e4;
+  --av-border-strong: #cccccc;
+  --av-ink: #0d0d0d;
+  --av-ink-2: #333333;
+  --av-dim: #666666;
+  --av-faint: #999999;
+  --av-red: #dc2626;        /* signal red — portal signature */
+  --av-red-hover: #b91c1c;
+  --av-red-soft: rgba(220, 38, 38, 0.08);
+  --av-red-border: rgba(220, 38, 38, 0.22);
+  --av-red-50: #fff1f1;
+  --av-red-100: #ffe0e0;
+  --av-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+  --av-shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
 }
 
-body {
-  background-color: var(--background);
-  color: #1a221f;
-  font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
+/* ─── Dark Mode ─── */
+.appointments-root.dark {
+  --av-bg: #0a0a0a;
+  --av-bg-2: #111111;
+  --av-surface: #141414;
+  --av-surface-subtle: #1a1a1a;
+  --av-border: rgba(255,255,255,0.09);
+  --av-border-strong: rgba(255,255,255,0.16);
+  --av-ink: #f5f5f5;
+  --av-ink-2: #d0d0d0;
+  --av-dim: #aaaaaa;
+  --av-faint: #666666;
+  --av-red: #ef4444;
+  --av-red-hover: #dc2626;
+  --av-red-soft: rgba(239, 68, 68, 0.12);
+  --av-red-border: rgba(239, 68, 68, 0.28);
+  --av-red-50: rgba(239, 68, 68, 0.08);
+  --av-red-100: rgba(239, 68, 68, 0.14);
+  --av-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  --av-shadow-md: 0 4px 16px rgba(0,0,0,0.7);
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ─── Base styles scoped to appointments ─── */
+.appointments-root {
+  background-color: var(--av-bg);
+  color: var(--av-ink);
+  min-height: 100vh;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+/* ─── Override Tailwind aviation color utilities inside appointments ─── */
+
+/* Backgrounds */
+.appointments-root .bg-surface        { background-color: var(--av-bg) !important; }
+.appointments-root .bg-white          { background-color: var(--av-surface) !important; }
+.appointments-root .bg-surface-muted  { background-color: var(--av-surface-subtle) !important; }
+.appointments-root .bg-aviation       { background-color: var(--av-red) !important; }
+.appointments-root .bg-aviation-50    { background-color: var(--av-red-50) !important; }
+.appointments-root .bg-aviation-100   { background-color: var(--av-red-100) !important; }
+.appointments-root .bg-gray-50        { background-color: var(--av-bg-2) !important; }
+.appointments-root .bg-gray-100       { background-color: var(--av-surface-subtle) !important; }
+
+/* Borders */
+.appointments-root .border-surface-border { border-color: var(--av-border) !important; }
+.appointments-root .border-aviation        { border-color: var(--av-red) !important; }
+.appointments-root .border-aviation-100   { border-color: var(--av-red-border) !important; }
+.appointments-root .border-aviation-300   { border-color: var(--av-red-border) !important; }
+.appointments-root .border-aviation-600   { border-color: var(--av-red) !important; }
+.appointments-root .border-aviation-900   { border-color: var(--av-red-hover) !important; }
+.appointments-root .border-gray-200       { border-color: var(--av-border) !important; }
+.appointments-root .border-gray-300       { border-color: var(--av-border-strong) !important; }
+.appointments-root .divide-y > * + *     { border-color: var(--av-border) !important; }
+
+/* Text colors */
+.appointments-root .text-aviation-950      { color: var(--av-ink) !important; }
+.appointments-root .text-aviation-900      { color: var(--av-ink) !important; }
+.appointments-root .text-aviation-800      { color: var(--av-ink-2) !important; }
+.appointments-root .text-aviation-700      { color: var(--av-red) !important; }
+.appointments-root .text-aviation-600      { color: var(--av-red) !important; }
+.appointments-root .text-aviation-200      { color: #fff !important; }
+.appointments-root .text-white             { color: #ffffff !important; }
+.appointments-root .text-gray-900          { color: var(--av-ink) !important; }
+.appointments-root .text-gray-800          { color: var(--av-ink-2) !important; }
+.appointments-root .text-gray-700          { color: var(--av-dim) !important; }
+.appointments-root .text-gray-600          { color: var(--av-dim) !important; }
+.appointments-root .text-gray-500          { color: var(--av-dim) !important; }
+.appointments-root .text-gray-400          { color: var(--av-faint) !important; }
+
+/* Hover states — main link/button aviation accents */
+.appointments-root .hover\:text-aviation-950:hover { color: var(--av-ink) !important; }
+.appointments-root .hover\:text-aviation-700:hover { color: var(--av-red) !important; }
+.appointments-root .hover\:border-aviation-900:hover { border-color: var(--av-red-hover) !important; }
+.appointments-root .hover\:border-aviation-300:hover { border-color: var(--av-red-border) !important; }
+.appointments-root .hover\:bg-surface:hover     { background-color: var(--av-surface-subtle) !important; }
+.appointments-root .hover\:bg-aviation-800:hover { background-color: var(--av-red-hover) !important; }
+
+/* Primary button */
+.appointments-root .bg-aviation.hover\:bg-aviation-800 { background-color: var(--av-red) !important; }
+
+/* Focus ring */
+.appointments-root .focus\:border-aviation:focus { border-color: var(--av-red) !important; }
+.appointments-root .focus\:ring-aviation:focus   { --tw-ring-color: var(--av-red) !important; }
+
+/* Input backgrounds */
+.appointments-root input,
+.appointments-root select,
+.appointments-root textarea {
+  background-color: var(--av-surface-subtle) !important;
+  border-color: var(--av-border) !important;
+  color: var(--av-ink) !important;
 }
-::-webkit-scrollbar-thumb {
-  background: #d4d2cc;
+.appointments-root input::placeholder,
+.appointments-root select::placeholder,
+.appointments-root textarea::placeholder {
+  color: var(--av-faint) !important;
+}
+
+/* Cards / panels */
+.appointments-root .rounded-xl,
+.appointments-root .rounded-2xl,
+.appointments-root .rounded-lg {
+  background-color: var(--av-surface);
+}
+
+/* Sidebar / nav (coordinator portal) */
+.appointments-root nav,
+.appointments-root aside {
+  background-color: var(--av-surface) !important;
+  border-color: var(--av-border) !important;
+}
+
+/* Sidebar active item — green → red */
+.appointments-root .bg-aviation-50.text-aviation-800,
+.appointments-root [class*="bg-aviation-50"] {
+  background-color: var(--av-red-soft) !important;
+  color: var(--av-red) !important;
+}
+
+/* ─── Dark mode specific overrides ─── */
+.appointments-root.dark header,
+.appointments-root.dark footer,
+.appointments-root.dark nav,
+.appointments-root.dark aside {
+  background-color: var(--av-surface) !important;
+  border-color: var(--av-border) !important;
+}
+
+/* Shadow adjustments */
+.appointments-root.dark .shadow-sm { box-shadow: var(--av-shadow) !important; }
+.appointments-root.dark .shadow-md { box-shadow: var(--av-shadow-md) !important; }
+
+/* ─── Theme toggle button ─── */
+.appt-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--av-border);
+  background: var(--av-surface);
+  color: var(--av-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.appt-theme-toggle:hover {
+  color: var(--av-red);
+  border-color: var(--av-red);
+}
+.appt-theme-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ─── Copyright footer ─── */
+.appt-copyright {
+  font-size: 11px;
+  color: var(--av-faint);
+  text-align: center;
+  padding: 10px;
+  font-family: monospace;
+  letter-spacing: 0.04em;
+}
+.appt-copyright strong {
+  color: var(--av-red);
+  font-weight: 600;
+}
+
+/* ─── Custom scrollbar ─── */
+.appointments-root ::-webkit-scrollbar { width: 6px; height: 6px; }
+.appointments-root ::-webkit-scrollbar-track { background: transparent; }
+.appointments-root ::-webkit-scrollbar-thumb {
+  background: var(--av-border-strong);
   border-radius: 9999px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #a9a69d;
+.appointments-root ::-webkit-scrollbar-thumb:hover {
+  background: var(--av-dim);
+}
+
+/* ─── Smooth theme transition ─── */
+.appointments-root,
+.appointments-root * {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 @media print {
-  body {
-    background: #ffffff !important;
-  }
-  .no-print {
-    display: none !important;
-  }
-  .print-only {
-    display: block !important;
-  }
+  .appointments-root { background: #ffffff !important; color: #000 !important; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .appt-theme-toggle { display: none !important; }
 }

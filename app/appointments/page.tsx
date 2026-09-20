@@ -140,6 +140,9 @@ export default function HomePage() {
           <span>Department of Aviation &bull; Faculty–Student Appointment Portal</span>
           <span>Outside Class Hours Authorization System</span>
         </div>
+        <div className="appt-copyright mt-2">
+          © {new Date().getFullYear()} · made by <strong>sid</strong>
+        </div>
       </footer>
     </div>
   );
