@@ -1676,6 +1676,315 @@ function Afterburner({ accent = "#ff5722", accent2 = "#ff8a65" }) {
   );
 }
 
+/* ══════════════ 5.1 / 5.12 · Engine health hub ══════════════ */
+function HealthOverview({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [on, setOn] = usePlay(true);
+  const [sel, setSel] = useState(null);
+  const t = useTick(on, 1);
+  const streams = [
+    { k: "flight", label: "Flight data", x: 40, y: 30, note: "EGT margin, fuel flow, speeds — trended over many flights." },
+    { k: "oil", label: "Oil analysis", x: 260, y: 30, note: "Chip detectors + SOAP reveal wear metals from bearings/gears." },
+    { k: "vib", label: "Vibration", x: 40, y: 105, note: "Accelerometer spectra localise fan, spool or bearing problems." },
+    { k: "bore", label: "Borescope", x: 260, y: 105, note: "Direct internal inspection confirms and locates defects." },
+  ];
+  return (
+    <VStage pill={<PlayPill on={on} set={setOn} label="Data" />}
+      label={sel ? streams.find((s) => s.k === sel).note : "On-condition maintenance builds a health picture from four streams. Correlating them — not one indicator — reveals the true condition. Click a stream."}>
+      <svg viewBox="0 0 300 140" className="v-svg">
+        {streams.map((s, i) => (
+          <g key={s.k}>
+            <line x1={s.x < 150 ? s.x + 40 : s.x - 40} y1={s.y} x2="150" y2="70" stroke="#1c3a37" strokeWidth="1.5" />
+            {(() => { const f = ((t * 0.5 + i / 4) % 1); const ex = s.x < 150 ? s.x + 40 : s.x - 40; return <circle cx={ex + (150 - ex) * f} cy={s.y + (70 - s.y) * f} r="2.5" fill={accent2} />; })()}
+            <g onClick={() => setSel(sel === s.k ? null : s.k)} style={{ cursor: "pointer" }}>
+              <rect x={s.x - 40} y={s.y - 12} width="80" height="24" rx="6" fill={sel === s.k ? accent : "#10201e"} stroke={accent} />
+              <text x={s.x} y={s.y + 4} fontSize="8" fill={sel === s.k ? "#04100e" : "#aee5dd"} textAnchor="middle">{s.label}</text>
+            </g>
+          </g>
+        ))}
+        <circle cx="150" cy="70" r="26" fill={accent} stroke={accent2} />
+        <text x="150" y="67" fontSize="7.5" fill="#04100e" textAnchor="middle" fontWeight="700">ENGINE</text>
+        <text x="150" y="77" fontSize="7.5" fill="#04100e" textAnchor="middle" fontWeight="700">HEALTH</text>
+      </svg>
+    </VStage>
+  );
+}
+
+/* ══════════════ 5.2 · Ground run profile ══════════════ */
+function GroundRun({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  const dur = 12;
+  const p = (t % dur) / dur;
+  // power profile: idle → warm-up → full → stabilise → cool → shutdown
+  const power = (x) => {
+    if (x < 0.12) return 0.2;
+    if (x < 0.3) return 0.2 + (x - 0.12) * 1.5;
+    if (x < 0.55) return 1.0;
+    if (x < 0.7) return 0.55;
+    if (x < 0.88) return 0.55 - (x - 0.7) * 1.9;
+    return 0.2;
+  };
+  const phase = p < 0.12 ? "idle" : p < 0.3 ? "warm-up" : p < 0.55 ? "full power" : p < 0.7 ? "stabilise" : p < 0.88 ? "cool-down" : "shut-down";
+  const W = 300, x0 = 30, y0 = 110;
+  const X = (x) => x0 + x * (W - 50), Y = (v) => y0 - v * 88;
+  const curve = Array.from({ length: 60 }, (_, i) => `${X(i / 59)},${Y(power(i / 59))}`).join(" ");
+  return (
+    <VStage pill={<PlayPill on={on} set={setOn} label="Run" />}
+      label={`A ground run follows a disciplined profile — warm-up, stabilise, record, cool-down — to avoid thermal shock. Current phase: ${phase}. Power ${Math.round(power(p) * 100)}%.`}>
+      <svg viewBox="0 0 300 130" className="v-svg">
+        <line x1={x0} y1={y0} x2={W - 14} y2={y0} stroke="#1c3a37" /><text x={W - 14} y={y0 + 13} fontSize="7" fill="#6bbab0" textAnchor="end">time</text>
+        <polyline points={curve} fill="none" stroke={accent} strokeWidth="2.5" />
+        <line x1={X(p)} y1="18" x2={X(p)} y2={y0} stroke="#dffbf6" strokeWidth="1.5" />
+        <circle cx={X(p)} cy={Y(power(p))} r="4.5" fill="#dffbf6" stroke={accent} />
+        <text x={X(p)} y="14" fontSize="7" fill={accent2} textAnchor="middle">{phase}</text>
+      </svg>
+    </VStage>
+  );
+}
+
+/* ══════════════ 5.3 · Troubleshooting tree ══════════════ */
+const SYMPTOMS = {
+  vib: { label: "High vibration", causes: ["Fan imbalance (blade/ice/fouling)", "Bearing wear", "Rotor rub"] },
+  egt: { label: "High EGT / low margin", causes: ["Compressor fouling", "Hot-section wear", "Bleed/vane fault"] },
+  oil: { label: "Low oil pressure", causes: ["Leak", "Pump/seal wear", "Bearing debris blocking"] },
+  start: { label: "Slow / hot start", causes: ["Fuel schedule fault", "Ignition weak", "Insufficient starter air"] },
+};
+function Troubleshoot({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [k, setK] = useState("vib");
+  const s = SYMPTOMS[k];
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={k} onChange={setK} options={Object.entries(SYMPTOMS).map(([v, c]) => ({ v, label: c.label.split(" ")[0] + (c.label.includes("/") ? "…" : "") }))} />
+      </div>
+      <VStage label={`Structured diagnosis: symptom → possible causes → tests → confirmed fault. Symptom: “${s.label}”. Test each candidate cause to isolate the fault.`}>
+        <svg viewBox="0 0 300 140" className="v-svg">
+          {/* symptom node */}
+          <rect x="20" y="55" width="90" height="30" rx="7" fill={accent} stroke={accent2} />
+          <text x="65" y="74" fontSize="8" fill="#04100e" textAnchor="middle" fontWeight="700">{s.label}</text>
+          {s.causes.map((c, i) => {
+            const y = 25 + i * 40;
+            return (
+              <g key={i}>
+                <line x1="110" y1="70" x2="150" y2={y + 13} stroke="#1c3a37" strokeWidth="1.5" />
+                <rect x="150" y={y} width="140" height="26" rx="6" fill="#10201e" stroke={accent} />
+                <text x="158" y={y + 16} fontSize="7.5" fill="#aee5dd">{c}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 5.5 · EGT margin trend ══════════════ */
+function TrendMonitor({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [washAt, setWashAt] = useState(0); // 0 = no wash, else flight index
+  const N = 40;
+  const margin = (i) => {
+    let m = 60 - i * 0.7; // steady fouling decline
+    if (washAt && i >= washAt) m += Math.min(18, (i - washAt) * 0 + 18); // wash recovers ~18
+    return Math.max(5, m);
+  };
+  const W = 300, x0 = 34, y0 = 112;
+  const X = (i) => x0 + (i / (N - 1)) * (W - 48), Y = (m) => y0 - (m / 65) * 92;
+  const pts = Array.from({ length: N }, (_, i) => `${X(i)},${Y(margin(i))}`).join(" ");
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={washAt ? "w" : "n"} onChange={(v) => setWashAt(v === "w" ? 24 : 0)} options={[{ v: "n", label: "No wash" }, { v: "w", label: "Wash @ flight 24" }]} />
+      </div>
+      <VStage label={washAt ? "The EGT margin recovered after the wash — so the loss was fouling, not hot-section wear. A wash-recoverable trend is diagnostic as well as restorative." : "EGT margin drifts down over many flights. Is it fouling (wash-recoverable) or real wear? Trend monitoring — and the wash response — tells you."}>
+        <svg viewBox="0 0 300 130" className="v-svg">
+          <line x1={x0} y1={y0} x2={W - 14} y2={y0} stroke="#1c3a37" /><text x={W - 14} y={y0 + 13} fontSize="7" fill="#6bbab0" textAnchor="end">flights</text>
+          <text x={x0} y="14" fontSize="7" fill="#6bbab0">EGT margin °C</text>
+          {/* threshold */}
+          <line x1={x0} y1={Y(15)} x2={W - 14} y2={Y(15)} stroke="#ff5722" strokeDasharray="3 3" opacity="0.6" /><text x={x0 + 4} y={Y(15) - 3} fontSize="6.5" fill="#ff5722">action threshold</text>
+          <polyline points={pts} fill="none" stroke={accent} strokeWidth="2.5" />
+          {washAt && <><line x1={X(washAt)} y1="18" x2={X(washAt)} y2={y0} stroke={accent2} strokeDasharray="2 2" /><text x={X(washAt)} y="15" fontSize="6.5" fill={accent2} textAnchor="middle">wash</text></>}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 5.6 · Oil wear-metal analysis ══════════════ */
+function OilAnalysis({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [hours, setHours] = useState(30);
+  const metals = [
+    { k: "Fe", label: "Iron", base: 4, rate: 0.9, part: "gears / shafts" },
+    { k: "Cr", label: "Chromium", base: 2, rate: 0.3, part: "bearings" },
+    { k: "Ni", label: "Nickel", base: 1.5, rate: 0.25, part: "turbine" },
+    { k: "Ag", label: "Silver", base: 0.5, rate: hours > 60 ? 1.4 : 0.1, part: "plated bearing" },
+    { k: "Cu", label: "Copper", base: 1, rate: 0.2, part: "bushings" },
+  ];
+  const vals = metals.map((m) => +(m.base + (hours / 100) * m.rate * 100 / 10).toFixed(1));
+  const alarm = metals.map((m, i) => vals[i] > 12);
+  const worst = alarm.findIndex(Boolean);
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Hours since overhaul</label>
+        <input type="range" min="0" max="100" value={hours} onChange={(e) => setHours(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{hours * 40}h</span>
+      </div>
+      <VStage label={worst >= 0 ? `${metals[worst].label} is rising sharply — pointing to the ${metals[worst].part}. A jump in one wear metal localises the wearing component.` : "Spectrometric oil analysis (SOAP) tracks wear metals. Each alloy points to a component; a rising trend flags incipient wear before failure."}>
+        <svg viewBox="0 0 300 130" className="v-svg">
+          <line x1="30" y1="105" x2="290" y2="105" stroke="#1c3a37" />
+          <line x1="30" y1={105 - 12 * 6.5} x2="290" y2={105 - 12 * 6.5} stroke="#ff5722" strokeDasharray="3 3" opacity="0.5" /><text x="34" y={105 - 12 * 6.5 - 3} fontSize="6.5" fill="#ff5722">alarm</text>
+          {metals.map((m, i) => {
+            const h = Math.min(90, vals[i] * 6.5);
+            return (
+              <g key={m.k} transform={`translate(${44 + i * 50},0)`}>
+                <rect x="0" y={105 - h} width="30" height={h} rx="4" fill={alarm[i] ? "#ff5722" : accent} opacity="0.9" />
+                <text x="15" y="118" fontSize="7.5" fill="#aee5dd" textAnchor="middle">{m.k}</text>
+                <text x="15" y={105 - h - 3} fontSize="6.5" fill={alarm[i] ? "#ff5722" : accent2} textAnchor="middle">{vals[i]}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 5.8 · Borescope inspection ══════════════ */
+function Borescope({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [on, setOn] = usePlay(true);
+  const [defect, setDefect] = useState(true);
+  const t = useTick(on, 0.4);
+  const bladeAng = (t * 40) % 45; // rotor slowly turning
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={defect ? "d" : "c"} onChange={(v) => setDefect(v === "d")} options={[{ v: "c", label: "Clean" }, { v: "d", label: "Defect present" }]} />
+        <PlayPill on={on} set={setOn} label="Rotate" />
+      </div>
+      <VStage label={defect ? "A borescope reveals internal defects without teardown — here a nick on a compressor blade. It is measured against the manual's limits and logged." : "The borescope view of a healthy blade row, inspected blade-by-blade by turning the rotor through the access port."}>
+        <svg viewBox="0 0 300 130" className="v-svg">
+          {/* scope circular field */}
+          <circle cx="150" cy="65" r="55" fill="#04100e" stroke={accent} strokeWidth="2" />
+          <clipPath id="scopeClip"><circle cx="150" cy="65" r="53" /></clipPath>
+          <g clipPath="url(#scopeClip)">
+            {/* blades */}
+            {Array.from({ length: 8 }).map((_, i) => {
+              const a = (i * 45 + bladeAng) * Math.PI / 180;
+              const x = 150 + Math.cos(a) * 30, y = 65 + Math.sin(a) * 30;
+              return <g key={i} transform={`translate(${x},${y}) rotate(${i * 45 + bladeAng})`}>
+                <rect x="-4" y="-22" width="8" height="40" rx="3" fill="#173a35" stroke={accent} opacity="0.8" />
+                {defect && i === 2 && <path d="M4 -6 l5 2 l-5 3" fill="none" stroke="#ff5722" strokeWidth="1.6" />}
+              </g>;
+            })}
+            <circle cx="150" cy="65" r="10" fill="#0a1a18" stroke={accent} />
+          </g>
+          {/* crosshair + reticle */}
+          <line x1="150" y1="14" x2="150" y2="24" stroke={accent2} /><line x1="150" y1="106" x2="150" y2="116" stroke={accent2} />
+          {defect && <><circle cx="172" cy="56" r="9" fill="none" stroke="#ff5722" /><text x="200" y="40" fontSize="7" fill="#ff5722">nick — measure vs limit</text></>}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 5.9 · Inspection standards ══════════════ */
+function InspectionStandards({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [size, setSize] = useState(0.4); // defect size mm
+  const disp = size < 0.6 ? "Serviceable" : size < 1.6 ? "Repairable" : "Reject";
+  const col = disp === "Serviceable" ? "#22c55e" : disp === "Repairable" ? "#f59e0b" : "#ff5722";
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Defect size</label>
+        <input type="range" min="0.1" max="2.5" step="0.05" value={size} onChange={(e) => setSize(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: col }}>{size.toFixed(2)} mm</span>
+      </div>
+      <VStage label={`Manual limits turn a measurement into a disposition. At ${size.toFixed(2)} mm this defect is: ${disp}. Within limits → serviceable; beyond → repair; past repair → reject.`}>
+        <svg viewBox="0 0 300 100" className="v-svg">
+          {/* bands */}
+          <rect x="30" y="40" width="90" height="22" fill="#22c55e" opacity="0.25" /><text x="75" y="55" fontSize="8" fill="#22c55e" textAnchor="middle">Serviceable</text>
+          <rect x="120" y="40" width="100" height="22" fill="#f59e0b" opacity="0.25" /><text x="170" y="55" fontSize="8" fill="#f59e0b" textAnchor="middle">Repairable</text>
+          <rect x="220" y="40" width="60" height="22" fill="#ff5722" opacity="0.25" /><text x="250" y="55" fontSize="8" fill="#ff5722" textAnchor="middle">Reject</text>
+          {/* pointer */}
+          {(() => { const x = 30 + (size / 2.5) * 250; return <><line x1={x} y1="30" x2={x} y2="72" stroke={col} strokeWidth="2" /><circle cx={x} cy="30" r="4" fill={col} /></>; })()}
+          <text x="150" y="90" fontSize="7.5" fill={col} textAnchor="middle" fontWeight="700">→ {disp}</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 5.10 · Compressor wash ══════════════ */
+function CompressorWash({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [on, setOn] = usePlay(true);
+  const [washing, setWashing] = useState(false);
+  const t = useTick(on, 1);
+  // fouling accumulates unless washing
+  const clean = washing ? Math.min(1, (t % 4) / 2) : 0.15;
+  const margin = Math.round(20 + clean * 40);
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={washing ? "w" : "f"} onChange={(v) => setWashing(v === "w")} options={[{ v: "f", label: "Fouled" }, { v: "w", label: "Washing" }]} />
+        <PlayPill on={on} set={setOn} label="Spray" />
+      </div>
+      <VStage label={washing ? `Washing removes salt/dust fouling — compressor efficiency recovers and EGT margin climbs back to ${margin}°C. A cheap, effective performance recovery.` : "Fouling coats the blades, cutting efficiency and eating EGT margin. Switch to washing to recover the lost performance."}>
+        <svg viewBox="0 0 300 120" className="v-svg">
+          {/* blades, colour = cleanliness */}
+          {Array.from({ length: 9 }).map((_, i) => {
+            const c = washing ? (i < clean * 9 ? accent2 : "#3a3320") : "#3a3320";
+            return <rect key={i} x={40 + i * 24} y="35" width="12" height="46" rx="3" fill={c} stroke={accent} opacity="0.9" />;
+          })}
+          {/* wash spray */}
+          {washing && Array.from({ length: 8 }).map((_, i) => {
+            const f = ((t * 0.9 + i / 8) % 1);
+            return <circle key={i} cx={40 + f * 220} cy={45 + (i % 3) * 12} r="1.8" fill="#7fd4e0" opacity={1 - f * 0.4} />;
+          })}
+          {/* margin bar */}
+          <text x="20" y="104" fontSize="8" fill="#6bbab0">EGT margin</text>
+          <rect x="90" y="97" width="180" height="9" rx="4.5" fill="#10201e" />
+          <rect x="90" y="97" width={(margin / 60) * 180} height="9" rx="4.5" fill={accent} />
+          <text x="274" y="105" fontSize="8" fill={accent} textAnchor="end">{margin}°</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 5.11 · FOD ══════════════ */
+function Fod({ accent = "#14b8a6", accent2 = "#5eead4" }) {
+  const [on, setOn] = usePlay(true);
+  const [prevent, setPrevent] = useState(false);
+  const t = useTick(on, 1);
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={prevent ? "p" : "r"} onChange={(v) => setPrevent(v === "p")} options={[{ v: "r", label: "Unprotected" }, { v: "p", label: "FOD discipline" }]} />
+        <PlayPill on={on} set={setOn} label="Run" />
+      </div>
+      <VStage label={prevent ? "FOD discipline — FOD walks, inlet covers, tool control — keeps debris out of the intake. Prevention is a culture, not a device." : "Ramp debris, birds and ice get ingested and strike the fast blades — nicks, cracks, even liberated blades. Switch on FOD discipline to prevent it."}>
+        <svg viewBox="0 0 300 120" className="v-svg">
+          {/* intake */}
+          <path d="M170 30 Q150 60 170 90 L250 80 L250 40 Z" fill="#10201e" stroke={accent} />
+          {/* fan */}
+          <g transform="translate(180,60)">
+            {Array.from({ length: 8 }).map((_, i) => <rect key={i} x="-1.5" y="-24" width="3" height="24" rx="1.5" fill={accent2} transform={`rotate(${(t * 200 + i * 45) % 360})`} />)}
+          </g>
+          {/* debris */}
+          {!prevent && Array.from({ length: 4 }).map((_, i) => {
+            const f = ((t * 0.5 + i / 4) % 1);
+            return <g key={i}><rect x={30 + f * 130} y={45 + i * 8} width="5" height="4" fill="#b8968a" transform={`rotate(${f * 180} ${32 + f * 130} ${47 + i * 8})`} /></g>;
+          })}
+          {/* damaged blade / protected */}
+          {!prevent
+            ? <text x="180" y="108" fontSize="7.5" fill="#ff5722" textAnchor="middle">✗ blade nicks, cracks, FOD damage</text>
+            : <><path d="M40 45 h80 v30 h-80 z" fill="none" stroke={accent} strokeDasharray="4 3" opacity="0.5" /><text x="80" y="63" fontSize="7" fill={accent2} textAnchor="middle">inlet cover</text><text x="180" y="108" fontSize="7.5" fill={accent} textAnchor="middle">✓ intake protected</text></>}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
 /* ── styled fallback ── */
 function Placeholder({ accent = "#ff7a1a", session }) {
   return (
@@ -1734,6 +2043,16 @@ export const VISUALS = {
   AugmentOverview,
   WaterInjection,
   Afterburner,
+  // Unit V — monitoring & ground operation
+  HealthOverview,
+  GroundRun,
+  Troubleshoot,
+  TrendMonitor,
+  OilAnalysis,
+  Borescope,
+  InspectionStandards,
+  CompressorWash,
+  Fod,
 };
 
 export function Visual({ visual, accent, accent2, session }) {
