@@ -1052,6 +1052,299 @@ function ThrustReverser({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
   );
 }
 
+/* ══════════════ 3.1 / 3.4 · Fuel system flow ══════════════ */
+const FUEL_STAGES = [
+  { k: "tank", x: 30, label: "Tank", d: "The aircraft fuel tanks — the source of supply." },
+  { k: "boost", x: 80, label: "Boost", d: "Low-pressure boost pump lifts fuel and prevents vapour lock." },
+  { k: "filter", x: 128, label: "Filter", d: "Removes contaminants; a heat exchanger warms the fuel to prevent ice." },
+  { k: "hp", x: 176, label: "HP pump", d: "High-pressure pump raises fuel to injection pressure." },
+  { k: "fcu", x: 226, label: "FCU", d: "Fuel control unit meters the exact flow for the operating point." },
+  { k: "div", x: 278, label: "Divider", d: "Flow divider stages primary/secondary nozzle circuits." },
+  { k: "noz", x: 322, label: "Nozzles", d: "Atomise the fuel into the combustor as a fine, shaped spray." },
+];
+function FuelSystem({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
+  const [on, setOn] = usePlay(true);
+  const [sel, setSel] = useState(null);
+  const t = useTick(on, 1);
+  return (
+    <VStage pill={<PlayPill on={on} set={setOn} label="Fuel" />}
+      label={sel ? `${FUEL_STAGES.find((s) => s.k === sel).label}: ${FUEL_STAGES.find((s) => s.k === sel).d}` : "Tank → boost pump → filter/heat-exchanger → HP pump → fuel control → flow divider → nozzles. Click a stage."}>
+      <svg viewBox="0 0 360 120" className="v-svg">
+        <line x1="30" y1="60" x2="335" y2="60" stroke="#4a3a1c" strokeWidth="6" strokeLinecap="round" />
+        {/* fuel droplets */}
+        {Array.from({ length: 12 }).map((_, i) => {
+          const f = ((t * 0.3 + i / 12) % 1);
+          return <circle key={i} cx={30 + f * 305} cy="60" r="2.4" fill={accent2} opacity="0.9" />;
+        })}
+        {FUEL_STAGES.map((s) => (
+          <g key={s.k} onClick={() => setSel(sel === s.k ? null : s.k)} style={{ cursor: "pointer" }}>
+            <circle cx={s.x} cy="60" r={sel === s.k ? 11 : 8} fill={sel === s.k ? accent : "#2b230f"} stroke={accent} />
+            <text x={s.x} y="88" fontSize="7" fill={sel === s.k ? accent : "#b89a5c"} textAnchor="middle" style={{ fontFamily: "ui-monospace,monospace" }}>{s.label}</text>
+          </g>
+        ))}
+      </svg>
+    </VStage>
+  );
+}
+
+/* ══════════════ 3.2 · Fuel metering — the safe corridor ══════════════ */
+function FuelMetering({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
+  const [thr, setThr] = useState(50);
+  // operating fuel line sits inside the corridor; slams push toward the ceiling
+  const opFuel = 20 + (thr / 100) * 70;
+  const ceiling = (x) => 40 + x * 0.55;        // surge / over-temp
+  const floor = (x) => 8 + x * 0.15;           // flame-out
+  const px = (x) => 40 + x * 2.4, py = (v) => 130 - v * 1.15;
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Throttle demand</label>
+        <input type="range" min="10" max="100" value={thr} onChange={(e) => setThr(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{thr}%</span>
+      </div>
+      <VStage label="Fuel is scheduled inside a safe corridor: below the surge/over-temp ceiling (red) and above the flame-out floor (blue). The control keeps the fuel line between them at all times.">
+        <svg viewBox="0 0 300 150" className="v-svg">
+          <line x1="40" y1="130" x2="290" y2="130" stroke="#4a3a1c" /><text x="290" y="145" fontSize="7" fill="#b89a5c" textAnchor="end">engine speed</text>
+          <line x1="40" y1="130" x2="40" y2="14" stroke="#4a3a1c" /><text x="44" y="13" fontSize="7" fill="#b89a5c">fuel flow</text>
+          {/* corridor */}
+          {(() => {
+            const cPts = Array.from({ length: 40 }, (_, i) => `${px(i * 2.5)},${py(ceiling(i * 2.5))}`).join(" ");
+            const fPts = Array.from({ length: 40 }, (_, i) => `${px(i * 2.5)},${py(floor(i * 2.5))}`).join(" ");
+            return <>
+              <polyline points={cPts} fill="none" stroke="#ff5722" strokeWidth="2" strokeDasharray="4 3" /><text x="210" y="60" fontSize="7" fill="#ff5722">surge / over-temp</text>
+              <polyline points={fPts} fill="none" stroke="#22d3ee" strokeWidth="2" strokeDasharray="4 3" /><text x="210" y="120" fontSize="7" fill="#22d3ee">flame-out</text>
+            </>;
+          })()}
+          {/* operating point */}
+          <circle cx={px(thr * 2.5)} cy={py(opFuel)} r="5.5" fill="#fff3d0" stroke={accent} />
+          <text x={px(thr * 2.5)} y={py(opFuel) - 9} fontSize="7.5" fill={accent} textAnchor="middle">fuel</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 3.3 · FADEC closed loop ══════════════ */
+function FadecLoop({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  const nodes = [
+    { k: "eng", x: 150, y: 30, label: "Engine" },
+    { k: "sens", x: 250, y: 90, label: "Sensors" },
+    { k: "eec", x: 150, y: 130, label: "EEC (A/B)" },
+    { k: "act", x: 50, y: 90, label: "Actuators" },
+  ];
+  const loop = ["eng", "sens", "eec", "act"];
+  const seg = (t * 0.6) % 4;
+  return (
+    <VStage pill={<PlayPill on={on} set={setOn} label="Loop" />}
+      label="FADEC is a closed loop: the engine's sensors feed the dual-channel EEC, which computes and commands the actuators (fuel valve, vanes, bleeds), changing the engine — measured again, many times a second.">
+      <svg viewBox="0 0 300 160" className="v-svg">
+        {/* arrows around the loop */}
+        {loop.map((k, i) => {
+          const a = nodes.find((n) => n.k === k), b = nodes.find((n) => n.k === loop[(i + 1) % 4]);
+          return <line key={k} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#4a3a1c" strokeWidth="2" />;
+        })}
+        {/* travelling pulse */}
+        {(() => {
+          const i = Math.floor(seg), f = seg - i;
+          const a = nodes.find((n) => n.k === loop[i]), b = nodes.find((n) => n.k === loop[(i + 1) % 4]);
+          return <circle cx={a.x + (b.x - a.x) * f} cy={a.y + (b.y - a.y) * f} r="4.5" fill={accent2} />;
+        })()}
+        {nodes.map((n) => (
+          <g key={n.k}>
+            <rect x={n.x - 34} y={n.y - 12} width="68" height="24" rx="6" fill={n.k === "eec" ? accent : "#2b230f"} stroke={accent} />
+            <text x={n.x} y={n.y + 4} fontSize="8.5" fill={n.k === "eec" ? "#1a1206" : "#e8cf97"} textAnchor="middle" fontWeight="700">{n.label}</text>
+          </g>
+        ))}
+      </svg>
+    </VStage>
+  );
+}
+
+/* ══════════════ 3.5 / 3.9 · Start sequence timeline ══════════════ */
+function StartSequence({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  const dur = 10; // seconds for a full start
+  const p = (t % dur) / dur; // 0..1 play head
+  // curves as functions of progress
+  const n2 = (x) => Math.min(1, x * 1.4);            // rises then levels near idle
+  const egt = (x) => x < 0.28 ? 0 : Math.min(1, (x - 0.28) * 4) * Math.exp(-(x - 0.45) * 1.2) + (x > 0.5 ? 0.35 : 0);
+  const n1 = (x) => x < 0.4 ? 0 : Math.min(0.75, (x - 0.4) * 1.3);
+  const events = [
+    { at: 0.02, label: "starter" }, { at: 0.2, label: "ignition" }, { at: 0.28, label: "fuel" },
+    { at: 0.34, label: "light-off" }, { at: 0.62, label: "self-sustain" }, { at: 0.9, label: "idle" },
+  ];
+  const W = 300, H = 120, x0 = 30, y0 = 110;
+  const X = (x) => x0 + x * (W - 40), Y = (v) => y0 - v * 92;
+  const curve = (fn, n) => Array.from({ length: n }, (_, i) => `${X(i / (n - 1))},${Y(fn(i / (n - 1)))}`).join(" ");
+  return (
+    <VStage pill={<PlayPill on={on} set={setOn} label="Play start" />}
+      label={`A start is choreographed: starter spins N2, ignition on, fuel on → light-off (EGT rises), engine accelerates to idle. ${p < 0.34 ? "Watch for the EGT light-off." : p < 0.62 ? "Accelerating — EGT peaking within limits." : "Stabilising at idle."}`}>
+      <svg viewBox="0 0 300 140" className="v-svg">
+        <line x1={x0} y1={y0} x2={W - 10} y2={y0} stroke="#4a3a1c" /><text x={W - 10} y={y0 + 13} fontSize="7" fill="#b89a5c" textAnchor="end">time</text>
+        {/* curves */}
+        <polyline points={curve(n2, 40)} fill="none" stroke={accent} strokeWidth="2" /><text x={W - 12} y={Y(n2(1)) - 3} fontSize="7" fill={accent} textAnchor="end">N2</text>
+        <polyline points={curve(egt, 40)} fill="none" stroke="#ff5722" strokeWidth="2" /><text x={W - 12} y={Y(egt(0.9))} fontSize="7" fill="#ff5722" textAnchor="end">EGT</text>
+        <polyline points={curve(n1, 40)} fill="none" stroke="#22d3ee" strokeWidth="2" /><text x={W - 12} y={Y(n1(1)) + 8} fontSize="7" fill="#22d3ee" textAnchor="end">N1</text>
+        {/* events */}
+        {events.map((e) => (
+          <g key={e.label}>
+            <line x1={X(e.at)} y1="18" x2={X(e.at)} y2={y0} stroke={p >= e.at ? accent2 : "#3a2f14"} strokeWidth="1" strokeDasharray="2 2" />
+            <text x={X(e.at)} y="15" fontSize="5.6" fill={p >= e.at ? accent2 : "#7a6636"} textAnchor="middle">{e.label}</text>
+          </g>
+        ))}
+        {/* play head */}
+        <line x1={X(p)} y1="18" x2={X(p)} y2={y0} stroke="#fff3d0" strokeWidth="1.5" />
+      </svg>
+    </VStage>
+  );
+}
+
+/* ══════════════ 3.6 · Starter types ══════════════ */
+function StarterTypes({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
+  const [k, setK] = useState("pneumatic");
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  const info = {
+    pneumatic: "Air-turbine starter — spun by APU, ground cart or cross-bleed air. Light, powerful: the airline norm.",
+    electric: "Electric starter / starter-generator — motors the engine, then generates power. No air needed.",
+    apu: "The APU (a small gas turbine) supplies bleed air and power to start the main engines on the ground.",
+  };
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={k} onChange={setK} options={[{ v: "pneumatic", label: "Pneumatic" }, { v: "electric", label: "Electric" }, { v: "apu", label: "APU / cross-bleed" }]} />
+        <PlayPill on={on} set={setOn} label="Spin" />
+      </div>
+      <VStage label={info[k]}>
+        <svg viewBox="0 0 300 130" className="v-svg">
+          {/* source */}
+          <rect x="20" y="50" width="60" height="34" rx="6" fill="#2b230f" stroke={accent} />
+          <text x="50" y="71" fontSize="8" fill="#e8cf97" textAnchor="middle">{k === "electric" ? "Battery/Gen" : k === "apu" ? "APU" : "Air"}</text>
+          {/* feed particles */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const f = ((t * 0.6 + i / 6) % 1);
+            return <circle key={i} cx={82 + f * 90} cy="67" r="2" fill={k === "electric" ? "#22d3ee" : accent2} opacity={1 - f * 0.4} />;
+          })}
+          {/* starter motor */}
+          <g transform="translate(200,67)">
+            <circle r="26" fill="#1f1809" stroke={accent} />
+            {Array.from({ length: 8 }).map((_, i) => (
+              <rect key={i} x="-1.5" y="-24" width="3" height="22" rx="1.5" fill={accent2}
+                transform={`rotate(${(t * 260 + i * 45) % 360})`} />
+            ))}
+            <circle r="5" fill="#2b230f" />
+          </g>
+          <text x="200" y="112" fontSize="7.5" fill="#b89a5c" textAnchor="middle">starter → HP spool</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 3.7 / 3.8 · Ignition ══════════════ */
+function Ignition({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
+  const [on, setOn] = usePlay(true);
+  const [energy, setEnergy] = useState(60);
+  const t = useTick(on, 1);
+  const spark = (t * 2) % 1 < 0.12; // periodic spark
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Spark energy</label>
+        <input type="range" min="20" max="100" value={energy} onChange={(e) => setEnergy(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{(energy / 25).toFixed(1)} J</span>
+        <PlayPill on={on} set={setOn} label="Fire" />
+      </div>
+      <VStage label="A capacitor-discharge exciter stores energy and dumps it through a shielded lead to the igniter plug, throwing a high-energy spark that lights the atomised mixture — far stronger than automotive ignition.">
+        <svg viewBox="0 0 300 120" className="v-svg">
+          {/* exciter */}
+          <rect x="20" y="45" width="54" height="32" rx="5" fill="#2b230f" stroke={accent} />
+          <text x="47" y="65" fontSize="7.5" fill="#e8cf97" textAnchor="middle">exciter</text>
+          {/* charge bar */}
+          <rect x="26" y="82" width="42" height="5" rx="2.5" fill="#3a2f14" />
+          <rect x="26" y="82" width={(energy / 100) * 42} height="5" rx="2.5" fill={accent} />
+          {/* lead */}
+          <line x1="74" y1="61" x2="210" y2="61" stroke="#5a4a24" strokeWidth="4" />
+          {/* igniter plug */}
+          <rect x="210" y="52" width="28" height="18" rx="3" fill="#1f1809" stroke={accent} />
+          {/* spark */}
+          {spark && <>
+            <path d={`M238 61 l6 -${3 + energy / 20} l3 ${4 + energy / 20} l6 -${2 + energy / 25}`} fill="none" stroke="#fff3d0" strokeWidth="2" />
+            <circle cx="252" cy="61" r={3 + energy / 30} fill="#fff3d0" opacity="0.8" />
+          </>}
+          <text x="252" y="90" fontSize="7" fill="#b89a5c" textAnchor="middle">igniter plug</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 3.10 / 5.4 · Ground safety zones ══════════════ */
+function SafetyZones({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
+  const [power, setPower] = useState(50);
+  const intake = 3 + (power / 100) * 6;   // metres
+  const blast = 30 + (power / 100) * 130; // metres
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Power setting</label>
+        <input type="range" min="20" max="100" value={power} onChange={(e) => setPower(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{power}%</span>
+      </div>
+      <VStage label={`Danger zones grow with power. Intake ingestion hazard ≈ ${intake.toFixed(0)} m ahead; exhaust blast hazard ≈ ${blast.toFixed(0)} m behind. Never enter these with the engine running.`}>
+        <svg viewBox="0 0 320 130" className="v-svg">
+          {/* intake suction zone */}
+          <path d={`M120 65 m0 0 a${8 + intake * 4} 30 0 0 0 -${8 + intake * 4} 0`} fill="none" />
+          <ellipse cx={120 - (8 + intake * 3)} cy="65" rx={8 + intake * 3} ry="26" fill="rgba(255,90,20,0.14)" stroke="#ff5722" strokeDasharray="3 3" />
+          <text x={120 - (8 + intake * 3)} y="30" fontSize="7" fill="#ff5722" textAnchor="middle">intake ⚠</text>
+          {/* engine */}
+          <rect x="120" y="52" width="60" height="26" rx="8" fill="#2b230f" stroke={accent} />
+          {/* blast zone */}
+          <path d={`M180 52 L${180 + blast} 40 L${180 + blast} 90 L180 78 Z`} fill="rgba(255,180,60,0.12)" stroke={accent2} strokeDasharray="3 3" />
+          <text x={180 + blast * 0.6} y="105" fontSize="7" fill={accent2} textAnchor="middle">exhaust blast ⚠</text>
+          {/* blast particles */}
+          {Array.from({ length: 6 }).map((_, i) => <circle key={i} cx={182 + (i / 6) * blast} cy={65 + Math.sin(i) * 8} r="2" fill={accent2} opacity="0.5" />)}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 3.11 / 3.12 · System integration ══════════════ */
+function SystemReview({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  const sys = [
+    { k: "start", label: "Starting", y: 30, note: "airflow" },
+    { k: "ign", label: "Ignition", y: 65, note: "spark" },
+    { k: "fuel", label: "Fuel", y: 100, note: "energy" },
+  ];
+  return (
+    <VStage pill={<PlayPill on={on} set={setOn} label="Run" />}
+      label="Fuel, ignition and starting act in concert: the starter provides airflow, ignition the spark, fuel the energy — converging on a stable start and run.">
+      <svg viewBox="0 0 300 130" className="v-svg">
+        {sys.map((s, i) => (
+          <g key={s.k}>
+            <rect x="20" y={s.y - 12} width="80" height="24" rx="6" fill="#2b230f" stroke={accent} />
+            <text x="60" y={s.y + 4} fontSize="8.5" fill="#e8cf97" textAnchor="middle">{s.label}</text>
+            <line x1="100" y1={s.y} x2="210" y2="65" stroke="#4a3a1c" strokeWidth="1.5" />
+            {/* pulse */}
+            {(() => { const f = ((t * 0.5 + i / 3) % 1); return <circle cx={100 + f * 110} cy={s.y + (65 - s.y) * f} r="2.5" fill={accent2} />; })()}
+            <text x="105" y={s.y - 4} fontSize="6" fill="#8a7440">{s.note}</text>
+          </g>
+        ))}
+        {/* engine */}
+        <circle cx="240" cy="65" r="26" fill={accent} stroke={accent2} />
+        <text x="240" y="62" fontSize="8" fill="#1a1206" textAnchor="middle" fontWeight="700">stable</text>
+        <text x="240" y="73" fontSize="8" fill="#1a1206" textAnchor="middle" fontWeight="700">start</text>
+      </svg>
+    </VStage>
+  );
+}
+
 /* ── styled fallback ── */
 function Placeholder({ accent = "#ff7a1a", session }) {
   return (
@@ -1090,6 +1383,15 @@ export const VISUALS = {
   CreepStress,
   Nozzle,
   ThrustReverser,
+  // Unit III — fuel, ignition & starting
+  FuelSystem,
+  FuelMetering,
+  FadecLoop,
+  StartSequence,
+  StarterTypes,
+  Ignition,
+  SafetyZones,
+  SystemReview,
 };
 
 export function Visual({ visual, accent, accent2, session }) {
