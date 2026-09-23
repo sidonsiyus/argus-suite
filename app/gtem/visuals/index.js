@@ -331,6 +331,220 @@ function ThrustBuilder({ accent = "#ff7a1a", accent2 = "#ffb454" }) {
   );
 }
 
+/* ══════════════ 1.6 · Engine-type comparison ══════════════ */
+const ENGINES = [
+  { k: "turboprop", label: "Turboprop", best: 0.45, peak: 0.55, note: "Low & slow — best propulsive efficiency below ~0.5 Mach; short regional hops.", color: "#22d3ee" },
+  { k: "turbofan",  label: "Turbofan",  best: 0.82, peak: 0.85, note: "Subsonic cruise king — high bypass gives quiet, economical thrust at 0.75–0.85 Mach.", color: "#ff7a1a" },
+  { k: "turbojet",  label: "Turbojet",  best: 1.6,  peak: 2.2,  note: "High speed — efficient only well above the sound barrier; military & legacy supersonic.", color: "#ff5722" },
+  { k: "turboshaft",label: "Turboshaft",best: 0.0,  peak: 0.3,  note: "Shaft power, not thrust — helicopters, APUs, pumps. Speed-independent.", color: "#14b8a6" },
+];
+function EngineCompare({ accent = "#ff7a1a", accent2 = "#ffb454" }) {
+  const [mach, setMach] = useState(0.8);
+  // propulsive efficiency curve per engine — gaussian around its best point
+  const eff = (e) => e.k === "turboshaft" ? 0.3 : Math.max(0.05, e.peak * Math.exp(-Math.pow((mach - e.best) / 0.55, 2)));
+  const ranked = [...ENGINES].map(e => ({ ...e, e: eff(e) })).sort((a, b) => b.e - a.e);
+  const winner = ranked[0];
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Flight speed</label>
+        <input type="range" min="0.2" max="2.2" step="0.05" value={mach} onChange={(e) => setMach(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>Mach {mach.toFixed(2)}</span>
+      </div>
+      <VStage label={`Best for Mach ${mach.toFixed(2)}: ${winner.label}. ${winner.note}`}>
+        <svg viewBox="0 0 340 180" className="v-svg">
+          {/* efficiency curves */}
+          <line x1="30" y1="150" x2="326" y2="150" stroke="#463831" />
+          <text x="326" y="164" fontSize="7.5" fill="#8f8078" textAnchor="end">Mach →</text>
+          <text x="30" y="16" fontSize="7.5" fill="#8f8078">propulsive η</text>
+          {ENGINES.map((e) => {
+            const pts = Array.from({ length: 40 }, (_, i) => {
+              const m = 0.2 + (i / 39) * 2.0;
+              const y = e.k === "turboshaft" ? 0.3 : Math.max(0.05, e.peak * Math.exp(-Math.pow((m - e.best) / 0.55, 2)));
+              return `${30 + ((m - 0.2) / 2.0) * 296},${150 - Math.min(1, y) * 120}`;
+            }).join(" ");
+            return <polyline key={e.k} points={pts} fill="none" stroke={e.color} strokeWidth={winner.k === e.k ? 3 : 1.4} opacity={winner.k === e.k ? 1 : 0.5} />;
+          })}
+          {/* current mach marker */}
+          <line x1={30 + ((mach - 0.2) / 2.0) * 296} y1="30" x2={30 + ((mach - 0.2) / 2.0) * 296} y2="150" stroke={accent} strokeDasharray="3 3" opacity="0.6" />
+          {/* legend / ranking */}
+          {ranked.map((e, i) => (
+            <g key={e.k} transform={`translate(${236},${34 + i * 18})`}>
+              <rect x="-4" y="-9" width="108" height="16" rx="4" fill={i === 0 ? e.color : "transparent"} opacity={i === 0 ? 0.14 : 0} />
+              <circle cx="2" cy="0" r="3" fill={e.color} />
+              <text x="10" y="3" fontSize="8" fill={i === 0 ? "#f3e9e2" : "#a99a91"} style={{ fontFamily: "ui-monospace,monospace" }}>{e.label}</text>
+              <text x="100" y="3" fontSize="8" fill={e.color} textAnchor="end">{Math.round(e.e * 100)}%</text>
+            </g>
+          ))}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 1.8 · Performance parameters (THP / ESHP / SFC) ══════════════ */
+function PerformanceCalc({ accent = "#ff7a1a", accent2 = "#ffb454" }) {
+  const [thrust, setThrust] = useState(80);   // kN
+  const [tas, setTas] = useState(240);        // m/s
+  const [fuel, setFuel] = useState(2600);     // kg/h
+  const thp = Math.round((thrust * 1000 * tas) / 745.7); // W→hp
+  const sfc = (fuel / (thrust * 1000 / 9.81)).toFixed(3); // kg/h per kgf (approx)
+  const Bar = ({ label, val, max, unit, color }) => (
+    <div className="pc-row">
+      <span className="pc-lab">{label}</span>
+      <div className="pc-track"><div className="pc-fill" style={{ width: `${Math.min(100, (val / max) * 100)}%`, background: color }} /></div>
+      <span className="pc-val" style={{ color }}>{val.toLocaleString()} <em>{unit}</em></span>
+    </div>
+  );
+  return (
+    <div>
+      <VStage label="Thrust horsepower converts thrust × speed into power; SFC is fuel burned per unit thrust — the headline economy figure. Slide the inputs to see the numbers move.">
+        <div className="pc-panel">
+          <label className="pc-ctl"><span>Net thrust</span><input type="range" min="10" max="120" value={thrust} onChange={(e) => setThrust(+e.target.value)} style={{ accentColor: accent }} /><b style={{ color: accent }}>{thrust} kN</b></label>
+          <label className="pc-ctl"><span>True airspeed</span><input type="range" min="60" max="320" value={tas} onChange={(e) => setTas(+e.target.value)} style={{ accentColor: accent }} /><b style={{ color: accent }}>{tas} m/s</b></label>
+          <label className="pc-ctl"><span>Fuel flow</span><input type="range" min="600" max="6000" step="50" value={fuel} onChange={(e) => setFuel(+e.target.value)} style={{ accentColor: accent }} /><b style={{ color: accent }}>{fuel} kg/h</b></label>
+          <div className="pc-out">
+            <Bar label="Thrust HP" val={thp} max={60000} unit="hp" color={accent} />
+            <Bar label="SFC" val={+sfc} max={1.4} unit="kg/kgf·h" color={"#ff8a65"} />
+          </div>
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 1.9 · Efficiency chain (thermal × propulsive = overall) ══════════════ */
+function EfficiencyDial({ accent = "#ff7a1a", accent2 = "#ffb454" }) {
+  const [thermal, setThermal] = useState(45);
+  const [prop, setProp] = useState(72);
+  const overall = ((thermal / 100) * (prop / 100) * 100).toFixed(1);
+  const Dial = ({ v, label, color }) => {
+    const R = 34, C = 2 * Math.PI * R, dash = (v / 100) * C;
+    return (
+      <div className="ef-dial">
+        <svg viewBox="0 0 90 90" width="96" height="96">
+          <circle cx="45" cy="45" r={R} fill="none" stroke="#3a2e29" strokeWidth="8" />
+          <circle cx="45" cy="45" r={R} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
+            strokeDasharray={`${dash} ${C}`} transform="rotate(-90 45 45)" />
+          <text x="45" y="42" textAnchor="middle" fontSize="17" fill="#f3e9e2" fontWeight="700">{v}%</text>
+          <text x="45" y="56" textAnchor="middle" fontSize="7.5" fill="#a99a91">{label}</text>
+        </svg>
+      </div>
+    );
+  };
+  return (
+    <div>
+      <VStage label={`Overall efficiency = thermal × propulsive = ${overall}%. Most of the fuel's energy never becomes thrust — the two efficiencies multiply, so both must be high.`}>
+        <div className="ef-wrap">
+          <Dial v={thermal} label="thermal" color={accent} />
+          <span className="ef-op">×</span>
+          <Dial v={prop} label="propulsive" color={"#22d3ee"} />
+          <span className="ef-op">=</span>
+          <Dial v={+overall} label="overall" color={accent2} />
+        </div>
+        <div className="ef-ctls">
+          <label className="pc-ctl"><span>Thermal η</span><input type="range" min="20" max="60" value={thermal} onChange={(e) => setThermal(+e.target.value)} style={{ accentColor: accent }} /></label>
+          <label className="pc-ctl"><span>Propulsive η</span><input type="range" min="30" max="95" value={prop} onChange={(e) => setProp(+e.target.value)} style={{ accentColor: "#22d3ee" }} /></label>
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 1.10 · Bypass ratio ══════════════ */
+function BypassRatio({ accent = "#ff7a1a", accent2 = "#ffb454" }) {
+  const [on, setOn] = usePlay(true);
+  const [bpr, setBpr] = useState(6);
+  const t = useTick(on, 1);
+  const fanR = 26 + bpr * 3.2;           // fan grows with BPR
+  const sfc = (0.72 - Math.min(bpr, 12) * 0.03).toFixed(2);
+  const noise = Math.max(0, Math.round(105 - bpr * 2.4));
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Bypass ratio</label>
+        <input type="range" min="0" max="12" step="0.5" value={bpr} onChange={(e) => setBpr(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{bpr}:1</span>
+        <PlayPill on={on} set={setOn} label="Flow" />
+      </div>
+      <VStage label={`Bypass ratio ${bpr}:1 — more cold air moved slowly = better fuel burn and less noise. Est. SFC ${sfc} · jet noise ${noise} dB(rel).`}>
+        <svg viewBox="0 0 320 170" className="v-svg">
+          {/* cowl */}
+          <ellipse cx="70" cy="85" rx="26" ry={fanR} fill="#1c1613" stroke={accent} />
+          {/* spinning fan */}
+          <g transform="translate(70,85)">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <rect key={i} x="-2.5" y={-fanR + 4} width="5" height={fanR - 6} rx="2" fill={accent} opacity="0.8"
+                transform={`rotate(${(t * 200 + i * 36) % 360})`} />
+            ))}
+            <circle r="6" fill="#31261f" stroke={accent2} />
+          </g>
+          {/* core (constant) */}
+          <rect x="96" y="70" width="150" height="30" rx="6" fill="#120d0b" stroke="#463831" />
+          <text x="171" y="89" fontSize="7.5" fill="#8f8078" textAnchor="middle">core (hot)</text>
+          {/* bypass streams — count scales with BPR */}
+          {Array.from({ length: Math.max(2, Math.round(bpr)) }).map((_, i) => {
+            const f = ((t * 0.5 + i / bpr) % 1);
+            const y = 85 - fanR + 8 + (i / Math.max(1, bpr)) * (2 * fanR - 16);
+            const inCore = Math.abs(y - 85) < 16;
+            if (inCore) return null;
+            return <circle key={i} cx={96 + f * 200} cy={y} r="2" fill="#60a5fa" opacity={0.8} />;
+          })}
+          {/* hot core jet */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const f = ((t * 0.9 + i / 6) % 1);
+            return <circle key={"h" + i} cx={246 + f * 60} cy={85 + Math.sin(i) * 4} r={2 + f * 2} fill={heat(0.7)} opacity={1 - f * 0.6} />;
+          })}
+          {/* readouts */}
+          <g transform="translate(230,120)">
+            <text x="0" y="0" fontSize="8" fill="#a99a91">SFC</text><text x="70" y="0" fontSize="9" fill={accent} textAnchor="end">{sfc}</text>
+            <text x="0" y="16" fontSize="8" fill="#a99a91">noise</text><text x="70" y="16" fontSize="9" fill="#22d3ee" textAnchor="end">{noise} dB</text>
+          </g>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 1.12 · Engine ratings & flat rating ══════════════ */
+function EngineRatings({ accent = "#ff7a1a", accent2 = "#ffb454" }) {
+  const [oat, setOat] = useState(15);     // °C ambient
+  const corner = 30;                       // flat-rating corner temp
+  // thrust: flat (100%) up to corner, then falls
+  const thrustPct = oat <= corner ? 100 : Math.max(60, 100 - (oat - corner) * 2.2);
+  const px = (temp) => 40 + ((temp + 20) / 80) * 260;   // -20..60 → x
+  const py = (pct) => 140 - ((pct - 55) / 50) * 120;
+  const curve = Array.from({ length: 60 }, (_, i) => {
+    const temp = -20 + (i / 59) * 80;
+    const p = temp <= corner ? 100 : Math.max(60, 100 - (temp - corner) * 2.2);
+    return `${px(temp)},${py(p)}`;
+  }).join(" ");
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Ambient temp (OAT)</label>
+        <input type="range" min="-20" max="55" value={oat} onChange={(e) => setOat(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{oat}°C</span>
+      </div>
+      <VStage label={oat <= corner
+        ? `Below the flat-rating corner (${corner}°C) the engine holds full rated thrust — protecting the hot section from over-temperature on cold days.`
+        : `Above the corner temperature, thrust falls off: at ${oat}°C the engine delivers ~${Math.round(thrustPct)}% of rated thrust.`}>
+        <svg viewBox="0 0 320 165" className="v-svg">
+          <line x1="40" y1="140" x2="308" y2="140" stroke="#463831" /><text x="308" y="153" fontSize="7.5" fill="#8f8078" textAnchor="end">OAT °C</text>
+          <line x1="40" y1="140" x2="40" y2="18" stroke="#463831" /><text x="44" y="16" fontSize="7.5" fill="#8f8078">thrust %</text>
+          {/* corner marker */}
+          <line x1={px(corner)} y1="20" x2={px(corner)} y2="140" stroke={accent2} strokeDasharray="3 3" opacity="0.5" />
+          <text x={px(corner)} y="30" fontSize="7" fill={accent2} textAnchor="middle">flat-rating corner</text>
+          <polyline points={curve} fill="none" stroke={accent} strokeWidth="2.5" />
+          {/* current point */}
+          <circle cx={px(oat)} cy={py(thrustPct)} r="5" fill="#fff3d0" stroke={accent} />
+          <text x={px(oat)} y={py(thrustPct) - 10} fontSize="8" fill={accent} textAnchor="middle">{Math.round(thrustPct)}%</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
 /* ── styled fallback ── */
 function Placeholder({ accent = "#ff7a1a", session }) {
   return (
@@ -351,7 +565,11 @@ export const VISUALS = {
   StationPTV,
   BraytonCycle,
   ThrustBuilder,
-  EngineCompare: EngineExplorer,
+  EngineCompare,
+  PerformanceCalc,
+  EfficiencyDial,
+  BypassRatio,
+  EngineRatings,
 };
 
 export function Visual({ visual, accent, accent2, session }) {

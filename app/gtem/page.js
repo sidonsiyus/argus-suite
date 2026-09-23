@@ -1293,4 +1293,22 @@ const CSS = `
 .v-ph-ring{width:56px;height:56px;border-radius:50%;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:22px;opacity:.9}
 .v-ph-t{font-size:13px;font-weight:700;color:var(--ink);margin:0}
 .v-ph-s{font-size:12px;color:var(--muted);max-width:340px;line-height:1.5;margin:0}
+/* PerformanceCalc */
+.pc-panel{display:flex;flex-direction:column;gap:9px;width:100%;padding:6px 2px}
+.pc-ctl{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.pc-ctl span{min-width:96px}
+.pc-ctl input[type=range]{flex:1}
+.pc-ctl b{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;min-width:58px;text-align:right}
+.pc-out{margin-top:6px;display:flex;flex-direction:column;gap:8px}
+.pc-row{display:flex;align-items:center;gap:10px}
+.pc-lab{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);min-width:64px}
+.pc-track{flex:1;height:9px;border-radius:5px;background:var(--line);overflow:hidden}
+.pc-fill{height:100%;border-radius:5px;transition:width .25s ease}
+.pc-val{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;min-width:110px;text-align:right}
+.pc-val em{font-style:normal;font-size:9px;color:var(--muted);font-weight:600}
+/* EfficiencyDial */
+.ef-wrap{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.ef-op{font-size:20px;font-weight:300;color:var(--muted)}
+.ef-dial{display:flex;align-items:center;justify-content:center}
+.ef-ctls{display:flex;flex-direction:column;gap:8px;margin-top:12px;padding:0 6px}
 `;
