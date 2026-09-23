@@ -1345,6 +1345,337 @@ function SystemReview({ accent = "#f59e0b", accent2 = "#fbbf24" }) {
   );
 }
 
+/* ── shared arc gauge (Unit IV) ── */
+function ArcGauge({ value, min = 0, max = 100, unit, label, redFrom, accent = "#ff5722", size = 130 }) {
+  const a0 = 135, a1 = 405; // sweep
+  const frac = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  const ang = (a0 + frac * (a1 - a0)) * Math.PI / 180;
+  const R = size / 2 - 14, cx = size / 2, cy = size / 2;
+  const pol = (deg, r) => [cx + Math.cos(deg * Math.PI / 180) * r, cy + Math.sin(deg * Math.PI / 180) * r];
+  const arc = (from, to, r) => {
+    const [x0, y0] = pol(from, r), [x1, y1] = pol(to, r);
+    return `M${x0} ${y0} A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x1} ${y1}`;
+  };
+  const redAng = redFrom != null ? a0 + ((redFrom - min) / (max - min)) * (a1 - a0) : null;
+  const nx = cx + Math.cos(ang) * (R - 4), ny = cy + Math.sin(ang) * (R - 4);
+  const over = redFrom != null && value >= redFrom;
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+      <path d={arc(a0, a1, R)} fill="none" stroke="#3a2018" strokeWidth="9" strokeLinecap="round" />
+      {redAng != null && <path d={arc(redAng, a1, R)} fill="none" stroke="#ff5722" strokeWidth="9" strokeLinecap="round" opacity="0.55" />}
+      <path d={arc(a0, a0 + frac * (a1 - a0), R)} fill="none" stroke={over ? "#ff5722" : accent} strokeWidth="9" strokeLinecap="round" />
+      <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={over ? "#ff5722" : "#fff3d0"} strokeWidth="2.5" />
+      <circle cx={cx} cy={cy} r="4" fill="#2b1a13" stroke={accent} />
+      <text x={cx} y={cy + R - 2} textAnchor="middle" fontSize="15" fontWeight="700" fill={over ? "#ff5722" : "#f3e4dd"}>{typeof value === "number" ? (value % 1 ? value.toFixed(2) : value) : value}</text>
+      <text x={cx} y={cy + R + 10} textAnchor="middle" fontSize="7" fill="#b8968a">{unit}</text>
+      <text x={cx} y="14" textAnchor="middle" fontSize="8" fill={accent} style={{ fontFamily: "ui-monospace,monospace" }}>{label}</text>
+    </svg>
+  );
+}
+
+/* ══════════════ 4.1 · EGT / ITT gauge ══════════════ */
+function EgtGauge({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [thr, setThr] = useState(60);
+  const [wear, setWear] = useState(20);
+  const egt = Math.round(380 + (thr / 100) * 480 + (wear / 100) * 120);
+  const redline = 950;
+  const margin = redline - egt;
+  return (
+    <div>
+      <div className="ge-top" style={{ gap: 12 }}>
+        <div className="ge-thr"><label>Thrust</label><input type="range" min="20" max="100" value={thr} onChange={(e) => setThr(+e.target.value)} style={{ accentColor: accent }} /><span style={{ color: accent }}>{thr}%</span></div>
+        <div className="ge-thr"><label>Engine wear</label><input type="range" min="0" max="100" value={wear} onChange={(e) => setWear(+e.target.value)} style={{ accentColor: accent }} /><span style={{ color: accent }}>{wear}%</span></div>
+      </div>
+      <VStage label={`EGT ${egt}°C · red-line ${redline}°C · margin ${margin}°C. As the engine wears, EGT for the same thrust rises and the margin to the red-line shrinks — a headline health indicator.`}>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 20, padding: 8 }}>
+          <ArcGauge value={egt} min={300} max={1050} unit="°C" label="EGT" redFrom={redline} accent={accent} size={150} />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: margin < 60 ? "#ff5722" : accent2, fontVariantNumeric: "tabular-nums" }}>{margin}°</div>
+            <div style={{ fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", fontFamily: "var(--mono)" }}>EGT margin</div>
+          </div>
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.2 · Thrust indication — EPR vs N1 ══════════════ */
+function EprGauge({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [thr, setThr] = useState(70);
+  const epr = (1.05 + (thr / 100) * 0.55).toFixed(2);
+  const n1 = Math.round(30 + (thr / 100) * 70);
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Throttle</label>
+        <input type="range" min="20" max="100" value={thr} onChange={(e) => setThr(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{thr}%</span>
+      </div>
+      <VStage label="Thrust is set on a parameter, not measured directly. EPR (pressure ratio) and N1 (fan speed) both track thrust — manufacturers pick one as primary; both move together with the throttle.">
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, padding: 8 }}>
+          <ArcGauge value={+epr} min={1} max={1.7} unit="ratio" label="EPR" accent={accent} size={140} />
+          <ArcGauge value={n1} min={0} max={110} unit="% RPM" label="N1" redFrom={104} accent={accent2} size={140} />
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.3 · Oil & fuel ══════════════ */
+function OilFuelGauge({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [thr, setThr] = useState(60);
+  const [fault, setFault] = useState(false);
+  const oilP = fault ? 12 : Math.round(45 + (thr / 100) * 30);
+  const oilT = Math.round(70 + (thr / 100) * 40);
+  const ff = Math.round(400 + (thr / 100) * 2400);
+  return (
+    <div>
+      <div className="ge-top" style={{ gap: 12 }}>
+        <div className="ge-thr"><label>Thrust</label><input type="range" min="20" max="100" value={thr} onChange={(e) => setThr(+e.target.value)} style={{ accentColor: accent }} /><span style={{ color: accent }}>{thr}%</span></div>
+        <Seg accent={accent} value={fault ? "f" : "n"} onChange={(v) => setFault(v === "f")} options={[{ v: "n", label: "Normal" }, { v: "f", label: "Oil fault" }]} />
+      </div>
+      <VStage label={fault ? "Low oil pressure! Bearings fail quickly without lubrication — a time-critical emergency the fluid gauges catch before the thrust gauges." : "Oil pressure and temperature confirm lubrication and cooling; fuel flow shows consumption and, cross-checked, abnormal operation."}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 12, padding: 6 }}>
+          <ArcGauge value={oilP} min={0} max={90} unit="psi" label="OIL P" redFrom={oilP < 20 ? 0 : null} accent={oilP < 20 ? "#ff5722" : accent} size={120} />
+          <ArcGauge value={oilT} min={40} max={150} unit="°C" label="OIL T" redFrom={140} accent={accent2} size={120} />
+          <ArcGauge value={ff} min={0} max={3200} unit="kg/h" label="FUEL" accent={accent} size={120} />
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.4 / 4.12 · Engine gauge cluster (EICAS) ══════════════ */
+function EngineGaugeCluster({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [thr, setThr] = useState(65);
+  const rows = [
+    { k: "N1", v: Math.round(28 + thr * 0.72), max: 110, red: 104, u: "%" },
+    { k: "EGT", v: Math.round(360 + thr * 5.4), max: 1050, red: 950, u: "°C" },
+    { k: "N2", v: Math.round(55 + thr * 0.45), max: 110, red: 105, u: "%" },
+    { k: "FF", v: Math.round(400 + thr * 26), max: 3200, red: null, u: "kg/h" },
+    { k: "VIB", v: +(0.4 + (thr > 90 ? 2 : 0.3)).toFixed(1), max: 5, red: 4, u: "ips" },
+  ];
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Thrust lever</label>
+        <input type="range" min="20" max="100" value={thr} onChange={(e) => setThr(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{thr}%</span>
+      </div>
+      <VStage label="EICAS/ECAM gather every parameter into one alerting picture. Green is normal, amber caution, red the limit. A parameter out of family is spotted instantly against the whole set.">
+        <svg viewBox="0 0 300 160" className="v-svg">
+          {rows.map((r, i) => {
+            const frac = Math.min(1, r.v / r.max);
+            const over = r.red != null && r.v >= r.red;
+            const y = 20 + i * 28;
+            return (
+              <g key={r.k}>
+                <text x="14" y={y + 4} fontSize="9" fill="#b8968a" style={{ fontFamily: "ui-monospace,monospace" }}>{r.k}</text>
+                <rect x="52" y={y - 6} width="180" height="12" rx="6" fill="#2b1a13" />
+                {r.red != null && <rect x={52 + (r.red / r.max) * 180} y={y - 6} width={180 - (r.red / r.max) * 180} height="12" rx="6" fill="#ff5722" opacity="0.4" />}
+                <rect x="52" y={y - 6} width={frac * 180} height="12" rx="6" fill={over ? "#ff5722" : accent} />
+                <text x="242" y={y + 4} fontSize="9" fill={over ? "#ff5722" : "#f3e4dd"} textAnchor="start" style={{ fontVariantNumeric: "tabular-nums" }}>{r.v}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.5 · Spool speed ══════════════ */
+function SpeedGauge({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [thr, setThr] = useState(60);
+  const n1 = Math.round(28 + thr * 0.72), n2 = Math.round(58 + thr * 0.44);
+  const over = n2 > 105;
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Power</label>
+        <input type="range" min="20" max="105" value={thr} onChange={(e) => setThr(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: over ? "#ff5722" : accent }}>{over ? "OVERSPEED" : thr + "%"}</span>
+      </div>
+      <VStage label="Each spool's speed is shown as a percentage of a design datum. N1 is the fan/LP spool, N2 the HP spool. Overspeed protection prevents a catastrophic disk burst.">
+        <div style={{ display: "flex", justifyContent: "center", gap: 20, padding: 8 }}>
+          <ArcGauge value={n1} min={0} max={110} unit="% N1" label="LP SPOOL" redFrom={104} accent={accent} size={140} />
+          <ArcGauge value={n2} min={0} max={115} unit="% N2" label="HP SPOOL" redFrom={105} accent={accent2} size={140} />
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.6 / 5.7 · Vibration monitor ══════════════ */
+function VibMonitor({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [on, setOn] = usePlay(true);
+  const [imbalance, setImbalance] = useState(20);
+  const t = useTick(on, 1);
+  const level = (imbalance / 100 * 4 + 0.3);
+  const alarm = level > 3;
+  const hist = useMemo(() => Array.from({ length: 40 }, (_, i) => i), []);
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Rotor imbalance</label>
+        <input type="range" min="0" max="100" value={imbalance} onChange={(e) => setImbalance(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: alarm ? "#ff5722" : accent }}>{level.toFixed(1)} ips</span>
+        <PlayPill on={on} set={setOn} label="Live" />
+      </div>
+      <VStage label={alarm ? "Vibration above limit — imbalance, bearing wear or a rub. Investigate; fan imbalance is often cured by trim balancing." : "A healthy rotor runs smoothly. Rising vibration warns of imbalance or bearing wear before it becomes damage."}>
+        <svg viewBox="0 0 300 130" className="v-svg">
+          {/* live waveform */}
+          <polyline points={hist.map((i) => `${20 + i * 6.7},${65 + Math.sin(t * 6 + i * 0.8) * level * 8}`).join(" ")}
+            fill="none" stroke={alarm ? "#ff5722" : accent} strokeWidth="1.6" />
+          {/* limit lines */}
+          <line x1="20" y1={65 - 3 * 8} x2="288" y2={65 - 3 * 8} stroke="#ff5722" strokeDasharray="3 3" opacity="0.5" />
+          <line x1="20" y1={65 + 3 * 8} x2="288" y2={65 + 3 * 8} stroke="#ff5722" strokeDasharray="3 3" opacity="0.5" />
+          <text x="24" y={65 - 3 * 8 - 3} fontSize="6.5" fill="#ff5722">limit</text>
+          {/* level bar */}
+          <rect x="20" y="112" width="268" height="8" rx="4" fill="#2b1a13" />
+          <rect x="20" y="112" width={Math.min(268, level / 5 * 268)} height="8" rx="4" fill={alarm ? "#ff5722" : accent} />
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.7 · Torque / power ══════════════ */
+function TorqueGauge({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [tq, setTq] = useState(60);
+  const [rpm, setRpm] = useState(95); // governed prop speed
+  const shp = Math.round((tq / 100) * (rpm / 100) * 1200);
+  const over = tq > 100;
+  return (
+    <div>
+      <div className="ge-top" style={{ gap: 12 }}>
+        <div className="ge-thr"><label>Torque</label><input type="range" min="10" max="110" value={tq} onChange={(e) => setTq(+e.target.value)} style={{ accentColor: accent }} /><span style={{ color: over ? "#ff5722" : accent }}>{tq}%</span></div>
+        <div className="ge-thr"><label>Prop RPM</label><input type="range" min="60" max="100" value={rpm} onChange={(e) => setRpm(+e.target.value)} style={{ accentColor: accent }} /><span style={{ color: accent }}>{rpm}%</span></div>
+      </div>
+      <VStage label={`Turboprops/turboshafts make power, not jet thrust — torque is the primary gauge. Power = torque × RPM ≈ ${shp} SHP. Torque is limited to protect the gearbox.`}>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 20, padding: 8 }}>
+          <ArcGauge value={tq} min={0} max={120} unit="% torque" label="TORQUE" redFrom={100} accent={accent} size={150} />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: accent2, fontVariantNumeric: "tabular-nums" }}>{shp}</div>
+            <div style={{ fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--muted)", fontFamily: "var(--mono)" }}>shaft HP</div>
+          </div>
+        </div>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.8 · Augmentation overview ══════════════ */
+function AugmentOverview({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [k, setK] = useState("injection");
+  const boost = k === "injection" ? 12 : 55;
+  const fuelCost = k === "injection" ? 5 : 120;
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={k} onChange={setK} options={[{ v: "dry", label: "Dry" }, { v: "injection", label: "Injection" }, { v: "afterburner", label: "Afterburner" }]} />
+      </div>
+      <VStage label={k === "dry" ? "Dry rating: the engine's thrust with no augmentation." : k === "injection" ? "Injection boosts mass flow (density) to restore hot-day take-off thrust — a modest boost for little extra fuel." : "Afterburning burns extra fuel downstream for a large thrust boost — at an enormous fuel cost."}>
+        <svg viewBox="0 0 300 140" className="v-svg">
+          {/* thrust bar */}
+          <text x="20" y="34" fontSize="8" fill="#b8968a">thrust</text>
+          <rect x="70" y="24" width="200" height="18" rx="6" fill="#2b1a13" />
+          <rect x="70" y="24" width="120" height="18" rx="6" fill={accent} />
+          <rect x="190" y="24" width={k === "dry" ? 0 : (boost / 70) * 80} height="18" rx="6" fill={accent2} />
+          <text x="130" y="37" fontSize="8" fill="#1a0f0a" textAnchor="middle" fontWeight="700">dry</text>
+          {k !== "dry" && <text x={190 + (boost / 70) * 40} y="37" fontSize="7" fill="#1a0f0a" textAnchor="middle" fontWeight="700">+{boost}%</text>}
+          {/* fuel bar */}
+          <text x="20" y="84" fontSize="8" fill="#b8968a">fuel</text>
+          <rect x="70" y="74" width="200" height="18" rx="6" fill="#2b1a13" />
+          <rect x="70" y="74" width="80" height="18" rx="6" fill="#ffb454" />
+          <rect x="150" y="74" width={k === "dry" ? 0 : (fuelCost / 120) * 118} height="18" rx="6" fill="#ff5722" />
+          {k !== "dry" && <text x={150 + (fuelCost / 120) * 59} y="87" fontSize="7" fill="#1a0f0a" textAnchor="middle" fontWeight="700">+{fuelCost}%</text>}
+          <text x="150" y="122" fontSize="7.5" fill="#b8968a" textAnchor="middle">{k === "afterburner" ? "huge thrust, huge fuel burn" : k === "injection" ? "modest boost, little fuel" : "baseline"}</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.9 / 4.10 · Water / water-methanol injection ══════════════ */
+function WaterInjection({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [on, setOn] = usePlay(true);
+  const [flow, setFlow] = useState(0);
+  const t = useTick(on, 1);
+  const density = 1 + (flow / 100) * 0.14;
+  const thrust = Math.round(100 + (flow / 100) * 14);
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Injection flow</label>
+        <input type="range" min="0" max="100" value={flow} onChange={(e) => setFlow(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{flow}%</span>
+        <PlayPill on={on} set={setOn} label="Spray" />
+      </div>
+      <VStage label={`Water (or water-methanol) sprayed into the inlet cools and densifies the air — density ×${density.toFixed(2)}, so more mass flows and thrust rises to ${thrust}% of dry. Methanol adds antifreeze + a little energy.`}>
+        <svg viewBox="0 0 300 130" className="v-svg">
+          {/* inlet */}
+          <path d="M30 45 L150 52 L150 78 L30 85 Z" fill="#2b1a13" stroke={accent} />
+          {/* spray nozzle */}
+          <circle cx="60" cy="65" r="3" fill={accent2} />
+          {/* water droplets */}
+          {flow > 0 && Array.from({ length: Math.round(flow / 12) + 2 }).map((_, i) => {
+            const f = ((t * 0.8 + i / 8) % 1);
+            return <circle key={i} cx={60 + f * 88} cy={55 + (i % 3) * 8 + Math.sin(f * 6) * 3} r="1.6" fill="#7fd4e0" opacity={1 - f * 0.4} />;
+          })}
+          {/* engine + thrust bar */}
+          <rect x="150" y="50" width="60" height="30" rx="6" fill="#1a0f0a" stroke={accent} />
+          <rect x="150" y="100" width="120" height="10" rx="5" fill="#2b1a13" />
+          <rect x="150" y="100" width={(thrust - 90) / 25 * 120} height="10" rx="5" fill={accent} />
+          <text x="272" y="108" fontSize="8" fill={accent} textAnchor="end">{thrust}% thrust</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 4.11 · Afterburner ══════════════ */
+function Afterburner({ accent = "#ff5722", accent2 = "#ff8a65" }) {
+  const [on, setOn] = usePlay(true);
+  const [reheat, setReheat] = useState(false);
+  const t = useTick(on, 1);
+  const nozzle = reheat ? 22 : 10; // opening
+  const thrust = reheat ? 160 : 100;
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={reheat ? "on" : "off"} onChange={(v) => setReheat(v === "on")} options={[{ v: "off", label: "Dry" }, { v: "on", label: "Reheat ON" }]} />
+        <PlayPill on={on} set={setOn} label="Flow" />
+      </div>
+      <VStage label={reheat ? `Reheat lit: fuel burns in the jet pipe's spare oxygen, adding heat and jet velocity — thrust ~${thrust}% of dry. The variable nozzle opens to pass the extra volume (or the core would surge).` : "Dry: core exhaust flows out the nozzle normally. The jet pipe carries plenty of unburned oxygen — spare capacity for reheat."}>
+        <svg viewBox="0 0 320 120" className="v-svg">
+          <defs>
+            <radialGradient id="ab-flame" cx="0.3" cy="0.5" r="0.7">
+              <stop offset="0" stopColor="#fff3d0" /><stop offset="0.4" stopColor="#ff7a1a" /><stop offset="1" stopColor="#ff5722" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          {/* jet pipe */}
+          <path d={`M30 45 L230 50 L${250} ${60 - nozzle} L${250} ${60 + nozzle} L230 70 L30 75 Z`} fill="#1a0f0a" stroke={accent} />
+          {/* spray bars */}
+          {[110, 130, 150].map((x) => <line key={x} x1={x} y1="50" x2={x} y2="70" stroke={accent2} strokeWidth="1.5" />)}
+          {/* flame holder */}
+          <path d="M165 55 l8 5 l-8 5 Z" fill="#3a2018" stroke={accent2} />
+          {/* reheat flame */}
+          {reheat && <ellipse cx="215" cy="60" rx={40 + Math.sin(t * 8) * 5} ry={12 + nozzle / 2} fill="url(#ab-flame)" opacity="0.8" />}
+          {/* exhaust particles */}
+          {Array.from({ length: 12 }).map((_, i) => {
+            const f = ((t * (reheat ? 1 : 0.6) + i / 12) % 1);
+            return <circle key={i} cx={30 + f * (reheat ? 290 : 250)} cy={60 + Math.sin(i) * 6} r={1.8 + (reheat ? f * 2 : 0)} fill={heat(reheat ? 0.75 : 0.35)} opacity={1 - f * 0.5} />;
+          })}
+          {/* thrust readout */}
+          <text x="30" y="100" fontSize="9" fill={reheat ? "#ff5722" : accent}>thrust {thrust}%</text>
+          <text x="250" y="100" fontSize="7" fill="#b8968a" textAnchor="end">nozzle {reheat ? "open" : "nominal"}</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
 /* ── styled fallback ── */
 function Placeholder({ accent = "#ff7a1a", session }) {
   return (
@@ -1392,6 +1723,17 @@ export const VISUALS = {
   Ignition,
   SafetyZones,
   SystemReview,
+  // Unit IV — indication & power augmentation
+  EgtGauge,
+  EprGauge,
+  OilFuelGauge,
+  EngineGaugeCluster,
+  SpeedGauge,
+  VibMonitor,
+  TorqueGauge,
+  AugmentOverview,
+  WaterInjection,
+  Afterburner,
 };
 
 export function Visual({ visual, accent, accent2, session }) {
