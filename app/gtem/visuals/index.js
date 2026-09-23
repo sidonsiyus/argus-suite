@@ -545,6 +545,513 @@ function EngineRatings({ accent = "#ff7a1a", accent2 = "#ffb454" }) {
   );
 }
 
+/* ══════════════ 2.1 · Inlet duct — diffuse & recover ══════════════ */
+function InletDuct({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [on, setOn] = usePlay(true);
+  const [sup, setSup] = useState(false);
+  const [spd, setSpd] = useState(60);
+  const t = useTick(on, 1);
+  const recovery = sup ? Math.round(88 + (spd / 100) * 6) : Math.round(96 + (spd / 100) * 3);
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={sup ? "s" : "u"} onChange={(v) => setSup(v === "s")} options={[{ v: "u", label: "Subsonic" }, { v: "s", label: "Supersonic" }]} />
+        <PlayPill on={on} set={setOn} label="Flow" />
+      </div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Airspeed</label>
+        <input type="range" min="20" max="100" value={spd} onChange={(e) => setSpd(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{spd}%</span>
+      </div>
+      <VStage label={sup ? `Supersonic inlet: shock waves decelerate the flow before the diffuser. Pressure recovery ≈ ${recovery}%.` : `Subsonic diffuser: the duct widens, slowing the air and raising its pressure. Ram recovery ≈ ${recovery}%.`}>
+        <svg viewBox="0 0 320 150" className="v-svg">
+          {/* diffuser duct */}
+          <path d="M30 60 L120 60 L250 45 L250 105 L120 90 L30 90 Z" fill="#101a1c" stroke={accent} opacity="0.9" />
+          <text x="255" y="78" fontSize="7" fill="#7fb0b8">compressor face</text>
+          {/* shock waves for supersonic */}
+          {sup && [0, 1, 2].map((i) => <line key={i} x1={54 + i * 16} y1="55" x2={44 + i * 16} y2="95" stroke={accent2} strokeWidth="1.5" opacity="0.7" />)}
+          {/* particles slowing as duct widens */}
+          {Array.from({ length: 14 }).map((_, i) => {
+            const f = ((t * (0.2 + spd / 200) + i / 14) % 1);
+            const x = 30 + f * 210;
+            const slow = 1 - f * 0.55; // slows downstream
+            return <circle key={i} cx={x} cy={75 + Math.sin(i * 2) * (10 + f * 6)} r={1.6 + f * 1.6} fill={accent} opacity={slow} />;
+          })}
+          {/* pressure bar */}
+          <rect x="270" y={110 - recovery * 0.8} width="14" height={recovery * 0.8} rx="3" fill={accent2} opacity="0.85" />
+          <text x="277" y="122" fontSize="7" fill="#7fb0b8" textAnchor="middle">P</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.2 · Inlet configuration & distortion ══════════════ */
+const INLETS = {
+  podded: { label: "Podded", rec: 98, dist: 0.08, note: "Clean air, highest pressure recovery — the airliner standard." },
+  buried: { label: "Buried", rec: 93, dist: 0.28, note: "Lower drag/signature, but long ducts add distortion." },
+  sduct: { label: "S-duct", rec: 91, dist: 0.4, note: "Hides the compressor face; the bends create distortion to manage." },
+  chin: { label: "Chin", rec: 95, dist: 0.18, note: "Good for high angle of attack; used on some fighters." },
+};
+function InletConfig({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [k, setK] = useState("podded");
+  const cfg = INLETS[k];
+  const cells = 24;
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={k} onChange={setK} options={Object.entries(INLETS).map(([v, c]) => ({ v, label: c.label }))} />
+      </div>
+      <VStage label={`${cfg.label}: pressure recovery ${cfg.rec}%. ${cfg.note}`}>
+        <svg viewBox="0 0 300 150" className="v-svg">
+          <text x="150" y="16" fontSize="8" fill="#7fb0b8" textAnchor="middle">compressor-face distortion map</text>
+          {/* distortion disc */}
+          {Array.from({ length: cells }).map((_, i) => {
+            const ang = (i / cells) * Math.PI * 2;
+            return Array.from({ length: 4 }).map((__, r) => {
+              const rad = 14 + r * 12;
+              const x = 150 + Math.cos(ang) * rad, y = 80 + Math.sin(ang) * rad;
+              // distortion concentrated at bottom for buried/sduct
+              const local = cfg.dist * (0.5 + 0.5 * Math.sin(ang - Math.PI / 2));
+              return <circle key={i + "-" + r} cx={x} cy={y} r="5.5" fill={heat(0.15 + local)} opacity={0.85} />;
+            });
+          })}
+          <circle cx="150" cy="80" r="60" fill="none" stroke={accent} strokeOpacity="0.4" />
+          <rect x="235" y={120 - cfg.rec * 0.9} width="14" height={cfg.rec * 0.9} rx="3" fill={accent2} />
+          <text x="242" y="132" fontSize="7" fill="#7fb0b8" textAnchor="middle">rec</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.3 · Axial vs centrifugal compressor ══════════════ */
+function CompressorTypes({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [on, setOn] = usePlay(true);
+  const [type, setType] = useState("axial");
+  const t = useTick(on, 1);
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={type} onChange={setType} options={[{ v: "axial", label: "Axial" }, { v: "centrifugal", label: "Centrifugal" }]} />
+        <PlayPill on={on} set={setOn} label="Spin" />
+      </div>
+      <VStage label={type === "axial" ? "Axial: air flows straight through many rotor/stator stages, each adding a small pressure rise — high flow in a slim engine." : "Centrifugal: the impeller flings air radially outward; a diffuser turns that velocity into a large pressure rise in a short, rugged package."}>
+        <svg viewBox="0 0 320 150" className="v-svg">
+          {type === "axial" ? (
+            <>
+              <path d="M30 55 L290 63 L290 87 L30 95 Z" fill="#101a1c" stroke={accent} opacity="0.7" />
+              {[60, 96, 132, 168, 204, 240].map((x, i) => (
+                <g key={x}>
+                  <rect x={x} y={i % 2 ? 58 : 64} width="4" height="28" rx="1.5" fill={i % 2 ? accent2 : accent} opacity="0.85" />
+                </g>
+              ))}
+              {/* flow particles */}
+              {Array.from({ length: 10 }).map((_, i) => {
+                const f = ((t * 0.4 + i / 10) % 1);
+                return <circle key={i} cx={30 + f * 260} cy={75 + Math.sin(i) * 6} r={1.8 + f * 1.4} fill={heat(0.1 + f * 0.25)} opacity="0.9" />;
+              })}
+              <text x="150" y="120" fontSize="7.5" fill="#7fb0b8" textAnchor="middle">6 stages → high overall pressure ratio</text>
+            </>
+          ) : (
+            <>
+              <circle cx="150" cy="78" r="52" fill="#101a1c" stroke={accent} opacity="0.6" />
+              <g transform="translate(150,78)">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <path key={i} d="M0 0 Q14 -4 30 4" fill="none" stroke={accent} strokeWidth="2.5" opacity="0.8"
+                    transform={`rotate(${(t * 160 + i * 30) % 360})`} />
+                ))}
+                <circle r="7" fill="#16292d" stroke={accent2} />
+              </g>
+              {/* outward particles */}
+              {Array.from({ length: 12 }).map((_, i) => {
+                const f = ((t * 0.6 + i / 12) % 1);
+                const ang = (i / 12) * Math.PI * 2 + t;
+                const rad = 8 + f * 46;
+                return <circle key={i} cx={150 + Math.cos(ang) * rad} cy={78 + Math.sin(ang) * rad} r={1.6 + f * 1.4} fill={heat(0.1 + f * 0.3)} opacity={1 - f * 0.4} />;
+              })}
+              <text x="150" y="142" fontSize="7.5" fill="#7fb0b8" textAnchor="middle">1 stage → big pressure rise, large frontal area</text>
+            </>
+          )}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.4 · Ice protection ══════════════ */
+function IceProtection({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [mode, setMode] = useState("off");
+  const iced = mode === "off";
+  const lipT = mode === "off" ? -8 : mode === "hot" ? 42 : 30;
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={mode} onChange={setMode} options={[{ v: "off", label: "Anti-ice OFF" }, { v: "hot", label: "Hot-air" }, { v: "elec", label: "Electrical" }]} />
+      </div>
+      <VStage label={iced ? "Anti-ice off: supercooled water freezes on the inlet lip and spinner — distorting flow and risking ingestion when it sheds." : mode === "hot" ? "Hot-air anti-ice: compressor bleed warms the inlet lip and cowl, keeping them ice-free (small performance cost)." : "Electrical anti-ice: heating elements protect probes and the spinner without costing bleed air."}>
+        <svg viewBox="0 0 300 150" className="v-svg">
+          {/* nacelle lip */}
+          <path d="M60 40 Q40 75 60 110 L120 100 Q108 75 120 50 Z" fill="#101a1c" stroke={mode === "off" ? "#7fb0b8" : accent} strokeWidth={mode === "off" ? 1 : 2} />
+          <path d="M120 50 L250 60 L250 90 L120 100 Z" fill="#0d1518" stroke="#24383c" />
+          {/* spinner */}
+          <ellipse cx="135" cy="75" rx="10" ry="22" fill="#16292d" stroke={mode === "off" ? "#7fb0b8" : accent} />
+          {/* ice buildup */}
+          {iced && <>
+            <path d="M58 44 Q46 58 52 66 L62 60 Q58 50 64 46 Z" fill="#bfe9f2" opacity="0.85" />
+            <path d="M56 92 Q44 100 54 108 L64 100 Q58 96 62 90 Z" fill="#bfe9f2" opacity="0.85" />
+            <circle cx="126" cy="60" r="4" fill="#bfe9f2" opacity="0.8" />
+          </>}
+          {/* heat glow */}
+          {!iced && <path d="M60 40 Q40 75 60 110 L120 100 Q108 75 120 50 Z" fill={mode === "hot" ? "rgba(255,120,40,0.25)" : "rgba(34,211,238,0.22)"} />}
+          {mode === "hot" && Array.from({ length: 4 }).map((_, i) => <circle key={i} cx={200 - i * 20} cy={75 + Math.sin(i) * 6} r="2.5" fill="#ff8a65" opacity="0.7" />)}
+          {/* temp readout */}
+          <text x="230" y="120" fontSize="9" fill={lipT < 0 ? "#7fb0b8" : accent} textAnchor="end">lip {lipT}°C</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.5 · Fan balancing ══════════════ */
+function FanBalance({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [on, setOn] = usePlay(true);
+  const [trim, setTrim] = useState(0); // 0..100 cancels imbalance at ~70
+  const t = useTick(on, 1);
+  const residual = Math.abs(70 - trim) / 70; // 0 = balanced
+  const wobble = residual * 5;
+  const vib = (residual * 4.5 + 0.2).toFixed(1);
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Trim weight</label>
+        <input type="range" min="0" max="100" value={trim} onChange={(e) => setTrim(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: vib < 1 ? accent : "#ff8a65" }}>{vib} ips</span>
+        <PlayPill on={on} set={setOn} label="Spin" />
+      </div>
+      <VStage label={vib < 1 ? "Balanced — trim weight cancels the fan's imbalance; vibration is within limits." : "Imbalance causes the fan to wobble and vibrate. Slide the trim weight to cancel it and watch vibration fall."}>
+        <svg viewBox="0 0 300 150" className="v-svg">
+          <g transform={`translate(${150 + Math.sin(t * 8) * wobble},${78 + Math.cos(t * 8) * wobble})`}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <rect key={i} x="-2.5" y="-48" width="5" height="44" rx="2.5" fill={accent} opacity="0.85"
+                transform={`rotate(${(t * 220 + i * 30) % 360})`} />
+            ))}
+            <circle r="8" fill="#16292d" stroke={accent2} />
+            {/* imbalance marker */}
+            <circle cx="0" cy="-46" r={3 + residual * 3} fill={residual > 0.1 ? "#ff8a65" : accent2}
+              transform={`rotate(${(t * 220) % 360})`} />
+          </g>
+          {/* vibration meter */}
+          <rect x="40" y="130" width="220" height="8" rx="4" fill="#16292d" />
+          <rect x="40" y="130" width={Math.min(220, vib * 44)} height="8" rx="4" fill={vib < 1 ? accent : "#ff8a65"} />
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.6 · Compressor map — stall & surge ══════════════ */
+function StallSurge({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [op, setOp] = useState(55); // operating point along working line
+  const surged = op > 88;
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on && surged, 1);
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Throttle push</label>
+        <input type="range" min="20" max="100" value={op} onChange={(e) => setOp(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: surged ? "#ff5722" : accent }}>{surged ? "SURGE" : "stable"}</span>
+        <PlayPill on={on} set={setOn} label="Flow" />
+      </div>
+      <VStage label={surged ? "Operating point crossed the surge line — flow reverses through the compressor with a bang, thrust loss and high EGT." : "The operating point runs up the working line. The gap to the surge line above is the surge margin — keep clear of it."}>
+        <svg viewBox="0 0 300 160" className="v-svg">
+          <line x1="40" y1="140" x2="288" y2="140" stroke="#24383c" /><text x="288" y="153" fontSize="7" fill="#7fb0b8" textAnchor="end">mass flow</text>
+          <line x1="40" y1="140" x2="40" y2="16" stroke="#24383c" /><text x="44" y="14" fontSize="7" fill="#7fb0b8">pressure ratio</text>
+          {/* surge line */}
+          <path d="M60 120 Q120 60 210 34" fill="none" stroke="#ff5722" strokeWidth="2" strokeDasharray="4 3" />
+          <text x="150" y="44" fontSize="7" fill="#ff5722">surge line</text>
+          {/* working line */}
+          <path d="M70 132 Q150 100 250 70" fill="none" stroke={accent} strokeWidth="2" />
+          <text x="215" y="86" fontSize="7" fill={accent}>working line</text>
+          {/* operating point */}
+          {(() => {
+            const f = (op - 20) / 80;
+            const x = 70 + f * 180, y = 132 - f * 62;
+            return <>
+              <circle cx={x} cy={y} r="5.5" fill={surged ? "#ff5722" : "#dff6fb"} stroke={surged ? "#ff5722" : accent} />
+              {surged && Array.from({ length: 6 }).map((_, i) => {
+                const rf = ((t * 1.5 + i / 6) % 1);
+                return <circle key={i} cx={x - rf * 120} cy={y + Math.sin(i) * 6} r={2 + rf * 2} fill="#ff8a65" opacity={1 - rf} />;
+              })}
+            </>;
+          })()}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.7 · Airflow control — bleed & variable vanes ══════════════ */
+function AirflowControl({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [spd, setSpd] = useState(40);
+  // at low speed you need bleed open + vanes closed
+  const bleedOpen = spd < 60;
+  const vaneAngle = 40 - (spd / 100) * 40; // more closed (angled) at low speed
+  const stable = spd < 60 ? bleedOpen : true;
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Engine speed</label>
+        <input type="range" min="20" max="100" value={spd} onChange={(e) => setSpd(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{spd}% N</span>
+        <PlayPill on={on} set={setOn} label="Flow" />
+      </div>
+      <VStage label={spd < 60 ? "At low speed the front stages pump more than the rear can swallow — the bleed valve opens (dumping excess air) and the variable vanes angle to keep incidence correct." : "At high speed the compressor is matched: bleeds close and vanes open to the running position."}>
+        <svg viewBox="0 0 320 150" className="v-svg">
+          <path d="M30 55 L290 62 L290 88 L30 95 Z" fill="#101a1c" stroke={accent} opacity="0.7" />
+          {/* variable vanes */}
+          {[70, 100, 130].map((x) => (
+            <line key={x} x1={x} y1="60" x2={x + Math.sin((vaneAngle * Math.PI) / 180) * 10} y2="90" stroke={accent2} strokeWidth="3" />
+          ))}
+          <text x="100" y="112" fontSize="7" fill="#7fb0b8" textAnchor="middle">variable vanes</text>
+          {/* bleed valve */}
+          <g transform="translate(200,62)">
+            <rect x="-6" y="-2" width="12" height="6" fill={bleedOpen ? accent : "#24383c"} />
+            {bleedOpen && Array.from({ length: 4 }).map((_, i) => {
+              const f = ((t * 0.8 + i / 4) % 1);
+              return <circle key={i} cx="0" cy={-4 - f * 26} r="2" fill={accent} opacity={1 - f} />;
+            })}
+          </g>
+          <text x="200" y="112" fontSize="7" fill="#7fb0b8" textAnchor="middle">bleed valve</text>
+          {/* core flow */}
+          {Array.from({ length: 8 }).map((_, i) => {
+            const f = ((t * 0.4 + i / 8) % 1);
+            return <circle key={i} cx={30 + f * 260} cy={75 + Math.sin(i) * 5} r="2" fill={heat(0.12 + f * 0.2)} opacity="0.85" />;
+          })}
+          <text x="255" y="132" fontSize="8" fill={stable ? accent : "#ff8a65"} textAnchor="end">{stable ? "stable" : "front-stage stall risk"}</text>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.8 · Combustor zones ══════════════ */
+function Combustor({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [on, setOn] = usePlay(true);
+  const [far, setFar] = useState(50); // fuel-air ratio 0..100
+  const t = useTick(on, 1);
+  const stable = far > 25 && far < 78;
+  return (
+    <div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Fuel–air ratio</label>
+        <input type="range" min="5" max="100" value={far} onChange={(e) => setFar(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: stable ? accent : "#ff8a65" }}>{stable ? "stable" : far <= 25 ? "lean blow-out" : "rich / smoke"}</span>
+        <PlayPill on={on} set={setOn} label="Burn" />
+      </div>
+      <VStage label="Air is staged: ~¼ enters the primary zone to burn, the secondary zone completes combustion, and the dilution zone mixes in the rest to cool the gas to a turbine-safe temperature.">
+        <svg viewBox="0 0 320 150" className="v-svg">
+          <defs>
+            <radialGradient id="cb-flame" cx="0.5" cy="0.5" r="0.5">
+              <stop offset="0" stopColor="#fff3d0" /><stop offset="0.5" stopColor="#ff7a1a" /><stop offset="1" stopColor="#ff5722" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <path d="M40 45 Q60 35 90 38 L250 42 L250 108 L90 112 Q60 115 40 105 Z" fill="#101a1c" stroke={accent} />
+          {/* zones */}
+          <text x="90" y="30" fontSize="7" fill={accent2} textAnchor="middle">primary</text>
+          <text x="160" y="30" fontSize="7" fill={accent2} textAnchor="middle">secondary</text>
+          <text x="225" y="30" fontSize="7" fill={accent2} textAnchor="middle">dilution</text>
+          <line x1="120" y1="40" x2="120" y2="110" stroke="#24383c" strokeDasharray="3 3" />
+          <line x1="195" y1="41" x2="195" y2="109" stroke="#24383c" strokeDasharray="3 3" />
+          {/* flame */}
+          <ellipse cx="95" cy="75" rx={22 + Math.sin(t * 6) * 3} ry={16 + far / 8} fill="url(#cb-flame)" opacity={0.5 + far / 220} />
+          {/* liner cooling film holes */}
+          {[60, 90, 120, 150, 180, 210].map((x) => (
+            <circle key={x} cx={x} cy="44" r="1.5" fill={accent} opacity="0.6" />
+          ))}
+          {/* dilution air arrows */}
+          {[205, 225, 245].map((x) => <line key={x} x1={x} y1="40" x2={x} y2="60" stroke={accent} strokeWidth="1.5" markerEnd="url(#cdA)" />)}
+          {/* cooled exit particles */}
+          {Array.from({ length: 8 }).map((_, i) => {
+            const f = ((t * 0.5 + i / 8) % 1);
+            return <circle key={i} cx={95 + f * 155} cy={75 + Math.sin(i) * 6} r="2.4" fill={heat(0.85 - f * 0.35)} opacity="0.9" />;
+          })}
+          <defs><marker id="cdA" markerWidth="7" markerHeight="7" refX="3.5" refY="6" orient="auto"><path d="M0 0 L3.5 6 L7 0" fill={accent} /></marker></defs>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.9 · Turbine stage — NGV + rotor ══════════════ */
+function TurbineStage({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  return (
+    <VStage pill={<PlayPill on={on} set={setOn} label="Gas" />}
+      label="Nozzle guide vanes (fixed) accelerate and turn the hot gas onto the rotating blades, which extract work — dropping the gas pressure and temperature.">
+      <svg viewBox="0 0 320 150" className="v-svg">
+        <path d="M30 50 L290 55 L290 95 L30 100 Z" fill="#101a1c" stroke={accent} opacity="0.6" />
+        {/* NGVs (fixed, angled) */}
+        {[70, 92, 114, 136].map((x) => <path key={x} d={`M${x} 55 Q${x + 8} 75 ${x} 95`} fill="none" stroke={accent2} strokeWidth="3" />)}
+        <text x="103" y="118" fontSize="7" fill="#7fb0b8" textAnchor="middle">NGV (fixed)</text>
+        {/* rotor blades */}
+        {[175, 197, 219, 241].map((x, i) => (
+          <rect key={x} x={x} y={62 + Math.sin(t * 4 + i) * 4} width="4" height="26" rx="2" fill={accent} opacity="0.85" />
+        ))}
+        <text x="208" y="118" fontSize="7" fill="#7fb0b8" textAnchor="middle">rotor (spins)</text>
+        {/* hot gas cooling as it gives up energy */}
+        {Array.from({ length: 12 }).map((_, i) => {
+          const f = ((t * 0.5 + i / 12) % 1);
+          return <circle key={i} cx={30 + f * 260} cy={75 + Math.sin((f * 8 + i)) * 7} r={2.6 - f} fill={heat(0.9 - f * 0.5)} opacity="0.9" />;
+        })}
+        {/* work-out arrow */}
+        <line x1="270" y1="120" x2="295" y2="120" stroke={accent} strokeWidth="3" markerEnd="url(#twA)" />
+        <text x="250" y="118" fontSize="7" fill={accent} textAnchor="end">shaft work →</text>
+        <defs><marker id="twA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill={accent} /></marker></defs>
+      </svg>
+    </VStage>
+  );
+}
+
+/* ══════════════ 2.10 · Blade stress & creep ══════════════ */
+function CreepStress({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [rpm, setRpm] = useState(70);
+  const [cool, setCool] = useState(true);
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 0.5);
+  const metalT = (cool ? 780 : 780 + 260) + (rpm / 100) * 120;
+  const stress = (rpm / 100);
+  // creep grows over time, faster when hot & stressed
+  const creepRate = stress * (cool ? 0.4 : 1.1);
+  const stretch = Math.min(18, (t % 12) * creepRate);
+  const danger = metalT > 1000 && stress > 0.7;
+  return (
+    <div>
+      <div className="ge-top" style={{ gap: 12 }}>
+        <div className="ge-thr">
+          <label>Rotor speed</label>
+          <input type="range" min="20" max="100" value={rpm} onChange={(e) => setRpm(+e.target.value)} style={{ accentColor: accent }} />
+          <span style={{ color: accent }}>{rpm}%</span>
+        </div>
+        <Seg accent={accent} value={cool ? "c" : "n"} onChange={(v) => setCool(v === "c")} options={[{ v: "c", label: "Cooled" }, { v: "n", label: "Uncooled" }]} />
+      </div>
+      <VStage label={`Centrifugal stress + heat cause creep — slow permanent stretch. Metal ≈ ${Math.round(metalT)}°C. ${danger ? "Hot & highly stressed: creep is rapid — blade life is short." : "Cooling keeps the metal temperature down, slowing creep and extending blade life."}`} pill={<PlayPill on={on} set={setOn} label="Time" />}>
+        <svg viewBox="0 0 300 150" className="v-svg">
+          {/* disk hub */}
+          <rect x="30" y="70" width="30" height="16" rx="3" fill="#16292d" stroke={accent} />
+          {/* blade, stretching with creep */}
+          <g>
+            <rect x="60" y={74 - stretch / 2} width={70 + stretch} height="8" rx="3" fill={heat(Math.min(0.95, (metalT - 700) / 500))} opacity="0.9" />
+            {cool && Array.from({ length: 5 }).map((_, i) => <circle key={i} cx={72 + i * 12} cy="78" r="1.3" fill="#dff6fb" opacity="0.8" />)}
+          </g>
+          {/* casing line the blade creeps toward */}
+          <line x1="145" y1="60" x2="145" y2="96" stroke="#ff5722" strokeDasharray="3 3" opacity="0.6" />
+          <text x="148" y="58" fontSize="7" fill="#ff5722">casing</text>
+          {/* centrifugal arrow */}
+          <line x1="95" y1="105" x2="135" y2="105" stroke={accent2} strokeWidth="2" markerEnd="url(#csA)" />
+          <text x="95" y="120" fontSize="7" fill={accent2}>centrifugal load →</text>
+          <text x="235" y="30" fontSize="9" fill={danger ? "#ff5722" : accent}>creep {stretch.toFixed(1)}</text>
+          <defs><marker id="csA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill={accent2} /></marker></defs>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.11 · Exhaust nozzle & choking ══════════════ */
+function Nozzle({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [pr, setPr] = useState(2.5);
+  const [condi, setCondi] = useState(false);
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  const choked = pr >= 1.9;
+  const exitMach = condi ? Math.min(2.2, 0.6 + (pr - 1) * 0.7) : Math.min(1, 0.5 + (pr - 1) * 0.4);
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={condi ? "cd" : "c"} onChange={(v) => setCondi(v === "cd")} options={[{ v: "c", label: "Convergent" }, { v: "cd", label: "Con-Di" }]} />
+        <PlayPill on={on} set={setOn} label="Flow" />
+      </div>
+      <div className="ge-thr" style={{ marginBottom: 8 }}>
+        <label>Pressure ratio</label>
+        <input type="range" min="1.2" max="6" step="0.1" value={pr} onChange={(e) => setPr(+e.target.value)} style={{ accentColor: accent }} />
+        <span style={{ color: accent }}>{pr.toFixed(1)}:1</span>
+      </div>
+      <VStage label={condi ? `Convergent-divergent nozzle: the divergent section accelerates the sonic flow to supersonic. Exit ≈ Mach ${exitMach.toFixed(2)}.` : `Convergent nozzle: accelerates gas up to sonic. ${choked ? "Choked — exit pressure stays above ambient (pressure thrust)." : "Subsonic exit."} Exit ≈ Mach ${exitMach.toFixed(2)}.`}>
+        <svg viewBox="0 0 320 140" className="v-svg">
+          {condi ? (
+            <path d="M30 45 L150 58 L190 66 L280 45 L280 95 L190 74 L150 82 L30 95 Z" fill="#101a1c" stroke={accent} />
+          ) : (
+            <path d="M30 45 L200 62 L200 78 L30 95 Z" fill="#101a1c" stroke={accent} />
+          )}
+          {/* throat marker */}
+          <line x1={condi ? 170 : 200} y1="40" x2={condi ? 170 : 200} y2="100" stroke={choked ? "#ff5722" : "#24383c"} strokeDasharray="3 3" />
+          <text x={condi ? 170 : 200} y="38" fontSize="6.5" fill={choked ? "#ff5722" : "#7fb0b8"} textAnchor="middle">throat{choked ? " (choked)" : ""}</text>
+          {/* particles accelerating */}
+          {Array.from({ length: 12 }).map((_, i) => {
+            const f = ((t * (0.4 + exitMach * 0.3) + i / 12) % 1);
+            const x = 30 + f * (condi ? 260 : 250);
+            const r = f > 0.55 ? 2.6 - (f - 0.55) : 2.2;
+            return <circle key={i} cx={x} cy={70 + Math.sin(i * 2) * (8 - f * 5)} r={r} fill={heat(0.6 + f * 0.2)} opacity="0.9" />;
+          })}
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
+/* ══════════════ 2.12 · Thrust reverser ══════════════ */
+function ThrustReverser({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
+  const [dep, setDep] = useState(false);
+  const [on, setOn] = usePlay(true);
+  const t = useTick(on, 1);
+  return (
+    <div>
+      <div className="ge-top">
+        <Seg accent={accent} value={dep ? "d" : "s"} onChange={(v) => setDep(v === "d")} options={[{ v: "s", label: "Stowed" }, { v: "d", label: "Deployed" }]} />
+        <PlayPill on={on} set={setOn} label="Flow" />
+      </div>
+      <VStage label={dep ? "Deployed (on the ground only): blocker doors close the bypass duct and cascade vanes turn the cold air forward — a retarding force that helps stop the aircraft." : "Stowed: bypass air flows straight aft as normal thrust. Reversers deploy only with weight-on-wheels and fail-safe interlocks."}>
+        <svg viewBox="0 0 320 150" className="v-svg">
+          <path d="M40 55 L250 60 L250 90 L40 95 Z" fill="#101a1c" stroke={accent} opacity="0.7" />
+          {/* blocker doors */}
+          {dep && <>
+            <line x1="230" y1="60" x2="200" y2="72" stroke={accent2} strokeWidth="4" />
+            <line x1="230" y1="90" x2="200" y2="78" stroke={accent2} strokeWidth="4" />
+            {/* cascade vanes forward flow */}
+            {[0, 1, 2].map((i) => <path key={i} d={`M230 ${52 - i * 3} q-10 -8 -26 -6`} fill="none" stroke={accent} strokeWidth="2" />)}
+            {[0, 1, 2].map((i) => <path key={"b" + i} d={`M230 ${98 + i * 3} q-10 8 -26 6`} fill="none" stroke={accent} strokeWidth="2" />)}
+          </>}
+          {/* flow particles */}
+          {Array.from({ length: 10 }).map((_, i) => {
+            const f = ((t * 0.5 + i / 10) % 1);
+            if (dep) {
+              // forward-turned
+              const x = 230 - f * 180;
+              const y = (i % 2 ? 48 : 102) - Math.sin(f * 3) * 4;
+              return <circle key={i} cx={x} cy={y} r="2" fill={accent} opacity={1 - f * 0.5} />;
+            }
+            const x = 40 + f * 250;
+            return <circle key={i} cx={x} cy={75 + Math.sin(i) * 6} r="2" fill={heat(0.2 + f * 0.15)} opacity="0.85" />;
+          })}
+          {/* net force arrow */}
+          {dep
+            ? <><line x1="150" y1="128" x2="90" y2="128" stroke="#ff5722" strokeWidth="4" markerEnd="url(#trL)" /><text x="152" y="132" fontSize="7.5" fill="#ff5722">retarding force</text></>
+            : <><line x1="170" y1="128" x2="240" y2="128" stroke={accent} strokeWidth="4" markerEnd="url(#trR)" /><text x="168" y="132" fontSize="7.5" fill={accent} textAnchor="end">thrust</text></>}
+          <defs>
+            <marker id="trR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill={accent} /></marker>
+            <marker id="trL" markerWidth="8" markerHeight="8" refX="0" refY="3" orient="auto"><path d="M6 0 L0 3 L6 6" fill="#ff5722" /></marker>
+          </defs>
+        </svg>
+      </VStage>
+    </div>
+  );
+}
+
 /* ── styled fallback ── */
 function Placeholder({ accent = "#ff7a1a", session }) {
   return (
@@ -570,6 +1077,19 @@ export const VISUALS = {
   EfficiencyDial,
   BypassRatio,
   EngineRatings,
+  // Unit II — construction
+  InletDuct,
+  InletConfig,
+  CompressorTypes,
+  IceProtection,
+  FanBalance,
+  StallSurge,
+  AirflowControl,
+  Combustor,
+  TurbineStage,
+  CreepStress,
+  Nozzle,
+  ThrustReverser,
 };
 
 export function Visual({ visual, accent, accent2, session }) {
