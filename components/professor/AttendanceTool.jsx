@@ -184,8 +184,12 @@ function MarkDay({ roster, onNeedsSetup }) {
   const absentCount = absList.filter((e) => coarseStatus(e.cat) === "absent").length;
   const presentCount = roster.length - odCount - absentCount;
 
+  // Who "+ Add" will add: an explicit dropdown pick, else the top typed match.
+  const candidate = pickId || (filter.trim() && available.length ? available[0].id : "");
+  const candidateName = candidate ? (roster.find((r) => r.id === candidate)?.full_name || "") : "";
+
   function addAbsentee(idArg) {
-    const id = idArg || pickId;
+    const id = idArg || candidate;
     if (locked || !id || abs[id]) return;
     setAbs((s) => ({ ...s, [id]: { cat: pickCat, reason: catNeedsReason(pickCat) ? pickReason : "", parent: catNeedsParent(pickCat) ? pickParent : false } }));
     setPickId(""); setPickReason(""); setPickParent(false); setFilter(""); // keep pickCat for fast repeat entry
@@ -193,8 +197,7 @@ function MarkDay({ roster, onNeedsSetup }) {
   function onFilterKey(e) {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    const id = pickId || available[0]?.id;
-    if (id) addAbsentee(id);
+    if (candidate) addAbsentee(candidate);
   }
   function updateAbs(id, patch) {
     if (locked) return;
@@ -308,7 +311,9 @@ function MarkDay({ roster, onNeedsSetup }) {
                   <option value="N">Parent: N</option><option value="Y">Parent: Y</option>
                 </select>
               )}
-              <button className="prof-btn primary" onClick={addAbsentee} disabled={!pickId}>+ Add</button>
+              <button className="prof-btn primary" onClick={() => addAbsentee()} disabled={!candidate}>
+                {candidateName ? `+ Add ${candidateName.split(" ")[0]}` : "+ Add"}
+              </button>
             </div>
           )}
 
