@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRangeRecords, isPresentish } from "@/lib/attendance";
 import { dayKey, isMissingTable } from "@/lib/professor";
+import { registerCSV, registerDocx, defaulterLettersDocx, printRegister, distributionPng } from "@/lib/attendance-export";
 
 function monthStart() {
   const d = new Date(); return dayKey(new Date(d.getFullYear(), d.getMonth(), 1));
@@ -79,6 +80,15 @@ export default function AttendanceAnalytics({ roster }) {
 
       {msg && <div className="att-status">{msg}</div>}
 
+      <div className="an-exports">
+        <span className="an-exp-label">Export</span>
+        <button className="prof-btn ghost" onClick={() => registerCSV(roster, records, { from, to })} disabled={!records.length}>CSV</button>
+        <button className="prof-btn ghost" onClick={() => registerDocx(roster, records, { from, to })} disabled={!records.length}>DOCX register</button>
+        <button className="prof-btn ghost" onClick={() => defaulterLettersDocx(defaulters, { threshold, from, to })} disabled={!defaulters.length}>Defaulter letters ({defaulters.length})</button>
+        <button className="prof-btn ghost" onClick={() => printRegister(roster, records, { from, to })} disabled={!records.length}>Print / PDF</button>
+        <button className="prof-btn ghost" onClick={() => distributionPng(buckets, { from, to })} disabled={!withData.length}>PNG chart</button>
+      </div>
+
       <div className="an-cards">
         <div className="an-card"><div className="an-n">{classAvg}%</div><div className="an-l">Class average</div></div>
         <div className="an-card"><div className="an-n">{daysCovered}</div><div className="an-l">Days marked</div></div>
@@ -122,6 +132,8 @@ const CSS = `
 .an-f input,.an-f select{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:7px 9px}
 .an-th{width:64px}
 .an-bar-spacer{flex:1}
+.an-exports{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.an-exp-label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
 .an-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
 .an-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px}
 .an-n{font-family:var(--serif);font-size:26px;font-weight:800;line-height:1}
