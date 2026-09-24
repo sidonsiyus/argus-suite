@@ -71,6 +71,35 @@ function DashTicker({ announcements = [] }) {
   );
 }
 
+/* live digital clock — self-updating so only it re-renders each second */
+function DigitalClock() {
+  const [t, setT] = useState(() => new Date());
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setInterval(() => setT(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const pad = (n) => String(n).padStart(2, "0");
+  const hh = t.getHours();
+  const h12 = ((hh + 11) % 12) + 1;
+  const ampm = hh < 12 ? "AM" : "PM";
+  const on = t.getSeconds() % 2 === 0;
+  const dateStr = t.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
+  return (
+    <div className="prof-clock" aria-label="Current time">
+      <div className="prof-clock-time">
+        <span>{pad(h12)}</span>
+        <b className={"pc-col" + (on ? " on" : "")}>:</b>
+        <span>{pad(t.getMinutes())}</span>
+        <b className={"pc-col" + (on ? " on" : "")}>:</b>
+        <span className="pc-s">{pad(t.getSeconds())}</span>
+        <em>{ampm}</em>
+      </div>
+      <div className="prof-clock-date">{dateStr}</div>
+    </div>
+  );
+}
+
 function Placeholder({ title, phase, points }) {
   return (
     <div className="prof-panel">
@@ -157,6 +186,7 @@ export default function ProfessorDashboard({ session }) {
           </div>
         </div>
         <div className="prof-top-spacer" />
+        <DigitalClock />
         <span className="prof-who">{session?.user?.email}</span>
         <button className="prof-btn ghost" onClick={doSignOut}>Sign out</button>
       </header>
@@ -247,6 +277,16 @@ const CSS = `
 .prof-brand-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .prof-top-spacer{flex:1}
 .prof-who{font-family:var(--mono);font-size:11px;color:var(--dim)}
+/* live digital clock */
+.prof-clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1;user-select:none}
+.prof-clock-time{display:flex;align-items:baseline;font-family:var(--mono);font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.03em;color:var(--ink)}
+.prof-clock-time span{text-shadow:0 0 12px color-mix(in srgb, var(--accent) 35%, transparent)}
+.prof-clock-time .pc-s{color:var(--accent);text-shadow:0 0 14px color-mix(in srgb, var(--accent) 55%, transparent)}
+.prof-clock-time .pc-col{font-weight:400;color:var(--accent);opacity:.2;transition:opacity .18s ease;padding:0 1px}
+.prof-clock-time .pc-col.on{opacity:1}
+.prof-clock-time em{font-style:normal;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;color:var(--dim);margin-left:6px;transform:translateY(-1px)}
+.prof-clock-date{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin-top:4px}
+@media(max-width:620px){.prof-who{display:none}.prof-clock-time{font-size:18px}}
 .prof-btn{font-family:var(--sans);font-size:13px;font-weight:600;border-radius:10px;padding:9px 15px;cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);transition:.15s}
 .prof-btn:hover{border-color:var(--accent);color:var(--accent)}
 .prof-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
