@@ -15,6 +15,7 @@ import { signOut } from "@/lib/lms";
 import { dayKey, getSchedule, scheduleToText, getActiveTickerItems } from "@/lib/professor";
 import ScheduleTool from "@/components/professor/ScheduleTool";
 import TickerTool from "@/components/professor/TickerTool";
+import NotesTool from "@/components/professor/NotesTool";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
@@ -212,16 +213,7 @@ export default function ProfessorDashboard({ session }) {
 
         {tab === "schedule" && <ScheduleTool onSaved={reloadToday} />}
         {tab === "ticker" && <TickerTool onChanged={reloadAnnouncements} />}
-        {tab === "notes" && (
-          <div className="prof-panel">
-            <div className="prof-panel-h"><h2>Notes Library</h2><span className="prof-chip">Live</span></div>
-            <p className="prof-panel-lead">Categorise and upload course notes by subject. This uses your existing Ground School library — it'll be embedded here in P4.</p>
-            <div className="prof-hero-cta">
-              <a className="prof-btn primary" href="/ground-school/admin">Upload / manage notes →</a>
-              <a className="prof-btn ghost" href="/ground-school">Browse library →</a>
-            </div>
-          </div>
-        )}
+        {tab === "notes" && <NotesTool />}
         {tab === "attendance" && (
           <Placeholder title="Attendance" phase="P5" points={[
             "Native rebuild of the ARGUS attendance dashboard on Supabase.",
