@@ -16,6 +16,7 @@ import { dayKey, getSchedule, scheduleToText, getActiveTickerItems } from "@/lib
 import ScheduleTool from "@/components/professor/ScheduleTool";
 import TickerTool from "@/components/professor/TickerTool";
 import NotesTool from "@/components/professor/NotesTool";
+import AttendanceTool from "@/components/professor/AttendanceTool";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
@@ -214,13 +215,7 @@ export default function ProfessorDashboard({ session }) {
         {tab === "schedule" && <ScheduleTool onSaved={reloadToday} />}
         {tab === "ticker" && <TickerTool onChanged={reloadAnnouncements} />}
         {tab === "notes" && <NotesTool />}
-        {tab === "attendance" && (
-          <Placeholder title="Attendance" phase="P5" points={[
-            "Native rebuild of the ARGUS attendance dashboard on Supabase.",
-            "Daily marking, day-lock, OCR scan, full analytics.",
-            "Exports: DOCX register & defaulter letters, CSV, PDF, PNG, and Google Sheets push.",
-          ]} />
-        )}
+        {tab === "attendance" && <AttendanceTool />}
         {tab === "marks" && (
           <Placeholder title="Marks" phase="P6" points={[
             "Per-subject grid: each student against CAT-1, CAT-2, Model and End-Semester.",
