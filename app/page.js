@@ -7,6 +7,7 @@ import FlightLog from "@/components/FlightLog";
 import { useNews, shortDate } from "@/lib/useNews";
 import { AIRPORTS, AIRPORT_BY_ICAO } from "@/lib/airports";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
+import { getActiveTickerItems } from "@/lib/professor";
 import ProfessorDashboard from "@/components/professor/ProfessorDashboard";
 import InstructorLogin from "@/components/professor/InstructorLogin";
 
@@ -205,13 +206,15 @@ function StatusStrip() {
   );
 }
 
-/* ── running news wire (live headlines) ── */
-function NewsWire({ news }) {
-  const list = news.status === "ok" ? news.items.slice(0, 12) : null;
+/* ── running news wire (live headlines + faculty announcements) ── */
+function NewsWire({ news, announcements = [] }) {
+  const headlines = news.status === "ok" ? news.items.slice(0, 12) : [];
+  const anns = announcements.map((a) => ({ ann: true, title: a.message, url: a.href || "" }));
+  const list = [...anns, ...headlines];
   const seg = (k) =>
     list.map((a, i) => (
-      <a className="wire-item" key={`${k}-${i}`} href={a.url || "#"} target="_blank" rel="noopener noreferrer">
-        <span className="wire-dot" />
+      <a className={"wire-item" + (a.ann ? " wire-ann" : "")} key={`${k}-${i}`} href={a.url || "#"} target={a.url ? "_blank" : undefined} rel="noopener noreferrer">
+        {a.ann ? <span className="wire-notice">◆ NOTICE</span> : <span className="wire-dot" />}
         <span className="wire-title">{a.title}</span>
         {a.source && <span className="wire-src">{a.source}</span>}
         <span className="wire-sep">◦</span>
@@ -221,7 +224,7 @@ function NewsWire({ news }) {
     <div className="wire">
       <div className="wire-label"><span className="wire-live" />Wire</div>
       <div className="wire-view">
-        {list ? (
+        {list.length ? (
           <div className="wire-track">{seg("a")}{seg("b")}</div>
         ) : (
           <div className="wire-static mono">
@@ -643,6 +646,8 @@ export default function Home() {
 
   const liveCount = MODULES.filter((m) => m.live).length;
   const news = useNews();
+  const [announcements, setAnnouncements] = useState([]);
+  useEffect(() => { getActiveTickerItems().then(setAnnouncements).catch(() => {}); }, []);
   const [airborne, setAirborne] = useState(null); // live count from the radar feed
   const [airborneAp, setAirborneAp] = useState("");
 
@@ -690,7 +695,7 @@ export default function Home() {
       </header>
 
       <StatusStrip />
-      <NewsWire news={news} />
+      <NewsWire news={news} announcements={announcements} />
 
       <main className="shell">
         <section className="hero hero-split">

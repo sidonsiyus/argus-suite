@@ -12,8 +12,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNews } from "@/lib/useNews";
 import { signOut } from "@/lib/lms";
-import { dayKey, getSchedule, scheduleToText } from "@/lib/professor";
+import { dayKey, getSchedule, scheduleToText, getActiveTickerItems } from "@/lib/professor";
 import ScheduleTool from "@/components/professor/ScheduleTool";
+import TickerTool from "@/components/professor/TickerTool";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
@@ -42,10 +43,12 @@ function firstName(session) {
   return "Sid";
 }
 
-/* compact live ticker (keeps the wire running inside the dashboard) */
-function DashTicker() {
+/* compact live ticker — your announcements ride ahead of the live headlines */
+function DashTicker({ announcements = [] }) {
   const news = useNews();
-  const items = news.status === "ok" ? news.items.slice(0, 12) : [];
+  const headlines = news.status === "ok" ? news.items.slice(0, 12) : [];
+  const anns = announcements.map((a) => ({ ann: true, title: a.message, link: a.href }));
+  const items = [...anns, ...headlines];
   return (
     <div className="prof-ticker" aria-label="Live headlines">
       <span className="prof-ticker-tag">WIRE</span>
@@ -53,8 +56,8 @@ function DashTicker() {
         {items.length ? (
           <div className="prof-ticker-run">
             {[...items, ...items].map((it, i) => (
-              <a key={i} className="prof-ticker-item" href={it.link || it.url || "#"} target="_blank" rel="noopener noreferrer">
-                <i />{it.title}
+              <a key={i} className={"prof-ticker-item" + (it.ann ? " ann" : "")} href={it.link || it.url || "#"} target={it.link ? "_blank" : undefined} rel="noopener noreferrer">
+                {it.ann ? <b>◆ NOTICE</b> : <i />}{it.title}
               </a>
             ))}
           </div>
@@ -101,6 +104,13 @@ export default function ProfessorDashboard({ session }) {
     } catch { setTodayEntries([]); }
   }, []);
   useEffect(() => { reloadToday(); }, [reloadToday]);
+
+  // active announcements for the in-console ticker
+  const [announcements, setAnnouncements] = useState([]);
+  const reloadAnnouncements = useCallback(async () => {
+    try { setAnnouncements(await getActiveTickerItems()); } catch { setAnnouncements([]); }
+  }, []);
+  useEffect(() => { reloadAnnouncements(); }, [reloadAnnouncements]);
 
   const hasSchedule = todayEntries.some((e) => e.subject || e.time);
   const spokenSchedule = hasSchedule
@@ -149,7 +159,7 @@ export default function ProfessorDashboard({ session }) {
         <button className="prof-btn ghost" onClick={doSignOut}>Sign out</button>
       </header>
 
-      <DashTicker />
+      <DashTicker announcements={announcements} />
 
       <nav className="prof-tabs" aria-label="Instructor tools">
         {TABS.map((t) => (
@@ -201,13 +211,7 @@ export default function ProfessorDashboard({ session }) {
         )}
 
         {tab === "schedule" && <ScheduleTool onSaved={reloadToday} />}
-        {tab === "ticker" && (
-          <Placeholder title="Ticker Manager" phase="P3" points={[
-            "Post your own announcements into the site's news ticker.",
-            "Set active/expiry so notices retire themselves.",
-            "Your items ride alongside the live aviation headlines.",
-          ]} />
-        )}
+        {tab === "ticker" && <TickerTool onChanged={reloadAnnouncements} />}
         {tab === "notes" && (
           <div className="prof-panel">
             <div className="prof-panel-h"><h2>Notes Library</h2><span className="prof-chip">Live</span></div>
@@ -268,6 +272,8 @@ const CSS = `
 @keyframes profwire{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 .prof-ticker-item{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--console-ink);text-decoration:none;opacity:.9}
 .prof-ticker-item i{width:5px;height:5px;border-radius:50%;background:var(--gold);flex:none}
+.prof-ticker-item.ann{color:var(--gold);font-weight:600}
+.prof-ticker-item.ann b{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;margin-right:2px}
 .prof-ticker-idle{font-family:var(--mono);font-size:11px;color:var(--dim)}
 @media(prefers-reduced-motion:reduce){.prof-ticker-run{animation:none}}
 .prof-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:14px 20px 0;max-width:1120px;margin:0 auto;width:100%}
