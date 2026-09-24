@@ -26,7 +26,7 @@ const TABS = [
   { id: "ticker", label: "Ticker", icon: "📣" },
   { id: "notes", label: "Notes", icon: "📚" },
   { id: "attendance", label: "Attendance", icon: "✓" },
-  { id: "marks", label: "Marks", icon: "％" },
+  { id: "marks", label: "Marks", icon: "📊" },
 ];
 
 function greetingFor(hour) {
@@ -117,6 +117,8 @@ function Placeholder({ title, phase, points }) {
 
 export default function ProfessorDashboard({ session }) {
   const [tab, setTab] = useState("overview");
+  const [attNav, setAttNav] = useState(null); // {view, token} → deep-link into an Attendance sub-tab
+  const goto = useCallback((t, sub) => { setTab(t); if (sub) setAttNav({ view: sub, token: Date.now() }); }, []);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -248,10 +250,10 @@ export default function ProfessorDashboard({ session }) {
         {tab === "schedule" && <ScheduleTool onSaved={reloadToday} />}
         {tab === "ticker" && <TickerTool onChanged={reloadAnnouncements} />}
         {tab === "notes" && <NotesTool />}
-        {tab === "attendance" && <AttendanceTool />}
+        {tab === "attendance" && <AttendanceTool nav={attNav} />}
         {tab === "marks" && <MarksTool />}
       </main>
-        <ChecklistRail schedule={todayEntries} onGoto={(t) => setTab(t)} />
+        <ChecklistRail schedule={todayEntries} onGoto={goto} />
       </div>
 
       <footer className="prof-foot">ARGUS · Instructor Console · made by sid</footer>

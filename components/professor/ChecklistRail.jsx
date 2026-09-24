@@ -126,7 +126,7 @@ export default function ChecklistRail({ schedule, onGoto }) {
                 <div className="cl-meta">
                   {d.deadline && <span className="cl-due">⏱ {d.deadline}</span>}
                   {d.link && <a className="cl-link" href={d.link} target="_blank" rel="noopener noreferrer">open ↗</a>}
-                  {d.goto && <button className="cl-link btn" onClick={() => onGoto?.(d.goto)}>go →</button>}
+                  {d.goto && <button className="cl-link btn" onClick={() => onGoto?.(d.goto, d.gotoSub)}>go →</button>}
                 </div>
               </div>
             </div>

@@ -16,8 +16,10 @@ import { pushToSheet, getWriter, setWriter } from "@/lib/attendance-sheets";
 import { computeDayStats, attendanceMessage, mhCockpitDocx, getMhForm, setMhForm, MH_DEFAULTS } from "@/lib/attendance-report";
 import AttendanceAnalytics from "@/components/professor/AttendanceAnalytics";
 
-export default function AttendanceTool() {
+export default function AttendanceTool({ nav } = {}) {
   const [view, setView] = useState("mark");
+  // deep-link: jump to a sub-view when navigated here from the checklist
+  useEffect(() => { if (nav?.view) setView(nav.view); }, [nav?.token]); // eslint-disable-line
   const [roster, setRoster] = useState([]);
   const [rosterErr, setRosterErr] = useState("");
   const [needsSetup, setNeedsSetup] = useState(false);
