@@ -9,9 +9,11 @@
  * P2), a compact live ticker, and tabbed tool navigation. Each tool tab is a
  * described placeholder that later phases fill in.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNews } from "@/lib/useNews";
 import { signOut } from "@/lib/lms";
+import { dayKey, getSchedule, scheduleToText } from "@/lib/professor";
+import ScheduleTool from "@/components/professor/ScheduleTool";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
@@ -90,15 +92,30 @@ export default function ProfessorDashboard({ session }) {
   const greeting = greetingFor(now.getHours());
   const dateLine = now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-  // P2 will replace this with the saved schedule for today.
-  const scheduleText = "No schedule set for today yet — add one in the Schedule tab (upload a timetable image or type it in).";
+  // today's saved schedule (drives the greeting readout + speak)
+  const [todayEntries, setTodayEntries] = useState([]);
+  const reloadToday = useCallback(async () => {
+    try {
+      const rec = await getSchedule(dayKey());
+      setTodayEntries(rec?.entries || []);
+    } catch { setTodayEntries([]); }
+  }, []);
+  useEffect(() => { reloadToday(); }, [reloadToday]);
+
+  const hasSchedule = todayEntries.some((e) => e.subject || e.time);
+  const spokenSchedule = hasSchedule
+    ? scheduleToText(todayEntries, { name })
+    : `Professor ${name}, no schedule is set for today yet.`;
+  const scheduleText = hasSchedule
+    ? `You have ${todayEntries.filter((e) => e.subject || e.time).length} classes today.`
+    : "No schedule set for today yet — add one in the Schedule tab (upload a timetable image or type it in).";
 
   function speak() {
     try {
       const synth = window.speechSynthesis;
       if (!synth) return;
       synth.cancel();
-      const u = new SpeechSynthesisUtterance(`${greeting}, Professor ${name}. ${scheduleText}`);
+      const u = new SpeechSynthesisUtterance(`${greeting}. ${spokenSchedule}`);
       u.rate = 1; u.pitch = 1;
       synth.speak(u);
     } catch { /* speech unsupported — ignore */ }
@@ -148,7 +165,23 @@ export default function ProfessorDashboard({ session }) {
             <section className="prof-hero">
               <div className="prof-hero-eyebrow"><i />{dateLine}</div>
               <h1>{greeting},<br /><span className="accent">Professor {name}.</span></h1>
-              <p className="prof-sched">{scheduleText}</p>
+              {hasSchedule ? (
+                <div className="prof-today">
+                  <div className="prof-today-h">{scheduleText}</div>
+                  <ul className="prof-today-list">
+                    {todayEntries.filter((e) => e.subject || e.time).map((e, i) => (
+                      <li key={i}>
+                        <span className="prof-today-time">{e.time || "—"}</span>
+                        <span className="prof-today-sub">{e.subject || "Class"}</span>
+                        {e.group && <span className="prof-today-tag">{e.group}</span>}
+                        {e.room && <span className="prof-today-tag alt">{e.room}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="prof-sched">{scheduleText}</p>
+              )}
               <div className="prof-hero-cta">
                 <button className="prof-btn primary" onClick={speak}>🔊 Read my day</button>
                 <button className="prof-btn ghost" onClick={() => setTab("schedule")}>Set today's schedule →</button>
@@ -167,13 +200,7 @@ export default function ProfessorDashboard({ session }) {
           </>
         )}
 
-        {tab === "schedule" && (
-          <Placeholder title="Class Schedule" phase="Next up · P2" points={[
-            "Upload a photo of your timetable — AI reads it into a structured day.",
-            "Or type your schedule manually for any day.",
-            "The dashboard greets you with the day's classes and can read them aloud.",
-          ]} />
-        )}
+        {tab === "schedule" && <ScheduleTool onSaved={reloadToday} />}
         {tab === "ticker" && (
           <Placeholder title="Ticker Manager" phase="P3" points={[
             "Post your own announcements into the site's news ticker.",
@@ -255,6 +282,14 @@ const CSS = `
 .prof-hero h1{font-family:var(--serif);font-size:clamp(30px,5vw,46px);line-height:1.05;font-weight:800;margin:0 0 14px;letter-spacing:-.02em}
 .prof-hero h1 .accent{color:var(--accent)}
 .prof-sched{font-size:15px;color:var(--ink-soft);max-width:62ch;line-height:1.55;margin:0 0 20px}
+.prof-today{margin:0 0 20px}
+.prof-today-h{font-size:14px;color:var(--dim);margin-bottom:10px;font-family:var(--mono);letter-spacing:.02em}
+.prof-today-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.prof-today-list li{display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:10px 14px}
+.prof-today-time{font-family:var(--mono);font-size:12px;color:var(--accent);min-width:110px}
+.prof-today-sub{font-size:14.5px;font-weight:600;flex:1}
+.prof-today-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:20px;padding:3px 9px}
+.prof-today-tag.alt{color:var(--gold);border-color:rgba(185,121,26,.35)}
 .prof-hero-cta{display:flex;gap:10px;flex-wrap:wrap}
 .prof-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-top:20px}
 .prof-card{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px;cursor:pointer;transition:.16s;display:flex;flex-direction:column;gap:5px;color:var(--ink)}
