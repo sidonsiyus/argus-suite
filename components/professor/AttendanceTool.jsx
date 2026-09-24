@@ -30,6 +30,10 @@ export default function AttendanceTool() {
   }, []);
   useEffect(() => { loadRoster(); }, [loadRoster]);
 
+  // Stable so children's effects don't re-run (and refetch, wiping entries) on
+  // every parent render.
+  const flagSetup = useCallback(() => setNeedsSetup(true), []);
+
   return (
     <div className="prof-panel att">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -51,9 +55,9 @@ export default function AttendanceTool() {
       )}
       {rosterErr && !needsSetup && <div className="att-err">{rosterErr}</div>}
 
-      {view === "mark" && <MarkDay roster={roster} onNeedsSetup={() => setNeedsSetup(true)} />}
-      {view === "roster" && <Roster roster={roster} loaded={loaded} onChanged={loadRoster} onNeedsSetup={() => setNeedsSetup(true)} />}
-      {view === "report" && <ReportTab roster={roster} onNeedsSetup={() => setNeedsSetup(true)} />}
+      {view === "mark" && <MarkDay roster={roster} onNeedsSetup={flagSetup} />}
+      {view === "roster" && <Roster roster={roster} loaded={loaded} onChanged={loadRoster} onNeedsSetup={flagSetup} />}
+      {view === "report" && <ReportTab roster={roster} onNeedsSetup={flagSetup} />}
       {view === "analytics" && <AttendanceAnalytics roster={roster} />}
     </div>
   );
@@ -148,19 +152,23 @@ function MarkDay({ roster, onNeedsSetup }) {
   const [pickCat, setPickCat] = useState("unauth");
   const [pickReason, setPickReason] = useState("");
   const [pickParent, setPickParent] = useState(false);
+  const loadSeq = useRef(0);
   useEffect(() => { const w = getWriter(); setWUrl(w.url); setWSec(w.secret); }, []);
 
   const load = useCallback(async (d) => {
+    const seq = ++loadSeq.current;   // only the newest load may apply its result
     setLoading(true); setMsg("");
     try {
       const [meta, recs] = await Promise.all([getDayMeta(d), getDayRecords(d)]);
+      if (seq !== loadSeq.current) return;   // a newer load started — ignore stale data
       setLocked(!!meta?.locked);
       const a = {}; Object.entries(recs).forEach(([id, e]) => { if (e.cat && e.cat !== "present") a[id] = e; });
       setAbs(a);
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       if (isMissingTable(e)) onNeedsSetup?.();
       else setMsg(e?.message || "Could not load the day.");
-    } finally { setLoading(false); }
+    } finally { if (seq === loadSeq.current) setLoading(false); }
   }, [onNeedsSetup]);
   useEffect(() => { load(day); }, [day, load]);
 
@@ -174,10 +182,17 @@ function MarkDay({ roster, onNeedsSetup }) {
   const absentCount = absList.filter((e) => coarseStatus(e.cat) === "absent").length;
   const presentCount = roster.length - odCount - absentCount;
 
-  function addAbsentee() {
-    if (locked || !pickId || abs[pickId]) return;
-    setAbs((s) => ({ ...s, [pickId]: { cat: pickCat, reason: catNeedsReason(pickCat) ? pickReason : "", parent: catNeedsParent(pickCat) ? pickParent : false } }));
-    setPickId(""); setPickReason(""); setPickParent(false); setPickCat("unauth"); setFilter("");
+  function addAbsentee(idArg) {
+    const id = idArg || pickId;
+    if (locked || !id || abs[id]) return;
+    setAbs((s) => ({ ...s, [id]: { cat: pickCat, reason: catNeedsReason(pickCat) ? pickReason : "", parent: catNeedsParent(pickCat) ? pickParent : false } }));
+    setPickId(""); setPickReason(""); setPickParent(false); setFilter(""); // keep pickCat for fast repeat entry
+  }
+  function onFilterKey(e) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const id = pickId || available[0]?.id;
+    if (id) addAbsentee(id);
   }
   function updateAbs(id, patch) {
     if (locked) return;
@@ -260,7 +275,7 @@ function MarkDay({ roster, onNeedsSetup }) {
         <span className="att-pill p">{presentCount} present</span>
         <span className="att-pill a">{absentCount} absent</span>
         {odCount > 0 && <span className="att-pill o">{odCount} OD</span>}
-        <span className="att-pct">{roster.length ? Math.round(((presentCount + odCount) / roster.length) * 100) : 0}% present</span>
+        <span className="att-pct">{roster.length ? Math.round(((presentCount + odCount) / roster.length) * 100) : 0}% present · {roster.length} on roll</span>
       </div>
 
       {loading ? (
@@ -272,9 +287,9 @@ function MarkDay({ roster, onNeedsSetup }) {
           {/* add-absentee bar */}
           {!locked && (
             <div className="att-add">
-              <input className="att-in" placeholder="Find student to mark…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+              <input className="att-in" placeholder="Find student…  (Enter to add)" value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={onFilterKey} />
               <select className="att-in" value={pickId} onChange={(e) => setPickId(e.target.value)}>
-                <option value="">— select student —</option>
+                <option value="">{available.length ? "— select student —" : "all marked"}</option>
                 {available.map((r) => <option key={r.id} value={r.id}>{r.sno}. {r.full_name}</option>)}
               </select>
               <select className="att-cat" value={pickCat} onChange={(e) => setPickCat(e.target.value)}>
@@ -300,6 +315,7 @@ function MarkDay({ roster, onNeedsSetup }) {
             <div className="att-empty">Everyone present. Add absentees above, or 📷 scan the list.</div>
           ) : (
             <div className="att-roll">
+              <div className="att-roll-h">Absentees ({absList.length})</div>
               {absList.map((s) => (
                 <div key={s.id} className={"att-row st-" + coarseStatus(s.cat)}>
                   <span className="att-sno">{s.sno}</span>
@@ -422,6 +438,7 @@ const CSS = `
 .att-pill.o{color:var(--accent);border-color:var(--accent)}
 .att-pct{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--dim)}
 .att-roll{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto;padding-right:4px}
+.att-roll-h{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 0 2px 2px}
 .att-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
 .att-row.st-absent{border-color:rgba(192,70,63,.35)}
 .att-row.st-od{border-color:rgba(14,143,128,.35)}
