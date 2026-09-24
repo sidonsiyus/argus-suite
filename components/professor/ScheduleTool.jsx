@@ -47,22 +47,29 @@ export default function ScheduleTool({ onSaved }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    setOcr(true); setStatus("Reading timetable image…");
+    const weekday = (() => { try { return new Date(day + "T00:00:00").toLocaleDateString(undefined, { weekday: "long" }); } catch { return ""; } })();
+    setOcr(true); setStatus(`Reading timetable for ${weekday || "the day"}…`);
     try {
-      const dataUrl = await fileToScaledDataURL(file);
+      const dataUrl = await fileToScaledDataURL(file, 1900, 0.85); // higher res for dense grids
       const r = await fetch("/api/professor/schedule-ocr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl }),
+        // Department monitoring grid → pull only Siddharth's own periods.
+        body: JSON.stringify({ image: dataUrl, weekday, instructor: "Siddharth", subjects: ["NDT", "GTEM", "Mentoring Hour"] }),
       });
       const d = await r.json();
       if (d?.error === "ocr_unconfigured") { setStatus("AI OCR isn't configured (OPENROUTER_API_KEY missing) — type the schedule instead."); return; }
       const entries = d?.entries || [];
-      if (!entries.length) { setStatus("Couldn't read any classes from that image — try a clearer photo or type it in."); return; }
+      if (!entries.length) {
+        if (d?.error) setStatus(`OCR error (${d.error}${d.detail ? ": " + d.detail : ""}). Try again, or type it in.`);
+        else if (d?.raw) setStatus(`Couldn't read ${weekday}'s classes. The model said: "${d.raw}". Try a clearer/cropped photo, or type it in.`);
+        else setStatus(`No classes found for ${weekday}. If it's a weekly grid, make sure ${weekday} is clearly visible — or type it in.`);
+        return;
+      }
       // merge into any non-empty rows the user already had
       const existing = rows.filter((x) => x.subject || x.time);
-      setRows([...existing, ...entries.map((x) => ({ ...emptyRow(), ...x }))].slice(0, 20));
-      setStatus(`Read ${entries.length} classes — review and edit below, then Save.`);
+      setRows([...existing, ...entries.map((x) => ({ ...emptyRow(), ...x }))].slice(0, 24));
+      setStatus(`Read ${entries.length} classes for ${weekday} — review and edit below, then Save.`);
     } catch (err) {
       setStatus(err?.message || "Image read failed.");
     } finally {
