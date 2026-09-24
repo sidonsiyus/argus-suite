@@ -14,6 +14,7 @@ import {
 import { prettyDay, isMissingTable, fileToScaledDataURL } from "@/lib/professor";
 import { pushToSheet, getWriter, setWriter } from "@/lib/attendance-sheets";
 import { computeDayStats, attendanceMessage, mhCockpitDocx, getMhForm, setMhForm, MH_DEFAULTS } from "@/lib/attendance-report";
+import { planImport } from "@/lib/attendance-import";
 import AttendanceAnalytics from "@/components/professor/AttendanceAnalytics";
 
 export default function AttendanceTool({ nav } = {}) {
@@ -148,6 +149,7 @@ function MarkDay({ roster, onNeedsSetup }) {
   const [wSec, setWSec] = useState("");
   const [scanning, setScanning] = useState(false);
   const scanRef = useRef(null);
+  const filterRef = useRef(null);
   // add-absentee picker
   const [filter, setFilter] = useState("");
   const [pickId, setPickId] = useState("");
@@ -193,12 +195,33 @@ function MarkDay({ roster, onNeedsSetup }) {
     if (locked || !id || abs[id]) return;
     setAbs((s) => ({ ...s, [id]: { cat: pickCat, reason: catNeedsReason(pickCat) ? pickReason : "", parent: catNeedsParent(pickCat) ? pickParent : false } }));
     setPickId(""); setPickReason(""); setPickParent(false); setFilter(""); // keep pickCat for fast repeat entry
+    setTimeout(() => filterRef.current?.focus(), 0); // keep the keyboard flow going
   }
   function onFilterKey(e) {
+    if (e.key === "Escape") { setFilter(""); setPickId(""); return; }
     if (e.key !== "Enter") return;
     e.preventDefault();
     if (candidate) addAbsentee(candidate);
   }
+  // focus the find box when the mark view opens
+  useEffect(() => { if (!loading && roster.length) filterRef.current?.focus(); }, [loading, roster.length]);
+  // ⌘/Ctrl+S saves; always calls the latest save via a ref
+  const saveRef = useRef(null);
+  async function save() {
+    if (locked || busy || !roster.length) return;
+    setBusy(true); setMsg("");
+    try { const n = await saveDay(day, fullEntries()); setMsg(`Saved ${n} students for ${prettyDay(day)} — ${presentCount} present, ${absentCount} absent, ${odCount} OD.`); }
+    catch (e) { setMsg(e?.message || "Save failed."); }
+    finally { setBusy(false); }
+  }
+  saveRef.current = save;
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveRef.current?.(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   function updateAbs(id, patch) {
     if (locked) return;
     setAbs((s) => {
@@ -213,12 +236,6 @@ function MarkDay({ roster, onNeedsSetup }) {
   function fullEntries() { const full = {}; roster.forEach((r) => (full[r.id] = abs[r.id] || { cat: "present", reason: "", parent: false })); return full; }
   const coarseMap = () => { const m = {}; roster.forEach((r) => (m[r.id] = coarseStatus(abs[r.id]?.cat || "present"))); return m; };
 
-  async function save() {
-    setBusy(true); setMsg("");
-    try { const n = await saveDay(day, fullEntries()); setMsg(`Saved ${n} students for ${prettyDay(day)} — ${presentCount} present, ${absentCount} absent, ${odCount} OD.`); }
-    catch (e) { setMsg(e?.message || "Save failed."); }
-    finally { setBusy(false); }
-  }
   async function toggleLock() {
     setBusy(true);
     try { await setDayLocked(day, !locked); setLocked(!locked); setMsg(!locked ? "Day locked." : "Day unlocked."); }
@@ -276,6 +293,7 @@ function MarkDay({ roster, onNeedsSetup }) {
         <button className={"prof-btn ghost" + (locked ? " att-locked" : "")} onClick={toggleLock} disabled={busy}>{locked ? "🔒 Locked" : "Lock day"}</button>
       </div>
 
+      <div className="att-kbd">⌨ Type a name → <kbd>Enter</kbd> adds · <kbd>Esc</kbd> clears · <kbd>⌘</kbd><kbd>S</kbd> saves</div>
       <div className="att-tally">
         <span className="att-pill p">{presentCount} present</span>
         <span className="att-pill a">{absentCount} absent</span>
@@ -292,7 +310,7 @@ function MarkDay({ roster, onNeedsSetup }) {
           {/* add-absentee bar */}
           {!locked && (
             <div className="att-add">
-              <input className="att-in" placeholder="Find student…  (Enter to add)" value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={onFilterKey} />
+              <input ref={filterRef} className="att-in" placeholder="Find student…  (Enter to add · Esc to clear)" value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={onFilterKey} />
               <select className="att-in" value={pickId} onChange={(e) => setPickId(e.target.value)}>
                 <option value="">{available.length ? "— select student —" : "all marked"}</option>
                 {available.map((r) => <option key={r.id} value={r.id}>{r.sno}. {r.full_name}</option>)}
@@ -379,6 +397,24 @@ function Roster({ roster, loaded, onChanged, onNeedsSetup }) {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [imp, setImp] = useState({ busy: false, msg: "" });
+  const impRef = useRef(null);
+
+  async function onImport(e) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    if (!roster.length) { setImp({ busy: false, msg: "Add the roster students first, then import." }); return; }
+    setImp({ busy: true, msg: "Reading backup…" });
+    try {
+      const data = JSON.parse(await file.text());
+      const { days, unmatched } = planImport(data, roster);
+      if (!days.length) { setImp({ busy: false, msg: "No days found in that backup file." }); return; }
+      let done = 0;
+      for (const d of days) { await saveDay(d.day, d.entries); done++; setImp({ busy: true, msg: `Importing ${done}/${days.length} days…` }); }
+      setImp({ busy: false, msg: `Imported ${days.length} days (${days[0].day} → ${days[days.length - 1].day}).` + (unmatched.length ? ` ${unmatched.length} name(s) not matched to the roster: ${unmatched.slice(0, 8).join(", ")}${unmatched.length > 8 ? "…" : ""}.` : "") });
+      onChanged?.();
+    } catch (err) { setImp({ busy: false, msg: err?.message || "Import failed — is it the ARGUS backup JSON?" }); }
+  }
 
   async function add(e) {
     e.preventDefault();
@@ -405,6 +441,16 @@ function Roster({ roster, loaded, onChanged, onNeedsSetup }) {
         <button className="prof-btn primary" type="submit" disabled={busy}>Add</button>
       </form>
       {msg && <div className="att-status">{msg}</div>}
+
+      <div className="att-import">
+        <div>
+          <b>Import legacy backup</b>
+          <p>Load your old ARGUS dashboard's <code>backup .json</code> — every day (present + absentees, with reasons) is imported into the roster above.</p>
+        </div>
+        <input ref={impRef} type="file" accept="application/json,.json" hidden onChange={onImport} />
+        <button className="prof-btn ghost" onClick={() => impRef.current?.click()} disabled={imp.busy}>{imp.busy ? "Importing…" : "⭳ Import backup"}</button>
+      </div>
+      {imp.msg && <div className="att-status">{imp.msg}</div>}
 
       {!loaded ? <div className="att-empty">Loading…</div> : (
         <div className="att-rlist">
@@ -437,6 +483,8 @@ const CSS = `
 .att-day input{font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-2);border-radius:9px;padding:8px 10px}
 .att-bar-spacer{flex:1}
 .att-locked{color:var(--gold)!important;border-color:var(--gold)!important}
+.att-kbd{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-bottom:10px}
+.att-kbd kbd{font-family:var(--mono);font-size:10px;background:var(--fill-weak);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin:0 1px}
 .att-tally{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .att-pill{font-family:var(--mono);font-size:11px;border-radius:20px;padding:4px 11px;border:1px solid var(--line)}
 .att-pill.p{color:var(--green);border-color:rgba(31,143,86,.4)}
@@ -490,6 +538,10 @@ const CSS = `
 .rep-summary .p{color:var(--green)}.rep-summary .a{color:var(--red)}.rep-summary .o{color:var(--accent)}
 @media(max-width:720px){.rep-grid{grid-template-columns:1fr}}
 .att-empty{font-family:var(--mono);font-size:12px;color:var(--faint);padding:18px 2px}
+.att-import{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:14px 0;padding:12px 14px;background:var(--panel-2);border:1px dashed var(--line-2);border-radius:11px}
+.att-import b{font-size:13.5px}
+.att-import p{font-size:12px;color:var(--dim);margin:3px 0 0;max-width:52ch;line-height:1.5}
+.att-import code{font-family:var(--mono);font-size:11px}
 .att-newstu{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .att-in{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;flex:1;min-width:120px}
 .att-in.sno{max-width:70px;flex:none}
