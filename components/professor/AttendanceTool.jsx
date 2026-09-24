@@ -5,12 +5,12 @@
  * lock) and roster management. Analytics / exports / integrations arrive in
  * later sub-phases and mount as extra sub-tabs here.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getRoster, addStudent, getDayMeta, setDayLocked, getDayRecords, saveDay, clearDay,
-  STATUSES, STATUS_LABEL, dayKey,
+  STATUSES, STATUS_LABEL, dayKey, matchToken,
 } from "@/lib/attendance";
-import { prettyDay, isMissingTable } from "@/lib/professor";
+import { prettyDay, isMissingTable, fileToScaledDataURL } from "@/lib/professor";
 import { pushToSheet, getWriter, setWriter } from "@/lib/attendance-sheets";
 import AttendanceAnalytics from "@/components/professor/AttendanceAnalytics";
 
@@ -70,6 +70,8 @@ function MarkDay({ roster, onNeedsSetup }) {
   const [showCfg, setShowCfg] = useState(false);
   const [wUrl, setWUrl] = useState("");
   const [wSec, setWSec] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const scanRef = useRef(null);
   useEffect(() => { const w = getWriter(); setWUrl(w.url); setWSec(w.secret); }, []);
 
   const load = useCallback(async (d) => {
@@ -127,6 +129,25 @@ function MarkDay({ roster, onNeedsSetup }) {
     finally { setPushing(false); }
   }
   function saveWriter() { setWriter(wUrl, wSec); setShowCfg(false); setMsg("Google Sheet writer saved."); }
+  async function onScan(e) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file || locked) return;
+    setScanning(true); setMsg("Reading the list…");
+    try {
+      const dataUrl = await fileToScaledDataURL(file);
+      const r = await fetch("/api/professor/attendance-ocr", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: dataUrl }) });
+      const d = await r.json();
+      if (d?.error === "ocr_unconfigured") { setMsg("OCR isn't configured (OPENROUTER_API_KEY missing)."); return; }
+      const tokens = d?.tokens || [];
+      if (!tokens.length) { setMsg("Couldn't read any names/numbers — try a clearer photo, or mark manually."); return; }
+      const next = {}; roster.forEach((r2) => (next[r2.id] = "present"));
+      let matched = 0; const unmatched = [];
+      tokens.forEach((tok) => { const s = matchToken(tok, roster); if (s) { next[s.id] = "absent"; matched++; } else unmatched.push(tok); });
+      setStatus(next);
+      setMsg(`Scan: marked ${matched} absent from ${tokens.length} entries (rest present).` + (unmatched.length ? ` Unmatched: ${unmatched.slice(0, 6).join(", ")}${unmatched.length > 6 ? "…" : ""}. Review before saving.` : " Review, then Save."));
+    } catch (err) { setMsg(err?.message || "Scan failed."); }
+    finally { setScanning(false); }
+  }
 
   return (
     <div>
@@ -138,6 +159,8 @@ function MarkDay({ roster, onNeedsSetup }) {
         <div className="att-bar-spacer" />
         <button className="prof-btn ghost" onClick={() => markAll("present")} disabled={locked}>All present</button>
         <button className="prof-btn ghost" onClick={() => markAll("absent")} disabled={locked}>All absent</button>
+        <input ref={scanRef} type="file" accept="image/*" hidden onChange={onScan} />
+        <button className="prof-btn ghost" onClick={() => scanRef.current?.click()} disabled={locked || scanning || !roster.length}>{scanning ? "Scanning…" : "📷 Scan absentees"}</button>
         <button className={"prof-btn ghost" + (locked ? " att-locked" : "")} onClick={toggleLock} disabled={busy}>{locked ? "🔒 Locked" : "Lock day"}</button>
       </div>
 
