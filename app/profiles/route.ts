@@ -9,6 +9,10 @@ const PASSCODE = process.env.PROFILES_PASSCODE || "Mhcglobal@12345";
 const AUTH_COOKIE = "mhc_profiles_session";
 const AUTH_HASH = crypto.createHash("sha256").update(PASSCODE + "_mhc_profiles_salt_2026").digest("hex");
 
+// Extract MHC Cockpit dark theme logo from dashboard
+const logoMatch = DASHBOARD_HTML.match(/:root\[data-theme="dark"\][\s\S]*?--logo:url\("([^"]+)"\);/);
+const MHC_COCKPIT_LOGO_DARK = logoMatch ? logoMatch[1] : "";
+
 function renderPasscodePage(hasError = false): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -80,6 +84,18 @@ function renderPasscodePage(hasError = false): string {
     .header {
       text-align: center;
       margin-bottom: 28px;
+    }
+    .logo-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .lockscreen-logo {
+      width: 220px;
+      height: 40px;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.5));
     }
     .badge {
       display: inline-flex;
@@ -232,6 +248,13 @@ function renderPasscodePage(hasError = false): string {
 <body>
   <div class="container">
     <div class="header">
+      ${
+        MHC_COCKPIT_LOGO_DARK
+          ? `<div class="logo-wrapper">
+              <img src="${MHC_COCKPIT_LOGO_DARK}" alt="MHC Cockpit" class="lockscreen-logo">
+            </div>`
+          : ""
+      }
       <div class="badge">
         <span class="badge-icon">🔒</span>
         <span>Restricted Area</span>
