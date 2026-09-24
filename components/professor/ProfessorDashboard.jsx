@@ -17,6 +17,7 @@ import ScheduleTool from "@/components/professor/ScheduleTool";
 import TickerTool from "@/components/professor/TickerTool";
 import NotesTool from "@/components/professor/NotesTool";
 import AttendanceTool from "@/components/professor/AttendanceTool";
+import MarksTool from "@/components/professor/MarksTool";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
@@ -246,13 +247,7 @@ export default function ProfessorDashboard({ session }) {
         {tab === "ticker" && <TickerTool onChanged={reloadAnnouncements} />}
         {tab === "notes" && <NotesTool />}
         {tab === "attendance" && <AttendanceTool />}
-        {tab === "marks" && (
-          <Placeholder title="Marks" phase="P6" points={[
-            "Per-subject grid: each student against CAT-1, CAT-2, Model and End-Semester.",
-            "Editable max marks per assessment.",
-            "Analytics: class averages, pass/fail, and per-student progression.",
-          ]} />
-        )}
+        {tab === "marks" && <MarksTool />}
       </main>
 
       <footer className="prof-foot">ARGUS · Instructor Console · made by sid</footer>
