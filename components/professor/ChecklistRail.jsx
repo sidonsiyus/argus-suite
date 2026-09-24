@@ -6,7 +6,9 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { dayKey, prettyDay, isMissingTable } from "@/lib/professor";
-import { fixedTasks, getTasks, setFixedDone, addManual, setDone, deleteTask } from "@/lib/tasks";
+import { fixedTasks, miraClasses, getTasks, setFixedDone, addManual, setDone, deleteTask } from "@/lib/tasks";
+
+const MIRA_LINK = "https://exploremira.com";
 
 export default function ChecklistRail({ schedule, onGoto }) {
   const day = dayKey();
@@ -23,12 +25,44 @@ export default function ChecklistRail({ schedule, onGoto }) {
   }, [day]);
   useEffect(() => { load(); }, [load]);
 
-  const defs = useMemo(() => fixedTasks(schedule), [schedule]);
+  const defs = useMemo(() => fixedTasks(), []);
   const byKey = useMemo(() => Object.fromEntries(rows.filter((r) => r.fixed_key).map((r) => [r.fixed_key, r])), [rows]);
   const manual = rows.filter((r) => r.kind === "manual");
 
-  const doneCount = defs.filter((d) => byKey[d.fixed_key]?.done).length + manual.filter((m) => m.done).length;
-  const total = defs.length + manual.length;
+  // ── smart MIRA (per class, deadline advances to the next class) ──
+  const mira = useMemo(() => miraClasses(schedule), [schedule]);
+  const miraDone = mira.filter((c) => byKey[c.key]?.done);
+  const miraPending = mira.filter((c) => !byKey[c.key]?.done);
+  const hasClasses = mira.length > 0;
+  const miraAllDone = hasClasses ? miraPending.length === 0 : !!byKey["mira"]?.done; // fallback single row when no schedule
+
+  async function advanceMira() {
+    if (needsSetup) return;
+    setBusy(true);
+    try {
+      if (!hasClasses) {
+        // no schedule → simple boolean task
+        await setFixedDone(day, { fixed_key: "mira", title: "Update MIRA attendance", link: MIRA_LINK, deadline: null }, !byKey["mira"]?.done);
+      } else if (miraPending.length) {
+        const c = miraPending[0];
+        await setFixedDone(day, { fixed_key: c.key, title: `MIRA — ${c.subject}`, link: MIRA_LINK, deadline: `after ${c.endLabel}` }, true);
+      } else {
+        // all done → undo the last completed class
+        const last = mira[mira.length - 1];
+        await setFixedDone(day, { fixed_key: last.key, title: `MIRA — ${last.subject}`, link: MIRA_LINK, deadline: `after ${last.endLabel}` }, false);
+      }
+      await load();
+    } catch (e) { setErr(e?.message || "Update failed."); }
+    finally { setBusy(false); }
+  }
+
+  const miraDeadline = miraAllDone ? null : hasClasses ? `after ${miraPending[0].endLabel}` : null;
+  const miraSub = hasClasses
+    ? (miraAllDone ? "all classes updated" : `${miraDone.length}/${mira.length} · next: ${miraPending[0].subject}`)
+    : "no schedule set";
+
+  const doneCount = (miraAllDone ? 1 : 0) + defs.filter((d) => byKey[d.fixed_key]?.done).length + manual.filter((m) => m.done).length;
+  const total = 1 + defs.length + manual.length;
 
   async function toggleFixed(def) {
     if (needsSetup) return;
@@ -68,6 +102,19 @@ export default function ChecklistRail({ schedule, onGoto }) {
       {err && !needsSetup && <div className="cl-err">{err}</div>}
 
       <div className="cl-list">
+        {/* smart MIRA — advances to the next class end */}
+        <div className={"cl-item" + (miraAllDone ? " done" : "")}>
+          <button className="cl-check" onClick={advanceMira} disabled={busy} aria-pressed={miraAllDone}>{miraAllDone ? "✓" : ""}</button>
+          <div className="cl-body">
+            <div className="cl-t">Update MIRA attendance</div>
+            <div className="cl-meta">
+              {miraDeadline && <span className="cl-due">⏱ {miraDeadline}</span>}
+              <span className="cl-note">{miraSub}</span>
+              <a className="cl-link" href={MIRA_LINK} target="_blank" rel="noopener noreferrer">open ↗</a>
+            </div>
+          </div>
+        </div>
+
         {defs.map((d) => {
           const row = byKey[d.fixed_key];
           const done = !!row?.done;
@@ -128,6 +175,7 @@ const CSS = `
 .cl-t{font-size:13px;font-weight:600;line-height:1.3}
 .cl-meta{display:flex;align-items:center;gap:10px;margin-top:5px;flex-wrap:wrap}
 .cl-due{font-family:var(--mono);font-size:10px;color:var(--gold)}
+.cl-note{font-family:var(--mono);font-size:10px;color:var(--dim)}
 .cl-link{font-family:var(--sans);font-size:11px;font-weight:600;color:var(--accent);text-decoration:none;background:none;border:none;padding:0;cursor:pointer}
 .cl-link:hover{text-decoration:underline}
 .cl-x{flex:none;border:none;background:none;color:var(--faint);cursor:pointer;font-size:12px;padding:2px}
