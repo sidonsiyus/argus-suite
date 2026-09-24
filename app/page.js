@@ -6,6 +6,9 @@ import LiveBoard from "@/components/LiveBoard";
 import FlightLog from "@/components/FlightLog";
 import { useNews, shortDate } from "@/lib/useNews";
 import { AIRPORTS, AIRPORT_BY_ICAO } from "@/lib/airports";
+import { supabase, supabaseConfigured } from "@/lib/supabase";
+import ProfessorDashboard from "@/components/professor/ProfessorDashboard";
+import InstructorLogin from "@/components/professor/InstructorLogin";
 
 /* ── gate / flight metadata (airport metaphor) ── */
 const GROUP_GATE = { live: "A", eng: "B", careers: "C", academy: "D", research: "E", dash: "F" };
@@ -593,6 +596,29 @@ function CommandPalette({ open, onClose }) {
 
 export default function Home() {
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [session, setSession] = useState(null);
+  const [isFaculty, setIsFaculty] = useState(false);
+
+  // Auth-aware home: a faculty Supabase session swaps this page into the
+  // Professor Dashboard (same site, same URL). Logged-out visitors see the
+  // public terminal below, unchanged.
+  useEffect(() => {
+    if (!supabaseConfigured || !supabase) return;
+    let alive = true;
+    async function resolveFaculty(s) {
+      if (!s) { if (alive) { setSession(null); setIsFaculty(false); } return; }
+      if (alive) setSession(s);
+      try {
+        const { data, error } = await supabase.rpc("is_faculty");
+        if (alive) setIsFaculty(!error && data === true);
+      } catch { if (alive) setIsFaculty(false); }
+    }
+    supabase.auth.getSession().then(({ data }) => resolveFaculty(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => resolveFaculty(s));
+    return () => { alive = false; sub.subscription.unsubscribe(); };
+  }, []);
+
   useEffect(() => {
     function onKey(e) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setCmdOpen((v) => !v); }
@@ -619,6 +645,9 @@ export default function Home() {
   const news = useNews();
   const [airborne, setAirborne] = useState(null); // live count from the radar feed
   const [airborneAp, setAirborneAp] = useState("");
+
+  // Logged-in faculty get the instructor console in place of the public terminal.
+  if (session && isFaculty) return <ProfessorDashboard session={session} />;
 
   return (
     <>
@@ -652,6 +681,10 @@ export default function Home() {
         <button className="kbtn" onClick={() => setCmdOpen(true)}>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
           <span className="label">Search</span> <kbd>⌘K</kbd>
+        </button>
+        <button className="kbtn" onClick={() => setLoginOpen(true)} title="Instructor login">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /></svg>
+          <span className="label">Instructor</span>
         </button>
         <Clock />
       </header>
@@ -715,6 +748,7 @@ export default function Home() {
       </main>
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
+      <InstructorLogin open={loginOpen} onClose={() => setLoginOpen(false)} />
     </>
   );
 }
