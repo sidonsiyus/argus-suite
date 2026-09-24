@@ -12,7 +12,10 @@ import {
 } from "@/lib/attendance";
 import { prettyDay, isMissingTable, fileToScaledDataURL } from "@/lib/professor";
 import { pushToSheet, getWriter, setWriter } from "@/lib/attendance-sheets";
+import { computeDayStats, attendanceMessage, mhCockpitDocx, getMhForm, setMhForm, MH_DEFAULTS } from "@/lib/attendance-report";
 import AttendanceAnalytics from "@/components/professor/AttendanceAnalytics";
+
+const ATT_PASSCODE = "2000"; // matches the legacy dashboard lock code
 
 const ST_ORDER = ["present", "absent", "late", "od"];
 
@@ -22,13 +25,16 @@ export default function AttendanceTool() {
   const [rosterErr, setRosterErr] = useState("");
   const [needsSetup, setNeedsSetup] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
 
   const loadRoster = useCallback(async () => {
     try { setRoster(await getRoster()); setRosterErr(""); }
     catch (e) { setRosterErr(e?.message || "Could not load roster."); }
     finally { setLoaded(true); }
   }, []);
-  useEffect(() => { loadRoster(); }, [loadRoster]);
+  useEffect(() => { if (unlocked) loadRoster(); }, [loadRoster, unlocked]);
+
+  if (!unlocked) return <Passcode onUnlock={() => setUnlocked(true)} />;
 
   return (
     <div className="prof-panel att">
@@ -37,9 +43,10 @@ export default function AttendanceTool() {
         <h2>Attendance</h2>
         <span className="prof-chip">Live</span>
         <div className="att-subnav">
-          {[["mark", "Mark day"], ["roster", "Roster"], ["analytics", "Analytics"]].map(([id, label]) => (
+          {[["mark", "Mark day"], ["roster", "Roster"], ["report", "Report"], ["analytics", "Analytics"]].map(([id, label]) => (
             <button key={id} className={"att-subtab" + (view === id ? " on" : "")} onClick={() => setView(id)}>{label}</button>
           ))}
+          <button className="att-subtab lock" onClick={() => setUnlocked(false)} title="Lock attendance">🔒</button>
         </div>
       </div>
 
@@ -53,7 +60,103 @@ export default function AttendanceTool() {
 
       {view === "mark" && <MarkDay roster={roster} onNeedsSetup={() => setNeedsSetup(true)} />}
       {view === "roster" && <Roster roster={roster} loaded={loaded} onChanged={loadRoster} onNeedsSetup={() => setNeedsSetup(true)} />}
+      {view === "report" && <ReportTab roster={roster} onNeedsSetup={() => setNeedsSetup(true)} />}
       {view === "analytics" && <AttendanceAnalytics roster={roster} />}
+    </div>
+  );
+}
+
+/* ── passcode lock (legacy code 2000) ── */
+function Passcode({ onUnlock }) {
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState(false);
+  function submit(e) {
+    e.preventDefault();
+    if (code === ATT_PASSCODE) onUnlock();
+    else { setErr(true); setCode(""); }
+  }
+  return (
+    <div className="prof-panel att">
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="att-lockwrap">
+        <div className="att-lock-ic">🔒</div>
+        <h2>Attendance is locked</h2>
+        <p>Enter the attendance passcode to continue.</p>
+        <form onSubmit={submit} className="att-lock-form">
+          <input type="password" inputMode="numeric" autoFocus value={code} onChange={(e) => { setCode(e.target.value); setErr(false); }} placeholder="••••" maxLength={8} />
+          <button className="prof-btn primary" type="submit">Unlock</button>
+        </form>
+        {err && <div className="att-err">Wrong passcode.</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ── daily report: copyable message + MH COCKPIT document ── */
+function ReportTab({ roster, onNeedsSetup }) {
+  const [day, setDay] = useState(() => dayKey());
+  const [recs, setRecs] = useState({});
+  const [form, setForm] = useState(MH_DEFAULTS);
+  const [msg, setMsg] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => { setForm(getMhForm()); }, []);
+  useEffect(() => {
+    (async () => {
+      try { setRecs(await getDayRecords(day)); }
+      catch (e) { if (isMissingTable(e)) onNeedsSetup?.(); }
+    })();
+  }, [day, onNeedsSetup]);
+
+  const statusMap = useMemo(() => {
+    const m = {}; roster.forEach((r) => (m[r.id] = recs[r.id] || "present")); return m;
+  }, [roster, recs]);
+  const stats = useMemo(() => computeDayStats(roster, statusMap), [roster, statusMap]);
+  const message = useMemo(() => attendanceMessage(day, stats, { programme: form.programme }), [day, stats, form.programme]);
+
+  function saveForm(patch) { const next = { ...form, ...patch }; setForm(next); setMhForm(next); }
+  function copy() { navigator.clipboard?.writeText(message).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }
+  function share() { window.open("https://wa.me/?text=" + encodeURIComponent(message), "_blank"); }
+  async function downloadMh() {
+    setMsg("Building MH COCKPIT document…");
+    try { await mhCockpitDocx(day, roster, statusMap, form); setMsg("MH COCKPIT .docx downloaded."); }
+    catch (e) { setMsg(e?.message || "Could not build document."); }
+  }
+
+  return (
+    <div>
+      <div className="att-bar">
+        <label className="att-day">Day<input type="date" value={day} onChange={(e) => setDay(e.target.value || dayKey())} /></label>
+        <button className="prof-btn ghost" onClick={() => setDay(dayKey())}>Today</button>
+      </div>
+
+      <div className="rep-grid">
+        <section className="rep-msg">
+          <div className="rep-h">Attendance message</div>
+          <textarea className="rep-text" readOnly value={message} rows={7} />
+          <div className="rep-actions">
+            <button className="prof-btn primary" onClick={copy}>{copied ? "Copied ✓" : "Copy message"}</button>
+            <button className="prof-btn ghost" onClick={share}>WhatsApp</button>
+          </div>
+        </section>
+
+        <section className="rep-mh">
+          <div className="rep-h">MH COCKPIT — daily submission</div>
+          <div className="rep-form">
+            {[["institution", "Institution / College"], ["programme", "Programme"], ["batch", "Year & Batch"], ["incharge", "Class In Charge"], ["coordinator", "Coordinator (sign-off)"]].map(([k, label]) => (
+              <label key={k} className="rep-f">{label}
+                <input value={form[k] || ""} onChange={(e) => saveForm({ [k]: e.target.value })} />
+              </label>
+            ))}
+          </div>
+          <div className="rep-summary">
+            <span>Strength {stats.strength}</span><span className="p">Present {stats.present}</span>
+            <span className="o">OD {stats.od}</span><span className="a">Absent {stats.absent}</span>
+          </div>
+          <button className="prof-btn primary" onClick={downloadMh}>⭳ Download MH COCKPIT .docx</button>
+        </section>
+      </div>
+      {msg && <div className="att-status">{msg}</div>}
     </div>
   );
 }
@@ -309,6 +412,25 @@ const CSS = `
 .att-status{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--dim);background:var(--fill-weak);border-radius:8px;padding:9px 12px}
 .att-cfg{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px}
 .att-cfg-h{flex-basis:100%;font-size:12px;color:var(--dim);margin-bottom:2px}
+.att-subtab.lock{color:var(--gold)}
+.att-lockwrap{text-align:center;padding:40px 20px}
+.att-lock-ic{font-size:34px;margin-bottom:6px}
+.att-lockwrap h2{font-family:var(--serif);font-size:22px;font-weight:800;margin:0 0 4px}
+.att-lockwrap p{font-size:14px;color:var(--dim);margin:0 0 18px}
+.att-lock-form{display:inline-flex;gap:8px}
+.att-lock-form input{font-family:var(--mono);font-size:20px;letter-spacing:.3em;text-align:center;width:130px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:10px}
+.att-lock-form input:focus{border-color:var(--accent);outline:none}
+.rep-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.rep-h{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+.rep-text{width:100%;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical}
+.rep-actions{display:flex;gap:8px;margin-top:10px}
+.rep-form{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.rep-f{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.rep-f input{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.rep-f input:focus{border-color:var(--accent);outline:none}
+.rep-summary{display:flex;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--dim);margin-bottom:12px}
+.rep-summary .p{color:var(--green)}.rep-summary .a{color:var(--red)}.rep-summary .o{color:var(--accent)}
+@media(max-width:720px){.rep-grid{grid-template-columns:1fr}}
 .att-empty{font-family:var(--mono);font-size:12px;color:var(--faint);padding:18px 2px}
 .att-newstu{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .att-in{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;flex:1;min-width:120px}
