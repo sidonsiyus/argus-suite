@@ -8,16 +8,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getRoster, addStudent, getDayMeta, setDayLocked, getDayRecords, saveDay, clearDay,
-  STATUSES, STATUS_LABEL, dayKey, matchToken,
+  CATEGORIES, CAT_BY_KEY, REASONS, coarseStatus, catNeedsReason, catNeedsParent,
+  dayKey, matchToken,
 } from "@/lib/attendance";
 import { prettyDay, isMissingTable, fileToScaledDataURL } from "@/lib/professor";
 import { pushToSheet, getWriter, setWriter } from "@/lib/attendance-sheets";
 import { computeDayStats, attendanceMessage, mhCockpitDocx, getMhForm, setMhForm, MH_DEFAULTS } from "@/lib/attendance-report";
 import AttendanceAnalytics from "@/components/professor/AttendanceAnalytics";
-
-const ATT_PASSCODE = "2000"; // matches the legacy dashboard lock code
-
-const ST_ORDER = ["present", "absent", "late", "od"];
 
 export default function AttendanceTool() {
   const [view, setView] = useState("mark");
@@ -25,16 +22,13 @@ export default function AttendanceTool() {
   const [rosterErr, setRosterErr] = useState("");
   const [needsSetup, setNeedsSetup] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
 
   const loadRoster = useCallback(async () => {
     try { setRoster(await getRoster()); setRosterErr(""); }
     catch (e) { setRosterErr(e?.message || "Could not load roster."); }
     finally { setLoaded(true); }
   }, []);
-  useEffect(() => { if (unlocked) loadRoster(); }, [loadRoster, unlocked]);
-
-  if (!unlocked) return <Passcode onUnlock={() => setUnlocked(true)} />;
+  useEffect(() => { loadRoster(); }, [loadRoster]);
 
   return (
     <div className="prof-panel att">
@@ -46,14 +40,13 @@ export default function AttendanceTool() {
           {[["mark", "Mark day"], ["roster", "Roster"], ["report", "Report"], ["analytics", "Analytics"]].map(([id, label]) => (
             <button key={id} className={"att-subtab" + (view === id ? " on" : "")} onClick={() => setView(id)}>{label}</button>
           ))}
-          <button className="att-subtab lock" onClick={() => setUnlocked(false)} title="Lock attendance">🔒</button>
         </div>
       </div>
 
       {needsSetup && (
         <div className="att-setup">
-          <b>⚠ One-time setup needed.</b> The attendance tables aren't in Supabase yet.
-          Run <code>supabase/migrations/20260924_attendance.sql</code> in your sid-lms project, then reload.
+          <b>⚠ One-time setup needed.</b> The attendance tables aren't fully set up yet.
+          Run <code>20260924_attendance.sql</code> and <code>20260924_attendance_detail.sql</code> in your sid-lms project, then reload.
         </div>
       )}
       {rosterErr && !needsSetup && <div className="att-err">{rosterErr}</div>}
@@ -62,32 +55,6 @@ export default function AttendanceTool() {
       {view === "roster" && <Roster roster={roster} loaded={loaded} onChanged={loadRoster} onNeedsSetup={() => setNeedsSetup(true)} />}
       {view === "report" && <ReportTab roster={roster} onNeedsSetup={() => setNeedsSetup(true)} />}
       {view === "analytics" && <AttendanceAnalytics roster={roster} />}
-    </div>
-  );
-}
-
-/* ── passcode lock (legacy code 2000) ── */
-function Passcode({ onUnlock }) {
-  const [code, setCode] = useState("");
-  const [err, setErr] = useState(false);
-  function submit(e) {
-    e.preventDefault();
-    if (code === ATT_PASSCODE) onUnlock();
-    else { setErr(true); setCode(""); }
-  }
-  return (
-    <div className="prof-panel att">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="att-lockwrap">
-        <div className="att-lock-ic">🔒</div>
-        <h2>Attendance is locked</h2>
-        <p>Enter the attendance passcode to continue.</p>
-        <form onSubmit={submit} className="att-lock-form">
-          <input type="password" inputMode="numeric" autoFocus value={code} onChange={(e) => { setCode(e.target.value); setErr(false); }} placeholder="••••" maxLength={8} />
-          <button className="prof-btn primary" type="submit">Unlock</button>
-        </form>
-        {err && <div className="att-err">Wrong passcode.</div>}
-      </div>
     </div>
   );
 }
@@ -164,7 +131,7 @@ function ReportTab({ roster, onNeedsSetup }) {
 /* ── daily marking ── */
 function MarkDay({ roster, onNeedsSetup }) {
   const [day, setDay] = useState(() => dayKey());
-  const [status, setStatus] = useState({});   // { student_id: status }
+  const [entries, setEntries] = useState({});   // { student_id: { cat, reason, parent } }
   const [locked, setLocked] = useState(false);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -182,7 +149,7 @@ function MarkDay({ roster, onNeedsSetup }) {
     try {
       const [meta, recs] = await Promise.all([getDayMeta(d), getDayRecords(d)]);
       setLocked(!!meta?.locked);
-      setStatus(recs);
+      setEntries(recs);
     } catch (e) {
       if (isMissingTable(e)) onNeedsSetup?.();
       else setMsg(e?.message || "Could not load the day.");
@@ -190,21 +157,33 @@ function MarkDay({ roster, onNeedsSetup }) {
   }, [onNeedsSetup]);
   useEffect(() => { load(day); }, [day, load]);
 
-  const statusOf = (id) => status[id] || "present"; // unmarked defaults to present
-  function setOne(id, st) { if (!locked) setStatus((s) => ({ ...s, [id]: st })); }
-  function markAll(st) { if (locked) return; const m = {}; roster.forEach((r) => (m[r.id] = st)); setStatus(m); }
+  const entryOf = (id) => entries[id] || { cat: "present", reason: "", parent: false };
+  const catOf = (id) => entryOf(id).cat;
+  function setCat(id, cat) {
+    if (locked) return;
+    setEntries((s) => {
+      const prev = s[id] || {};
+      const next = { cat, reason: catNeedsReason(cat) ? (prev.reason || "") : "", parent: catNeedsParent(cat) ? (prev.parent || false) : false };
+      return { ...s, [id]: next };
+    });
+  }
+  function setReason(id, reason) { if (!locked) setEntries((s) => ({ ...s, [id]: { ...entryOf(id), reason } })); }
+  function setParent(id, parent) { if (!locked) setEntries((s) => ({ ...s, [id]: { ...entryOf(id), parent } })); }
+  function markAll(cat) { if (locked) return; const m = {}; roster.forEach((r) => (m[r.id] = { cat, reason: "", parent: false })); setEntries(m); }
 
   const counts = useMemo(() => {
-    const c = { present: 0, absent: 0, late: 0, od: 0 };
-    roster.forEach((r) => { c[statusOf(r.id)]++; });
+    const c = { present: 0, absent: 0, od: 0 };
+    roster.forEach((r) => { c[coarseStatus(catOf(r.id))]++; });
     return c;
-  }, [roster, status]); // eslint-disable-line
+  }, [roster, entries]); // eslint-disable-line
+
+  function fullEntries() { const full = {}; roster.forEach((r) => (full[r.id] = entryOf(r.id))); return full; }
+  const coarseMap = () => { const m = {}; roster.forEach((r) => (m[r.id] = coarseStatus(catOf(r.id)))); return m; };
 
   async function save() {
     setBusy(true); setMsg("");
     try {
-      const full = {}; roster.forEach((r) => (full[r.id] = statusOf(r.id)));
-      const n = await saveDay(day, full);
+      const n = await saveDay(day, fullEntries());
       setMsg(`Saved ${n} students for ${prettyDay(day)}.`);
     } catch (e) { setMsg(e?.message || "Save failed."); }
     finally { setBusy(false); }
@@ -218,15 +197,14 @@ function MarkDay({ roster, onNeedsSetup }) {
   async function wipe() {
     if (!confirm(`Clear all attendance for ${prettyDay(day)}?`)) return;
     setBusy(true);
-    try { await clearDay(day); setStatus({}); setMsg("Day cleared."); }
+    try { await clearDay(day); setEntries({}); setMsg("Day cleared."); }
     catch (e) { setMsg(e?.message || "Clear failed."); }
     finally { setBusy(false); }
   }
   async function push(dryRun) {
     setPushing(true); setMsg(dryRun ? "Checking the sheet…" : "Writing to Google Sheet…");
     try {
-      const full = {}; roster.forEach((r) => (full[r.id] = statusOf(r.id)));
-      const res = await pushToSheet(day, roster, full, { dryRun });
+      const res = await pushToSheet(day, roster, coarseMap(), { dryRun });
       setMsg(`${dryRun ? "Dry run OK — " : "Pushed ✓ "}${res.sheetName}: ${res.present}P · ${res.absent}A · ${res.od}OD (${res.count} students)`);
     } catch (e) { setMsg(e?.message || "Sheet push failed."); }
     finally { setPushing(false); }
@@ -243,10 +221,10 @@ function MarkDay({ roster, onNeedsSetup }) {
       if (d?.error === "ocr_unconfigured") { setMsg("OCR isn't configured (OPENROUTER_API_KEY missing)."); return; }
       const tokens = d?.tokens || [];
       if (!tokens.length) { setMsg("Couldn't read any names/numbers — try a clearer photo, or mark manually."); return; }
-      const next = {}; roster.forEach((r2) => (next[r2.id] = "present"));
+      const next = {}; roster.forEach((r2) => (next[r2.id] = { cat: "present", reason: "", parent: false }));
       let matched = 0; const unmatched = [];
-      tokens.forEach((tok) => { const s = matchToken(tok, roster); if (s) { next[s.id] = "absent"; matched++; } else unmatched.push(tok); });
-      setStatus(next);
+      tokens.forEach((tok) => { const s = matchToken(tok, roster); if (s) { next[s.id] = { cat: "unauth", reason: "", parent: false }; matched++; } else unmatched.push(tok); });
+      setEntries(next);
       setMsg(`Scan: marked ${matched} absent from ${tokens.length} entries (rest present).` + (unmatched.length ? ` Unmatched: ${unmatched.slice(0, 6).join(", ")}${unmatched.length > 6 ? "…" : ""}. Review before saving.` : " Review, then Save."));
     } catch (err) { setMsg(err?.message || "Scan failed."); }
     finally { setScanning(false); }
@@ -261,7 +239,7 @@ function MarkDay({ roster, onNeedsSetup }) {
         <button className="prof-btn ghost" onClick={() => setDay(dayKey())}>Today</button>
         <div className="att-bar-spacer" />
         <button className="prof-btn ghost" onClick={() => markAll("present")} disabled={locked}>All present</button>
-        <button className="prof-btn ghost" onClick={() => markAll("absent")} disabled={locked}>All absent</button>
+        <button className="prof-btn ghost" onClick={() => markAll("unauth")} disabled={locked}>All absent</button>
         <input ref={scanRef} type="file" accept="image/*" hidden onChange={onScan} />
         <button className="prof-btn ghost" onClick={() => scanRef.current?.click()} disabled={locked || scanning || !roster.length}>{scanning ? "Scanning…" : "📷 Scan absentees"}</button>
         <button className={"prof-btn ghost" + (locked ? " att-locked" : "")} onClick={toggleLock} disabled={busy}>{locked ? "🔒 Locked" : "Lock day"}</button>
@@ -270,9 +248,8 @@ function MarkDay({ roster, onNeedsSetup }) {
       <div className="att-tally">
         <span className="att-pill p">{counts.present} present</span>
         <span className="att-pill a">{counts.absent} absent</span>
-        {counts.late > 0 && <span className="att-pill l">{counts.late} late</span>}
         {counts.od > 0 && <span className="att-pill o">{counts.od} OD</span>}
-        <span className="att-pct">{roster.length ? Math.round(((counts.present + counts.late + counts.od) / roster.length) * 100) : 0}% present</span>
+        <span className="att-pct">{roster.length ? Math.round(((counts.present + counts.od) / roster.length) * 100) : 0}% present</span>
       </div>
 
       {loading ? (
@@ -282,18 +259,27 @@ function MarkDay({ roster, onNeedsSetup }) {
       ) : (
         <div className="att-roll">
           {roster.map((s) => {
-            const st = statusOf(s.id);
+            const e = entryOf(s.id);
+            const cat = e.cat;
             return (
-              <div key={s.id} className={"att-row st-" + st}>
+              <div key={s.id} className={"att-row st-" + coarseStatus(cat)}>
                 <span className="att-sno">{s.sno}</span>
                 <span className="att-name">{s.full_name}<em>{s.reg_no}</em></span>
-                <div className="att-seg">
-                  {ST_ORDER.map((k) => (
-                    <button key={k} className={"att-seg-b sb-" + k + (st === k ? " on" : "")} onClick={() => setOne(s.id, k)} disabled={locked} title={STATUS_LABEL[k]}>
-                      {k === "present" ? "P" : k === "absent" ? "A" : k === "late" ? "L" : "OD"}
-                    </button>
-                  ))}
-                </div>
+                <select className={"att-cat cat-" + cat} value={cat} onChange={(ev) => setCat(s.id, ev.target.value)} disabled={locked}>
+                  {CATEGORIES.map((c) => <option key={c.k} value={c.k}>{c.short}</option>)}
+                </select>
+                {catNeedsReason(cat) && (
+                  <select className="att-reason" value={e.reason || ""} onChange={(ev) => setReason(s.id, ev.target.value)} disabled={locked}>
+                    <option value="">— reason —</option>
+                    {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                )}
+                {catNeedsParent(cat) && (
+                  <select className="att-parent" value={e.parent ? "Y" : "N"} onChange={(ev) => setParent(s.id, ev.target.value === "Y")} disabled={locked} title="Parent contacted?">
+                    <option value="N">Parent: N</option>
+                    <option value="Y">Parent: Y</option>
+                  </select>
+                )}
               </div>
             );
           })}
@@ -396,18 +382,21 @@ const CSS = `
 .att-pill.o{color:var(--accent);border-color:var(--accent)}
 .att-pct{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--dim)}
 .att-roll{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto;padding-right:4px}
-.att-row{display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.att-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
 .att-row.st-absent{border-color:rgba(192,70,63,.35)}
+.att-row.st-od{border-color:rgba(14,143,128,.35)}
 .att-sno{font-family:var(--mono);font-size:11px;color:var(--faint);width:26px;text-align:right;flex:none}
-.att-name{flex:1;min-width:0;font-size:14px;font-weight:600;display:flex;flex-direction:column;line-height:1.25}
+.att-name{flex:1;min-width:150px;font-size:14px;font-weight:600;display:flex;flex-direction:column;line-height:1.25}
 .att-name em{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--dim);font-weight:400}
-.att-seg{display:flex;gap:3px;flex:none}
-.att-seg-b{font-family:var(--mono);font-size:11px;font-weight:700;width:34px;height:30px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--dim);cursor:pointer;transition:.12s}
-.att-seg-b:disabled{cursor:default;opacity:.75}
-.att-seg-b.sb-present.on{background:var(--green);border-color:var(--green);color:#fff}
-.att-seg-b.sb-absent.on{background:var(--red);border-color:var(--red);color:#fff}
-.att-seg-b.sb-late.on{background:var(--gold);border-color:var(--gold);color:#fff}
-.att-seg-b.sb-od.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.att-cat,.att-reason,.att-parent{font-family:var(--sans);font-size:12.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:8px;padding:7px 9px;cursor:pointer}
+.att-cat{flex:none;width:96px;font-weight:700;font-family:var(--mono);font-size:11.5px}
+.att-cat.cat-present{color:var(--green)}
+.att-cat.cat-unauth,.att-cat.cat-groom,.att-cat.cat-susp{color:var(--red)}
+.att-cat.cat-auth{color:var(--gold)}
+.att-cat.cat-od{color:var(--accent)}
+.att-reason{flex:1;min-width:180px}
+.att-parent{flex:none;width:104px;font-family:var(--mono);font-size:11px}
+.att-cat:disabled,.att-reason:disabled,.att-parent:disabled{opacity:.7;cursor:default}
 .att-foot{display:flex;align-items:center;gap:10px;margin-top:16px}
 .att-status{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--dim);background:var(--fill-weak);border-radius:8px;padding:9px 12px}
 .att-cfg{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px}
