@@ -6,7 +6,7 @@
  * everyone (public homepage); only faculty can create/edit/remove them.
  */
 import { useCallback, useEffect, useState } from "react";
-import { listTickerItems, addTickerItem, updateTickerItem, deleteTickerItem } from "@/lib/professor";
+import { listTickerItems, addTickerItem, updateTickerItem, deleteTickerItem, isMissingTable } from "@/lib/professor";
 
 function fmtWhen(iso) {
   if (!iso) return "";
@@ -19,6 +19,7 @@ export default function TickerTool({ onChanged }) {
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   const [message, setMessage] = useState("");
   const [href, setHref] = useState("");
@@ -28,8 +29,11 @@ export default function TickerTool({ onChanged }) {
 
   const load = useCallback(async () => {
     setLoaded(false);
-    try { setItems(await listTickerItems()); setStatus(""); }
-    catch (e) { setStatus(e?.message || "Could not load — is the ticker_items table set up?"); }
+    try { setItems(await listTickerItems()); setStatus(""); setNeedsSetup(false); }
+    catch (e) {
+      if (isMissingTable(e)) { setNeedsSetup(true); setStatus(""); }
+      else setStatus(e?.message || "Could not load announcements.");
+    }
     finally { setLoaded(true); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -49,7 +53,10 @@ export default function TickerTool({ onChanged }) {
       setMessage(""); setHref(""); setPriority(0); setExpires("");
       await load(); onChanged?.();
       setStatus("Announcement posted to the wire.");
-    } catch (e2) { setStatus(e2?.message || "Post failed."); }
+    } catch (e2) {
+      if (isMissingTable(e2)) setNeedsSetup(true);
+      else setStatus(e2?.message || "Post failed.");
+    }
     finally { setBusy(false); }
   }
 
@@ -71,6 +78,16 @@ export default function TickerTool({ onChanged }) {
         <span className="prof-chip">Live</span>
       </div>
       <p className="prof-panel-lead">Post your own announcements — they show in the site's news wire (for everyone) alongside the live headlines. Set an expiry so notices retire themselves.</p>
+
+      {needsSetup && (
+        <div className="tk-setup">
+          <b>⚠ One-time setup needed.</b> The <code>ticker_items</code> table isn't in Supabase yet.
+          Open your <b>sid-lms</b> project → SQL Editor and run the P3 migration
+          (<code>supabase/migrations/20260924_ticker_items.sql</code>), then
+          <button className="tk-retry" onClick={load}>retry</button>.
+          If you just ran it and still see this, run <code>NOTIFY pgrst, 'reload schema';</code> once.
+        </div>
+      )}
 
       <form className="tk-form" onSubmit={add}>
         <input className="tk-msg" placeholder="Announcement (e.g. 'CAT-2 marks published — check MENTOR OS')" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={240} required />
@@ -131,6 +148,9 @@ const CSS = `
 .tk-mini input{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .tk-mini input[type=number]{width:82px}
 .tk-status{font-family:var(--mono);font-size:12px;color:var(--dim);background:var(--fill-weak);border-radius:8px;padding:9px 12px;margin:10px 0}
+.tk-setup{font-size:13px;line-height:1.55;color:var(--ink-soft);background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:14px}
+.tk-setup code{font-family:var(--mono);font-size:11.5px;background:var(--fill-weak);padding:1px 5px;border-radius:4px}
+.tk-retry{margin:0 4px;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--accent);background:transparent;border:1px solid var(--accent);border-radius:7px;padding:3px 9px;cursor:pointer}
 .tk-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .tk-empty{font-family:var(--mono);font-size:12px;color:var(--faint);padding:12px 0}
 .tk-item{display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:11px 14px}
