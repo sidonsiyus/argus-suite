@@ -110,7 +110,7 @@ function ReportTab({ roster, onNeedsSetup }) {
         <section className="rep-mh">
           <div className="rep-h">MH COCKPIT — daily submission</div>
           <div className="rep-form">
-            {[["institution", "Institution / College"], ["programme", "Programme"], ["batch", "Year & Batch"], ["incharge", "Class In Charge"], ["coordinator", "Coordinator (sign-off)"]].map(([k, label]) => (
+            {[["institution", "Institution / College"], ["programme", "Programme"], ["batch", "Year & Batch"], ["incharge", "Class In Charge"], ["coordinator", "Coordinator (sign-off)"], ["submissionTime", "Submission Time"]].map(([k, label]) => (
               <label key={k} className="rep-f">{label}
                 <input value={form[k] || ""} onChange={(e) => saveForm({ [k]: e.target.value })} />
               </label>
@@ -128,10 +128,10 @@ function ReportTab({ roster, onNeedsSetup }) {
   );
 }
 
-/* ── daily marking ── */
+/* ── daily marking: everyone present by default; you add absentees ── */
 function MarkDay({ roster, onNeedsSetup }) {
   const [day, setDay] = useState(() => dayKey());
-  const [entries, setEntries] = useState({});   // { student_id: { cat, reason, parent } }
+  const [abs, setAbs] = useState({});   // { student_id: { cat, reason, parent } } — absentees only
   const [locked, setLocked] = useState(false);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -142,6 +142,12 @@ function MarkDay({ roster, onNeedsSetup }) {
   const [wSec, setWSec] = useState("");
   const [scanning, setScanning] = useState(false);
   const scanRef = useRef(null);
+  // add-absentee picker
+  const [filter, setFilter] = useState("");
+  const [pickId, setPickId] = useState("");
+  const [pickCat, setPickCat] = useState("unauth");
+  const [pickReason, setPickReason] = useState("");
+  const [pickParent, setPickParent] = useState(false);
   useEffect(() => { const w = getWriter(); setWUrl(w.url); setWSec(w.secret); }, []);
 
   const load = useCallback(async (d) => {
@@ -149,7 +155,8 @@ function MarkDay({ roster, onNeedsSetup }) {
     try {
       const [meta, recs] = await Promise.all([getDayMeta(d), getDayRecords(d)]);
       setLocked(!!meta?.locked);
-      setEntries(recs);
+      const a = {}; Object.entries(recs).forEach(([id, e]) => { if (e.cat && e.cat !== "present") a[id] = e; });
+      setAbs(a);
     } catch (e) {
       if (isMissingTable(e)) onNeedsSetup?.();
       else setMsg(e?.message || "Could not load the day.");
@@ -157,35 +164,39 @@ function MarkDay({ roster, onNeedsSetup }) {
   }, [onNeedsSetup]);
   useEffect(() => { load(day); }, [day, load]);
 
-  const entryOf = (id) => entries[id] || { cat: "present", reason: "", parent: false };
-  const catOf = (id) => entryOf(id).cat;
-  function setCat(id, cat) {
+  const available = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    return roster.filter((r) => !abs[r.id] && (!q || r.full_name.toLowerCase().includes(q) || String(r.sno).includes(q) || String(r.reg_no).toLowerCase().includes(q)));
+  }, [roster, abs, filter]);
+  const absList = useMemo(() => roster.filter((r) => abs[r.id]).map((r) => ({ ...r, ...abs[r.id] })), [roster, abs]);
+
+  const odCount = absList.filter((e) => e.cat === "od").length;
+  const absentCount = absList.filter((e) => coarseStatus(e.cat) === "absent").length;
+  const presentCount = roster.length - odCount - absentCount;
+
+  function addAbsentee() {
+    if (locked || !pickId || abs[pickId]) return;
+    setAbs((s) => ({ ...s, [pickId]: { cat: pickCat, reason: catNeedsReason(pickCat) ? pickReason : "", parent: catNeedsParent(pickCat) ? pickParent : false } }));
+    setPickId(""); setPickReason(""); setPickParent(false); setPickCat("unauth"); setFilter("");
+  }
+  function updateAbs(id, patch) {
     if (locked) return;
-    setEntries((s) => {
-      const prev = s[id] || {};
-      const next = { cat, reason: catNeedsReason(cat) ? (prev.reason || "") : "", parent: catNeedsParent(cat) ? (prev.parent || false) : false };
+    setAbs((s) => {
+      const next = { ...s[id], ...patch };
+      if (patch.cat) { if (!catNeedsReason(patch.cat)) next.reason = ""; if (!catNeedsParent(patch.cat)) next.parent = false; }
       return { ...s, [id]: next };
     });
   }
-  function setReason(id, reason) { if (!locked) setEntries((s) => ({ ...s, [id]: { ...entryOf(id), reason } })); }
-  function setParent(id, parent) { if (!locked) setEntries((s) => ({ ...s, [id]: { ...entryOf(id), parent } })); }
-  function markAll(cat) { if (locked) return; const m = {}; roster.forEach((r) => (m[r.id] = { cat, reason: "", parent: false })); setEntries(m); }
+  function removeAbs(id) { if (!locked) setAbs((s) => { const n = { ...s }; delete n[id]; return n; }); }
+  function clearAll() { if (!locked) setAbs({}); }
 
-  const counts = useMemo(() => {
-    const c = { present: 0, absent: 0, od: 0 };
-    roster.forEach((r) => { c[coarseStatus(catOf(r.id))]++; });
-    return c;
-  }, [roster, entries]); // eslint-disable-line
-
-  function fullEntries() { const full = {}; roster.forEach((r) => (full[r.id] = entryOf(r.id))); return full; }
-  const coarseMap = () => { const m = {}; roster.forEach((r) => (m[r.id] = coarseStatus(catOf(r.id)))); return m; };
+  function fullEntries() { const full = {}; roster.forEach((r) => (full[r.id] = abs[r.id] || { cat: "present", reason: "", parent: false })); return full; }
+  const coarseMap = () => { const m = {}; roster.forEach((r) => (m[r.id] = coarseStatus(abs[r.id]?.cat || "present"))); return m; };
 
   async function save() {
     setBusy(true); setMsg("");
-    try {
-      const n = await saveDay(day, fullEntries());
-      setMsg(`Saved ${n} students for ${prettyDay(day)}.`);
-    } catch (e) { setMsg(e?.message || "Save failed."); }
+    try { const n = await saveDay(day, fullEntries()); setMsg(`Saved ${n} students for ${prettyDay(day)} — ${presentCount} present, ${absentCount} absent, ${odCount} OD.`); }
+    catch (e) { setMsg(e?.message || "Save failed."); }
     finally { setBusy(false); }
   }
   async function toggleLock() {
@@ -197,7 +208,7 @@ function MarkDay({ roster, onNeedsSetup }) {
   async function wipe() {
     if (!confirm(`Clear all attendance for ${prettyDay(day)}?`)) return;
     setBusy(true);
-    try { await clearDay(day); setEntries({}); setMsg("Day cleared."); }
+    try { await clearDay(day); setAbs({}); setMsg("Day cleared."); }
     catch (e) { setMsg(e?.message || "Clear failed."); }
     finally { setBusy(false); }
   }
@@ -220,15 +231,16 @@ function MarkDay({ roster, onNeedsSetup }) {
       const d = await r.json();
       if (d?.error === "ocr_unconfigured") { setMsg("OCR isn't configured (OPENROUTER_API_KEY missing)."); return; }
       const tokens = d?.tokens || [];
-      if (!tokens.length) { setMsg("Couldn't read any names/numbers — try a clearer photo, or mark manually."); return; }
-      const next = {}; roster.forEach((r2) => (next[r2.id] = { cat: "present", reason: "", parent: false }));
-      let matched = 0; const unmatched = [];
-      tokens.forEach((tok) => { const s = matchToken(tok, roster); if (s) { next[s.id] = { cat: "unauth", reason: "", parent: false }; matched++; } else unmatched.push(tok); });
-      setEntries(next);
-      setMsg(`Scan: marked ${matched} absent from ${tokens.length} entries (rest present).` + (unmatched.length ? ` Unmatched: ${unmatched.slice(0, 6).join(", ")}${unmatched.length > 6 ? "…" : ""}. Review before saving.` : " Review, then Save."));
+      if (!tokens.length) { setMsg("Couldn't read any names/numbers — try a clearer photo, or add manually."); return; }
+      const next = { ...abs }; let matched = 0; const unmatched = [];
+      tokens.forEach((tok) => { const s = matchToken(tok, roster); if (s) { if (!next[s.id]) next[s.id] = { cat: "unauth", reason: "", parent: false }; matched++; } else unmatched.push(tok); });
+      setAbs(next);
+      setMsg(`Scan: added ${matched} absentees from ${tokens.length} entries.` + (unmatched.length ? ` Unmatched: ${unmatched.slice(0, 6).join(", ")}${unmatched.length > 6 ? "…" : ""}. Set categories & Save.` : " Set categories, then Save."));
     } catch (err) { setMsg(err?.message || "Scan failed."); }
     finally { setScanning(false); }
   }
+
+  const ABSENT_CATS = CATEGORIES.filter((c) => c.k !== "present");
 
   return (
     <div>
@@ -238,18 +250,17 @@ function MarkDay({ roster, onNeedsSetup }) {
         </label>
         <button className="prof-btn ghost" onClick={() => setDay(dayKey())}>Today</button>
         <div className="att-bar-spacer" />
-        <button className="prof-btn ghost" onClick={() => markAll("present")} disabled={locked}>All present</button>
-        <button className="prof-btn ghost" onClick={() => markAll("unauth")} disabled={locked}>All absent</button>
         <input ref={scanRef} type="file" accept="image/*" hidden onChange={onScan} />
-        <button className="prof-btn ghost" onClick={() => scanRef.current?.click()} disabled={locked || scanning || !roster.length}>{scanning ? "Scanning…" : "📷 Scan absentees"}</button>
+        <button className="prof-btn ghost" onClick={() => scanRef.current?.click()} disabled={locked || scanning || !roster.length}>{scanning ? "Scanning…" : "📷 Scan list"}</button>
+        <button className="prof-btn ghost" onClick={clearAll} disabled={locked || !absList.length}>All present</button>
         <button className={"prof-btn ghost" + (locked ? " att-locked" : "")} onClick={toggleLock} disabled={busy}>{locked ? "🔒 Locked" : "Lock day"}</button>
       </div>
 
       <div className="att-tally">
-        <span className="att-pill p">{counts.present} present</span>
-        <span className="att-pill a">{counts.absent} absent</span>
-        {counts.od > 0 && <span className="att-pill o">{counts.od} OD</span>}
-        <span className="att-pct">{roster.length ? Math.round(((counts.present + counts.od) / roster.length) * 100) : 0}% present</span>
+        <span className="att-pill p">{presentCount} present</span>
+        <span className="att-pill a">{absentCount} absent</span>
+        {odCount > 0 && <span className="att-pill o">{odCount} OD</span>}
+        <span className="att-pct">{roster.length ? Math.round(((presentCount + odCount) / roster.length) * 100) : 0}% present</span>
       </div>
 
       {loading ? (
@@ -257,33 +268,62 @@ function MarkDay({ roster, onNeedsSetup }) {
       ) : roster.length === 0 ? (
         <div className="att-empty">No students in the roster yet — add them in the Roster tab.</div>
       ) : (
-        <div className="att-roll">
-          {roster.map((s) => {
-            const e = entryOf(s.id);
-            const cat = e.cat;
-            return (
-              <div key={s.id} className={"att-row st-" + coarseStatus(cat)}>
-                <span className="att-sno">{s.sno}</span>
-                <span className="att-name">{s.full_name}<em>{s.reg_no}</em></span>
-                <select className={"att-cat cat-" + cat} value={cat} onChange={(ev) => setCat(s.id, ev.target.value)} disabled={locked}>
-                  {CATEGORIES.map((c) => <option key={c.k} value={c.k}>{c.short}</option>)}
+        <>
+          {/* add-absentee bar */}
+          {!locked && (
+            <div className="att-add">
+              <input className="att-in" placeholder="Find student to mark…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+              <select className="att-in" value={pickId} onChange={(e) => setPickId(e.target.value)}>
+                <option value="">— select student —</option>
+                {available.map((r) => <option key={r.id} value={r.id}>{r.sno}. {r.full_name}</option>)}
+              </select>
+              <select className="att-cat" value={pickCat} onChange={(e) => setPickCat(e.target.value)}>
+                {ABSENT_CATS.map((c) => <option key={c.k} value={c.k}>{c.short}</option>)}
+              </select>
+              {catNeedsReason(pickCat) && (
+                <select className="att-reason" value={pickReason} onChange={(e) => setPickReason(e.target.value)}>
+                  <option value="">— reason —</option>
+                  {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
-                {catNeedsReason(cat) && (
-                  <select className="att-reason" value={e.reason || ""} onChange={(ev) => setReason(s.id, ev.target.value)} disabled={locked}>
-                    <option value="">— reason —</option>
-                    {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              )}
+              {catNeedsParent(pickCat) && (
+                <select className="att-parent" value={pickParent ? "Y" : "N"} onChange={(e) => setPickParent(e.target.value === "Y")}>
+                  <option value="N">Parent: N</option><option value="Y">Parent: Y</option>
+                </select>
+              )}
+              <button className="prof-btn primary" onClick={addAbsentee} disabled={!pickId}>+ Add</button>
+            </div>
+          )}
+
+          {/* absentees list */}
+          {absList.length === 0 ? (
+            <div className="att-empty">Everyone present. Add absentees above, or 📷 scan the list.</div>
+          ) : (
+            <div className="att-roll">
+              {absList.map((s) => (
+                <div key={s.id} className={"att-row st-" + coarseStatus(s.cat)}>
+                  <span className="att-sno">{s.sno}</span>
+                  <span className="att-name">{s.full_name}<em>{s.reg_no}</em></span>
+                  <select className={"att-cat cat-" + s.cat} value={s.cat} onChange={(e) => updateAbs(s.id, { cat: e.target.value })} disabled={locked}>
+                    {ABSENT_CATS.map((c) => <option key={c.k} value={c.k}>{c.short}</option>)}
                   </select>
-                )}
-                {catNeedsParent(cat) && (
-                  <select className="att-parent" value={e.parent ? "Y" : "N"} onChange={(ev) => setParent(s.id, ev.target.value === "Y")} disabled={locked} title="Parent contacted?">
-                    <option value="N">Parent: N</option>
-                    <option value="Y">Parent: Y</option>
-                  </select>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  {catNeedsReason(s.cat) && (
+                    <select className="att-reason" value={s.reason || ""} onChange={(e) => updateAbs(s.id, { reason: e.target.value })} disabled={locked}>
+                      <option value="">— reason —</option>
+                      {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  )}
+                  {catNeedsParent(s.cat) && (
+                    <select className="att-parent" value={s.parent ? "Y" : "N"} onChange={(e) => updateAbs(s.id, { parent: e.target.value === "Y" })} disabled={locked} title="Parent contacted?">
+                      <option value="N">Parent: N</option><option value="Y">Parent: Y</option>
+                    </select>
+                  )}
+                  {!locked && <button className="att-x" onClick={() => removeAbs(s.id)} title="Mark present">✕</button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <div className="att-foot">
@@ -297,7 +337,7 @@ function MarkDay({ roster, onNeedsSetup }) {
 
       {showCfg && (
         <div className="att-cfg">
-          <div className="att-cfg-h">Google Sheet writer — same endpoint as the legacy dashboard (Apps Script URL + secret).</div>
+          <div className="att-cfg-h">Google Sheet writer — pre-filled with your dashboard's endpoint; add the secret if the push asks for it.</div>
           <input className="att-in" placeholder="Writer URL (…/exec)" value={wUrl} onChange={(e) => setWUrl(e.target.value)} />
           <input className="att-in" placeholder="Secret" value={wSec} onChange={(e) => setWSec(e.target.value)} />
           <button className="prof-btn primary" onClick={saveWriter}>Save</button>
@@ -397,6 +437,11 @@ const CSS = `
 .att-reason{flex:1;min-width:180px}
 .att-parent{flex:none;width:104px;font-family:var(--mono);font-size:11px}
 .att-cat:disabled,.att-reason:disabled,.att-parent:disabled{opacity:.7;cursor:default}
+.att-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px}
+.att-add .att-in{flex:1;min-width:150px}
+.att-add .att-cat{width:110px}
+.att-x{flex:none;border:1px solid var(--line);background:transparent;color:var(--faint);border-radius:8px;width:30px;height:30px;cursor:pointer}
+.att-x:hover{color:var(--green);border-color:var(--green)}
 .att-foot{display:flex;align-items:center;gap:10px;margin-top:16px}
 .att-status{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--dim);background:var(--fill-weak);border-radius:8px;padding:9px 12px}
 .att-cfg{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px}
