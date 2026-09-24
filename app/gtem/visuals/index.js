@@ -945,7 +945,7 @@ function CreepStress({ accent = "#22d3ee", accent2 = "#67e8f9" }) {
           <rect x="30" y="70" width="30" height="16" rx="3" fill="#16292d" stroke={accent} />
           {/* blade, stretching with creep */}
           <g>
-            <rect x="60" y={74 - stretch / 2} width={70 + stretch} height="8" rx="3" fill={heat(Math.min(0.95, (metalT - 700) / 500))} opacity="0.9" />
+            <rect className="no-tween" x="60" y={74 - stretch / 2} width={70 + stretch} height="8" rx="3" fill={heat(Math.min(0.95, (metalT - 700) / 500))} opacity="0.9" />
             {cool && Array.from({ length: 5 }).map((_, i) => <circle key={i} cx={72 + i * 12} cy="78" r="1.3" fill="#dff6fb" opacity="0.8" />)}
           </g>
           {/* casing line the blade creeps toward */}

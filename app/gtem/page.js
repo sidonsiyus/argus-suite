@@ -170,7 +170,7 @@ function Revise({ go }) {
       <div className="gtem-rev-head">
         <span className="gtem-eyebrow"><i className="led" />Revise · self-test</span>
         <h1>Revision &amp; exams</h1>
-        <p>Drill the glossary with flashcards, then test yourself with a per-unit exam or the final across all five methods.</p>
+        <p>Drill the glossary with flashcards, then test yourself with a per-unit exam or the final across all five units.</p>
       </div>
       <div className="gtem-rev-tabs">
         <button className={mode === "flash" ? "on" : ""} onClick={() => setMode("flash")}>◆ Flashcards</button>
@@ -228,8 +228,8 @@ function ExamHub({ onStart }) {
           <span className="gtem-examcard-k">Unit {u.code}</span><b>{u.title}</b><small>{Math.min(qs.length, 12)} questions · pass 70%</small>
         </button>
       ); })}
-      <button className="gtem-examcard final" onClick={() => start("Final exam · all methods", UNITS.flatMap((u) => unitQuestions(u.id)))}>
-        <span className="gtem-examcard-k">Final</span><b>All five methods</b><small>12 questions · pass 70%</small>
+      <button className="gtem-examcard final" onClick={() => start("Final exam · all units", UNITS.flatMap((u) => unitQuestions(u.id)))}>
+        <span className="gtem-examcard-k">Final</span><b>All five units</b><small>12 questions · pass 70%</small>
       </button>
     </div>
   );
@@ -277,15 +277,15 @@ function Home({ go, done }) {
         <div className="gtem-hero-stripe" />
         <div className="gtem-hero-body">
           <span className="gtem-eyebrow"><i className="led" />{COURSE.program} · {COURSE.code}</span>
-          <h1>Find the flaw.<br /><span className="g">Keep the part flying.</span></h1>
-          <p>Non-Destructive Testing inspects an aircraft component for hidden defects without ever taking it apart. Walk {SESSION_COUNT} in-depth sessions across five methods — each with a hands-on interactive, curated video, detailed lesson and a knowledge check — on the way to Certified Inspector.</p>
+          <h1>Feel the power.<br /><span className="g">Understand the engine.</span></h1>
+          <p>The gas turbine turns fuel into thrust through five stages of pressure, heat and motion. Walk {SESSION_COUNT} in-depth sessions across five units — each with a hands-on interactive, curated video, detailed lesson and a knowledge check — from the Brayton cycle to engine health monitoring.</p>
           <div className="gtem-hero-cta">
             <button className="gtem-btn" onClick={() => go(doneCount ? nextUndone(done) : "1.1")}>{doneCount ? "Resume learning" : "Begin Unit I"} →</button>
             <span className="gtem-hero-stat"><b>{doneCount}</b> / {SESSION_COUNT} sessions complete</span>
           </div>
         </div>
       </div>
-      <div className="gtem-sec-eyebrow">The five methods · 45 sessions</div>
+      <div className="gtem-sec-eyebrow">The five units · {SESSION_COUNT} sessions</div>
       <div className="gtem-unitcards">
         {UNITS.map((u) => {
           const up = u.sessions.filter((s) => done[s.id]).length;
@@ -1167,8 +1167,12 @@ const CSS = `
 .v-play:hover{border-color:var(--line2);color:var(--ink)}
 .v-play.on{color:var(--red);border-color:var(--red-soft)}
 /* global smooth easing on slider/toggle-driven SVG shapes (rAF elements opt out with .no-tween) */
-.v-stage svg rect,.v-stage svg circle,.v-stage svg ellipse,.v-stage svg line,.v-stage svg path,.v-stage svg polygon,.v-stage svg polyline{transition:x .25s ease,y .25s ease,cx .25s ease,cy .25s ease,r .25s ease,rx .25s ease,ry .25s ease,width .25s ease,height .25s ease,opacity .25s ease,fill .25s ease,transform .25s ease}
-.v-stage svg .no-tween{transition:none!important}
+/* Only bar-style <rect>s tween on discrete slider/toggle changes. Continuously
+   rAF-animated shapes (particles, spinning discs, traced points, gauge needles)
+   must NOT have CSS transitions, or the 250ms tween fights the per-frame updates
+   and the motion stutters/lags. */
+.v-stage svg rect{transition:x .22s ease,y .22s ease,width .22s ease,height .22s ease,fill .2s ease}
+.v-stage svg rect.no-tween,.v-stage svg .no-tween{transition:none!important}
 @media(prefers-reduced-motion:reduce){.v-stage svg *{transition:none!important}}
 .v-svg{width:100%;max-width:460px;height:auto;display:block;margin:0 auto}
 .v-cap{font-size:12.5px;line-height:1.55;color:var(--muted);margin-top:13px;max-width:560px;margin-left:auto;margin-right:auto}
