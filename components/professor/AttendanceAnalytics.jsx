@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRangeRecords, isPresentish } from "@/lib/attendance";
 import { dayKey, isMissingTable } from "@/lib/professor";
 import { registerCSV, registerDocx, defaulterLettersDocx, printRegister, distributionPng } from "@/lib/attendance-export";
+import { whatsappLink } from "@/lib/attendance-sheets";
 
 function monthStart() {
   const d = new Date(); return dayKey(new Date(d.getFullYear(), d.getMonth(), 1));
@@ -96,6 +97,17 @@ export default function AttendanceAnalytics({ roster }) {
         <div className="an-card"><div className="an-n">{withData.length}/{roster.length}</div><div className="an-l">With data</div></div>
       </div>
 
+      {defaulters.length > 0 && (
+        <div className="an-notify">
+          <span className="an-exp-label">Notify defaulters</span>
+          {defaulters.map((d) => (
+            <a key={d.id} className="an-wa" href={whatsappLink(d, { threshold, from, to })} target="_blank" rel="noopener noreferrer" title={`WhatsApp ${d.full_name}`}>
+              {d.full_name.split(" ")[0]} · {d.pct}% ↗
+            </a>
+          ))}
+        </div>
+      )}
+
       {/* distribution chart */}
       <div className="an-chart">
         {buckets.map((b) => (
@@ -134,6 +146,9 @@ const CSS = `
 .an-bar-spacer{flex:1}
 .an-exports{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .an-exp-label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.an-notify{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:16px}
+.an-wa{font-family:var(--sans);font-size:12px;font-weight:600;color:#1f8f56;text-decoration:none;border:1px solid rgba(31,143,86,.4);border-radius:20px;padding:4px 11px}
+.an-wa:hover{background:rgba(31,143,86,.1)}
 .an-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
 .an-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px}
 .an-n{font-family:var(--serif);font-size:26px;font-weight:800;line-height:1}

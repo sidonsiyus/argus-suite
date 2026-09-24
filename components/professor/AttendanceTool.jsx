@@ -11,6 +11,7 @@ import {
   STATUSES, STATUS_LABEL, dayKey,
 } from "@/lib/attendance";
 import { prettyDay, isMissingTable } from "@/lib/professor";
+import { pushToSheet, getWriter, setWriter } from "@/lib/attendance-sheets";
 import AttendanceAnalytics from "@/components/professor/AttendanceAnalytics";
 
 const ST_ORDER = ["present", "absent", "late", "od"];
@@ -65,6 +66,11 @@ function MarkDay({ roster, onNeedsSetup }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pushing, setPushing] = useState(false);
+  const [showCfg, setShowCfg] = useState(false);
+  const [wUrl, setWUrl] = useState("");
+  const [wSec, setWSec] = useState("");
+  useEffect(() => { const w = getWriter(); setWUrl(w.url); setWSec(w.secret); }, []);
 
   const load = useCallback(async (d) => {
     setLoading(true); setMsg("");
@@ -111,6 +117,16 @@ function MarkDay({ roster, onNeedsSetup }) {
     catch (e) { setMsg(e?.message || "Clear failed."); }
     finally { setBusy(false); }
   }
+  async function push(dryRun) {
+    setPushing(true); setMsg(dryRun ? "Checking the sheet…" : "Writing to Google Sheet…");
+    try {
+      const full = {}; roster.forEach((r) => (full[r.id] = statusOf(r.id)));
+      const res = await pushToSheet(day, roster, full, { dryRun });
+      setMsg(`${dryRun ? "Dry run OK — " : "Pushed ✓ "}${res.sheetName}: ${res.present}P · ${res.absent}A · ${res.od}OD (${res.count} students)`);
+    } catch (e) { setMsg(e?.message || "Sheet push failed."); }
+    finally { setPushing(false); }
+  }
+  function saveWriter() { setWriter(wUrl, wSec); setShowCfg(false); setMsg("Google Sheet writer saved."); }
 
   return (
     <div>
@@ -160,9 +176,21 @@ function MarkDay({ roster, onNeedsSetup }) {
 
       <div className="att-foot">
         <button className="prof-btn ghost" onClick={wipe} disabled={busy || locked}>Clear day</button>
+        <button className="prof-btn ghost" onClick={() => push(false)} disabled={pushing || !roster.length}>⤴ Push to Sheet</button>
+        <button className="prof-btn ghost" onClick={() => push(true)} disabled={pushing || !roster.length}>Dry run</button>
+        <button className="prof-btn ghost" onClick={() => setShowCfg((v) => !v)} title="Google Sheet settings">⚙</button>
         <div className="att-bar-spacer" />
         <button className="prof-btn primary" onClick={save} disabled={busy || locked || !roster.length}>{busy ? "Saving…" : "Save attendance"}</button>
       </div>
+
+      {showCfg && (
+        <div className="att-cfg">
+          <div className="att-cfg-h">Google Sheet writer — same endpoint as the legacy dashboard (Apps Script URL + secret).</div>
+          <input className="att-in" placeholder="Writer URL (…/exec)" value={wUrl} onChange={(e) => setWUrl(e.target.value)} />
+          <input className="att-in" placeholder="Secret" value={wSec} onChange={(e) => setWSec(e.target.value)} />
+          <button className="prof-btn primary" onClick={saveWriter}>Save</button>
+        </div>
+      )}
       {msg && <div className="att-status">{msg}</div>}
     </div>
   );
@@ -256,6 +284,8 @@ const CSS = `
 .att-seg-b.sb-od.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .att-foot{display:flex;align-items:center;gap:10px;margin-top:16px}
 .att-status{margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--dim);background:var(--fill-weak);border-radius:8px;padding:9px 12px}
+.att-cfg{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px}
+.att-cfg-h{flex-basis:100%;font-size:12px;color:var(--dim);margin-bottom:2px}
 .att-empty{font-family:var(--mono);font-size:12px;color:var(--faint);padding:18px 2px}
 .att-newstu{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .att-in{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;flex:1;min-width:120px}
