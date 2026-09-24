@@ -18,6 +18,7 @@ import TickerTool from "@/components/professor/TickerTool";
 import NotesTool from "@/components/professor/NotesTool";
 import AttendanceTool from "@/components/professor/AttendanceTool";
 import MarksTool from "@/components/professor/MarksTool";
+import ChecklistRail from "@/components/professor/ChecklistRail";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
@@ -202,6 +203,7 @@ export default function ProfessorDashboard({ session }) {
         ))}
       </nav>
 
+      <div className="prof-body">
       <main className="prof-main">
         {tab === "overview" && (
           <>
@@ -249,6 +251,8 @@ export default function ProfessorDashboard({ session }) {
         {tab === "attendance" && <AttendanceTool />}
         {tab === "marks" && <MarksTool />}
       </main>
+        <ChecklistRail schedule={todayEntries} onGoto={(t) => setTab(t)} />
+      </div>
 
       <footer className="prof-foot">ARGUS · Instructor Console · made by sid</footer>
     </div>
@@ -298,12 +302,14 @@ const CSS = `
 .prof-ticker-item.ann b{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;margin-right:2px}
 .prof-ticker-idle{font-family:var(--mono);font-size:11px;color:var(--dim)}
 @media(prefers-reduced-motion:reduce){.prof-ticker-run{animation:none}}
-.prof-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:14px 20px 0;max-width:1120px;margin:0 auto;width:100%}
+.prof-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:14px 20px 0;max-width:1440px;margin:0 auto;width:100%}
 .prof-tab{display:inline-flex;align-items:center;gap:7px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--dim);background:transparent;border:1px solid transparent;border-radius:10px;padding:9px 14px;cursor:pointer;transition:.15s}
 .prof-tab:hover{color:var(--ink);background:var(--fill-weak)}
 .prof-tab.on{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
 .prof-tab-ic{font-size:14px}
-.prof-main{max-width:1120px;margin:0 auto;width:100%;padding:22px 20px 60px}
+.prof-body{display:flex;align-items:flex-start;gap:20px;max-width:1440px;margin:0 auto;width:100%;padding:22px 20px 40px}
+.prof-main{flex:1;min-width:0}
+@media(max-width:960px){.prof-body{flex-wrap:wrap}.prof-rail{order:-1}}
 .prof-hero{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:34px 30px;box-shadow:var(--shadow-md);position:relative;overflow:hidden}
 .prof-hero-eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:14px}
 .prof-hero-eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
