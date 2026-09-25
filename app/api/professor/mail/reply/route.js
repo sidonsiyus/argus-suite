@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 import { requireFaculty } from "@/lib/professor-auth";
 import { mailConfigured, sendReply, HmError } from "@/lib/hostinger-mail";
 import { COORDINATOR_EMAIL } from "@/lib/coordinator-inbox";
+import { buildHtmlEmail, buildTextEmail } from "@/lib/mail-signature";
 
 export async function POST(request) {
   const gate = await requireFaculty(request);
@@ -23,7 +24,8 @@ export async function POST(request) {
   if (!/^re:/i.test(subject)) subject = subject ? `Re: ${subject}` : "Re:";
 
   try {
-    await sendReply({ to: COORDINATOR_EMAIL, subject, text, uid });
+    // Threaded reply, sent as HTML with the signature + a plain-text fallback.
+    await sendReply({ to: COORDINATOR_EMAIL, subject, text: buildTextEmail(text), html: buildHtmlEmail(text), uid });
     return Response.json({ ok: true });
   } catch (e) {
     const status = e instanceof HmError ? e.status : 502;

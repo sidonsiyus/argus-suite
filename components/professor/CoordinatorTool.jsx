@@ -241,7 +241,7 @@ export default function CoordinatorTool({ onChanged }) {
                       {sending ? "Sending…" : "Send reply →"}
                     </button>
                   </div>
-                  <div className="cm-muted small cm-hint">A reply sends from your mailbox, threaded. Either way marks this email done.</div>
+                  <div className="cm-muted small cm-hint">A reply sends from your mailbox, threaded, with your signature added. Either way marks this email done.</div>
                 </div>
               </>
             ) : (
