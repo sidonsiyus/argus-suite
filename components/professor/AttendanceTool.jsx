@@ -9,12 +9,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getRoster, addStudent, getDayMeta, setDayLocked, getDayRecords, saveDay, clearDay,
   CATEGORIES, CAT_BY_KEY, REASONS, coarseStatus, catNeedsReason, catNeedsParent,
-  dayKey, matchToken,
+  dayKey, matchToken, importEmails,
 } from "@/lib/attendance";
 import { prettyDay, isMissingTable, fileToScaledDataURL } from "@/lib/professor";
 import { pushToSheet, getWriter, setWriter } from "@/lib/attendance-sheets";
 import { computeDayStats, attendanceMessage, mhCockpitDocx, getMhForm, setMhForm, MH_DEFAULTS } from "@/lib/attendance-report";
 import { planImport } from "@/lib/attendance-import";
+import { sendBulkEmails } from "@/lib/coordinator-mail";
 import AttendanceAnalytics from "@/components/professor/AttendanceAnalytics";
 
 export default function AttendanceTool({ nav } = {}) {
@@ -130,10 +131,162 @@ function ReportTab({ roster, onNeedsSetup }) {
           <button className="prof-btn primary" onClick={downloadMh}>⭳ Download MH COCKPIT .docx</button>
         </section>
       </div>
+
+      <AbsenteeMailer day={day} roster={roster} recs={recs} form={form} />
+
       {msg && <div className="att-status">{msg}</div>}
     </div>
   );
 }
+
+/* ── email today's absentees (auth / unauth / etc.) via the mailbox ── */
+const AB_CATS = [
+  { k: "auth", label: "Authorized" },
+  { k: "unauth", label: "Unauthorized" },
+  { k: "groom", label: "Grooming" },
+  { k: "susp", label: "Suspended" },
+];
+const AB_STATUS_WORD = { auth: "Authorized (informed)", unauth: "Unauthorized", groom: "Grooming", susp: "Suspended" };
+const AB_DEFAULT_SUBJECT = "Attendance Notice — {date}";
+const AB_DEFAULT_BODY = `Dear {name},
+
+Our records show that you were marked absent ({status}) on {date}{reasonClause}.
+
+If you believe this is an error, please contact your class in-charge at the earliest. Kindly ensure your attendance is regularised.
+
+Regards,
+{incharge}
+{institution}`;
+
+function AbsenteeMailer({ day, roster, recs, form }) {
+  const [cats, setCats] = useState({ auth: true, unauth: true, groom: false, susp: false });
+  const [subject, setSubject] = useState(AB_DEFAULT_SUBJECT);
+  const [bodyTpl, setBodyTpl] = useState(AB_DEFAULT_BODY);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [result, setResult] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [err, setErr] = useState("");
+
+  const dateLabel = prettyDay(day);
+  const recipients = useMemo(() => {
+    const out = [];
+    roster.forEach((r) => {
+      const cat = recs[r.id]?.cat;
+      if (!cat || !cats[cat]) return;
+      out.push({ id: r.id, name: r.full_name, email: (r.email || "").trim(), status: AB_STATUS_WORD[cat] || "Absent", reason: recs[r.id]?.reason || "" });
+    });
+    return out;
+  }, [roster, recs, cats]);
+  const withEmail = recipients.filter((r) => r.email);
+  const missing = recipients.filter((r) => !r.email);
+
+  function build(r) {
+    const ctx = {
+      name: r.name, status: r.status, date: dateLabel,
+      reason: r.reason || "",
+      reasonClause: r.reason ? ` for the reason: ${r.reason}` : "",
+      incharge: form?.incharge || "Class In-charge",
+      institution: form?.institution || "",
+    };
+    const fill = (t) => String(t).replace(/\{(\w+)\}/g, (_, k) => (k in ctx ? ctx[k] : `{${k}}`));
+    return { to: r.email, subject: fill(subject).trim() || "Attendance Notice", text: fill(bodyTpl) };
+  }
+
+  async function doSend() {
+    setConfirming(false); setBusy(true); setErr(""); setResult(null);
+    setProgress({ done: 0, total: withEmail.length });
+    try {
+      const res = await sendBulkEmails(withEmail.map(build), (done, total) => setProgress({ done, total }));
+      setResult(res);
+    } catch (e) { setErr(e?.message || "Could not send."); }
+    finally { setBusy(false); }
+  }
+
+  const preview = withEmail[0] ? build(withEmail[0]) : null;
+
+  return (
+    <section className="ab-mail">
+      <style dangerouslySetInnerHTML={{ __html: AB_CSS }} />
+      <div className="rep-h">Email absentees</div>
+      <p className="ab-lead">Emails today's absentees from your mailbox ({prettyDay(day)}). Pick which categories to include.</p>
+
+      <div className="ab-cats">
+        {AB_CATS.map((c) => {
+          const n = roster.filter((r) => recs[r.id]?.cat === c.k).length;
+          return (
+            <label key={c.k} className={"ab-cat" + (cats[c.k] ? " on" : "") + (n ? "" : " empty")}>
+              <input type="checkbox" checked={!!cats[c.k]} disabled={!n} onChange={(e) => setCats((s) => ({ ...s, [c.k]: e.target.checked }))} />
+              {c.label} <span className="ab-n">{n}</span>
+            </label>
+          );
+        })}
+      </div>
+
+      <div className="ab-fields">
+        <label className="ab-f">Subject
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} />
+        </label>
+        <label className="ab-f">Message <span className="ab-hint">placeholders: {"{name} {status} {date} {reason} {incharge} {institution}"}</span>
+          <textarea value={bodyTpl} onChange={(e) => setBodyTpl(e.target.value)} rows={8} />
+        </label>
+      </div>
+
+      <div className="ab-count">
+        <b>{withEmail.length}</b> will be emailed
+        {missing.length > 0 && <span className="ab-missing"> · {missing.length} skipped (no email on file): {missing.slice(0, 6).map((m) => m.name).join(", ")}{missing.length > 6 ? "…" : ""}</span>}
+      </div>
+      {preview && (
+        <details className="ab-preview"><summary>Preview first email ({preview.to})</summary>
+          <div className="ab-prev-subj">{preview.subject}</div>
+          <pre className="ab-prev-body">{preview.text}</pre>
+        </details>
+      )}
+
+      {err && <div className="att-err">{err}</div>}
+      {progress && busy && <div className="att-status">Sending… {progress.done}/{progress.total}</div>}
+      {result && <div className="att-status">Sent {result.sent}/{result.total}.{result.failed?.length ? ` ${result.failed.length} failed.` : " ✓"}</div>}
+
+      {!confirming ? (
+        <button className="prof-btn primary" disabled={busy || !withEmail.length} onClick={() => { setResult(null); setConfirming(true); }}>
+          ✉ Email {withEmail.length} absentee{withEmail.length === 1 ? "" : "s"}
+        </button>
+      ) : (
+        <div className="ab-confirm">
+          <span>Send this email to <b>{withEmail.length}</b> student{withEmail.length === 1 ? "" : "s"}? This can't be unsent.</span>
+          <div className="ab-confirm-btns">
+            <button className="prof-btn ghost" onClick={() => setConfirming(false)}>Cancel</button>
+            <button className="prof-btn primary" onClick={doSend}>Yes, send</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const AB_CSS = `
+.ab-mail{margin-top:22px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.ab-lead{font-size:13px;color:var(--ink-soft);margin:4px 0 14px}
+.ab-cats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.ab-cat{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:7px 12px;cursor:pointer}
+.ab-cat.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.ab-cat.empty{opacity:.45;cursor:default}
+.ab-cat input{accent-color:var(--accent)}
+.ab-n{font-family:var(--mono);font-size:11px;color:var(--dim);background:var(--panel);border-radius:10px;padding:1px 7px}
+.ab-fields{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
+.ab-f{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
+.ab-hint{text-transform:none;letter-spacing:0;color:var(--faint);font-size:10.5px}
+.ab-f input,.ab-f textarea{font-family:var(--sans);font-size:13.5px;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:10px 11px;outline:none;resize:vertical}
+.ab-f input:focus,.ab-f textarea:focus{border-color:var(--accent)}
+.ab-count{font-size:13px;color:var(--ink-soft);margin-bottom:10px}
+.ab-missing{color:var(--gold)}
+.ab-preview{margin-bottom:12px;font-size:12.5px}
+.ab-preview summary{cursor:pointer;color:var(--accent);font-weight:600}
+.ab-prev-subj{font-weight:700;margin:8px 0 4px;font-size:13px}
+.ab-prev-body{white-space:pre-wrap;font-family:var(--sans);font-size:13px;color:var(--ink-soft);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:10px;margin:0}
+.ab-confirm{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;font-size:13.5px}
+.ab-confirm-btns{display:flex;gap:8px}
+`;
 
 /* ── daily marking: everyone present by default; you add absentees ── */
 function MarkDay({ roster, onNeedsSetup }) {
@@ -399,6 +552,23 @@ function Roster({ roster, loaded, onChanged, onNeedsSetup }) {
   const [msg, setMsg] = useState("");
   const [imp, setImp] = useState({ busy: false, msg: "" });
   const impRef = useRef(null);
+  const [emailText, setEmailText] = useState("");
+  const [emailImp, setEmailImp] = useState({ busy: false, msg: "" });
+
+  async function onImportEmails() {
+    if (!emailText.trim()) return;
+    if (!roster.length) { setEmailImp({ busy: false, msg: "Add the roster students first, then import emails." }); return; }
+    setEmailImp({ busy: true, msg: "Saving emails…" });
+    try {
+      const { updated, unmatched, total } = await importEmails(emailText, roster);
+      setEmailImp({ busy: false, msg: `Saved ${updated}/${total} emails.` + (unmatched.length ? ` ${unmatched.length} reg no(s) not in the roster: ${unmatched.slice(0, 6).join(", ")}${unmatched.length > 6 ? "…" : ""}.` : "") });
+      setEmailText("");
+      onChanged?.();
+    } catch (e) {
+      if (isMissingTable(e)) onNeedsSetup?.();
+      else setEmailImp({ busy: false, msg: e?.message || "Could not save emails." });
+    }
+  }
 
   async function onImport(e) {
     const file = e.target.files?.[0]; e.target.value = "";
@@ -452,13 +622,31 @@ function Roster({ roster, loaded, onChanged, onNeedsSetup }) {
       </div>
       {imp.msg && <div className="att-status">{imp.msg}</div>}
 
+      <div className="att-import" style={{ alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <b>Import student emails</b>
+          <p>Paste your roster export (reg number + email per student). Emails are matched by reg number and saved to the roster — used for the <i>Email absentees</i> action in Report.</p>
+          <textarea
+            placeholder="Paste roster text here (names, reg numbers, emails)…"
+            value={emailText}
+            onChange={(e) => setEmailText(e.target.value)}
+            rows={4}
+            style={{ width: "100%", boxSizing: "border-box", marginTop: 8, fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink)", background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 9, padding: "9px 10px", outline: "none", resize: "vertical" }}
+          />
+        </div>
+        <button className="prof-btn ghost" onClick={onImportEmails} disabled={emailImp.busy || !emailText.trim()}>{emailImp.busy ? "Saving…" : "Save emails"}</button>
+      </div>
+      {emailImp.msg && <div className="att-status">{emailImp.msg}</div>}
+
       {!loaded ? <div className="att-empty">Loading…</div> : (
         <div className="att-rlist">
           <div className="att-rrow head"><span>#</span><span>Name</span><span>Reg</span><span>Phone</span></div>
           {roster.map((s) => (
             <div className="att-rrow" key={s.id}>
               <span>{s.sno}</span>
-              <span className="att-rname">{s.full_name}</span>
+              <span className="att-rname">{s.full_name}
+                {s.email && <em style={{ display: "block", fontStyle: "normal", fontFamily: "var(--mono)", fontSize: 10, color: "var(--dim)" }}>{s.email}</em>}
+              </span>
               <span className="att-mono">{s.reg_no}</span>
               <span className="att-mono">{s.phone || "—"}</span>
             </div>

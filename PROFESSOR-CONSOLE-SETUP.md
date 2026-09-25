@@ -62,8 +62,16 @@ tables — no new migration.
 - **Notes** — categorise & upload course notes (Ground School store).
 - **Attendance** — absentee-first daily marking (AUTH/UNAUTH/GROOM/OD/SUSP +
   reason + parent), day lock, OCR scan, analytics + defaulters, exports
-  (CSV/DOCX register + defaulter letters, PDF, PNG), Sheet push, WhatsApp, and
-  the **Report** sub-tab (copyable message + the exact 5-section MH COCKPIT .docx).
+  (CSV/DOCX register + defaulter letters, PDF, PNG), Sheet push, WhatsApp, the
+  **Report** sub-tab (copyable message + the exact 5-section MH COCKPIT .docx +
+  **Email absentees**), and a **Roster → Import student emails** paste box.
+  - *Email absentees* (Report tab): pick categories (Authorized / Unauthorized /
+    Grooming / Suspended), edit a templated message (`{name} {status} {date}
+    {reason} {incharge} {institution}`), preview, confirm, and send one email
+    per student via the mailbox (needs `HOSTINGER_MAIL_TOKEN`). Students without
+    an email on file are skipped and listed. Emails come from `students.email`,
+    loaded via the Roster paste importer (matched by reg number; PII stays in
+    Supabase, never in git).
 - **Marks** — per-subject grid (CAT-1 / CAT-2 / Model / End-Sem) with editable
   max marks and analytics.
 - **Coordinator** — today's emails from the coordinator (via the Hostinger Mail
