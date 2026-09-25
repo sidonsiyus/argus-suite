@@ -18,13 +18,16 @@ import TickerTool from "@/components/professor/TickerTool";
 import NotesTool from "@/components/professor/NotesTool";
 import AttendanceTool from "@/components/professor/AttendanceTool";
 import MarksTool from "@/components/professor/MarksTool";
+import CoordinatorTool from "@/components/professor/CoordinatorTool";
 import ChecklistRail from "@/components/professor/ChecklistRail";
+import { fetchCoordinatorMail } from "@/lib/coordinator-mail";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
   { id: "schedule", label: "Schedule", icon: "🗓" },
   { id: "ticker", label: "Ticker", icon: "📣" },
   { id: "notes", label: "Notes", icon: "📚" },
+  { id: "coordinator", label: "Coordinator", icon: "✉" },
   { id: "attendance", label: "Attendance", icon: "✓" },
   { id: "marks", label: "Marks", icon: "📊" },
 ];
@@ -147,6 +150,16 @@ export default function ProfessorDashboard({ session }) {
   }, []);
   useEffect(() => { reloadAnnouncements(); }, [reloadAnnouncements]);
 
+  // coordinator-email summary → drives the checklist row (live from the mailbox)
+  const [mailSummary, setMailSummary] = useState(null);
+  const reloadMail = useCallback(async () => {
+    try {
+      const d = await fetchCoordinatorMail();
+      setMailSummary({ configured: d.configured !== false && !d.error, total: d.total || 0, pending: d.pending || 0 });
+    } catch { setMailSummary({ configured: false, total: 0, pending: 0 }); }
+  }, []);
+  useEffect(() => { reloadMail(); }, [reloadMail]);
+
   const hasSchedule = todayEntries.some((e) => e.subject || e.time);
   const spokenSchedule = hasSchedule
     ? scheduleToText(todayEntries, { name })
@@ -250,10 +263,11 @@ export default function ProfessorDashboard({ session }) {
         {tab === "schedule" && <ScheduleTool onSaved={reloadToday} />}
         {tab === "ticker" && <TickerTool onChanged={reloadAnnouncements} />}
         {tab === "notes" && <NotesTool />}
+        {tab === "coordinator" && <CoordinatorTool onChanged={reloadMail} />}
         {tab === "attendance" && <AttendanceTool nav={attNav} />}
         {tab === "marks" && <MarksTool />}
       </main>
-        <ChecklistRail schedule={todayEntries} onGoto={goto} />
+        <ChecklistRail schedule={todayEntries} coordinator={mailSummary} onGoto={goto} />
       </div>
 
       <footer className="prof-foot">ARGUS · Instructor Console · made by sid</footer>
@@ -265,6 +279,7 @@ const CARD_BLURB = {
   schedule: "Upload or type your day's timetable",
   ticker: "Post announcements to the news wire",
   notes: "Upload & categorise course notes",
+  coordinator: "Reply to the coordinator's daily emails",
   attendance: "Mark, analyse & export attendance",
   marks: "Enter CAT / Model / End-Sem marks",
 };

@@ -10,7 +10,7 @@ import { fixedTasks, miraClasses, getTasks, setFixedDone, addManual, setDone, de
 
 const MIRA_LINK = "https://exploremira.com";
 
-export default function ChecklistRail({ schedule, onGoto }) {
+export default function ChecklistRail({ schedule, coordinator, onGoto }) {
   const day = dayKey();
   const [rows, setRows] = useState([]);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -61,8 +61,15 @@ export default function ChecklistRail({ schedule, onGoto }) {
     ? (miraAllDone ? "all classes updated" : `${miraDone.length}/${mira.length} · next: ${miraPending[0].subject}`)
     : "no schedule set";
 
-  const doneCount = (miraAllDone ? 1 : 0) + defs.filter((d) => byKey[d.fixed_key]?.done).length + manual.filter((m) => m.done).length;
-  const total = 1 + defs.length + manual.length;
+  // ── coordinator emails (live from the mailbox, not persisted) ──
+  const coord = coordinator && coordinator.configured ? coordinator : null;
+  const coordDone = coord ? coord.pending === 0 : false;
+  const coordSub = coord
+    ? (coord.total === 0 ? "none today" : `${coord.total - coord.pending}/${coord.total} replied${coord.pending ? ` · ${coord.pending} to go` : ""}`)
+    : "";
+
+  const doneCount = (miraAllDone ? 1 : 0) + defs.filter((d) => byKey[d.fixed_key]?.done).length + manual.filter((m) => m.done).length + (coord ? (coordDone ? 1 : 0) : 0);
+  const total = 1 + defs.length + manual.length + (coord ? 1 : 0);
 
   async function toggleFixed(def) {
     if (needsSetup) return;
@@ -132,6 +139,21 @@ export default function ChecklistRail({ schedule, onGoto }) {
             </div>
           );
         })}
+
+        {/* coordinator emails — live, tick clears when all are answered */}
+        {coord && (
+          <div className={"cl-item" + (coordDone ? " done" : "")}>
+            <button className="cl-check" onClick={() => onGoto?.("coordinator")} aria-pressed={coordDone} title="Open Coordinator">{coordDone ? "✓" : ""}</button>
+            <div className="cl-body">
+              <div className="cl-t">Reply to coordinator emails</div>
+              <div className="cl-meta">
+                {!coordDone && <span className="cl-due">⏱ before 3:00 PM</span>}
+                <span className="cl-note">{coordSub}</span>
+                <button className="cl-link btn" onClick={() => onGoto?.("coordinator")}>go →</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {manual.map((m) => (
           <div key={m.id} className={"cl-item" + (m.done ? " done" : "")}>
