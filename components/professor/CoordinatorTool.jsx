@@ -8,7 +8,7 @@
  * sent in Outlook/webmail counts too.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchCoordinatorMail, fetchMailBody, sendCoordinatorReply } from "@/lib/coordinator-mail";
+import { fetchCoordinatorMail, fetchMailBody, sendCoordinatorReply, markCoordinatorDone } from "@/lib/coordinator-mail";
 
 function timeLabel(iso) {
   if (!iso) return "";
@@ -35,6 +35,7 @@ export default function CoordinatorTool({ onChanged }) {
   const [body, setBody] = useState({ loading: false, text: "", html: "" });
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [flagging, setFlagging] = useState(null); // uid currently being toggled
   const [sendErr, setSendErr] = useState("");
   const [flash, setFlash] = useState("");
   const replyRef = useRef(null);
@@ -101,6 +102,26 @@ export default function CoordinatorTool({ onChanged }) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); doSend(); }
   }
 
+  // Tick / untick an email as handled without sending a reply.
+  async function toggleDone(m) {
+    if (!m || flagging != null) return;
+    setFlagging(m.uid); setSendErr("");
+    const markingDone = !m.answered;
+    try {
+      await markCoordinatorDone({ uid: m.uid, done: markingDone });
+      const data = await load();
+      onChanged?.();
+      if (markingDone) {
+        const next = (data?.messages || []).find((x) => !x.answered);
+        if (next) setSelUid(next.uid);
+      }
+    } catch (e) {
+      setSendErr(e?.message || "Could not update.");
+    } finally {
+      setFlagging(null);
+    }
+  }
+
   // ── status banner ──
   const total = state.total || 0;
   const pending = state.pending || 0;
@@ -148,22 +169,27 @@ export default function CoordinatorTool({ onChanged }) {
           {/* list of today's emails */}
           <div className="cm-list" role="list">
             {messages.map((m) => (
-              <button
+              <div
                 key={m.uid}
                 role="listitem"
                 className={"cm-row" + (m.uid === selUid ? " on" : "") + (m.answered ? " done" : "")}
-                onClick={() => setSelUid(m.uid)}
               >
-                <span className={"cm-dot" + (m.answered ? " done" : "")}>{m.answered ? "✓" : ""}</span>
-                <span className="cm-row-main">
+                <button
+                  className={"cm-dot" + (m.answered ? " done" : "")}
+                  onClick={() => toggleDone(m)}
+                  disabled={flagging === m.uid}
+                  title={m.answered ? "Mark not done" : "Mark done (no reply)"}
+                  aria-pressed={m.answered}
+                >{m.answered ? "✓" : ""}</button>
+                <button className="cm-row-main" onClick={() => setSelUid(m.uid)}>
                   <span className="cm-row-subj">{m.subject}</span>
                   <span className="cm-row-meta">
                     {m.from?.name || m.from?.address}
                     {m.hasAttachments && <span className="cm-clip" title="Has attachment">📎</span>}
                     <span className="cm-row-time">{timeLabel(m.date)}</span>
                   </span>
-                </span>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
 
@@ -204,11 +230,18 @@ export default function CoordinatorTool({ onChanged }) {
                   />
                   {sendErr && <div className="cm-note err small">{sendErr}</div>}
                   <div className="cm-reply-actions">
-                    <span className="cm-muted small">Sends from your mailbox, threaded — marks this email replied.</span>
+                    <button
+                      className="cm-secondary"
+                      onClick={() => toggleDone(selected)}
+                      disabled={flagging === selected.uid}
+                    >
+                      {selected.answered ? "↩ Mark not done" : "✓ Mark done, no reply"}
+                    </button>
                     <button className="cm-send" onClick={doSend} disabled={sending || !reply.trim()}>
                       {sending ? "Sending…" : "Send reply →"}
                     </button>
                   </div>
+                  <div className="cm-muted small cm-hint">A reply sends from your mailbox, threaded. Either way marks this email done.</div>
                 </div>
               </>
             ) : (
@@ -243,9 +276,11 @@ const CSS = `
 .cm-row:hover{border-color:var(--accent)}
 .cm-row.on{border-color:var(--accent);background:var(--accent-soft)}
 .cm-row.done{opacity:.62}
-.cm-dot{flex:none;width:18px;height:18px;border-radius:6px;border:1.5px solid var(--line-2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;margin-top:1px}
+.cm-dot{flex:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line-2);background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;margin-top:1px;cursor:pointer;transition:.14s}
+.cm-dot:hover:not(:disabled){border-color:var(--accent)}
+.cm-dot:disabled{opacity:.55;cursor:default}
 .cm-dot.done{background:var(--green);border-color:var(--green)}
-.cm-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.cm-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;background:none;border:none;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .cm-row-subj{font-size:13px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cm-row-meta{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
 .cm-row-time{margin-left:auto}
@@ -268,7 +303,11 @@ const CSS = `
 .cm-reply-in{width:100%;box-sizing:border-box;font-family:var(--sans);font-size:14px;line-height:1.5;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:11px 12px;outline:none;resize:vertical}
 .cm-reply-in:focus{border-color:var(--accent)}
 .cm-reply-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;flex-wrap:wrap}
+.cm-secondary{flex:none;font-family:var(--sans);font-size:13px;font-weight:600;border:1px solid var(--line-2);border-radius:10px;padding:9px 14px;background:var(--panel);color:var(--ink);cursor:pointer;transition:.15s}
+.cm-secondary:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.cm-secondary:disabled{opacity:.5;cursor:default}
 .cm-send{flex:none;font-family:var(--sans);font-size:13.5px;font-weight:700;border:none;border-radius:10px;padding:10px 18px;background:var(--accent);color:#fff;cursor:pointer;transition:.15s}
 .cm-send:hover:not(:disabled){filter:brightness(1.07)}
 .cm-send:disabled{opacity:.5;cursor:default}
+.cm-hint{margin-top:8px}
 `;
