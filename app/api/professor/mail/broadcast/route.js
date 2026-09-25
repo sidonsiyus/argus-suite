@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 
 import { requireFaculty } from "@/lib/professor-auth";
 import { mailConfigured, sendReply, HmError } from "@/lib/hostinger-mail";
+import { buildHtmlEmail, buildTextEmail } from "@/lib/mail-signature";
 
 const MAX_PER_CALL = 15;
 
@@ -28,7 +29,8 @@ export async function POST(request) {
     const subject = String(it?.subject || "").trim() || "(no subject)";
     if (!to || !text.trim()) { results.push({ to, ok: false, error: "missing" }); continue; }
     try {
-      await sendReply({ to, subject, text, html: it?.html });
+      // Send as HTML (with the MH Cockpit signature) plus a plain-text fallback.
+      await sendReply({ to, subject, text: buildTextEmail(text), html: buildHtmlEmail(text) });
       results.push({ to, ok: true });
     } catch (e) {
       results.push({ to, ok: false, error: e instanceof HmError ? e.code : "send_failed" });

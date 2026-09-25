@@ -232,6 +232,8 @@ function AbsenteeMailer({ day, roster, recs, form }) {
         </label>
       </div>
 
+      <div className="ab-signote">✎ Your MH Cockpit signature (logo, contact details &amp; socials) is added automatically to every email.</div>
+
       <div className="ab-count">
         <b>{withEmail.length}</b> will be emailed
         {missing.length > 0 && <span className="ab-missing"> · {missing.length} skipped (no email on file): {missing.slice(0, 6).map((m) => m.name).join(", ")}{missing.length > 6 ? "…" : ""}</span>}
@@ -278,6 +280,7 @@ const AB_CSS = `
 .ab-hint{text-transform:none;letter-spacing:0;color:var(--faint);font-size:10.5px}
 .ab-f input,.ab-f textarea{font-family:var(--sans);font-size:13.5px;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:10px 11px;outline:none;resize:vertical}
 .ab-f input:focus,.ab-f textarea:focus{border-color:var(--accent)}
+.ab-signote{font-size:12px;color:var(--dim);background:var(--panel-2);border:1px dashed var(--line-2);border-radius:9px;padding:8px 11px;margin-bottom:10px}
 .ab-count{font-size:13px;color:var(--ink-soft);margin-bottom:10px}
 .ab-missing{color:var(--gold)}
 .ab-preview{margin-bottom:12px;font-size:12.5px}
