@@ -46,7 +46,7 @@ export async function POST(request) {
           Authorization: `Bearer ${key}`,
           "Content-Type": "application/json",
           "HTTP-Referer": "https://www.madebysid.space",
-          "X-Title": "ARGUS Instructor Console — JARVIS",
+          "X-Title": "ARGUS Instructor Console - JARVIS",
         },
         cache: "no-store",
         signal: AbortSignal.timeout(28000),
