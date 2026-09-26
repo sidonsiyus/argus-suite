@@ -27,34 +27,42 @@ export async function POST(request) {
   const system = { role: "system", content: ASSISTANT_SYSTEM.replace("{today}", today) };
   const messages = incoming[0]?.role === "system" ? incoming : [system, ...incoming];
 
-  try {
-    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://www.madebysid.space",
-        "X-Title": "ARGUS Instructor Console — JARVIS",
-      },
-      cache: "no-store",
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.3,
-        max_tokens: 700,
-        tools: ASSISTANT_TOOLS,
-        tool_choice: "auto",
-        messages,
-      }),
-    });
+  const payload = JSON.stringify({
+    model: MODEL,
+    temperature: 0.3,
+    max_tokens: 700,
+    tools: ASSISTANT_TOOLS,
+    tool_choice: "auto",
+    messages,
+  });
 
-    if (!r.ok) {
-      const detail = await r.text().catch(() => "");
-      return Response.json({ error: `upstream_${r.status}`, detail: detail.slice(0, 300) }, { status: 502 });
+  // One retry — the first call from a cold serverless instance can flake.
+  let lastErr = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://www.madebysid.space",
+          "X-Title": "ARGUS Instructor Console — JARVIS",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(28000),
+        body: payload,
+      });
+
+      if (!r.ok) {
+        const detail = await r.text().catch(() => "");
+        return Response.json({ error: `upstream_${r.status}`, detail: detail.slice(0, 300) }, { status: 502 });
+      }
+      const data = await r.json();
+      const message = data?.choices?.[0]?.message || { role: "assistant", content: "" };
+      return Response.json({ message });
+    } catch (e) {
+      lastErr = `${String(e?.name || "")} ${String(e?.message || "")} ${String(e?.cause?.code || e?.cause?.message || "")}`.trim();
     }
-    const data = await r.json();
-    const message = data?.choices?.[0]?.message || { role: "assistant", content: "" };
-    return Response.json({ message });
-  } catch (e) {
-    return Response.json({ error: "fetch_failed", detail: String(e?.message || "").slice(0, 200) }, { status: 502 });
   }
+  return Response.json({ error: "fetch_failed", detail: lastErr.slice(0, 240), model: MODEL }, { status: 502 });
 }
