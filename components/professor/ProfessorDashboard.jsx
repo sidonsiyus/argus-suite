@@ -20,6 +20,7 @@ import AttendanceTool from "@/components/professor/AttendanceTool";
 import MarksTool from "@/components/professor/MarksTool";
 import CoordinatorTool from "@/components/professor/CoordinatorTool";
 import ChecklistRail from "@/components/professor/ChecklistRail";
+import JarvisPanel from "@/components/professor/JarvisPanel";
 import { fetchCoordinatorMail } from "@/lib/coordinator-mail";
 import { buildBriefing, speakJarvis, stopJarvis } from "@/lib/jarvis-voice";
 
@@ -270,6 +271,8 @@ export default function ProfessorDashboard({ session }) {
       </div>
 
       <footer className="prof-foot">ARGUS · Instructor Console · made by sid</footer>
+
+      <JarvisPanel />
     </div>
   );
 }

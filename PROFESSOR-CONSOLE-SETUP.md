@@ -29,8 +29,15 @@ tables — no new migration.
 ## 2. Environment (`.env.local`)
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — already set for the site.
-- `OPENROUTER_API_KEY` — enables the timetable OCR (Schedule) and attendance
-  photo scan. Optional `OPENROUTER_VISION_MODEL` (defaults to the site model).
+- `OPENROUTER_API_KEY` — enables the timetable OCR (Schedule), the attendance
+  photo scan, **and the JARVIS assistant**. Optional `OPENROUTER_VISION_MODEL`
+  (OCR model) and `OPENROUTER_ASSISTANT_MODEL` (JARVIS brain, default
+  `openai/gpt-4o-mini` — must support tool-calling).
+- **JARVIS voice (TTS)** — free by default (no key): Microsoft Edge neural voice
+  `en-GB-RyanNeural`. Tune with `EDGE_TTS_RATE` / `EDGE_TTS_PITCH` (e.g. `-8%`).
+  For a cloned/premium voice set `FISH_AUDIO_API_KEY` (+ optional
+  `FISH_AUDIO_VOICE_ID`, `FISH_AUDIO_MODEL`); Fish Audio is used when the key is
+  present, else it falls back to Edge, else the browser's own voice.
 - `HOSTINGER_MAIL_TOKEN` — **required for the Coordinator tab.** A Hostinger Mail
   API token: in the webmail (mail.hostinger.com) → **Settings → Agentic Mail →
   API Access → Create API token**, copy the value once, and set it here. Stays
@@ -81,3 +88,9 @@ tables — no new migration.
 - **Checklist rail** — four fixed daily deliverables (MIRA is per-class and its
   deadline advances through the day), a live **coordinator-emails** row (ticks
   when all are replied), plus manual tasks.
+- **JARVIS** — the floating assistant orb (bottom-right). Speaks a morning
+  briefing (Overview → "JARVIS brief"), and you can talk to it (push-to-talk) or
+  type to read/change the schedule, tick checklist tasks, and read/reply to
+  coordinator emails. Changes and emails are confirmed first; the ⚙ panel has
+  per-category **"act without asking"** toggles (schedule / checklist / email)
+  with an optional 5-second cancel countdown. Needs `OPENROUTER_API_KEY`.
