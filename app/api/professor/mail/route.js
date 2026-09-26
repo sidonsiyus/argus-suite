@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { requireFaculty } from "@/lib/professor-auth";
-import { mailConfigured, searchFrom, todayInTz, HmError } from "@/lib/hostinger-mail";
+import { mailConfigured, searchFrom, todayInTz, daysAgoInTz, HmError } from "@/lib/hostinger-mail";
 import { COORDINATOR_EMAIL, shapeMessage } from "@/lib/coordinator-inbox";
 
 export async function GET(request) {
@@ -16,7 +16,9 @@ export async function GET(request) {
   }
 
   try {
-    const since = todayInTz();
+    // Default: today only. ?days=N widens the window (for the history panel).
+    const days = Math.min(Math.max(parseInt(new URL(request.url).searchParams.get("days") || "0", 10) || 0, 0), 180);
+    const since = days > 0 ? daysAgoInTz(days) : todayInTz();
     const raw = await searchFrom({ from: COORDINATOR_EMAIL, since });
     const messages = raw
       .filter((m) => String(m.from?.address || "").toLowerCase().includes(COORDINATOR_EMAIL))

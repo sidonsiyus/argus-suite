@@ -8,13 +8,20 @@
  * sent in Outlook/webmail counts too.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchCoordinatorMail, fetchMailBody, sendCoordinatorReply, markCoordinatorDone } from "@/lib/coordinator-mail";
+import { fetchCoordinatorMail, fetchCoordinatorHistory, fetchMailBody, sendCoordinatorReply, markCoordinatorDone } from "@/lib/coordinator-mail";
 
 function timeLabel(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d)) return "";
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+function dateLabel(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" }) + " · " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
 function stripHtml(html) {
@@ -38,6 +45,8 @@ export default function CoordinatorTool({ onChanged }) {
   const [flagging, setFlagging] = useState(null); // uid currently being toggled
   const [sendErr, setSendErr] = useState("");
   const [flash, setFlash] = useState("");
+  const [histOpen, setHistOpen] = useState(false);
+  const [history, setHistory] = useState(null); // { loading?, all?, error? }
   const replyRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -56,14 +65,42 @@ export default function CoordinatorTool({ onChanged }) {
   const messages = state.messages || [];
   const firstPending = useMemo(() => messages.find((m) => !m.answered) || null, [messages]);
 
-  // Keep a sensible selection: current if still present, else first unanswered, else first.
-  useEffect(() => {
-    if (!messages.length) { setSelUid(null); return; }
-    const stillThere = messages.some((m) => m.uid === selUid);
-    if (!stillThere) setSelUid((firstPending || messages[0]).uid);
-  }, [messages, selUid, firstPending]);
+  const loadHistory = useCallback(async () => {
+    setHistory({ loading: true });
+    try {
+      const d = await fetchCoordinatorHistory(60);
+      setHistory({ loading: false, all: d.messages || [] });
+    } catch (e) {
+      setHistory({ loading: false, error: e?.message || "Could not load history." });
+    }
+  }, []);
+  function toggleHistory() {
+    const open = !histOpen; setHistOpen(open);
+    if (open && !history) loadHistory();
+  }
 
-  const selected = messages.find((m) => m.uid === selUid) || null;
+  const todayUids = useMemo(() => new Set(messages.map((m) => m.uid)), [messages]);
+  const historyItems = useMemo(() => (
+    (history?.all || [])
+      .filter((m) => m.answered && !todayUids.has(m.uid))
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+  ), [history, todayUids]);
+
+  // Any message we might show/select — today's plus loaded history.
+  const pool = useMemo(() => {
+    const map = {};
+    messages.forEach((m) => { map[m.uid] = m; });
+    (history?.all || []).forEach((m) => { if (!(m.uid in map)) map[m.uid] = m; });
+    return map;
+  }, [messages, history]);
+
+  // Keep a sensible selection among today's; don't override a history pick.
+  useEffect(() => {
+    if (!messages.length) return;
+    if (!pool[selUid]) setSelUid((firstPending || messages[0]).uid);
+  }, [messages, pool, selUid, firstPending]);
+
+  const selected = pool[selUid] || null;
 
   // Fetch the selected email's body.
   useEffect(() => {
@@ -111,6 +148,7 @@ export default function CoordinatorTool({ onChanged }) {
       await markCoordinatorDone({ uid: m.uid, done: markingDone });
       const data = await load();
       onChanged?.();
+      if (histOpen) loadHistory();
       if (markingDone) {
         const next = (data?.messages || []).find((x) => !x.answered);
         if (next) setSelUid(next.uid);
@@ -164,9 +202,10 @@ export default function CoordinatorTool({ onChanged }) {
       {banner?.kind === "progress" && <div className="cm-banner">{banner.text}</div>}
       {flash && <div className="cm-flash">{flash}</div>}
 
-      {configured && total > 0 && (
-        <div className="cm-grid">
+      {configured && (total > 0 || selected) && (
+        <div className={"cm-grid" + (total > 0 ? "" : " nolist")}>
           {/* list of today's emails */}
+          {total > 0 && (
           <div className="cm-list" role="list">
             {messages.map((m) => (
               <div
@@ -192,6 +231,7 @@ export default function CoordinatorTool({ onChanged }) {
               </div>
             ))}
           </div>
+          )}
 
           {/* detail + reply */}
           <div className="cm-detail">
@@ -250,6 +290,41 @@ export default function CoordinatorTool({ onChanged }) {
           </div>
         </div>
       )}
+
+      {/* history — earlier coordinator emails you've already replied to */}
+      {configured && (
+        <div className="cm-history">
+          <button className="cm-hist-toggle" onClick={toggleHistory} aria-expanded={histOpen}>
+            <span className="cm-hist-caret">{histOpen ? "▾" : "▸"}</span>
+            Earlier emails you've replied to
+            {historyItems.length > 0 && <span className="cm-hist-badge">{historyItems.length}</span>}
+          </button>
+          {histOpen && (
+            <div className="cm-hist-body">
+              {history?.loading ? <div className="cm-muted small">Loading the last 60 days…</div>
+                : history?.error ? <div className="cm-note err small">{history.error} <button className="cm-linkbtn" onClick={loadHistory}>retry</button></div>
+                : historyItems.length === 0 ? <div className="cm-muted small">No earlier replied emails in the last 60 days.</div>
+                : (
+                  <div className="cm-hist-list">
+                    {historyItems.map((m) => (
+                      <button
+                        key={m.uid}
+                        className={"cm-hist-row" + (m.uid === selUid ? " on" : "")}
+                        onClick={() => setSelUid(m.uid)}
+                      >
+                        <span className="cm-hist-check">✓</span>
+                        <span className="cm-hist-main">
+                          <span className="cm-hist-subj">{m.subject}</span>
+                          <span className="cm-hist-date">{dateLabel(m.date)}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -270,6 +345,7 @@ const CSS = `
 .cm-note.small{font-size:12px;padding:8px 10px;margin:8px 0 0}
 .cm-linkbtn{background:none;border:none;color:var(--accent);font-weight:600;cursor:pointer;padding:0}
 .cm-grid{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:16px;align-items:start}
+.cm-grid.nolist{grid-template-columns:1fr}
 @media(max-width:820px){.cm-grid{grid-template-columns:1fr}}
 .cm-list{display:flex;flex-direction:column;gap:7px;max-height:520px;overflow:auto}
 .cm-row{display:flex;gap:9px;align-items:flex-start;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:10px 11px;cursor:pointer;transition:.14s;color:var(--ink)}
@@ -310,4 +386,18 @@ const CSS = `
 .cm-send:hover:not(:disabled){filter:brightness(1.07)}
 .cm-send:disabled{opacity:.5;cursor:default}
 .cm-hint{margin-top:8px}
+.cm-history{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.cm-hist-toggle{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:var(--sans);font-size:13.5px;font-weight:700;color:var(--ink);padding:0}
+.cm-hist-toggle:hover{color:var(--accent)}
+.cm-hist-caret{font-size:11px;color:var(--dim)}
+.cm-hist-badge{font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--dim);background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+.cm-hist-body{margin-top:12px}
+.cm-hist-list{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow:auto}
+.cm-hist-row{display:flex;gap:9px;align-items:center;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;cursor:pointer;transition:.14s;color:var(--ink)}
+.cm-hist-row:hover{border-color:var(--accent)}
+.cm-hist-row.on{border-color:var(--accent);background:var(--accent-soft)}
+.cm-hist-check{flex:none;width:18px;height:18px;border-radius:6px;background:var(--green);border:1.5px solid var(--green);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.cm-hist-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px}
+.cm-hist-subj{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cm-hist-date{flex:none;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
 `;
