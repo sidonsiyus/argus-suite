@@ -21,6 +21,7 @@ import MarksTool from "@/components/professor/MarksTool";
 import CoordinatorTool from "@/components/professor/CoordinatorTool";
 import ChecklistRail from "@/components/professor/ChecklistRail";
 import { fetchCoordinatorMail } from "@/lib/coordinator-mail";
+import { buildBriefing, speakJarvis, stopJarvis } from "@/lib/jarvis-voice";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
@@ -161,23 +162,21 @@ export default function ProfessorDashboard({ session }) {
   useEffect(() => { reloadMail(); }, [reloadMail]);
 
   const hasSchedule = todayEntries.some((e) => e.subject || e.time);
-  const spokenSchedule = hasSchedule
-    ? scheduleToText(todayEntries, { name })
-    : `Professor ${name}, no schedule is set for today yet.`;
   const scheduleText = hasSchedule
     ? `You have ${todayEntries.filter((e) => e.subject || e.time).length} classes today.`
     : "No schedule set for today yet — add one in the Schedule tab (upload a timetable image or type it in).";
 
-  function speak() {
+  // JARVIS morning briefing — greeting + each class, in the JARVIS voice.
+  const [speaking, setSpeaking] = useState(false);
+  const speak = useCallback(async () => {
+    if (speaking) { stopJarvis(); setSpeaking(false); return; }
+    setSpeaking(true);
     try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(`${greeting}. ${spokenSchedule}`);
-      u.rate = 1; u.pitch = 1;
-      synth.speak(u);
-    } catch { /* speech unsupported — ignore */ }
-  }
+      await speakJarvis(buildBriefing(todayEntries, { greeting }));
+    } catch { /* ignore */ }
+    finally { setSpeaking(false); }
+  }, [speaking, todayEntries, greeting]);
+  useEffect(() => () => stopJarvis(), []);
 
   async function doSignOut() {
     try { await signOut(); } catch { /* ignore */ }
@@ -243,7 +242,7 @@ export default function ProfessorDashboard({ session }) {
                 <p className="prof-sched">{scheduleText}</p>
               )}
               <div className="prof-hero-cta">
-                <button className="prof-btn primary" onClick={speak}>🔊 Read my day</button>
+                <button className="prof-btn primary" onClick={speak}>{speaking ? "◼ Stop" : "🔊 JARVIS brief"}</button>
                 <button className="prof-btn ghost" onClick={() => setTab("schedule")}>Set today's schedule →</button>
               </div>
             </section>
