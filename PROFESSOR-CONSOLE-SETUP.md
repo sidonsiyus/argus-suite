@@ -33,8 +33,9 @@ tables — no new migration.
   photo scan, **and the JARVIS assistant**. Optional `OPENROUTER_VISION_MODEL`
   (OCR model) and `OPENROUTER_ASSISTANT_MODEL` (JARVIS brain, default
   `openai/gpt-4o-mini` — must support tool-calling).
-- **JARVIS voice (TTS)** — free by default (no key): Microsoft Edge neural voice
-  `en-GB-RyanNeural`. Tune with `EDGE_TTS_RATE` / `EDGE_TTS_PITCH` (e.g. `-8%`).
+- **FRIDAY voice (TTS)** — free by default (no key): Microsoft Edge neural voice
+  `en-IE-EmilyNeural` (Irish female, FRIDAY-style). Change with `EDGE_TTS_VOICE`;
+  tune with `EDGE_TTS_RATE` / `EDGE_TTS_PITCH`.
   For a cloned/premium voice set `FISH_AUDIO_API_KEY` (+ optional
   `FISH_AUDIO_VOICE_ID`, `FISH_AUDIO_MODEL`); Fish Audio is used when the key is
   present, else it falls back to Edge, else the browser's own voice.
@@ -88,9 +89,11 @@ tables — no new migration.
 - **Checklist rail** — four fixed daily deliverables (MIRA is per-class and its
   deadline advances through the day), a live **coordinator-emails** row (ticks
   when all are replied), plus manual tasks.
-- **JARVIS** — the floating assistant orb (bottom-right). Speaks a morning
-  briefing (Overview → "JARVIS brief"), and you can talk to it (push-to-talk) or
-  type to read/change the schedule, tick checklist tasks, and read/reply to
-  coordinator emails. Changes and emails are confirmed first; the ⚙ panel has
-  per-category **"act without asking"** toggles (schedule / checklist / email)
+- **FRIDAY** — the floating assistant orb (bottom-right), Irish-voiced, addresses
+  you as "Boss". Speaks a morning briefing (Overview → "FRIDAY brief"), and you
+  talk to it (push-to-talk) or type to: get a **day overview**, read/change the
+  **schedule**, tick/add **checklist** tasks, **mark attendance** ("mark Rakesh
+  absent, unauthorized"), and read/reply to **coordinator emails**. Changes,
+  attendance and emails are confirmed first; the ⚙ panel has per-category
+  **"act without asking"** toggles (schedule / checklist / attendance / email)
   with an optional 5-second cancel countdown. Needs `OPENROUTER_API_KEY`.
