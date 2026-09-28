@@ -10,6 +10,7 @@ import { getRangeRecords, isPresentish } from "@/lib/attendance";
 import { dayKey, isMissingTable } from "@/lib/professor";
 import { registerCSV, registerDocx, defaulterLettersDocx, printRegister, distributionPng } from "@/lib/attendance-export";
 import { whatsappLink, fetchLiveAll, fetchLiveMonth } from "@/lib/attendance-sheets";
+import { sendBulkEmails } from "@/lib/coordinator-mail";
 
 function monthStart() {
   const d = new Date(); return dayKey(new Date(d.getFullYear(), d.getMonth(), 1));
@@ -73,7 +74,7 @@ export default function AttendanceAnalytics({ roster }) {
         <button className={"an-src" + (source === "sheet" ? " on" : "")} onClick={() => setSource("sheet")}>Department sheet · from day 1</button>
       </div>
 
-      {source === "sheet" ? <LiveSheet threshold={threshold} /> : (
+      {source === "sheet" ? <LiveSheet threshold={threshold} roster={roster} /> : (
       <>
       <div className="an-bar">
         <label className="an-f">From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
@@ -149,7 +150,7 @@ export default function AttendanceAnalytics({ roster }) {
 }
 
 /* ── live, read-only attendance from the department Google Sheet (day 1 → now) ── */
-function LiveSheet({ threshold = 75 }) {
+function LiveSheet({ threshold = 75, roster = [] }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [data, setData] = useState(null);        // all-time { students, months, sheets, lastDate, updated }
@@ -157,6 +158,7 @@ function LiveSheet({ threshold = 75 }) {
   const [view, setView] = useState("all");        // "all" | a sheet name
   const [monthData, setMonthData] = useState(null);
   const [sortKey, setSortKey] = useState("pct");  // pct | sno | name
+  const [thr, setThr] = useState(threshold);      // below-% cutoff for defaulters
 
   const loadAll = useCallback(async () => {
     setLoading(true); setErr("");
@@ -194,7 +196,9 @@ function LiveSheet({ threshold = 75 }) {
   const totHeld = students.reduce((s, a) => s + (a.held || 0), 0);
   const totAtt = students.reduce((s, a) => s + (a.total || 0), 0);
   const overall = totHeld ? Math.round((totAtt / totHeld) * 1000) / 10 : 0;
-  const below = students.filter((a) => a.pct < threshold).length;
+  const defaulters = useMemo(() => students.filter((a) => a.pct < thr).sort((a, b) => a.pct - b.pct), [students, thr]);
+  const below = defaulters.length;
+  const periodLabel = view === "all" ? "since 1 July 2026" : view.replace(/daily attendance for /i, "").trim();
 
   return (
     <div>
@@ -210,6 +214,7 @@ function LiveSheet({ threshold = 75 }) {
             <option value="pct">Lowest %</option><option value="sno">S.No</option><option value="name">Name</option>
           </select>
         </label>
+        <label className="an-f">Below %<input type="number" min={0} max={100} value={thr} onChange={(e) => setThr(+e.target.value || 0)} className="an-th" /></label>
         <div className="an-bar-spacer" />
         <button className="prof-btn ghost" onClick={loadAll} disabled={loading}>{loading ? "Loading…" : "↻ Refresh"}</button>
       </div>
@@ -219,9 +224,11 @@ function LiveSheet({ threshold = 75 }) {
       <div className="an-cards">
         <div className="an-card"><div className="an-n">{overall}%</div><div className="an-l">Overall · since day 1</div></div>
         <div className="an-card"><div className="an-n">{students.length}</div><div className="an-l">Students</div></div>
-        <div className="an-card"><div className={"an-n" + (below ? " warn" : "")}>{below}</div><div className="an-l">Below {threshold}%</div></div>
+        <div className="an-card"><div className={"an-n" + (below ? " warn" : "")}>{below}</div><div className="an-l">Below {thr}%</div></div>
         <div className="an-card"><div className="an-n">{view === "all" ? (data?.months || 0) : 1}</div><div className="an-l">{view === "all" ? "Months summed" : "Month"}</div></div>
       </div>
+
+      {defaulters.length > 0 && <DefaulterMailer defaulters={defaulters} roster={roster} threshold={thr} period={periodLabel} />}
 
       {loading && !students.length ? <div className="att-empty">Reading the department sheet…</div> : (
         <div className="an-table">
@@ -247,7 +254,109 @@ function LiveSheet({ threshold = 75 }) {
   );
 }
 
+/* ── email the students below the cutoff (roster emails + signature) ── */
+const DM_DEFAULT_SUBJECT = "Attendance Shortage Notice — Action Required";
+const DM_DEFAULT_BODY = `Dear {name},
+
+Your overall attendance {period} is {pct}% ({attended} of {held} periods), which is below the required {threshold}%.
+
+Please meet the faculty at the earliest and take immediate steps to regularise your attendance, to avoid academic penalties such as being detained from examinations.`;
+
+function DefaulterMailer({ defaulters, roster, threshold, period }) {
+  const [subject, setSubject] = useState(DM_DEFAULT_SUBJECT);
+  const [bodyTpl, setBodyTpl] = useState(DM_DEFAULT_BODY);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [result, setResult] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [err, setErr] = useState("");
+
+  const byReg = useMemo(() => {
+    const m = {}; (roster || []).forEach((r) => { if (r.reg_no) m[String(r.reg_no).trim()] = r; }); return m;
+  }, [roster]);
+  const recipients = useMemo(() => defaulters.map((d) => {
+    const r = byReg[String(d.reg).trim()] || {};
+    return { name: d.name, reg: d.reg, pct: d.pct, attended: d.total, held: d.held, email: (r.email || "").trim() };
+  }), [defaulters, byReg]);
+  const withEmail = recipients.filter((r) => r.email);
+  const missing = recipients.filter((r) => !r.email);
+
+  function build(r) {
+    const ctx = { name: r.name, pct: r.pct, attended: r.attended, held: r.held, threshold, period };
+    const fill = (t) => String(t).replace(/\{(\w+)\}/g, (_, k) => (k in ctx ? ctx[k] : `{${k}}`));
+    return { to: r.email, subject: fill(subject).trim() || "Attendance Notice", text: fill(bodyTpl) };
+  }
+
+  async function doSend() {
+    setConfirming(false); setBusy(true); setErr(""); setResult(null);
+    setProgress({ done: 0, total: withEmail.length });
+    try {
+      const res = await sendBulkEmails(withEmail.map(build), (done, total) => setProgress({ done, total }));
+      setResult(res);
+    } catch (e) { setErr(e?.message || "Could not send."); }
+    finally { setBusy(false); }
+  }
+
+  const preview = withEmail[0] ? build(withEmail[0]) : null;
+
+  return (
+    <section className="dm">
+      <div className="dm-h">Email students below {threshold}% <span className="dm-period">· {period}</span></div>
+      <div className="dm-fields">
+        <label className="an-f wide">Subject<input value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
+        <label className="an-f wide">Message <span className="dm-hint">placeholders: {"{name} {pct} {attended} {held} {threshold} {period}"}</span>
+          <textarea value={bodyTpl} onChange={(e) => setBodyTpl(e.target.value)} rows={7} />
+        </label>
+      </div>
+      <div className="dm-signote">✎ Your MH Cockpit signature is added automatically.</div>
+      <div className="dm-count">
+        <b>{withEmail.length}</b> will be emailed
+        {missing.length > 0 && <span className="dm-missing"> · {missing.length} skipped (no email on file): {missing.slice(0, 6).map((m) => m.name).join(", ")}{missing.length > 6 ? "…" : ""}</span>}
+      </div>
+      {preview && (
+        <details className="dm-preview"><summary>Preview first email ({preview.to})</summary>
+          <div className="dm-prev-subj">{preview.subject}</div>
+          <pre className="dm-prev-body">{preview.text}</pre>
+        </details>
+      )}
+      {err && <div className="att-err">{err}</div>}
+      {progress && busy && <div className="att-status">Sending… {progress.done}/{progress.total}</div>}
+      {result && <div className="att-status">Sent {result.sent}/{result.total}.{result.failed?.length ? ` ${result.failed.length} failed.` : " ✓"}</div>}
+      {!confirming ? (
+        <button className="prof-btn primary" disabled={busy || !withEmail.length} onClick={() => { setResult(null); setConfirming(true); }}>
+          ✉ Email {withEmail.length} student{withEmail.length === 1 ? "" : "s"}
+        </button>
+      ) : (
+        <div className="dm-confirm">
+          <span>Send this notice to <b>{withEmail.length}</b> student{withEmail.length === 1 ? "" : "s"}? This can't be unsent.</span>
+          <div className="dm-confirm-btns">
+            <button className="prof-btn ghost" onClick={() => setConfirming(false)}>Cancel</button>
+            <button className="prof-btn primary" onClick={doSend}>Yes, send</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 const CSS = `
+.dm{margin-top:18px;background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:16px}
+.dm-h{font-family:var(--serif);font-size:16px;font-weight:800;margin-bottom:12px}
+.dm-period{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--dim)}
+.dm-fields{display:flex;flex-direction:column;gap:12px;margin-bottom:10px}
+.an-f.wide{width:100%}
+.an-f.wide input,.dm-fields textarea{width:100%;box-sizing:border-box;font-family:var(--sans);font-size:13.5px;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 11px;outline:none;resize:vertical}
+.an-f.wide input:focus,.dm-fields textarea:focus{border-color:var(--accent)}
+.dm-hint{text-transform:none;letter-spacing:0;color:var(--faint);font-size:10.5px}
+.dm-signote{font-size:12px;color:var(--dim);background:var(--panel);border:1px dashed var(--line-2);border-radius:9px;padding:8px 11px;margin-bottom:10px}
+.dm-count{font-size:13px;color:var(--ink-soft);margin-bottom:10px}
+.dm-missing{color:var(--gold)}
+.dm-preview{margin-bottom:12px;font-size:12.5px}
+.dm-preview summary{cursor:pointer;color:var(--accent);font-weight:600}
+.dm-prev-subj{font-weight:700;margin:8px 0 4px;font-size:13px}
+.dm-prev-body{white-space:pre-wrap;font-family:var(--sans);font-size:13px;color:var(--ink-soft);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px;margin:0}
+.dm-confirm{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;font-size:13.5px}
+.dm-confirm-btns{display:flex;gap:8px}
 .an-src-toggle{display:inline-flex;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:3px;margin-bottom:16px}
 .an-src{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--dim);background:transparent;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;transition:.15s}
 .an-src:hover{color:var(--ink)}
