@@ -19,6 +19,7 @@ Run these once, in order. All are idempotent and faculty-only via RLS
 | 4 | `supabase/migrations/20260924_attendance_detail.sql` | absence category / reason / parent-contacted columns |
 | 5 | `supabase/migrations/20260925_marks.sql` | `mark_subjects`, `marks` |
 | 6 | `supabase/migrations/20260925_tasks.sql` | `tasks` — daily checklist |
+| 7 | `supabase/migrations/20261001_bug_reports.sql` | `bug_reports` — site bug reports / tickets (public insert, faculty read) |
 
 If a tool shows a raw *"Could not find the table … in the schema cache"* right
 after running a migration, run once: `NOTIFY pgrst, 'reload schema';`
@@ -86,6 +87,10 @@ tables — no new migration.
   API), reply inline (threaded, sent from your mailbox); each reply flags the
   original `\Answered` upstream, so the mailbox is the source of truth. Clears to
   "All done for the day" once every email is answered. Needs `HOSTINGER_MAIL_TOKEN`.
+- **Tickets** — bug reports submitted from the site's floating "Report a bug"
+  widget (mounted site-wide in `app/layout.js`). Anyone can file one; it's stored
+  in `bug_reports` (public insert) and emailed to `BUG_REPORT_TO` (default
+  `sidjr.me@gmail.com`) via the mailbox. Faculty view/resolve/delete them here.
 - **Checklist rail** — four fixed daily deliverables (MIRA is per-class and its
   deadline advances through the day), a live **coordinator-emails** row (ticks
   when all are replied), plus manual tasks.

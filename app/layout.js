@@ -1,6 +1,7 @@
 import "./globals.css";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import BugReport from "@/components/BugReport";
 
 // Inter everywhere (Claude-style clean grotesque); JetBrains Mono for technical labels.
 const sans = Inter({
@@ -54,6 +55,7 @@ export default function RootLayout({ children }) {
           }}
         />
         {children}
+        <BugReport />
         <Analytics />
       </body>
     </html>

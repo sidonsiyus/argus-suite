@@ -19,6 +19,7 @@ import NotesTool from "@/components/professor/NotesTool";
 import AttendanceTool from "@/components/professor/AttendanceTool";
 import MarksTool from "@/components/professor/MarksTool";
 import CoordinatorTool from "@/components/professor/CoordinatorTool";
+import TicketsTool from "@/components/professor/TicketsTool";
 import ChecklistRail from "@/components/professor/ChecklistRail";
 import JarvisPanel from "@/components/professor/JarvisPanel";
 import { fetchCoordinatorMail } from "@/lib/coordinator-mail";
@@ -32,6 +33,7 @@ const TABS = [
   { id: "coordinator", label: "Coordinator", icon: "✉" },
   { id: "attendance", label: "Attendance", icon: "✓" },
   { id: "marks", label: "Marks", icon: "📊" },
+  { id: "tickets", label: "Tickets", icon: "🐞" },
 ];
 
 function greetingFor(hour) {
@@ -266,6 +268,7 @@ export default function ProfessorDashboard({ session }) {
         {tab === "coordinator" && <CoordinatorTool onChanged={reloadMail} />}
         {tab === "attendance" && <AttendanceTool nav={attNav} />}
         {tab === "marks" && <MarksTool />}
+        {tab === "tickets" && <TicketsTool />}
       </main>
         <ChecklistRail schedule={todayEntries} coordinator={mailSummary} onGoto={goto} />
       </div>
@@ -284,6 +287,7 @@ const CARD_BLURB = {
   coordinator: "Reply to the coordinator's daily emails",
   attendance: "Mark, analyse & export attendance",
   marks: "Enter CAT / Model / End-Sem marks",
+  tickets: "Bug reports submitted from the site",
 };
 
 const CSS = `
