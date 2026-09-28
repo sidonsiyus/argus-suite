@@ -11,15 +11,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { runJarvis } from "@/lib/jarvis-agent";
 import { speakJarvis, stopJarvis } from "@/lib/jarvis-voice";
 
-const SETTINGS_KEY = "jarvis_auto_v1";
-const DEFAULT_SETTINGS = { schedule: false, checklist: false, email: false, countdown: true };
+const SETTINGS_KEY = "friday_auto_v1";
+const DEFAULT_SETTINGS = { schedule: false, checklist: false, attendance: false, email: false, countdown: true };
 
 function loadSettings() {
   try { return { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")) }; }
   catch { return { ...DEFAULT_SETTINGS }; }
 }
 
-const CAT_LABEL = { schedule: "schedule", checklist: "checklist", email: "coordinator email" };
+const CAT_LABEL = { schedule: "schedule", checklist: "checklist", attendance: "attendance", email: "coordinator email" };
+
+// The animated FRIDAY orb — layered, seamless, reactive to state.
+function FridayOrb({ state = "idle", size = 58, letter = true, className = "" }) {
+  return (
+    <span className={`fr-orb fr-${state} ${className}`} style={{ width: size, height: size }} aria-hidden="true">
+      <span className="fr-spin" />
+      <span className="fr-spin fr-spin2" />
+      <span className="fr-pulse" />
+      <span className="fr-pulse fr-pulse2" />
+      <span className="fr-core" />
+      {letter && <span className="fr-face">F</span>}
+    </span>
+  );
+}
 
 export default function JarvisPanel() {
   const [open, setOpen] = useState(false);
@@ -128,20 +142,22 @@ export default function JarvisPanel() {
     nomic: "Voice input isn't supported in this browser — type instead.",
   })[status] || "Ready", [status, listening]);
 
+  const orbState = listening ? "listening" : (status === "thinking" || status === "working") ? "thinking" : status === "speaking" ? "speaking" : "idle";
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       {!open && (
-        <button className="jv-orb" onClick={() => setOpen(true)} title="JARVIS" aria-label="Open JARVIS">
-          <span className="jv-orb-core" /><span className="jv-orb-ring" />J
+        <button className="jv-launch" onClick={() => setOpen(true)} title="FRIDAY" aria-label="Open FRIDAY">
+          <FridayOrb state="idle" size={60} />
         </button>
       )}
 
       {open && (
-        <div className="jv-panel" role="dialog" aria-label="JARVIS assistant">
+        <div className="jv-panel" role="dialog" aria-label="FRIDAY assistant">
           <div className="jv-head">
-            <span className={"jv-dot" + (busy ? " on" : "")} />
-            <b>JARVIS</b>
+            <FridayOrb state={orbState} size={30} letter={false} className="fr-head-orb" />
+            <b>FRIDAY</b>
             <span className="jv-status">{statusText}</span>
             <div className="jv-head-sp" />
             <button className="jv-icon" onClick={() => setShowSettings((s) => !s)} title="Auto-approve settings">⚙</button>
@@ -152,7 +168,7 @@ export default function JarvisPanel() {
             <div className="jv-settings">
               <div className="jv-settings-h">Act without asking</div>
               <p className="jv-settings-lead">When on, JARVIS performs that kind of change hands-free (default: ask first).</p>
-              {["schedule", "checklist", "email"].map((k) => (
+              {["schedule", "checklist", "attendance", "email"].map((k) => (
                 <label key={k} className="jv-toggle">
                   <input type="checkbox" checked={!!settings[k]} onChange={(e) => saveSettings({ ...settings, [k]: e.target.checked })} />
                   Auto {CAT_LABEL[k]} {k === "email" && <em>(sends the coordinator reply)</em>}
@@ -168,8 +184,8 @@ export default function JarvisPanel() {
           <div className="jv-log" ref={logRef}>
             {log.length === 0 && (
               <div className="jv-hint">
-                <div className="jv-hint-h">At your service, Sir.</div>
-                Try: <i>“What’s my schedule?”</i> · <i>“Add a GTEM class at 2 PM in room 706.”</i> · <i>“Tick the attendance message task.”</i> · <i>“Any coordinator emails? Reply that the report is submitted.”</i>
+                <div className="jv-hint-h">At your service, Boss.</div>
+                Try: <i>“Give me a rundown of my day.”</i> · <i>“Add a GTEM class at 2 PM in room 706.”</i> · <i>“Mark Rakesh absent, unauthorized.”</i> · <i>“Tick the attendance message task.”</i> · <i>“Any coordinator emails? Reply that the report is submitted.”</i>
               </div>
             )}
             {log.map((m, i) => (
@@ -199,7 +215,7 @@ export default function JarvisPanel() {
 
           <form className="jv-input" onSubmit={(e) => { e.preventDefault(); submit(input); }}>
             <button type="button" className={"jv-mic" + (listening ? " on" : "")} onClick={toggleMic} title="Push to talk" aria-label="Push to talk">{listening ? "◉" : "🎙"}</button>
-            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={busy ? "JARVIS is working…" : "Ask JARVIS…"} disabled={busy} />
+            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={busy ? "FRIDAY is working…" : "Ask FRIDAY…"} disabled={busy} />
             <button type="submit" className="jv-send" disabled={busy || !input.trim()}>↑</button>
           </form>
         </div>
@@ -209,12 +225,33 @@ export default function JarvisPanel() {
 }
 
 const CSS = `
-.jv-orb{position:fixed;right:22px;bottom:22px;z-index:60;width:58px;height:58px;border-radius:50%;border:none;cursor:pointer;background:radial-gradient(circle at 30% 30%, #4da3ff, #1a56db 70%);color:#fff;font-family:var(--serif);font-weight:800;font-size:20px;box-shadow:0 8px 30px rgba(26,86,219,.45);display:flex;align-items:center;justify-content:center}
-.jv-orb:hover{filter:brightness(1.08)}
-.jv-orb-core{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 40%, rgba(255,255,255,.4), transparent 55%)}
-.jv-orb-ring{position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(77,163,255,.5);animation:jvpulse 2.6s ease-out infinite}
-@keyframes jvpulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.35);opacity:0}}
-@media(prefers-reduced-motion:reduce){.jv-orb-ring{animation:none}}
+/* ── FRIDAY animated orb ── */
+.jv-launch{position:fixed;right:22px;bottom:22px;z-index:60;border:none;background:none;padding:0;cursor:pointer}
+.fr-orb{position:relative;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;
+  --f1:#ffd27a;--f2:#ff9d3c;--f3:#ff5e3a;--f4:#c81d5e;
+  background:radial-gradient(circle at 50% 42%, var(--f1), var(--f2) 42%, var(--f3) 70%, var(--f4) 100%);
+  box-shadow:0 8px 34px rgba(255,94,58,.5), inset 0 0 18px rgba(255,255,255,.28);isolation:isolate}
+.jv-launch:hover .fr-orb{filter:brightness(1.07)}
+.fr-spin{position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(from 0deg, transparent, rgba(255,210,122,.9), transparent 40%, rgba(255,94,58,.85), transparent 70%);-webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));animation:frspin 5.5s linear infinite;opacity:.9}
+.fr-spin2{inset:-7px;animation-duration:9s;animation-direction:reverse;opacity:.5}
+.fr-pulse{position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(255,150,80,.55);animation:frpulse 3s ease-out infinite}
+.fr-pulse2{animation-delay:1.5s}
+.fr-core{position:absolute;inset:14%;border-radius:50%;background:radial-gradient(circle at 45% 38%, rgba(255,255,255,.75), rgba(255,180,120,.15) 55%, transparent 70%);animation:frbreathe 3.4s ease-in-out infinite}
+.fr-face{position:relative;z-index:2;font-family:var(--serif);font-weight:800;font-size:20px;color:#fff;text-shadow:0 1px 6px rgba(120,20,10,.5);letter-spacing:.02em}
+.fr-head-orb{box-shadow:0 3px 12px rgba(255,94,58,.5)}
+@keyframes frspin{to{transform:rotate(360deg)}}
+@keyframes frpulse{0%{transform:scale(1);opacity:.65}100%{transform:scale(1.6);opacity:0}}
+@keyframes frbreathe{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.08);opacity:1}}
+/* state reactivity */
+.fr-idle .fr-spin{animation-duration:7s}
+.fr-thinking .fr-spin{animation-duration:1.6s}
+.fr-thinking{box-shadow:0 8px 34px rgba(255,94,58,.7), inset 0 0 18px rgba(255,255,255,.35)}
+.fr-listening{--f1:#a7f3d0;--f2:#34d399;--f3:#0ea5e9;--f4:#2563eb;box-shadow:0 8px 34px rgba(14,165,233,.55), inset 0 0 18px rgba(255,255,255,.3)}
+.fr-listening .fr-pulse{animation-duration:1.5s;border-color:rgba(52,211,153,.7)}
+.fr-listening .fr-spin{animation-duration:2.4s}
+.fr-speaking .fr-core{animation-duration:.7s}
+.fr-speaking .fr-pulse{animation-duration:1.1s}
+@media(prefers-reduced-motion:reduce){.fr-spin,.fr-spin2,.fr-pulse,.fr-core{animation:none}}
 .jv-panel{position:fixed;right:22px;bottom:22px;z-index:61;width:min(390px,calc(100vw - 24px));height:min(560px,calc(100vh - 40px));display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden;font-family:var(--sans)}
 .jv-head{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
 .jv-head b{font-family:var(--serif);letter-spacing:.04em}

@@ -243,7 +243,7 @@ export default function ProfessorDashboard({ session }) {
                 <p className="prof-sched">{scheduleText}</p>
               )}
               <div className="prof-hero-cta">
-                <button className="prof-btn primary" onClick={speak}>{speaking ? "◼ Stop" : "🔊 JARVIS brief"}</button>
+                <button className="prof-btn primary" onClick={speak}>{speaking ? "◼ Stop" : "🔊 FRIDAY brief"}</button>
                 <button className="prof-btn ghost" onClick={() => setTab("schedule")}>Set today's schedule →</button>
               </div>
             </section>
