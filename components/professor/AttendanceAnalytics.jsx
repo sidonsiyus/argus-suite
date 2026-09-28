@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRangeRecords, isPresentish } from "@/lib/attendance";
 import { dayKey, isMissingTable } from "@/lib/professor";
 import { registerCSV, registerDocx, defaulterLettersDocx, printRegister, distributionPng } from "@/lib/attendance-export";
-import { whatsappLink } from "@/lib/attendance-sheets";
+import { whatsappLink, fetchLiveAll, fetchLiveMonth } from "@/lib/attendance-sheets";
 
 function monthStart() {
   const d = new Date(); return dayKey(new Date(d.getFullYear(), d.getMonth(), 1));
@@ -23,6 +23,7 @@ export default function AttendanceAnalytics({ roster }) {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState("pct"); // pct | sno | name
+  const [source, setSource] = useState("console"); // console | sheet
 
   const load = useCallback(async () => {
     setLoading(true); setMsg("");
@@ -67,6 +68,13 @@ export default function AttendanceAnalytics({ roster }) {
 
   return (
     <div>
+      <div className="an-src-toggle">
+        <button className={"an-src" + (source === "console" ? " on" : "")} onClick={() => setSource("console")}>Console data</button>
+        <button className={"an-src" + (source === "sheet" ? " on" : "")} onClick={() => setSource("sheet")}>Department sheet · from day 1</button>
+      </div>
+
+      {source === "sheet" ? <LiveSheet threshold={threshold} /> : (
+      <>
       <div className="an-bar">
         <label className="an-f">From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label className="an-f">To<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
@@ -132,13 +140,121 @@ export default function AttendanceAnalytics({ roster }) {
           ))}
         </div>
       )}
+      </>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
     </div>
   );
 }
 
+/* ── live, read-only attendance from the department Google Sheet (day 1 → now) ── */
+function LiveSheet({ threshold = 75 }) {
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [data, setData] = useState(null);        // all-time { students, months, sheets, lastDate, updated }
+  const [months, setMonths] = useState([]);       // available month tabs
+  const [view, setView] = useState("all");        // "all" | a sheet name
+  const [monthData, setMonthData] = useState(null);
+  const [sortKey, setSortKey] = useState("pct");  // pct | sno | name
+
+  const loadAll = useCallback(async () => {
+    setLoading(true); setErr("");
+    try {
+      const d = await fetchLiveAll();
+      setData(d);
+      setMonths(d.sheets || []);
+    } catch (e) { setErr(e?.message || "Could not reach the attendance sheet."); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const loadMonth = useCallback(async (sheet) => {
+    setView(sheet); setMonthData(null);
+    if (sheet === "all") return;
+    setLoading(true); setErr("");
+    try { setMonthData(await fetchLiveMonth(sheet)); }
+    catch (e) { setErr(e?.message || "Could not load that month."); }
+    finally { setLoading(false); }
+  }, []);
+
+  const active = view === "all" ? data : monthData;
+  const students = active?.students || [];
+
+  const rows = useMemo(() => {
+    const list = students.slice();
+    const cmp = {
+      pct: (a, b) => a.pct - b.pct,
+      sno: (a, b) => (+a.sno || 0) - (+b.sno || 0),
+      name: (a, b) => String(a.name).localeCompare(String(b.name)),
+    };
+    return list.sort(cmp[sortKey]);
+  }, [students, sortKey]);
+
+  const totHeld = students.reduce((s, a) => s + (a.held || 0), 0);
+  const totAtt = students.reduce((s, a) => s + (a.total || 0), 0);
+  const overall = totHeld ? Math.round((totAtt / totHeld) * 1000) / 10 : 0;
+  const below = students.filter((a) => a.pct < threshold).length;
+
+  return (
+    <div>
+      <div className="an-bar">
+        <label className="an-f">Period
+          <select value={view} onChange={(e) => loadMonth(e.target.value)}>
+            <option value="all">All months · from day 1</option>
+            {months.map((m) => <option key={m} value={m}>{m.replace(/daily attendance for /i, "").trim()}</option>)}
+          </select>
+        </label>
+        <label className="an-f">Sort
+          <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+            <option value="pct">Lowest %</option><option value="sno">S.No</option><option value="name">Name</option>
+          </select>
+        </label>
+        <div className="an-bar-spacer" />
+        <button className="prof-btn ghost" onClick={loadAll} disabled={loading}>{loading ? "Loading…" : "↻ Refresh"}</button>
+      </div>
+
+      {err && <div className="att-err">{err}</div>}
+
+      <div className="an-cards">
+        <div className="an-card"><div className="an-n">{overall}%</div><div className="an-l">Overall · since day 1</div></div>
+        <div className="an-card"><div className="an-n">{students.length}</div><div className="an-l">Students</div></div>
+        <div className="an-card"><div className={"an-n" + (below ? " warn" : "")}>{below}</div><div className="an-l">Below {threshold}%</div></div>
+        <div className="an-card"><div className="an-n">{view === "all" ? (data?.months || 0) : 1}</div><div className="an-l">{view === "all" ? "Months summed" : "Month"}</div></div>
+      </div>
+
+      {loading && !students.length ? <div className="att-empty">Reading the department sheet…</div> : (
+        <div className="an-table">
+          <div className="an-row sheet head"><span>#</span><span>Name</span><span>Reg</span><span>Attended</span><span>%</span></div>
+          {rows.map((r, i) => (
+            <div className={"an-row sheet" + (r.pct < threshold ? " def" : "")} key={(r.reg || r.sno || i) + ""}>
+              <span className="att-mono">{r.sno ?? ""}</span>
+              <span className="an-name">{r.name}</span>
+              <span className="att-mono">{r.reg ?? ""}</span>
+              <span className="att-mono">{r.total}/{r.held}</span>
+              <span className="an-pct">{r.pct}%</span>
+            </div>
+          ))}
+          {!rows.length && !loading && <div className="att-empty">No data returned from the sheet.</div>}
+        </div>
+      )}
+
+      <div className="an-src-note">
+        Read-only, live from the department attendance Google Sheet · OD counts as present · overall % = periods attended ÷ periods held, from day 1 to the last marked date.
+        {data?.lastDate ? ` Last marked: ${data.lastDate}.` : ""}{data?.sheets?.length ? ` Sheets: ${data.sheets.join(" · ")}.` : ""}
+      </div>
+    </div>
+  );
+}
+
 const CSS = `
+.an-src-toggle{display:inline-flex;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:3px;margin-bottom:16px}
+.an-src{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--dim);background:transparent;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;transition:.15s}
+.an-src:hover{color:var(--ink)}
+.an-src.on{color:#fff;background:var(--accent)}
+.an-src-note{font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--faint);margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.an-row.sheet{grid-template-columns:34px 1fr 92px 84px 60px}
+@media(max-width:640px){.an-row.sheet{grid-template-columns:28px 1fr 60px}.an-row.sheet span:nth-child(3),.an-row.sheet span:nth-child(4){display:none}}
 .an-bar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .an-f{display:flex;flex-direction:column;gap:5px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .an-f input,.an-f select{font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:7px 9px}
