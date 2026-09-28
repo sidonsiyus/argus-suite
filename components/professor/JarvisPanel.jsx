@@ -12,14 +12,14 @@ import { runJarvis } from "@/lib/jarvis-agent";
 import { speakJarvis, stopJarvis } from "@/lib/jarvis-voice";
 
 const SETTINGS_KEY = "friday_auto_v1";
-const DEFAULT_SETTINGS = { schedule: false, checklist: false, attendance: false, email: false, countdown: true };
+const DEFAULT_SETTINGS = { schedule: false, checklist: false, attendance: false, email: false, bulkemail: false, countdown: true };
 
 function loadSettings() {
   try { return { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")) }; }
   catch { return { ...DEFAULT_SETTINGS }; }
 }
 
-const CAT_LABEL = { schedule: "schedule", checklist: "checklist", attendance: "attendance", email: "coordinator email" };
+const CAT_LABEL = { schedule: "schedule", checklist: "checklist", attendance: "attendance", email: "coordinator email", bulkemail: "bulk student emails" };
 
 // The animated FRIDAY orb — layered, seamless, reactive to state.
 function FridayOrb({ state = "idle", size = 58, letter = true, className = "" }) {
@@ -168,10 +168,10 @@ export default function JarvisPanel() {
             <div className="jv-settings">
               <div className="jv-settings-h">Act without asking</div>
               <p className="jv-settings-lead">When on, JARVIS performs that kind of change hands-free (default: ask first).</p>
-              {["schedule", "checklist", "attendance", "email"].map((k) => (
+              {["schedule", "checklist", "attendance", "email", "bulkemail"].map((k) => (
                 <label key={k} className="jv-toggle">
                   <input type="checkbox" checked={!!settings[k]} onChange={(e) => saveSettings({ ...settings, [k]: e.target.checked })} />
-                  Auto {CAT_LABEL[k]} {k === "email" && <em>(sends the coordinator reply)</em>}
+                  Auto {CAT_LABEL[k]} {k === "email" && <em>(sends the coordinator reply)</em>}{k === "bulkemail" && <em>(emails many students at once)</em>}
                 </label>
               ))}
               <label className="jv-toggle">
