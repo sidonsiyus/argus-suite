@@ -3,15 +3,6 @@ const nextConfig = {
   reactStrictMode: true,
   // The heavy interactive modules (Argus, Pyrgos, Gargantua, etc.) live in /public
   // as self-contained static apps and are linked to directly from the portal.
-  // The Vistas internship portal is one of these: a Vite SPA built with base
-  // /internship/ and vendored into public/internship.
-  async rewrites() {
-    return [
-      // Serve the SPA's index for the bare /internship path (its assets are real
-      // files under /internship/assets and are served directly).
-      { source: "/internship", destination: "/internship/index.html" },
-    ];
-  },
   async redirects() {
     return [
       {
