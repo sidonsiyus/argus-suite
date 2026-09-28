@@ -258,9 +258,11 @@ function LiveSheet({ threshold = 75, roster = [] }) {
 const DM_DEFAULT_SUBJECT = "Attendance Shortage Notice — Action Required";
 const DM_DEFAULT_BODY = `Dear {name},
 
-Your overall attendance {period} is {pct}% ({attended} of {held} periods), which is below the required {threshold}%.
+Your attendance is {pct}%, which is below the required 75%.
 
-Please meet the faculty at the earliest and take immediate steps to regularise your attendance, to avoid academic penalties such as being detained from examinations.`;
+If it is not improved, you will not be permitted to write any examination. If your attendance is lower still, you will also be required to pay a condonation fee.
+
+Please improve your attendance immediately and meet the faculty.`;
 
 function DefaulterMailer({ defaulters, roster, threshold, period }) {
   const [subject, setSubject] = useState(DM_DEFAULT_SUBJECT);
