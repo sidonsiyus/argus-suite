@@ -10,6 +10,7 @@ import { EXTRA } from "../../lib/ndt/extra";
 import { QUIZ } from "../../lib/ndt/assessments";
 import { VIDEOS } from "../../lib/ndt/videos";
 import { Visual } from "./visuals";
+import ModuleNotes from "../../components/ModuleNotes";
 
 const KEY = "ndt_bay_v1";
 const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q + " NDT explained");
@@ -23,6 +24,7 @@ export default function NdtBay() {
   const [loaded, setLoaded] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [search, setSearch] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const mainRef = useRef(null);
 
   useEffect(() => {
@@ -80,6 +82,7 @@ export default function NdtBay() {
         <nav className="ndt-nav">
           <button className={"ndt-home" + (cur === "home" ? " on" : "")} onClick={goHome}><span className="ndt-home-ic">◎</span>Overview</button>
           <button className={"ndt-home" + (cur === "revise" ? " on" : "")} onClick={() => { setCur("revise"); setNavOpen(false); }}><span className="ndt-home-ic">◆</span>Revision &amp; exams</button>
+          <button className="ndt-home" onClick={() => { setNotesOpen(true); setNavOpen(false); }}><span className="ndt-home-ic">▤</span>Notes &amp; PPTs</button>
           {UNITS.map((u) => {
             const open = openUnit === u.id, up = unitProgress(u);
             return (
@@ -118,6 +121,7 @@ export default function NdtBay() {
         ) : null}
       </main>
       {search && <SearchPalette onClose={() => setSearch(false)} go={(id) => { go(id); setSearch(false); }} />}
+      {notesOpen && <ModuleNotes module="NDT" onClose={() => setNotesOpen(false)} />}
     </div>
   );
 }

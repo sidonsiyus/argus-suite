@@ -10,6 +10,7 @@ import { EXTRA } from "../../lib/gtem/extra";
 import { QUIZ } from "../../lib/gtem/assessments";
 import { VIDEOS } from "../../lib/gtem/videos";
 import { Visual } from "./visuals";
+import ModuleNotes from "../../components/ModuleNotes";
 
 const KEY = "gtem_v1";
 const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q + " gas turbine engine explained");
@@ -23,6 +24,7 @@ export default function GtemBay() {
   const [loaded, setLoaded] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [search, setSearch] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const mainRef = useRef(null);
 
   useEffect(() => {
@@ -80,6 +82,7 @@ export default function GtemBay() {
         <nav className="gtem-nav">
           <button className={"gtem-home" + (cur === "home" ? " on" : "")} onClick={goHome}><span className="gtem-home-ic">◎</span>Overview</button>
           <button className={"gtem-home" + (cur === "revise" ? " on" : "")} onClick={() => { setCur("revise"); setNavOpen(false); }}><span className="gtem-home-ic">◆</span>Revision &amp; exams</button>
+          <button className="gtem-home" onClick={() => { setNotesOpen(true); setNavOpen(false); }}><span className="gtem-home-ic">▤</span>Notes &amp; PPTs</button>
           {UNITS.map((u) => {
             const open = openUnit === u.id, up = unitProgress(u);
             return (
@@ -118,6 +121,7 @@ export default function GtemBay() {
         ) : null}
       </main>
       {search && <SearchPalette onClose={() => setSearch(false)} go={(id) => { go(id); setSearch(false); }} />}
+      {notesOpen && <ModuleNotes module="GTEM" onClose={() => setNotesOpen(false)} />}
     </div>
   );
 }
