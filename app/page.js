@@ -597,6 +597,100 @@ function CommandPalette({ open, onClose }) {
   );
 }
 
+/* ── flagship learning modules (NDT + GTEM), featured up top ── */
+function SpotlightModules() {
+  const feat = ["ndt", "gtem"].map((id) => MODULES.find((m) => m.id === id)).filter(Boolean);
+  if (!feat.length) return null;
+  return (
+    <section className="group" id="learn">
+      <div className="group-head">
+        <div className="group-eyebrow"><span>Start here</span><span className="rule" /><span className="count">flagship courses</span></div>
+        <div className="group-title">Learning modules<span className="blurb">deep, interactive aviation-engineering courses</span></div>
+      </div>
+      <div className="spot-grid">
+        {feat.map((m) => (
+          <a className="spot-card" key={m.id} href={m.file} style={{ "--c": m.color }}>
+            <div className="spot-ico" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${m.svg}</svg>` }} />
+            <div className="spot-body">
+              <div className="spot-tag mono">{m.tag || "Interactive course"}</div>
+              <div className="spot-name serif">{m.name}</div>
+              <div className="spot-desc">{m.desc}</div>
+              <div className="spot-go mono">Open module →</div>
+            </div>
+          </a>
+        ))}
+      </div>
+      <style dangerouslySetInnerHTML={{ __html: SPOT_CSS }} />
+    </section>
+  );
+}
+
+const SPOT_CSS = `
+.spot-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+@media(max-width:720px){.spot-grid{grid-template-columns:1fr}}
+.spot-card{position:relative;display:flex;gap:16px;align-items:flex-start;padding:22px;border-radius:18px;background:var(--panel);border:1px solid var(--line);text-decoration:none;color:var(--ink);overflow:hidden;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.spot-card::before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,color-mix(in srgb,var(--c) 14%,transparent),transparent 60%);opacity:.7;pointer-events:none}
+.spot-card:hover{transform:translateY(-3px);border-color:var(--c);box-shadow:0 18px 46px color-mix(in srgb,var(--c) 22%,transparent)}
+.spot-ico{position:relative;flex:none;width:52px;height:52px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent)}
+.spot-ico svg{width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.6}
+.spot-body{position:relative;min-width:0}
+.spot-tag{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--c);margin-bottom:6px}
+.spot-name{font-size:24px;font-weight:800;line-height:1.05;margin-bottom:8px}
+.spot-desc{font-size:13.5px;line-height:1.55;color:var(--ink-soft)}
+.spot-go{margin-top:12px;font-size:12px;color:var(--c);font-weight:600}
+`;
+
+/* ── did you know — rotating aviation facts ── */
+const DYK_FACTS = [
+  "A Boeing 747’s wingspan (68 m) is longer than the Wright brothers’ entire first flight — 37 m.",
+  "The tiny hole in an aircraft window is a ‘breather hole’ — it balances cabin pressure and stops the outer pane from taking the full load.",
+  "Contrails are just clouds — hot, humid engine exhaust freezing instantly into ice crystals in the cold upper air.",
+  "The coldest part of a jet engine and the hottest are inches apart: intake air near −50 °C, turbine gas above 1,500 °C.",
+  "A commercial jet’s tyres are inflated to ~200 psi — about six times a car tyre — to survive touchdown at 250+ km/h.",
+  "‘Mach 1’ isn’t a fixed speed — the speed of sound falls with temperature, so it drops as you climb.",
+  "Most airliners can fly and land on a single engine; twin-engine ETOPS rules certify exactly how far from an airport they may roam.",
+  "Winglets — the upturned wingtips — cut the drag from wingtip vortices and can save 3–5% on fuel.",
+  "The black box isn’t black; it’s bright orange, and modern recorders survive 1,100 °C fire and deep-ocean pressure.",
+  "Non-destructive testing (NDT) inspects a part for cracks without harming it — the same eddy-current and ultrasonic methods used across aviation maintenance.",
+];
+function DidYouKnow() {
+  const [i, setI] = useState(() => Math.floor(Math.random() * DYK_FACTS.length));
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (paused) return;
+    const id = setInterval(() => setI((v) => (v + 1) % DYK_FACTS.length), 9000);
+    return () => clearInterval(id);
+  }, [paused]);
+  return (
+    <section className="group" id="dyk" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      <div className="dyk-card">
+        <div className="dyk-badge mono">✈ Did you know?</div>
+        <p className="dyk-fact serif">{DYK_FACTS[i]}</p>
+        <div className="dyk-foot">
+          <div className="dyk-dots">
+            {DYK_FACTS.map((_, k) => <span key={k} className={"dyk-dot" + (k === i ? " on" : "")} />)}
+          </div>
+          <button className="dyk-next mono" onClick={() => setI((v) => (v + 1) % DYK_FACTS.length)}>Next fact →</button>
+        </div>
+      </div>
+      <style dangerouslySetInnerHTML={{ __html: DYK_CSS }} />
+    </section>
+  );
+}
+
+const DYK_CSS = `
+.dyk-card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px 28px;overflow:hidden}
+.dyk-card::before{content:"";position:absolute;top:-40px;right:-30px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 18%,transparent),transparent 70%);pointer-events:none}
+.dyk-badge{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.dyk-fact{position:relative;font-size:clamp(17px,2.4vw,22px);line-height:1.45;font-weight:600;color:var(--ink);max-width:70ch;margin:0}
+.dyk-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px;flex-wrap:wrap}
+.dyk-dots{display:flex;gap:5px}
+.dyk-dot{width:6px;height:6px;border-radius:50%;background:var(--line-2);transition:.2s}
+.dyk-dot.on{background:var(--accent);width:16px;border-radius:4px}
+.dyk-next{font-size:12px;font-weight:600;color:var(--accent);background:none;border:none;cursor:pointer}
+.dyk-next:hover{text-decoration:underline}
+`;
+
 export default function Home() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -726,15 +820,21 @@ export default function Home() {
           <RadarScope onCount={(n, icao) => { setAirborne(n); setAirborneAp(icao); }} />
         </section>
 
-        <div className="reveal"><Launcher /></div>
-
-        <div className="reveal"><Featured /></div>
+        {/* priority band: flagship modules → news → did-you-know → live data */}
+        <div className="reveal"><SpotlightModules /></div>
 
         <div className="reveal"><NewsDesk news={news} /></div>
+
+        <div className="reveal"><DidYouKnow /></div>
+
+        <div className="reveal"><Featured /></div>
 
         <div className="reveal"><LiveBoard /></div>
 
         <div className="reveal"><FlightLog /></div>
+
+        {/* the full systems grid lives below the important stuff */}
+        <div className="reveal"><Launcher /></div>
 
         <section className="cta reveal">
           <div className="cta-eyebrow mono">◉ The scope is live</div>
