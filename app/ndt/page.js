@@ -52,13 +52,13 @@ export default function NdtBay() {
   const pct = Math.round((doneCount / SESSION_COUNT) * 100);
   const unitProgress = (u) => u.sessions.filter((s) => done[s.id]).length;
 
-  const go = useCallback((id) => { setCur(id); setNavOpen(false); const s = ALL_SESSIONS.find((x) => x.id === id); if (s) setOpenUnit(s.unitId); }, []);
+  const go = useCallback((id) => { setCur(id); setNavOpen(false); const s = ALL_SESSIONS.find((x) => x.id === id); if (s) setOpenUnit(s.unitId ?? s.unit); }, []); // NDT sessions carry `unitId`, GTEM sessions carry `unit`
   const goHome = () => { setCur("home"); setNavOpen(false); };
   const markDone = (id) => setDone((d) => ({ ...d, [id]: true }));
   const toggleMark = (id) => setMarks((m) => ({ ...m, [id]: !m[id] }));
   const prev = () => idx > 0 && go(ALL_SESSIONS[idx - 1].id);
   const next = () => idx < ALL_SESSIONS.length - 1 && go(ALL_SESSIONS[idx + 1].id);
-  const curUnit = useMemo(() => UNITS.find((u) => u.id === (session ? session.unitId : 0)), [session]);
+  const curUnit = useMemo(() => UNITS.find((u) => u.id === (session ? (session.unitId ?? session.unit) : 0)), [session]);
 
   return (
     <div className="ndt" data-theme={dark ? "dark" : "light"}>
@@ -426,7 +426,7 @@ function tutorContext(session) {
   const d = DETAIL[session.id] || {};
   const x = EXTRA[session.id] || {};
   return {
-    unit: "Unit " + session.unitCode + " · " + (UNITS.find((u) => u.id === session.unit)?.title || ""),
+    unit: "Unit " + session.unitCode + " · " + (UNITS.find((u) => u.id === (session.unitId ?? session.unit))?.title || ""),
     title: session.n + " " + session.title,
     overview: d.overview || session.summary || "",
     sections: (d.sections || []).map((s) => ({ h: s.h, p: s.p })),
