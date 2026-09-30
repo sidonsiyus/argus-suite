@@ -11,6 +11,7 @@ import { QUIZ } from "../../lib/gtem/assessments";
 import { VIDEOS } from "../../lib/gtem/videos";
 import { Visual } from "./visuals";
 import ModuleNotes from "../../components/ModuleNotes";
+import { shuffleOptions } from "../../lib/quiz-shuffle";
 
 const KEY = "gtem_v1";
 const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q + " gas turbine engine explained");
@@ -224,7 +225,7 @@ function Flashcards({ cards }) {
   );
 }
 function ExamHub({ onStart }) {
-  const start = (title, qs) => onStart({ title, questions: shuffle(qs).slice(0, Math.min(qs.length, 12)) });
+  const start = (title, qs) => { const nonce = String(Date.now()); onStart({ title, questions: shuffle(qs).slice(0, Math.min(qs.length, 12)).map((q) => shuffleOptions(q, nonce)) }); };
   return (
     <div className="gtem-examcards">
       {UNITS.map((u) => { const qs = unitQuestions(u.id); return (
@@ -731,7 +732,8 @@ function CaseStudy({ c }) {
 }
 
 /* ── knowledge check ── */
-function Quiz({ quiz, onPass }) {
+function Quiz({ quiz: rawQuiz, onPass }) {
+  const quiz = useMemo(() => rawQuiz.map((q) => shuffleOptions(q)), [rawQuiz]); // authored answers skew to B — shuffle for display
   const [ans, setAns] = useState({});
   const [checked, setChecked] = useState(false);
   const score = quiz.reduce((n, q, i) => n + (ans[i] === q.answer ? 1 : 0), 0);
