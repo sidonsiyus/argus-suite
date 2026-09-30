@@ -124,8 +124,9 @@ export default function CoordinatorTool({ onChanged }) {
 
   const bodyText = body.text || stripHtml(body.html);
 
-  // Cc / attachments belong to one thread — never carry them to a different email.
-  useEffect(() => { setReplyCc([]); setShowCc(false); setReplyFiles([]); setAiBrief(""); }, [selUid]);
+  // A reply draft (text, Cc, attachments) belongs to one thread — never carry it
+  // over to a different email.
+  useEffect(() => { setReply(""); setReplyCc([]); setShowCc(false); setReplyFiles([]); setAiBrief(""); setSendErr(""); }, [selUid]);
 
   // AI-draft a reply to the selected email (optionally steered by a short instruction).
   async function draftReply() {
