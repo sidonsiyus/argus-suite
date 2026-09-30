@@ -654,8 +654,9 @@ const DYK_FACTS = [
   "Non-destructive testing (NDT) inspects a part for cracks without harming it — the same eddy-current and ultrasonic methods used across aviation maintenance.",
 ];
 function DidYouKnow() {
-  const [i, setI] = useState(() => Math.floor(Math.random() * DYK_FACTS.length));
+  const [i, setI] = useState(0); // deterministic first render (avoids SSR hydration mismatch)
   const [paused, setPaused] = useState(false);
+  useEffect(() => { setI(Math.floor(Math.random() * DYK_FACTS.length)); }, []); // randomize after mount
   useEffect(() => {
     if (paused) return;
     const id = setInterval(() => setI((v) => (v + 1) % DYK_FACTS.length), 9000);
