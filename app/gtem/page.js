@@ -12,6 +12,8 @@ import { VIDEOS } from "../../lib/gtem/videos";
 import { Visual } from "./visuals";
 import ModuleNotes from "../../components/ModuleNotes";
 import { shuffleOptions } from "../../lib/quiz-shuffle";
+import { useTutorVoice } from "../../lib/tutor-voice";
+import { MicButton, SpeakButton, VoiceFoot, TUTOR_VOICE_CSS } from "../../components/TutorVoiceUI";
 
 const KEY = "gtem_v1";
 const yt = (q) => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q + " gas turbine engine explained");
@@ -434,37 +436,51 @@ function tutorContext(session) {
 }
 function AskTutor({ session }) {
   const [q, setQ] = useState("");
-  const [msgs, setMsgs] = useState([]); // {role:'you'|'tutor', text}
+  const [msgs, setMsgs] = useState([]); // {id, role:'you'|'tutor', text, ok?}
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef(null);
-  // Fresh thread when the session changes.
-  useEffect(() => { setMsgs([]); setQ(""); setBusy(false); }, [session.id]);
+  const idRef = useRef(0);
+  const heardRef = useRef(null);       // set below; called when the mic hears a full question
+  const aliveRef = useRef(true);       // the tutor remounts per session, so "unmounted" = the student moved on
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
+  const voice = useTutorVoice({ heardRef, module: "gtem" });
+
+  // Fresh thread (and silence) when the session changes.
+  useEffect(() => { setMsgs([]); setQ(""); setBusy(false); voice.stopSpeaking(); }, [session.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs, busy]);
 
-  const send = useCallback(async () => {
-    const question = q.trim();
+  // `viaVoice`: the question was spoken, so the answer is spoken back (short, plain sentences).
+  const send = useCallback(async (override, viaVoice = false) => {
+    const question = (typeof override === "string" ? override : q).trim();
     if (!question || busy) return;
-    setMsgs((m) => [...m, { role: "you", text: question }]);
+    const spoken = viaVoice || voice.autoSpeak;
+    voice.stopSpeaking();
+    setMsgs((m) => [...m, { id: ++idRef.current, role: "you", text: question }]);
     setQ("");
     setBusy(true);
     try {
       const r = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, context: tutorContext(session) }),
+        body: JSON.stringify({ question, module: "gtem", spoken, context: tutorContext(session) }),
       });
       const d = await r.json();
+      if (!aliveRef.current) return; // the student moved to another session meanwhile — drop the stale answer
       const text = d?.answer
         || (d?.error === "tutor_unconfigured"
             ? "The tutor isn't switched on yet — ask your instructor to add the API key. In the meantime, try the lesson notes and case file above."
             : "I couldn't reach the tutor just now. Please try again in a moment, or ask your instructor.");
-      setMsgs((m) => [...m, { role: "tutor", text }]);
+      const id = ++idRef.current;
+      setMsgs((m) => [...m, { id, role: "tutor", text, ok: !!d?.answer }]);
+      if (spoken && d?.answer) voice.speak(text, id);
     } catch {
-      setMsgs((m) => [...m, { role: "tutor", text: "Network hiccup — I couldn't reach the tutor. Try again in a moment." }]);
+      if (!aliveRef.current) return;
+      setMsgs((m) => [...m, { id: ++idRef.current, role: "tutor", text: "Network hiccup — I couldn't reach the tutor. Try again in a moment." }]);
     } finally {
       setBusy(false);
     }
-  }, [q, busy, session]);
+  }, [q, busy, session, voice.autoSpeak, voice.speak, voice.stopSpeaking]); // eslint-disable-line react-hooks/exhaustive-deps
+  heardRef.current = (t) => send(t, true);
 
   const suggestions = [
     "Explain this session simply",
@@ -474,11 +490,12 @@ function AskTutor({ session }) {
 
   return (
     <div className="gtem-side-card gtem-ask">
+      <style dangerouslySetInnerHTML={{ __html: TUTOR_VOICE_CSS }} />
       <div className="gtem-side-k">Ask a doubt <span className="gtem-ask-badge">AI tutor</span></div>
       <div className="gtem-ask-log" ref={scrollRef}>
         {msgs.length === 0 && !busy && (
           <div className="gtem-ask-empty">
-            <p>Stuck on anything in this session? Ask and I'll explain — grounded in this lesson.</p>
+            <p>Stuck on anything in this session? Ask and I'll explain — grounded in this lesson.{voice.supported ? " Tap the mic to ask out loud." : ""}</p>
             <div className="gtem-ask-sugs">
               {suggestions.map((s) => (
                 <button key={s} className="gtem-ask-sug" onClick={() => setQ(s)} disabled={busy}>{s}</button>
@@ -486,9 +503,12 @@ function AskTutor({ session }) {
             </div>
           </div>
         )}
-        {msgs.map((m, i) => (
-          <div key={i} className={"gtem-ask-msg " + m.role}>
-            <span className="gtem-ask-who">{m.role === "you" ? "You" : "Tutor"}</span>
+        {msgs.map((m) => (
+          <div key={m.id} className={"gtem-ask-msg " + m.role}>
+            <div className="tv-who">
+              <span className="gtem-ask-who">{m.role === "you" ? "You" : "Tutor"}</span>
+              {m.role === "tutor" && m.ok && <SpeakButton voice={voice} id={m.id} text={m.text} />}
+            </div>
             <div className="gtem-ask-bubble">{m.text}</div>
           </div>
         ))}
@@ -496,15 +516,18 @@ function AskTutor({ session }) {
       </div>
       <div className="gtem-ask-in">
         <textarea
-          value={q}
+          value={voice.listening ? voice.interim : q}
+          readOnly={voice.listening}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Type your doubt…  (Enter to send)"
+          placeholder={voice.listening ? "Listening…" : "Type your doubt…  (Enter to send)"}
           rows={2}
           disabled={busy}
         />
-        <button className="gtem-ask-send" onClick={send} disabled={busy || !q.trim()}>{busy ? "…" : "Ask"}</button>
+        <MicButton voice={voice} disabled={busy} />
+        <button className="gtem-ask-send" onClick={() => send()} disabled={busy || !q.trim()}>{busy ? "…" : "Ask"}</button>
       </div>
+      <VoiceFoot voice={voice} />
       <div className="gtem-ask-foot">AI can be wrong — verify anything important with your instructor.</div>
     </div>
   );

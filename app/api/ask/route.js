@@ -1,13 +1,34 @@
-// NDT tutor — grounded Q&A for a single session.
+// AI tutor (NDT Bay + GTEM) — grounded Q&A for a single session.
 // The client posts the current session's context (title, overview, sections,
-// key terms, case study) plus the student's question. We build a tightly
-// scoped prompt so the model answers ONLY from NDT course material and says so
-// when a doubt falls outside it. Key stays server-side (OPENROUTER_API_KEY).
+// key terms, case study), the student's question and which `module` it is in
+// ("ndt" | "gtem"; default "ndt"). We build a tightly scoped prompt so the model
+// answers ONLY from that course's material and says so when a doubt falls
+// outside it. `spoken: true` (asked by voice / read aloud) asks for short plain
+// sentences instead of markdown. Key stays server-side (OPENROUTER_API_KEY).
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const MODEL = process.env.OPENROUTER_MODEL || "google/gemini-3.5-flash-lite";
 const MAX_Q = 500; // cap the student question length
+
+// One tutor persona per course. (GTEM used to get the NDT persona, so its
+// answers kept wandering into non-destructive testing.)
+const COURSES = {
+  ndt: {
+    name: "NDT Bay",
+    course: "Non-Destructive Testing course (B.Sc Aviation)",
+    scope: "NDT and its engineering context",
+    title: "ARGUS NDT Bay",
+    fallback: "rely on general NDT knowledge for this session",
+  },
+  gtem: {
+    name: "GTEM",
+    course: "Gas Turbine Engine Module (B.Sc Aviation)",
+    scope: "gas turbine engines and their aviation-engineering context — the Brayton cycle and thermodynamics, compressors, combustors, turbines, nozzles, fuel and control systems, performance, and engine maintenance / health monitoring",
+    title: "ARGUS GTEM",
+    fallback: "rely on general gas-turbine-engine knowledge for this session",
+  },
+};
 
 function clip(s, n) {
   s = String(s || "");
@@ -69,24 +90,27 @@ export async function POST(request) {
   }
 
   const context = buildContext(body?.context);
+  const C = COURSES[String(body?.module || "").toLowerCase()] || COURSES.ndt;
+  const spoken = body?.spoken === true;
 
   const system = [
-    "You are the NDT Bay tutor — a patient, precise teaching assistant for a university",
-    "Non-Destructive Testing course (B.Sc Aviation). You help students clear doubts about",
-    "the current lesson.",
+    `You are the ${C.name} tutor — a patient, precise teaching assistant for a university`,
+    `${C.course}. You help students clear doubts about the current lesson.`,
     "",
     "RULES:",
-    "- Answer using the SESSION MATERIAL below and established NDT / materials-science and",
-    "  aviation-maintenance knowledge. Stay strictly on NDT and its engineering context.",
-    "- If a question is unrelated to NDT or this course, politely decline and steer the",
+    `- Answer using the SESSION MATERIAL below and established knowledge of ${C.scope}.`,
+    `  Stay strictly on ${C.scope}.`,
+    `- If a question is unrelated to this course, politely decline and steer the`,
     "  student back to the lesson. Do not answer off-topic requests (coding, personal, etc.).",
     "- Be accurate. If you are unsure or the material does not cover it, say so plainly and",
     "  suggest asking the instructor — never invent standards, numbers, or citations.",
-    "- Keep answers concise and student-friendly: 2–5 short paragraphs or a tight bullet list.",
-    "- Use plain text (light markdown ok). Define jargon the first time you use it.",
+    "- Do not bring in other subjects unless the student asks how they relate.",
+    spoken
+      ? "- Your answer will be READ ALOUD by a voice. Write 2–5 short, plain spoken sentences (under about 110 words): no markdown, no bullet points, no headings, no symbols or tables. Define jargon the first time you use it."
+      : "- Keep answers concise and student-friendly: 2–5 short paragraphs or a tight bullet list. Use plain text (light markdown ok). Define jargon the first time you use it.",
     "",
     "SESSION MATERIAL:",
-    context || "(no extra context supplied — rely on general NDT knowledge for this session)",
+    context || `(no extra context supplied — ${C.fallback})`,
   ].join("\n");
 
   try {
@@ -96,13 +120,13 @@ export async function POST(request) {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://www.madebysid.space",
-        "X-Title": "ARGUS NDT Bay",
+        "X-Title": C.title,
       },
       cache: "no-store",
       body: JSON.stringify({
         model: MODEL,
         temperature: 0.3,
-        max_tokens: 700,
+        max_tokens: spoken ? 350 : 700,
         messages: [
           { role: "system", content: system },
           { role: "user", content: question },
