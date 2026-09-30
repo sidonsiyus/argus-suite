@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 import { requireFaculty } from "@/lib/professor-auth";
 import { mailConfigured, sendReply, HmError } from "@/lib/hostinger-mail";
 import { buildHtmlEmail, buildTextEmail } from "@/lib/mail-signature";
+import { sanitizeAttachments } from "@/lib/mail-attachments";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const parseList = (v) => (Array.isArray(v) ? v : String(v || "").split(/[,;\s]+/)).map((s) => String(s).trim()).filter(Boolean);
@@ -27,9 +28,15 @@ export async function POST(request) {
   if (to.length + cc.length > 25) return Response.json({ error: "too_many_recipients" }, { status: 400 });
   if (!text) return Response.json({ error: "empty_body" }, { status: 400 });
 
+  const att = sanitizeAttachments(body?.attachments);
+  if (!att.ok) return Response.json({ error: att.error }, { status: att.error === "attachments_too_large" ? 413 : 400 });
+
   try {
-    await sendReply({ to, cc: cc.length ? cc : undefined, subject: subject || "(no subject)", text: buildTextEmail(text), html: buildHtmlEmail(text) });
-    return Response.json({ ok: true, to, cc });
+    await sendReply({
+      to, cc: cc.length ? cc : undefined, subject: subject || "(no subject)",
+      text: buildTextEmail(text), html: buildHtmlEmail(text), attachments: att.list,
+    });
+    return Response.json({ ok: true, to, cc, attachments: att.list.length });
   } catch (e) {
     const status = e instanceof HmError ? e.status : 502;
     return Response.json({ error: e?.code || "send_failed", detail: String(e?.message || "").slice(0, 200) }, { status });

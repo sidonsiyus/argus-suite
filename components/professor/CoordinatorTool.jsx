@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchCoordinatorMail, fetchCoordinatorHistory, fetchMailBody, sendCoordinatorReply, markCoordinatorDone, sendEmail, draftEmail } from "@/lib/coordinator-mail";
+import { RecipientInput, AttachmentPicker, useContacts, rememberRecipients, MAIL_PARTS_CSS } from "@/components/professor/MailParts";
 
 function timeLabel(iso) {
   if (!iso) return "";
@@ -48,7 +49,14 @@ export default function CoordinatorTool({ onChanged }) {
   const [histOpen, setHistOpen] = useState(false);
   const [history, setHistory] = useState(null); // { loading?, all?, error? }
   const [mode, setMode] = useState("inbox"); // inbox | compose
+  const [replyCc, setReplyCc] = useState([]);
+  const [showCc, setShowCc] = useState(false);
+  const [replyFiles, setReplyFiles] = useState([]);
+  const [aiBrief, setAiBrief] = useState("");
+  const [drafting, setDrafting] = useState(false);
   const replyRef = useRef(null);
+
+  const { contacts, refreshRecent } = useContacts(state.coordinator);
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true }));
@@ -116,12 +124,34 @@ export default function CoordinatorTool({ onChanged }) {
 
   const bodyText = body.text || stripHtml(body.html);
 
+  // Cc / attachments belong to one thread — never carry them to a different email.
+  useEffect(() => { setReplyCc([]); setShowCc(false); setReplyFiles([]); setAiBrief(""); }, [selUid]);
+
+  // AI-draft a reply to the selected email (optionally steered by a short instruction).
+  async function draftReply() {
+    if (!selected || drafting) return;
+    setDrafting(true); setSendErr("");
+    try {
+      const d = await draftEmail({
+        brief: aiBrief.trim(),
+        context: {
+          subject: selected.subject,
+          from: `${selected.from?.name || ""} <${selected.from?.address || ""}>`.trim(),
+          body: bodyText,
+        },
+      });
+      if (d.body) setReply(d.body);
+    } catch (e) { setSendErr(e?.message || "Could not draft a reply."); }
+    finally { setDrafting(false); }
+  }
+
   async function doSend() {
     if (!selected || !reply.trim() || sending) return;
     setSending(true); setSendErr("");
     try {
-      await sendCoordinatorReply({ uid: selected.uid, subject: selected.subject, text: reply.trim() });
-      setReply("");
+      await sendCoordinatorReply({ uid: selected.uid, subject: selected.subject, text: reply.trim(), cc: replyCc, attachments: replyFiles });
+      if (replyCc.length) { rememberRecipients(replyCc); refreshRecent(); }
+      setReply(""); setReplyCc([]); setShowCc(false); setReplyFiles([]); setAiBrief("");
       setFlash(`Reply sent to ${selected.from?.name || "the coordinator"}.`);
       const data = await load();
       onChanged?.();
@@ -208,7 +238,7 @@ export default function CoordinatorTool({ onChanged }) {
       {banner?.kind === "progress" && <div className="cm-banner">{banner.text}</div>}
       {flash && <div className="cm-flash">{flash}</div>}
 
-      {mode === "compose" && configured && <Compose />}
+      {mode === "compose" && configured && <Compose contacts={contacts} onSent={refreshRecent} />}
 
       {mode === "inbox" && configured && (total > 0 || selected) && (
         <div className={"cm-grid" + (total > 0 ? "" : " nolist")}>
@@ -267,6 +297,12 @@ export default function CoordinatorTool({ onChanged }) {
                   <div className="cm-reply-to">
                     Reply to <b>{selected.from?.name || selected.from?.address}</b> · <span className="cm-muted">Re: {selected.subject}</span>
                   </div>
+                  <div className="cm-ai cm-ai-reply">
+                    <input className="cm-ai-in" value={aiBrief} onChange={(e) => setAiBrief(e.target.value)}
+                      placeholder="Optional — tell AI what to say, e.g. confirm the report is submitted"
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); draftReply(); } }} />
+                    <button className="cm-ai-btn" onClick={draftReply} disabled={drafting || body.loading}>{drafting ? "Drafting…" : "✦ Draft reply"}</button>
+                  </div>
                   <textarea
                     ref={replyRef}
                     className="cm-reply-in"
@@ -276,6 +312,12 @@ export default function CoordinatorTool({ onChanged }) {
                     onKeyDown={onReplyKey}
                     rows={5}
                   />
+                  <div className="cm-reply-extras">
+                    {showCc
+                      ? <RecipientInput label="Cc" value={replyCc} onChange={setReplyCc} contacts={contacts} placeholder="Add people to copy" />
+                      : <button type="button" className="cm-linkbtn" onClick={() => setShowCc(true)}>+ Cc</button>}
+                    <AttachmentPicker files={replyFiles} onChange={setReplyFiles} />
+                  </div>
                   {sendErr && <div className="cm-note err small">{sendErr}</div>}
                   <div className="cm-reply-actions">
                     <button
@@ -337,11 +379,14 @@ export default function CoordinatorTool({ onChanged }) {
   );
 }
 
-/* ── compose: send an email to anyone, with optional AI draft ── */
-function Compose() {
-  const [to, setTo] = useState("");
+/* ── compose: send an email to anyone (Cc, attachments, autofill, AI draft) ── */
+function Compose({ contacts = [], onSent }) {
+  const [to, setTo] = useState([]);
+  const [cc, setCc] = useState([]);
+  const [showCc, setShowCc] = useState(false);
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
+  const [files, setFiles] = useState([]);
   const [brief, setBrief] = useState("");
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
@@ -363,21 +408,25 @@ function Compose() {
   async function doSend() {
     setConfirming(false); setSending(true); setErr(""); setFlash("");
     try {
-      const r = await sendEmail({ to, subject, text: bodyText });
-      setFlash(`Sent to ${(r.to || []).join(", ")}.`);
-      setTo(""); setSubject(""); setBodyText(""); setBrief("");
+      const r = await sendEmail({ to, cc, subject, text: bodyText, attachments: files });
+      rememberRecipients([...to, ...cc]); onSent?.();
+      setFlash(`Sent to ${(r.to || []).join(", ")}${r.attachments ? ` with ${r.attachments} attachment${r.attachments === 1 ? "" : "s"}` : ""}.`);
+      setTo([]); setCc([]); setShowCc(false); setSubject(""); setBodyText(""); setBrief(""); setFiles([]);
       setTimeout(() => setFlash(""), 4000);
-    } catch (e) { setErr(e?.message || "Could not send."); }
-    finally { setSending(false); }
+    } catch (e) {
+      const m = e?.message || "";
+      setErr(m === "attachments_too_large" ? "The attachments are too large to send (3 MB total)." : m || "Could not send.");
+    } finally { setSending(false); }
   }
 
-  const canSend = /\S+@\S+\.\S+/.test(to) && bodyText.trim().length > 0;
+  const canSend = to.length > 0 && bodyText.trim().length > 0;
 
   return (
     <div className="cm-compose">
-      <label className="cm-f">To <span className="cm-f-hint">comma-separated</span>
-        <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@example.com, another@example.com" />
-      </label>
+      <RecipientInput label="To" hint="type a name or address" value={to} onChange={setTo} contacts={contacts} placeholder="name@example.com" />
+      {showCc
+        ? <RecipientInput label="Cc" value={cc} onChange={setCc} contacts={contacts} placeholder="Add people to copy" />
+        : <button type="button" className="cm-linkbtn cm-addcc" onClick={() => setShowCc(true)}>+ Add Cc</button>}
       <div className="cm-ai">
         <input className="cm-ai-in" value={brief} onChange={(e) => setBrief(e.target.value)}
           placeholder="Keywords for an AI draft — e.g. remind AVI 2A, lab report due tomorrow, polite"
@@ -386,6 +435,7 @@ function Compose() {
       </div>
       <label className="cm-f">Subject<input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" /></label>
       <label className="cm-f">Message<textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} rows={9} placeholder="Write your email… (your signature is added automatically)" /></label>
+      <AttachmentPicker files={files} onChange={setFiles} />
       <div className="cm-muted small cm-hint">Sends from your mailbox with your signature appended.</div>
       {err && <div className="cm-note err small">{err}</div>}
       {flash && <div className="cm-flash">{flash}</div>}
@@ -393,7 +443,7 @@ function Compose() {
         <button className="cm-send" onClick={() => setConfirming(true)} disabled={!canSend || sending}>{sending ? "Sending…" : "Send email →"}</button>
       ) : (
         <div className="cm-confirm-row">
-          <span>Send to <b>{to}</b>?</span>
+          <span>Send to <b>{to.join(", ")}</b>{cc.length ? <> (cc {cc.join(", ")})</> : null}{files.length ? <> with {files.length} attachment{files.length === 1 ? "" : "s"}</> : null}?</span>
           <div className="cm-confirm-btns">
             <button className="cm-secondary" onClick={() => setConfirming(false)}>Cancel</button>
             <button className="cm-send" onClick={doSend}>Yes, send</button>
@@ -404,11 +454,15 @@ function Compose() {
   );
 }
 
-const CSS = `
+const CSS = MAIL_PARTS_CSS + `
+.cm-reply-extras{display:flex;flex-direction:column;gap:10px;margin-top:10px;align-items:flex-start}
+.cm-reply-extras .mp-field{width:100%}
+.cm-ai-reply{margin-bottom:10px}
 .cm-modes{display:inline-flex;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:14px}
 .cm-mode{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--dim);background:transparent;border:none;border-radius:7px;padding:7px 14px;cursor:pointer}
 .cm-mode.on{color:#fff;background:var(--accent)}
 .cm-compose{display:flex;flex-direction:column;gap:12px}
+.cm-addcc{align-self:flex-start;font-size:12.5px}
 .cm-f{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 .cm-f-hint{text-transform:none;letter-spacing:0;color:var(--faint);font-size:10px}
 .cm-f input,.cm-f textarea{font-family:var(--sans);font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:11px 12px;outline:none;resize:vertical}
