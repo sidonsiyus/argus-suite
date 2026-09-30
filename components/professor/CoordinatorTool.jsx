@@ -8,7 +8,7 @@
  * sent in Outlook/webmail counts too.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchCoordinatorMail, fetchCoordinatorHistory, fetchMailBody, sendCoordinatorReply, markCoordinatorDone } from "@/lib/coordinator-mail";
+import { fetchCoordinatorMail, fetchCoordinatorHistory, fetchMailBody, sendCoordinatorReply, markCoordinatorDone, sendEmail, draftEmail } from "@/lib/coordinator-mail";
 
 function timeLabel(iso) {
   if (!iso) return "";
@@ -47,6 +47,7 @@ export default function CoordinatorTool({ onChanged }) {
   const [flash, setFlash] = useState("");
   const [histOpen, setHistOpen] = useState(false);
   const [history, setHistory] = useState(null); // { loading?, all?, error? }
+  const [mode, setMode] = useState("inbox"); // inbox | compose
   const replyRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -189,6 +190,11 @@ export default function CoordinatorTool({ onChanged }) {
         </button>
       </div>
 
+      <div className="cm-modes">
+        <button className={"cm-mode" + (mode === "inbox" ? " on" : "")} onClick={() => setMode("inbox")}>Inbox</button>
+        <button className={"cm-mode" + (mode === "compose" ? " on" : "")} onClick={() => setMode("compose")}>✎ Compose</button>
+      </div>
+
       {banner?.kind === "setup" && (
         <div className="cm-note setup">
           <b>Mailbox not connected yet.</b>
@@ -202,7 +208,9 @@ export default function CoordinatorTool({ onChanged }) {
       {banner?.kind === "progress" && <div className="cm-banner">{banner.text}</div>}
       {flash && <div className="cm-flash">{flash}</div>}
 
-      {configured && (total > 0 || selected) && (
+      {mode === "compose" && configured && <Compose />}
+
+      {mode === "inbox" && configured && (total > 0 || selected) && (
         <div className={"cm-grid" + (total > 0 ? "" : " nolist")}>
           {/* list of today's emails */}
           {total > 0 && (
@@ -292,7 +300,7 @@ export default function CoordinatorTool({ onChanged }) {
       )}
 
       {/* history — earlier coordinator emails you've already replied to */}
-      {configured && (
+      {mode === "inbox" && configured && (
         <div className="cm-history">
           <button className="cm-hist-toggle" onClick={toggleHistory} aria-expanded={histOpen}>
             <span className="cm-hist-caret">{histOpen ? "▾" : "▸"}</span>
@@ -329,7 +337,89 @@ export default function CoordinatorTool({ onChanged }) {
   );
 }
 
+/* ── compose: send an email to anyone, with optional AI draft ── */
+function Compose() {
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [bodyText, setBodyText] = useState("");
+  const [brief, setBrief] = useState("");
+  const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const [err, setErr] = useState("");
+  const [flash, setFlash] = useState("");
+  const [confirming, setConfirming] = useState(false);
+
+  async function draft() {
+    if (!brief.trim() || drafting) return;
+    setDrafting(true); setErr("");
+    try {
+      const d = await draftEmail({ brief: brief.trim() });
+      if (d.subject && !subject.trim()) setSubject(d.subject);
+      if (d.body) setBodyText(d.body);
+    } catch (e) { setErr(e?.message || "Draft failed."); }
+    finally { setDrafting(false); }
+  }
+
+  async function doSend() {
+    setConfirming(false); setSending(true); setErr(""); setFlash("");
+    try {
+      const r = await sendEmail({ to, subject, text: bodyText });
+      setFlash(`Sent to ${(r.to || []).join(", ")}.`);
+      setTo(""); setSubject(""); setBodyText(""); setBrief("");
+      setTimeout(() => setFlash(""), 4000);
+    } catch (e) { setErr(e?.message || "Could not send."); }
+    finally { setSending(false); }
+  }
+
+  const canSend = /\S+@\S+\.\S+/.test(to) && bodyText.trim().length > 0;
+
+  return (
+    <div className="cm-compose">
+      <label className="cm-f">To <span className="cm-f-hint">comma-separated</span>
+        <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@example.com, another@example.com" />
+      </label>
+      <div className="cm-ai">
+        <input className="cm-ai-in" value={brief} onChange={(e) => setBrief(e.target.value)}
+          placeholder="Keywords for an AI draft — e.g. remind AVI 2A, lab report due tomorrow, polite"
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); draft(); } }} />
+        <button className="cm-ai-btn" onClick={draft} disabled={drafting || !brief.trim()}>{drafting ? "Drafting…" : "✦ Draft with AI"}</button>
+      </div>
+      <label className="cm-f">Subject<input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" /></label>
+      <label className="cm-f">Message<textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} rows={9} placeholder="Write your email… (your signature is added automatically)" /></label>
+      <div className="cm-muted small cm-hint">Sends from your mailbox with your signature appended.</div>
+      {err && <div className="cm-note err small">{err}</div>}
+      {flash && <div className="cm-flash">{flash}</div>}
+      {!confirming ? (
+        <button className="cm-send" onClick={() => setConfirming(true)} disabled={!canSend || sending}>{sending ? "Sending…" : "Send email →"}</button>
+      ) : (
+        <div className="cm-confirm-row">
+          <span>Send to <b>{to}</b>?</span>
+          <div className="cm-confirm-btns">
+            <button className="cm-secondary" onClick={() => setConfirming(false)}>Cancel</button>
+            <button className="cm-send" onClick={doSend}>Yes, send</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CSS = `
+.cm-modes{display:inline-flex;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:14px}
+.cm-mode{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--dim);background:transparent;border:none;border-radius:7px;padding:7px 14px;cursor:pointer}
+.cm-mode.on{color:#fff;background:var(--accent)}
+.cm-compose{display:flex;flex-direction:column;gap:12px}
+.cm-f{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.cm-f-hint{text-transform:none;letter-spacing:0;color:var(--faint);font-size:10px}
+.cm-f input,.cm-f textarea{font-family:var(--sans);font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:11px 12px;outline:none;resize:vertical}
+.cm-f input:focus,.cm-f textarea:focus{border-color:var(--accent)}
+.cm-ai{display:flex;gap:8px;align-items:stretch;background:var(--accent-soft);border:1px dashed var(--accent);border-radius:11px;padding:8px}
+.cm-ai-in{flex:1;min-width:0;font-family:var(--sans);font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;outline:none}
+.cm-ai-in:focus{border-color:var(--accent)}
+.cm-ai-btn{flex:none;font-family:var(--sans);font-size:12.5px;font-weight:700;border:none;border-radius:8px;padding:9px 14px;background:var(--accent);color:#fff;cursor:pointer}
+.cm-ai-btn:disabled{opacity:.5;cursor:default}
+.cm-confirm-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:11px 13px;font-size:13.5px}
+.cm-confirm-btns{display:flex;gap:8px;margin-left:auto}
 .cm-root .prof-panel-h{align-items:center}
 .cm-addr{font-family:var(--mono);font-size:11px;color:var(--dim);background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:3px 10px}
 .cm-h-spacer{flex:1}
