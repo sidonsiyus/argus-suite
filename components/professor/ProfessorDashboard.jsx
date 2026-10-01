@@ -23,6 +23,8 @@ import TicketsTool from "@/components/professor/TicketsTool";
 import ChecklistRail from "@/components/professor/ChecklistRail";
 import JarvisPanel from "@/components/professor/JarvisPanel";
 import DayClose from "@/components/professor/DayClose";
+import { ReminderToasts } from "@/components/professor/ReminderUI";
+import { useReminders } from "@/lib/useReminders";
 import { fetchCoordinatorMail } from "@/lib/coordinator-mail";
 import { buildBriefing, speakJarvis, stopJarvis } from "@/lib/jarvis-voice";
 
@@ -167,6 +169,9 @@ export default function ProfessorDashboard({ session }) {
   }, []);
   useEffect(() => { reloadMail(); }, [reloadMail]);
 
+  // deadline reminders (toasts + optional desktop notification / FRIDAY voice)
+  const rem = useReminders({ schedule: todayEntries, coordinator: mailSummary });
+
   const hasSchedule = todayEntries.some((e) => e.subject || e.time);
   const scheduleText = hasSchedule
     ? `You have ${todayEntries.filter((e) => e.subject || e.time).length} classes today.`
@@ -274,10 +279,12 @@ export default function ProfessorDashboard({ session }) {
         {tab === "marks" && <MarksTool />}
         {tab === "tickets" && <TicketsTool />}
       </main>
-        <ChecklistRail schedule={todayEntries} coordinator={mailSummary} onGoto={goto} onDayClose={() => setDayCloseOpen(true)} refreshKey={railKey} />
+        <ChecklistRail schedule={todayEntries} coordinator={mailSummary} onGoto={goto} onDayClose={() => setDayCloseOpen(true)} refreshKey={railKey} rem={rem} />
       </div>
 
       <footer className="prof-foot">ARGUS · Instructor Console · made by sid</footer>
+
+      <ReminderToasts rem={rem} onGoto={goto} />
 
       {dayCloseOpen && <DayClose onClose={() => setDayCloseOpen(false)} onGoto={goto} onDone={() => { setRailKey((k) => k + 1); reloadMail(); }} />}
 

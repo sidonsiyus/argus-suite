@@ -6,11 +6,12 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { dayKey, prettyDay, isMissingTable } from "@/lib/professor";
+import { ReminderBell } from "@/components/professor/ReminderUI";
 import { fixedTasks, miraClasses, getTasks, setFixedDone, addManual, setDone, deleteTask } from "@/lib/tasks";
 
 const MIRA_LINK = "https://exploremira.com";
 
-export default function ChecklistRail({ schedule, coordinator, onGoto, onDayClose, refreshKey }) {
+export default function ChecklistRail({ schedule, coordinator, onGoto, onDayClose, refreshKey, rem }) {
   const day = dayKey();
   const [rows, setRows] = useState([]);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -100,7 +101,10 @@ export default function ChecklistRail({ schedule, coordinator, onGoto, onDayClos
           <div className="cl-title">Today's checklist</div>
           <div className="cl-sub">{prettyDay(day)}</div>
         </div>
-        <div className="cl-count">{doneCount}<span>/{total}</span></div>
+        <div className="cl-head-r">
+          {rem && <ReminderBell rem={rem} />}
+          <div className="cl-count">{doneCount}<span>/{total}</span></div>
+        </div>
       </div>
       {onDayClose && <button className="cl-dayclose" onClick={onDayClose}>✓ Close the day</button>}
 
@@ -184,6 +188,7 @@ const CSS = `
 .cl-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--dim);margin-top:2px}
 .cl-count{font-family:var(--serif);font-size:22px;font-weight:800;color:var(--accent);line-height:1}
 .cl-count span{font-size:13px;color:var(--faint)}
+.cl-head-r{display:flex;align-items:center;gap:10px}
 .cl-dayclose{width:100%;margin:0 0 12px;padding:9px 12px;font-family:var(--sans);font-size:12.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;cursor:pointer}
 .cl-dayclose:hover{background:var(--accent);color:#fff}
 .cl-setup{font-size:12px;color:var(--ink-soft);background:var(--accent-soft);border:1px solid var(--accent);border-radius:9px;padding:9px 10px;margin-bottom:10px}
