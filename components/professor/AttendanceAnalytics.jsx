@@ -9,7 +9,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRangeRecords, isPresentish } from "@/lib/attendance";
 import { dayKey, isMissingTable } from "@/lib/professor";
 import { registerCSV, registerDocx, defaulterLettersDocx, printRegister, distributionPng } from "@/lib/attendance-export";
-import { whatsappLink, fetchLiveAll, fetchLiveMonth } from "@/lib/attendance-sheets";
+import { whatsappLink, fetchLiveAll, fetchLiveMonth, isMonthSheet, monthLabel } from "@/lib/attendance-sheets";
+import { downloadAttendancePng } from "@/lib/attendance-png";
+import { getMhForm } from "@/lib/attendance-report";
 import { sendBulkEmails } from "@/lib/coordinator-mail";
 
 function monthStart() {
@@ -149,6 +151,13 @@ export default function AttendanceAnalytics({ roster }) {
   );
 }
 
+const fmtDay = (iso, withYear) => {
+  const d = new Date(iso + "T00:00:00");
+  return isNaN(d) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
+};
+const fmtRange = (a, b) => (a && b ? `${fmtDay(a, a.slice(0, 4) !== b.slice(0, 4))} – ${fmtDay(b, true)}` : "");
+const safeFile = (n) => String(n).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+
 /* ── live, read-only attendance from the department Google Sheet (day 1 → now) ── */
 function LiveSheet({ threshold = 75, roster = [] }) {
   const [loading, setLoading] = useState(true);
@@ -159,13 +168,14 @@ function LiveSheet({ threshold = 75, roster = [] }) {
   const [monthData, setMonthData] = useState(null);
   const [sortKey, setSortKey] = useState("pct");  // pct | sno | name
   const [thr, setThr] = useState(threshold);      // below-% cutoff for defaulters
+  const [exporting, setExporting] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true); setErr("");
     try {
       const d = await fetchLiveAll();
       setData(d);
-      setMonths(d.sheets || []);
+      setMonths((d.sheets || []).filter(isMonthSheet));
     } catch (e) { setErr(e?.message || "Could not reach the attendance sheet."); }
     finally { setLoading(false); }
   }, []);
@@ -186,7 +196,7 @@ function LiveSheet({ threshold = 75, roster = [] }) {
   const rows = useMemo(() => {
     const list = students.slice();
     const cmp = {
-      pct: (a, b) => a.pct - b.pct,
+      pct: (a, b) => (a.pct ?? 999) - (b.pct ?? 999), // no-data students last
       sno: (a, b) => (+a.sno || 0) - (+b.sno || 0),
       name: (a, b) => String(a.name).localeCompare(String(b.name)),
     };
@@ -196,9 +206,41 @@ function LiveSheet({ threshold = 75, roster = [] }) {
   const totHeld = students.reduce((s, a) => s + (a.held || 0), 0);
   const totAtt = students.reduce((s, a) => s + (a.total || 0), 0);
   const overall = totHeld ? Math.round((totAtt / totHeld) * 1000) / 10 : 0;
-  const defaulters = useMemo(() => students.filter((a) => a.pct < thr).sort((a, b) => a.pct - b.pct), [students, thr]);
+  const defaulters = useMemo(() => students.filter((a) => a.pct != null && a.pct < thr).sort((a, b) => a.pct - b.pct), [students, thr]);
   const below = defaulters.length;
-  const periodLabel = view === "all" ? "since 1 July 2026" : view.replace(/daily attendance for /i, "").trim();
+  const hasData = students.some((a) => a.pct != null);
+  const isAll = view === "all";
+  const periodLabel = isAll ? "since 1 July 2026" : monthLabel(view);
+  const range = isAll ? fmtRange(data?.firstDate, data?.lastDate) : fmtRange(monthData?.firstDate, monthData?.lastDate);
+  const daysRecorded = isAll ? (data?.daysRecorded || 0) : (monthData?.daysRecorded || 0);
+
+  // Export what's on screen (same period, same sort) as a shareable PNG.
+  async function exportPng() {
+    if (!hasData || exporting) return;
+    setExporting(true); setErr("");
+    try {
+      const form = getMhForm();
+      const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      await downloadAttendancePng(
+        safeFile(isAll ? `Attendance - since day 1 - ${new Date().toISOString().slice(0, 10)}.png` : `Attendance - ${monthLabel(view)}.png`),
+        {
+          title: isAll ? "Attendance since day 1" : `Attendance · ${monthLabel(view)}`,
+          subtitle: [form.programme, form.batch, form.institution].filter(Boolean).join("  ·  "),
+          students: rows,
+          threshold: thr,
+          stats: [
+            ["Students", students.length],
+            [`Below ${thr}%`, below],
+            ["Days recorded", daysRecorded || "—"],
+            ["Period", range || "—"],
+          ],
+          basisNote: "Attendance % = periods attended ÷ periods recorded · OD counts as present · from the department attendance sheet",
+          generatedLabel: `Generated ${today}`,
+        }
+      );
+    } catch (e) { setErr(e?.message || "Could not create the image."); }
+    finally { setExporting(false); }
+  }
 
   return (
     <div>
@@ -206,7 +248,7 @@ function LiveSheet({ threshold = 75, roster = [] }) {
         <label className="an-f">Period
           <select value={view} onChange={(e) => loadMonth(e.target.value)}>
             <option value="all">All months · from day 1</option>
-            {months.map((m) => <option key={m} value={m}>{m.replace(/daily attendance for /i, "").trim()}</option>)}
+            {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
           </select>
         </label>
         <label className="an-f">Sort
@@ -217,29 +259,32 @@ function LiveSheet({ threshold = 75, roster = [] }) {
         <label className="an-f">Below %<input type="number" min={0} max={100} value={thr} onChange={(e) => setThr(+e.target.value || 0)} className="an-th" /></label>
         <div className="an-bar-spacer" />
         <button className="prof-btn ghost" onClick={loadAll} disabled={loading}>{loading ? "Loading…" : "↻ Refresh"}</button>
+        <button className="prof-btn primary" onClick={exportPng} disabled={!hasData || loading || exporting} title="Download a shareable image of this view">{exporting ? "Creating…" : "⬇ Export PNG"}</button>
       </div>
 
       {err && <div className="att-err">{err}</div>}
 
       <div className="an-cards">
-        <div className="an-card"><div className="an-n">{overall}%</div><div className="an-l">Overall · since day 1</div></div>
+        <div className="an-card"><div className="an-n">{hasData ? `${overall}%` : "—"}</div><div className="an-l">{isAll ? "Overall · since day 1" : `Overall · ${monthLabel(view)}`}</div></div>
         <div className="an-card"><div className="an-n">{students.length}</div><div className="an-l">Students</div></div>
         <div className="an-card"><div className={"an-n" + (below ? " warn" : "")}>{below}</div><div className="an-l">Below {thr}%</div></div>
-        <div className="an-card"><div className="an-n">{view === "all" ? (data?.months || 0) : 1}</div><div className="an-l">{view === "all" ? "Months summed" : "Month"}</div></div>
+        <div className="an-card"><div className="an-n">{isAll ? (data?.months || 0) : daysRecorded}</div><div className="an-l">{isAll ? "Months summed" : "Days recorded"}</div></div>
       </div>
 
       {defaulters.length > 0 && <DefaulterMailer defaulters={defaulters} roster={roster} threshold={thr} period={periodLabel} />}
 
-      {loading && !students.length ? <div className="att-empty">Reading the department sheet…</div> : (
+      {!loading && students.length > 0 && !hasData ? (
+        <div className="att-empty">No attendance has been recorded for {isAll ? "this period" : monthLabel(view)} yet.</div>
+      ) : loading && !students.length ? <div className="att-empty">Reading the department sheet…</div> : (
         <div className="an-table">
           <div className="an-row sheet head"><span>#</span><span>Name</span><span>Reg</span><span>Attended</span><span>%</span></div>
           {rows.map((r, i) => (
-            <div className={"an-row sheet" + (r.pct < threshold ? " def" : "")} key={(r.reg || r.sno || i) + ""}>
+            <div className={"an-row sheet" + (r.pct != null && r.pct < thr ? " def" : "")} key={(r.reg || r.sno || i) + ""}>
               <span className="att-mono">{r.sno ?? ""}</span>
               <span className="an-name">{r.name}</span>
               <span className="att-mono">{r.reg ?? ""}</span>
-              <span className="att-mono">{r.total}/{r.held}</span>
-              <span className="an-pct">{r.pct}%</span>
+              <span className="att-mono">{r.held > 0 ? `${r.total}/${r.held}` : "—"}</span>
+              <span className="an-pct">{r.pct == null ? "—" : `${r.pct}%`}</span>
             </div>
           ))}
           {!rows.length && !loading && <div className="att-empty">No data returned from the sheet.</div>}
@@ -247,8 +292,8 @@ function LiveSheet({ threshold = 75, roster = [] }) {
       )}
 
       <div className="an-src-note">
-        Read-only, live from the department attendance Google Sheet · OD counts as present · overall % = periods attended ÷ periods held, from day 1 to the last marked date.
-        {data?.lastDate ? ` Last marked: ${data.lastDate}.` : ""}{data?.sheets?.length ? ` Sheets: ${data.sheets.join(" · ")}.` : ""}
+        Read-only, live from the department attendance Google Sheet · OD counts as present · % = periods attended ÷ periods recorded (days nobody was marked, like Sundays, aren't counted against anyone).
+        {data?.lastDate ? ` Last marked: ${data.lastDate}.` : ""}{months.length ? ` Months: ${months.map(monthLabel).join(" · ")}.` : ""}
       </div>
     </div>
   );
