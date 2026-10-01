@@ -22,6 +22,7 @@ import CoordinatorTool from "@/components/professor/CoordinatorTool";
 import TicketsTool from "@/components/professor/TicketsTool";
 import ChecklistRail from "@/components/professor/ChecklistRail";
 import JarvisPanel from "@/components/professor/JarvisPanel";
+import DayClose from "@/components/professor/DayClose";
 import { fetchCoordinatorMail } from "@/lib/coordinator-mail";
 import { buildBriefing, speakJarvis, stopJarvis } from "@/lib/jarvis-voice";
 
@@ -124,6 +125,8 @@ function Placeholder({ title, phase, points }) {
 
 export default function ProfessorDashboard({ session }) {
   const [tab, setTab] = useState("overview");
+  const [dayCloseOpen, setDayCloseOpen] = useState(false);
+  const [railKey, setRailKey] = useState(0); // bump to make the checklist rail reload
   const [attNav, setAttNav] = useState(null); // {view, token} → deep-link into an Attendance sub-tab
   const goto = useCallback((t, sub) => { setTab(t); if (sub) setAttNav({ view: sub, token: Date.now() }); }, []);
   const [now, setNow] = useState(() => new Date());
@@ -247,6 +250,7 @@ export default function ProfessorDashboard({ session }) {
               <div className="prof-hero-cta">
                 <button className="prof-btn primary" onClick={speak}>{speaking ? "◼ Stop" : "🔊 FRIDAY brief"}</button>
                 <button className="prof-btn ghost" onClick={() => setTab("schedule")}>Set today's schedule →</button>
+                <button className="prof-btn ghost" onClick={() => setDayCloseOpen(true)}>✓ Close the day</button>
               </div>
             </section>
 
@@ -270,10 +274,12 @@ export default function ProfessorDashboard({ session }) {
         {tab === "marks" && <MarksTool />}
         {tab === "tickets" && <TicketsTool />}
       </main>
-        <ChecklistRail schedule={todayEntries} coordinator={mailSummary} onGoto={goto} />
+        <ChecklistRail schedule={todayEntries} coordinator={mailSummary} onGoto={goto} onDayClose={() => setDayCloseOpen(true)} refreshKey={railKey} />
       </div>
 
       <footer className="prof-foot">ARGUS · Instructor Console · made by sid</footer>
+
+      {dayCloseOpen && <DayClose onClose={() => setDayCloseOpen(false)} onGoto={goto} onDone={() => { setRailKey((k) => k + 1); reloadMail(); }} />}
 
       <JarvisPanel />
     </div>

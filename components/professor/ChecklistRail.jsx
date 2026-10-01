@@ -10,7 +10,7 @@ import { fixedTasks, miraClasses, getTasks, setFixedDone, addManual, setDone, de
 
 const MIRA_LINK = "https://exploremira.com";
 
-export default function ChecklistRail({ schedule, coordinator, onGoto }) {
+export default function ChecklistRail({ schedule, coordinator, onGoto, onDayClose, refreshKey }) {
   const day = dayKey();
   const [rows, setRows] = useState([]);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -23,7 +23,7 @@ export default function ChecklistRail({ schedule, coordinator, onGoto }) {
     try { setRows(await getTasks(day)); setNeedsSetup(false); setErr(""); }
     catch (e) { if (isMissingTable(e)) setNeedsSetup(true); else setErr(e?.message || "Could not load tasks."); }
   }, [day]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const defs = useMemo(() => fixedTasks(), []);
   const byKey = useMemo(() => Object.fromEntries(rows.filter((r) => r.fixed_key).map((r) => [r.fixed_key, r])), [rows]);
@@ -102,6 +102,7 @@ export default function ChecklistRail({ schedule, coordinator, onGoto }) {
         </div>
         <div className="cl-count">{doneCount}<span>/{total}</span></div>
       </div>
+      {onDayClose && <button className="cl-dayclose" onClick={onDayClose}>✓ Close the day</button>}
 
       {needsSetup && (
         <div className="cl-setup">Run <code>20260925_tasks.sql</code> in Supabase to enable the checklist.</div>
@@ -183,6 +184,8 @@ const CSS = `
 .cl-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--dim);margin-top:2px}
 .cl-count{font-family:var(--serif);font-size:22px;font-weight:800;color:var(--accent);line-height:1}
 .cl-count span{font-size:13px;color:var(--faint)}
+.cl-dayclose{width:100%;margin:0 0 12px;padding:9px 12px;font-family:var(--sans);font-size:12.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;cursor:pointer}
+.cl-dayclose:hover{background:var(--accent);color:#fff}
 .cl-setup{font-size:12px;color:var(--ink-soft);background:var(--accent-soft);border:1px solid var(--accent);border-radius:9px;padding:9px 10px;margin-bottom:10px}
 .cl-setup code{font-family:var(--mono);font-size:11px}
 .cl-err{font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px}

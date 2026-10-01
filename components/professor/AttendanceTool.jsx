@@ -16,6 +16,10 @@ import { pushToSheet, getWriter, setWriter } from "@/lib/attendance-sheets";
 import { computeDayStats, attendanceMessage, mhCockpitDocx, getMhForm, setMhForm, MH_DEFAULTS } from "@/lib/attendance-report";
 import { planImport } from "@/lib/attendance-import";
 import { sendBulkEmails } from "@/lib/coordinator-mail";
+import {
+  ABSENTEE_CATS as AB_CATS, DEFAULT_ABSENTEE_CATS, ABSENTEE_DEFAULT_SUBJECT as AB_DEFAULT_SUBJECT,
+  ABSENTEE_DEFAULT_BODY as AB_DEFAULT_BODY, buildAbsenteeItems,
+} from "@/lib/absentee-mail";
 import AttendanceAnalytics from "@/components/professor/AttendanceAnalytics";
 
 export default function AttendanceTool({ nav } = {}) {
@@ -140,26 +144,8 @@ function ReportTab({ roster, onNeedsSetup }) {
 }
 
 /* ── email today's absentees (auth / unauth / etc.) via the mailbox ── */
-const AB_CATS = [
-  { k: "auth", label: "Authorized" },
-  { k: "unauth", label: "Unauthorized" },
-  { k: "groom", label: "Grooming" },
-  { k: "susp", label: "Suspended" },
-];
-const AB_STATUS_WORD = { auth: "Authorized (informed)", unauth: "Unauthorized", groom: "Grooming", susp: "Suspended" };
-const AB_DEFAULT_SUBJECT = "Attendance Notice — {date}";
-const AB_DEFAULT_BODY = `Dear {name},
-
-Our records show that you were marked absent ({status}) on {date}{reasonClause}.
-
-If you believe this is an error, please contact your class in-charge at the earliest. Kindly ensure your attendance is regularised.
-
-Regards,
-{incharge}
-{institution}`;
-
 function AbsenteeMailer({ day, roster, recs, form }) {
-  const [cats, setCats] = useState({ auth: true, unauth: true, groom: false, susp: false });
+  const [cats, setCats] = useState({ ...DEFAULT_ABSENTEE_CATS });
   const [subject, setSubject] = useState(AB_DEFAULT_SUBJECT);
   const [bodyTpl, setBodyTpl] = useState(AB_DEFAULT_BODY);
   const [busy, setBusy] = useState(false);
@@ -169,41 +155,23 @@ function AbsenteeMailer({ day, roster, recs, form }) {
   const [err, setErr] = useState("");
 
   const dateLabel = prettyDay(day);
-  const recipients = useMemo(() => {
-    const out = [];
-    roster.forEach((r) => {
-      const cat = recs[r.id]?.cat;
-      if (!cat || !cats[cat]) return;
-      out.push({ id: r.id, name: r.full_name, email: (r.email || "").trim(), status: AB_STATUS_WORD[cat] || "Absent", reason: recs[r.id]?.reason || "" });
-    });
-    return out;
-  }, [roster, recs, cats]);
-  const withEmail = recipients.filter((r) => r.email);
-  const missing = recipients.filter((r) => !r.email);
-
-  function build(r) {
-    const ctx = {
-      name: r.name, status: r.status, date: dateLabel,
-      reason: r.reason || "",
-      reasonClause: r.reason ? ` for the reason: ${r.reason}` : "",
-      incharge: form?.incharge || "Class In-charge",
-      institution: form?.institution || "",
-    };
-    const fill = (t) => String(t).replace(/\{(\w+)\}/g, (_, k) => (k in ctx ? ctx[k] : `{${k}}`));
-    return { to: r.email, subject: fill(subject).trim() || "Attendance Notice", text: fill(bodyTpl) };
-  }
+  const built = useMemo(
+    () => buildAbsenteeItems({ roster, recs, cats, dateLabel, form, subjectTpl: subject, bodyTpl }),
+    [roster, recs, cats, dateLabel, form, subject, bodyTpl]
+  );
+  const { withEmail, missing, items } = built;
 
   async function doSend() {
     setConfirming(false); setBusy(true); setErr(""); setResult(null);
     setProgress({ done: 0, total: withEmail.length });
     try {
-      const res = await sendBulkEmails(withEmail.map(build), (done, total) => setProgress({ done, total }));
+      const res = await sendBulkEmails(items, (done, total) => setProgress({ done, total }));
       setResult(res);
     } catch (e) { setErr(e?.message || "Could not send."); }
     finally { setBusy(false); }
   }
 
-  const preview = withEmail[0] ? build(withEmail[0]) : null;
+  const preview = items[0] || null;
 
   return (
     <section className="ab-mail">
