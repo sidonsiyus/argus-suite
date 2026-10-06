@@ -21,6 +21,7 @@ import {
 } from "@/lib/sessions/types";
 import { scheduleSessionAction } from "@/app/actions/sessions";
 import { useToast } from "@/components/ui/ToastProvider";
+import { AIDraftButton } from "@/components/ui/AIDraftButton";
 
 interface SimpleCadet {
   id: string;
@@ -306,9 +307,20 @@ export function ScheduleSessionModal({
 
           {/* 4. Purpose / Agenda */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-ink uppercase tracking-wider">
-              Purpose / Discussion Agenda
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink uppercase tracking-wider">
+                Purpose / Discussion Agenda
+              </label>
+              <AIDraftButton
+                mode="session_agenda"
+                currentText={focusArea}
+                context={{
+                  studentName: selectedCadet?.full_name,
+                  careerGoal: selectedCadet?.career_goal ?? undefined,
+                }}
+                onDraftApplied={(text) => setFocusArea(text)}
+              />
+            </div>
             <Input
               type="text"
               placeholder="e.g. DGCA CPL navigation review & flight hours logbook audit"
@@ -321,9 +333,20 @@ export function ScheduleSessionModal({
 
           {/* 5. Pre-Session Notes (Optional) */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-ink uppercase tracking-wider">
-              Initial Notes / Topics for Discussion
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink uppercase tracking-wider">
+                Initial Notes / Topics for Discussion
+              </label>
+              <AIDraftButton
+                mode="session_notes"
+                currentText={notes}
+                context={{
+                  studentName: selectedCadet?.full_name,
+                  focusArea: focusArea,
+                }}
+                onDraftApplied={(text) => setNotes(text)}
+              />
+            </div>
             <textarea
               rows={3}
               placeholder="Key questions or areas to prepare before meeting..."

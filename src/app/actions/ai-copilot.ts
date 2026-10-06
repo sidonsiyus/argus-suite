@@ -6,6 +6,7 @@ import {
   executeApproveRecommendation,
   executeEditAndApproveRecommendation,
   executeRejectRecommendation,
+  executeDraftWithAI,
 } from "@/lib/data/ai-copilot";
 
 /**
@@ -219,3 +220,88 @@ export async function rejectRecommendationAction(
     };
   }
 }
+
+/**
+ * Server Action: Draft or refine mentoring text / Plan of Action using AI.
+ * Grounded in keywords or rough notes typed by the mentor.
+ */
+export async function draftWithAIAction(payload: {
+  mode:
+    | "session_notes"
+    | "session_outcome"
+    | "session_agenda"
+    | "session_follow_up"
+    | "poa_field"
+    | "poa_full_plan";
+  text: string;
+  context?: {
+    studentName?: string;
+    careerGoal?: string;
+    sessionType?: string;
+    fieldLabel?: string;
+    currentTitle?: string;
+  };
+}) {
+  try {
+    if (!payload.text || typeof payload.text !== "string" || payload.text.trim().length === 0) {
+      return {
+        success: false,
+        error: "Please enter some keywords or text first to draft with AI.",
+      };
+    }
+
+    const result = await executeDraftWithAI({
+      mode: payload.mode,
+      text: payload.text.trim(),
+      context: payload.context,
+    });
+
+    return {
+      success: true,
+      draft: result.draft,
+      details: result.details,
+    };
+  } catch (err: any) {
+    console.error("AI Draft error (server-side):", {
+      code: err?.code,
+      message: err?.message,
+    });
+
+    if (err?.code === "MISSING_CONFIGURATION" || err?.message?.includes("AI service is not configured")) {
+      return {
+        success: false,
+        error: "AI service is not configured. OPENROUTER_API_KEY is missing.",
+      };
+    }
+    if (err?.code === "OPENROUTER_CREDIT_ERROR" || err?.message?.includes("credit")) {
+      return {
+        success: false,
+        error: "AI credit limit reached. Please check your OpenRouter credits balance.",
+      };
+    }
+    if (err?.code === "OPENROUTER_AUTH_ERROR" || err?.message?.includes("authentication failed")) {
+      return {
+        success: false,
+        error: "AI authentication failed. Please verify OPENROUTER_API_KEY.",
+      };
+    }
+    if (err?.code === "OPENROUTER_RATE_LIMIT" || err?.message?.includes("rate limit")) {
+      return {
+        success: false,
+        error: "AI rate limit reached. Please wait a moment and try again.",
+      };
+    }
+    if (err?.code === "OPENROUTER_TIMEOUT" || err?.message?.includes("timed out")) {
+      return {
+        success: false,
+        error: "AI generation timed out. Please try again with shorter keywords.",
+      };
+    }
+
+    return {
+      success: false,
+      error: err?.message || "Failed to generate AI draft. Please try again.",
+    };
+  }
+}
+

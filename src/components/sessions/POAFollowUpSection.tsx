@@ -37,6 +37,7 @@ import { ReopenPOAModal } from "@/components/student-detail/ReopenPOAModal";
 import { CompletePOAModal } from "@/components/student-detail/CompletePOAModal";
 import { DeletePOAModal } from "@/components/student-detail/DeletePOAModal";
 import { POAHistoryModal } from "@/components/student-detail/POAHistoryModal";
+import { AIDraftButton } from "@/components/ui/AIDraftButton";
 
 interface POAFollowUpSectionProps {
   studentId: string;
@@ -501,7 +502,20 @@ export function POAFollowUpSection({
                   {isFeedbackOpen ? (
                     <div className="space-y-2 p-2.5 rounded-lg bg-surface border border-border">
                       <div className="flex items-center justify-between text-xs font-semibold text-ink">
-                        <span>Update Mentor Guidance / Feedback</span>
+                        <div className="flex items-center gap-2">
+                          <span>Update Mentor Guidance / Feedback</span>
+                          <AIDraftButton
+                            mode="poa_field"
+                            currentText={feedbackText}
+                            context={{
+                              poaFieldName: "Mentor Feedback & Guidance",
+                              poaTitle: poa.title,
+                              studentName: studentName,
+                              targetOutcome: poa.target_outcome,
+                            }}
+                            onDraftApplied={(text) => setFeedbackText(text)}
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={() => setEditingFeedbackPoaId(null)}

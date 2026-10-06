@@ -7,6 +7,8 @@ import {
   CohortSynthesisResult,
   CopilotAnalysisResult,
   copilotAnalysisSchema,
+  AIDraftPayload,
+  AIDraftResult,
 } from "../types";
 import { COPILOT_SYSTEM_PROMPT, buildCopilotUserPrompt } from "../prompts";
 import { validateEvidenceAgainstContext } from "../evidence-validator";
@@ -171,5 +173,15 @@ Return JSON with:
 
     const user = JSON.stringify(summary, null, 2);
     return await this.callGroq(system, user);
+  }
+
+  async draftContent(payload: AIDraftPayload): Promise<AIDraftResult> {
+    const system = `You are MENTOR OS AI Assistant for aeronautical faculty mentors. Refine keywords into a professional draft. Return JSON with key "draft".`;
+    const user = `Keywords: ${payload.text}\nMode: ${payload.mode}`;
+    const res = await this.callGroq(system, user);
+    return {
+      draft: res?.draft || "",
+      details: res,
+    };
   }
 }

@@ -19,6 +19,7 @@ import { editPlanOfActionAction } from "@/app/actions/poa";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { AIDraftButton } from "@/components/ui/AIDraftButton";
 
 interface TaskItemInput {
   id?: string;
@@ -252,9 +253,21 @@ export function EditPOAModal({
 
           {/* Target Outcome */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-ink uppercase tracking-wider">
-              Target Outcome Statement <span className="text-rose-500">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink uppercase tracking-wider">
+                Target Outcome Statement <span className="text-rose-500">*</span>
+              </label>
+              <AIDraftButton
+                mode="poa_field"
+                currentText={targetOutcome}
+                context={{
+                  poaFieldName: "Target Outcome",
+                  poaTitle: title,
+                  studentName: studentName,
+                }}
+                onDraftApplied={(text) => setTargetOutcome(text)}
+              />
+            </div>
             <textarea
               rows={2}
               required
@@ -315,9 +328,22 @@ export function EditPOAModal({
           {/* Instructions & Mentor Guidance */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-ink uppercase tracking-wider">
-                Mentor Instructions
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-ink uppercase tracking-wider">
+                  Mentor Instructions
+                </label>
+                <AIDraftButton
+                  mode="poa_field"
+                  currentText={textInstructions}
+                  context={{
+                    poaFieldName: "Mentor Instructions",
+                    poaTitle: title,
+                    studentName: studentName,
+                    targetOutcome: targetOutcome,
+                  }}
+                  onDraftApplied={(text) => setTextInstructions(text)}
+                />
+              </div>
               <textarea
                 rows={3}
                 value={textInstructions}
@@ -328,10 +354,23 @@ export function EditPOAModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-ink uppercase tracking-wider flex items-center gap-1">
-                <MessageSquare className="w-3.5 h-3.5 text-accent-emerald" />
-                <span>Mentor Feedback</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-ink uppercase tracking-wider flex items-center gap-1">
+                  <MessageSquare className="w-3.5 h-3.5 text-accent-emerald" />
+                  <span>Mentor Feedback</span>
+                </label>
+                <AIDraftButton
+                  mode="poa_field"
+                  currentText={mentorFeedback}
+                  context={{
+                    poaFieldName: "Mentor Feedback",
+                    poaTitle: title,
+                    studentName: studentName,
+                    targetOutcome: targetOutcome,
+                  }}
+                  onDraftApplied={(text) => setMentorFeedback(text)}
+                />
+              </div>
               <textarea
                 rows={3}
                 value={mentorFeedback}

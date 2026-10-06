@@ -7,6 +7,8 @@ import {
   CohortSynthesisResult,
   CopilotAnalysisResult,
   copilotAnalysisSchema,
+  AIDraftPayload,
+  AIDraftResult,
 } from "../types";
 import { COPILOT_SYSTEM_PROMPT, buildCopilotUserPrompt } from "../prompts";
 import { validateEvidenceAgainstContext } from "../evidence-validator";
@@ -226,5 +228,77 @@ Return JSON with:
 
     const user = JSON.stringify(summary, null, 2);
     return await this.callOpenRouter(system, user);
+  }
+
+  async draftContent(payload: AIDraftPayload): Promise<AIDraftResult> {
+    const { mode, text, context } = payload;
+    let system = "";
+    let user = `Keywords / Rough Input: ${text}\n`;
+    if (context?.studentName) user += `Cadet Name: ${context.studentName}\n`;
+    if (context?.careerGoal) user += `Primary Career Goal: ${context.careerGoal}\n`;
+    if (context?.sessionType) user += `Session Type: ${context.sessionType}\n`;
+    if (context?.currentTitle) user += `Current Plan Title: ${context.currentTitle}\n`;
+    if (context?.fieldLabel) user += `Target Field: ${context.fieldLabel}\n`;
+
+    switch (mode) {
+      case "session_notes":
+        system = `You are MENTOR OS AI Assistant for aeronautical faculty mentors. The mentor has typed rough keywords, fragments, or observations from a student mentoring session.
+Transform these keywords into professional, structured, objective mentoring discussion notes and observations (1-2 clear paragraphs or structured bullet points).
+Maintain an objective, constructive academic aviation tone. Strictly ground the draft in the provided keywords without fabricating imaginary grades or biographical details.
+Return JSON with key "draft" containing the refined text string.`;
+        break;
+
+      case "session_outcome":
+        system = `You are MENTOR OS AI Assistant for aeronautical faculty mentors. The mentor has typed rough keywords for session outcomes and agreed action items.
+Transform these into clear, actionable, measurable next steps and outcomes (2-3 numbered or bulleted items).
+Return JSON with key "draft" containing the refined text string.`;
+        break;
+
+      case "session_agenda":
+        system = `You are MENTOR OS AI Assistant for aeronautical faculty mentors scheduling a session. The mentor has typed keywords for the discussion agenda or purpose.
+Transform these into a concise, professional session agenda (1-2 sentences or clear discussion points).
+Return JSON with key "draft" containing the refined text string.`;
+        break;
+
+      case "session_follow_up":
+        system = `You are MENTOR OS AI Assistant for aeronautical faculty mentors. The mentor has typed keywords for the follow-up meeting notes or review focus.
+Transform these into a concise, professional follow-up focus description (1-2 sentences).
+Return JSON with key "draft" containing the refined text string.`;
+        break;
+
+      case "poa_field":
+        system = `You are MENTOR OS AI Assistant for aeronautical faculty mentors writing a Plan of Action (POA) milestone for an aviation cadet. The mentor has typed keywords for the field: "${context?.fieldLabel || 'Plan Details'}".
+Transform these keywords into clear, professional, measurable content appropriate for this field in an aviation curriculum.
+Return JSON with key "draft" containing the refined text string.`;
+        break;
+
+      case "poa_full_plan":
+        system = `You are MENTOR OS AI Assistant for aeronautical faculty mentors. The mentor has entered keywords or a brief topic for an aeronautical cadet's Plan of Action (POA).
+Generate a comprehensive, concrete Plan of Action tailored for aviation education.
+Return JSON with:
+- "title": string (Clear, professional plan title, max 80 chars)
+- "objective": string (Core developmental objective, 1-2 sentences)
+- "expectedOutcome": string (Measurable result or success criteria upon completion, 1-2 sentences)
+- "textInstructions": string (Clear, actionable instructions from faculty mentor to cadet, 1-2 sentences)
+- "tasks": array of 3 to 5 strings (Concrete, actionable subtasks/milestones for cadet checklist)
+- "draft": string (Brief summary of the plan)`;
+        break;
+
+      default:
+        system = `You are MENTOR OS AI Assistant for aeronautical faculty mentors. Refine the given keywords or text into a professional, clear draft. Return JSON with key "draft".`;
+        break;
+    }
+
+    const res = await this.callOpenRouter(system, user);
+    return {
+      draft: res?.draft || res?.title || "",
+      details: {
+        title: res?.title,
+        objective: res?.objective,
+        expectedOutcome: res?.expectedOutcome,
+        textInstructions: res?.textInstructions,
+        tasks: Array.isArray(res?.tasks) ? res.tasks : undefined,
+      },
+    };
   }
 }

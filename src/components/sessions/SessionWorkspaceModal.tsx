@@ -23,6 +23,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { POAFollowUpSection } from "./POAFollowUpSection";
 import { CreatePOAModal } from "@/components/student-detail/CreatePOAModal";
 import { DeleteSessionModal } from "./DeleteSessionModal";
+import { AIDraftButton } from "@/components/ui/AIDraftButton";
 
 interface SimpleMilestone {
   id: string;
@@ -204,10 +205,21 @@ export function SessionWorkspaceModal({
 
           {/* 1. Discussion & Mentor Observations */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-ink uppercase tracking-wider flex items-center justify-between">
-              <span>Discussion Notes & Mentor Observations</span>
-              <span className="text-[10px] text-ink-muted font-normal">Confidential faculty notes</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink uppercase tracking-wider flex items-center gap-2">
+                <span>Discussion Notes & Mentor Observations</span>
+                <span className="text-[10px] text-ink-muted font-normal">Confidential faculty notes</span>
+              </label>
+              <AIDraftButton
+                mode="session_notes"
+                currentText={observations}
+                context={{
+                  studentName: session.student_name,
+                  focusArea: session.focus_area,
+                }}
+                onDraftApplied={(text) => setObservations(text)}
+              />
+            </div>
             <textarea
               rows={4}
               required
@@ -220,9 +232,21 @@ export function SessionWorkspaceModal({
 
           {/* 2. Outcome & Action Items */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-ink uppercase tracking-wider">
-              Session Outcome & Agreed Action Items
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink uppercase tracking-wider">
+                Session Outcome & Agreed Action Items
+              </label>
+              <AIDraftButton
+                mode="session_outcome"
+                currentText={outcome}
+                context={{
+                  studentName: session.student_name,
+                  focusArea: session.focus_area,
+                  observationsText: observations,
+                }}
+                onDraftApplied={(text) => setOutcome(text)}
+              />
+            </div>
             <textarea
               rows={2}
               placeholder="e.g. Cadet to complete 3 navigation problem sets; verify DGCA medical renewal date..."
@@ -298,9 +322,21 @@ export function SessionWorkspaceModal({
                   <p className="text-[10px] text-ink-muted">When mentor and cadet meet again to evaluate progress</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] text-ink font-medium">
-                    Follow-Up Review Deliverable / Focus
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] text-ink font-medium">
+                      Follow-Up Review Deliverable / Focus
+                    </label>
+                    <AIDraftButton
+                      mode="session_follow_up"
+                      currentText={followUpNotes}
+                      context={{
+                        studentName: session.student_name,
+                        focusArea: session.focus_area,
+                        outcomeText: outcome,
+                      }}
+                      onDraftApplied={(text) => setFollowUpNotes(text)}
+                    />
+                  </div>
                   <Input
                     type="text"
                     placeholder="Inspect completed tasks, verify flight logbook..."

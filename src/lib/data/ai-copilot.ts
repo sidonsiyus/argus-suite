@@ -411,3 +411,29 @@ export async function executeRejectRecommendation(
   return { success: true };
 }
 
+// 7. Execute AI Draft / Text Expansion
+export async function executeDraftWithAI(payload: {
+  mode:
+    | "session_notes"
+    | "session_outcome"
+    | "session_agenda"
+    | "session_follow_up"
+    | "poa_field"
+    | "poa_full_plan";
+  text: string;
+  context?: {
+    studentName?: string;
+    careerGoal?: string;
+    sessionType?: string;
+    fieldLabel?: string;
+    currentTitle?: string;
+  };
+}) {
+  await getAuthenticatedFaculty();
+  const provider = getAIProvider();
+  if (!provider.draftContent) {
+    throw new Error("Current AI provider does not support drafting content.");
+  }
+  return await provider.draftContent(payload);
+}
+

@@ -11,9 +11,11 @@ import {
   Loader2,
   FileCheck,
   Compass,
+  Sparkles,
 } from "lucide-react";
 import { createPlanOfActionAction } from "@/app/actions/poa";
 import { useToast } from "@/components/ui/ToastProvider";
+import { AIDraftButton } from "@/components/ui/AIDraftButton";
 
 interface CreatePOAModalProps {
   isOpen: boolean;
@@ -140,11 +142,57 @@ export function CreatePOAModal({
             </div>
           )}
 
+          {/* AI Plan Generator Banner */}
+          <div className="p-3 rounded-xl bg-gradient-to-r from-accent-emerald/10 via-emerald-500/5 to-transparent border border-accent-emerald/25 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-accent-emerald/20 text-accent-emerald flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-ink">Draft Entire Plan of Action with AI</p>
+                <p className="text-[11px] text-ink-muted">Enter keywords to auto-generate title, objective, outcomes, and task list.</p>
+              </div>
+            </div>
+            <AIDraftButton
+              mode="poa_full_plan"
+              currentText={title}
+              context={{
+                studentName: studentName,
+                careerGoal: careerGoalTitle,
+              }}
+              onDraftApplied={(text, structuredData) => {
+                if (structuredData) {
+                  if (structuredData.title) setTitle(structuredData.title);
+                  if (structuredData.objective) setObjective(structuredData.objective);
+                  if (structuredData.expectedOutcome) setExpectedOutcome(structuredData.expectedOutcome);
+                  if (structuredData.textInstructions) setTextInstructions(structuredData.textInstructions);
+                  if (Array.isArray(structuredData.tasks) && structuredData.tasks.length > 0) {
+                    setTasks(structuredData.tasks);
+                  }
+                } else if (text) {
+                  setTitle(text);
+                }
+              }}
+            />
+          </div>
+
           {/* Title */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-ink">
-              Plan Title <span className="text-rose-500">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink">
+                Plan Title <span className="text-rose-500">*</span>
+              </label>
+              <AIDraftButton
+                mode="poa_field"
+                currentText={title}
+                context={{
+                  poaFieldName: "Plan Title",
+                  studentName: studentName,
+                  careerGoal: careerGoalTitle,
+                }}
+                onDraftApplied={(text) => setTitle(text)}
+              />
+            </div>
             <input
               type="text"
               required
@@ -158,7 +206,19 @@ export function CreatePOAModal({
           {/* Objective & Expected Outcome */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-ink">Objective</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-ink">Objective</label>
+                <AIDraftButton
+                  mode="poa_field"
+                  currentText={objective}
+                  context={{
+                    poaFieldName: "Objective",
+                    poaTitle: title,
+                    studentName: studentName,
+                  }}
+                  onDraftApplied={(text) => setObjective(text)}
+                />
+              </div>
               <input
                 type="text"
                 value={objective}
@@ -168,9 +228,21 @@ export function CreatePOAModal({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-ink">
-                Expected Outcome <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-ink">
+                  Expected Outcome <span className="text-rose-500">*</span>
+                </label>
+                <AIDraftButton
+                  mode="poa_field"
+                  currentText={expectedOutcome}
+                  context={{
+                    poaFieldName: "Expected Outcome",
+                    poaTitle: title,
+                    studentName: studentName,
+                  }}
+                  onDraftApplied={(text) => setExpectedOutcome(text)}
+                />
+              </div>
               <input
                 type="text"
                 required
@@ -210,7 +282,20 @@ export function CreatePOAModal({
 
           {/* Plain Text Mentor Instructions */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-ink">Mentor Instructions (Plain Text)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-ink">Mentor Instructions (Plain Text)</label>
+              <AIDraftButton
+                mode="poa_field"
+                currentText={textInstructions}
+                context={{
+                  poaFieldName: "Mentor Instructions",
+                  poaTitle: title,
+                  studentName: studentName,
+                  targetOutcome: expectedOutcome,
+                }}
+                onDraftApplied={(text) => setTextInstructions(text)}
+              />
+            </div>
             <textarea
               rows={2}
               value={textInstructions}

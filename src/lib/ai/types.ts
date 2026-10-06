@@ -112,6 +112,35 @@ export interface CohortSynthesisResult {
   curriculumGaps: string[];
 }
 
+export interface AIDraftPayload {
+  mode:
+    | "session_notes"
+    | "session_outcome"
+    | "session_agenda"
+    | "session_follow_up"
+    | "poa_field"
+    | "poa_full_plan";
+  text: string;
+  context?: {
+    studentName?: string;
+    careerGoal?: string;
+    sessionType?: string;
+    fieldLabel?: string;
+    currentTitle?: string;
+  };
+}
+
+export interface AIDraftResult {
+  draft: string;
+  details?: {
+    title?: string;
+    objective?: string;
+    expectedOutcome?: string;
+    textInstructions?: string;
+    tasks?: string[];
+  };
+}
+
 export interface AIProvider {
   name: 'openrouter' | 'groq' | 'anthropic' | 'openai' | 'gemini';
   modelName?: string;
@@ -119,4 +148,5 @@ export interface AIProvider {
   generatePOA(context: SanitizedStudentContext): Promise<SuggestedAction[]>;
   generateImprovementPlan(context: SanitizedStudentContext): Promise<ImprovementPlanResult>;
   synthesizeCohort(summary: CohortSummaryPayload): Promise<CohortSynthesisResult>;
+  draftContent?(payload: AIDraftPayload): Promise<AIDraftResult>;
 }
