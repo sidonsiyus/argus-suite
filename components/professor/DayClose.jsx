@@ -7,18 +7,17 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { dayKey } from "@/lib/professor";
-import { loadDayCloseState, runDayClose, digestEmail } from "@/lib/day-close";
+import { loadDayCloseState, runDayClose } from "@/lib/day-close";
 import { ABSENTEE_CATS, DEFAULT_ABSENTEE_CATS, buildAbsenteeItems } from "@/lib/absentee-mail";
 
 const STEP_TITLES = {
   sheet: "Push to the Google Sheet",
   absentees: "Email the absentees",
-  digest: "Email the attendance digest to the coordinator",
   tick: "Tick “Send today’s attendance report message”",
   lock: "Lock the day",
 };
-const ORDER = ["sheet", "absentees", "digest", "tick", "lock"];
-const SHORT = { sheet: "sheet", absentees: "absentee emails", digest: "coordinator digest", tick: "checklist", lock: "locked" };
+const ORDER = ["sheet", "absentees", "tick", "lock"];
+const SHORT = { sheet: "sheet", absentees: "absentee emails", tick: "checklist", lock: "locked" };
 
 const timeOf = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); };
 
@@ -30,7 +29,6 @@ export default function DayClose({ onClose, onGoto, onDone }) {
   const [cats, setCats] = useState({ ...DEFAULT_ABSENTEE_CATS });
   const [phase, setPhase] = useState("plan"); // plan | confirm | running | done
   const [results, setResults] = useState({});
-  const [showDigest, setShowDigest] = useState(false);
 
   const load = useCallback(async () => {
     setErr("");
@@ -42,8 +40,7 @@ export default function DayClose({ onClose, onGoto, onDone }) {
       setPick({
         sheet: s.saved && s.sheetReady && !was("sheet"),
         absentees: s.saved && s.mailConfigured && !was("absentees"),
-        digest: s.saved && s.mailConfigured && !!s.coordinator && !s.digestAlreadyTicked && !was("digest"),
-        tick: s.saved && !s.digestAlreadyTicked && !was("tick"),
+        tick: s.saved && !s.alreadyTicked && !was("tick"),
         lock: s.saved && !s.locked && !was("lock"),
       });
     } catch (e) { setErr(e?.message || "Could not load today's attendance."); }
@@ -60,24 +57,21 @@ export default function DayClose({ onClose, onGoto, onDone }) {
     () => (st ? buildAbsenteeItems({ roster: st.roster, recs: st.recs, cats, dateLabel: st.dayLabel, form: st.form }) : null),
     [st, cats]
   );
-  const digest = useMemo(() => (st ? digestEmail({ day, roster: st.roster, recs: st.recs, form: st.form }) : null), [st, day]);
 
   // Why a step can't run (null = it can).
   const blocked = useMemo(() => {
     if (!st) return {};
-    if (!st.saved) { const why = "Today's attendance hasn't been saved yet."; return { sheet: why, absentees: why, digest: why, tick: why, lock: why }; }
-    const digestWhy = !st.mailConfigured ? "x" : !st.coordinator ? "x" : null;
+    if (!st.saved) { const why = "Today's attendance hasn't been saved yet."; return { sheet: why, absentees: why, tick: why, lock: why }; }
     return {
       sheet: st.sheetReady ? null : "The Google Sheet isn't connected (Attendance → Mark day → ⚙).",
       absentees: !st.mailConfigured ? "The mailbox isn't connected." : !built.items.length ? (built.missing.length ? "None of the absentees has an email on file." : "No one is marked in the chosen categories.") : null,
-      digest: !st.mailConfigured ? "The mailbox isn't connected." : !st.coordinator ? "No coordinator address is configured." : null,
-      tick: st.digestAlreadyTicked ? "Already ticked." : (!pick.digest || !!digestWhy) ? "Needs the digest step (above) to be sent." : null,
+      tick: st.alreadyTicked ? "Already ticked." : null,
       lock: st.locked ? "Already locked." : null,
     };
-  }, [st, built, pick.digest]);
+  }, [st, built]);
 
   const chosen = ORDER.filter((k) => pick[k] && !blocked[k]);
-  const emailCount = (pick.absentees && !blocked.absentees ? built.items.length : 0) + (pick.digest && !blocked.digest ? 1 : 0);
+  const emailCount = (pick.absentees && !blocked.absentees ? built.items.length : 0);
 
   async function run() {
     setPhase("running"); setResults({});
@@ -143,8 +137,7 @@ export default function DayClose({ onClose, onGoto, onDone }) {
                         : why ? why
                         : k === "sheet" ? `${st.sheetName}: ${st.stats.present}P · ${st.stats.absent}A · ${st.stats.od}OD`
                         : k === "absentees" ? `${built.items.length} email${built.items.length === 1 ? "" : "s"}${built.missing.length ? ` · ${built.missing.length} skipped (no email)` : ""}`
-                        : k === "digest" ? `to ${st.coordinator}`
-                        : k === "tick" ? "needs the digest to go out" : "no further edits after this"}
+                        : k === "tick" ? "marks today's report message as done" : "no further edits after this"}
                     </div>
                     {k === "absentees" && !why && phase === "plan" && (
                       <div className="dc-cats">
@@ -154,12 +147,6 @@ export default function DayClose({ onClose, onGoto, onDone }) {
                           </label>
                         ))}
                       </div>
-                    )}
-                    {k === "digest" && !why && phase === "plan" && (
-                      <>
-                        <button className="dc-link" onClick={() => setShowDigest((v) => !v)}>{showDigest ? "hide preview" : "preview the email"}</button>
-                        {showDigest && <pre className="dc-pre">{digest.subject + "\n\n" + digest.text}</pre>}
-                      </>
                     )}
                   </div>
                 );
